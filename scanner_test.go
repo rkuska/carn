@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+const testTextHello = "hello"
+
 func findTestJSONL(t *testing.T) string {
 	t.Helper()
 	home, err := os.UserHomeDir()
@@ -169,15 +171,15 @@ func TestTruncate(t *testing.T) {
 	}{
 		{
 			name:   "short string",
-			input:  "hello",
+			input:  testTextHello,
 			maxLen: 10,
-			want:   "hello",
+			want:   testTextHello,
 		},
 		{
 			name:   "exact length",
-			input:  "hello",
+			input:  testTextHello,
 			maxLen: 5,
-			want:   "hello",
+			want:   testTextHello,
 		},
 		{
 			name:   "truncated",
@@ -483,8 +485,8 @@ func TestParseUserMessageArrayContent(t *testing.T) {
 		if !ok {
 			t.Fatal("expected ok=true")
 		}
-		if msg.text != "hello" {
-			t.Errorf("text = %q, want %q", msg.text, "hello")
+		if msg.text != testTextHello {
+			t.Errorf("text = %q, want %q", msg.text, testTextHello)
 		}
 	})
 

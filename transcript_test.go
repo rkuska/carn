@@ -338,6 +338,65 @@ func TestRenderPreviewAgentDivider(t *testing.T) {
 	}
 }
 
+func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Do something"},
+			{role: roleAssistant, text: "Sure", toolCalls: []toolCall{
+				{name: "Read", summary: "/path/file.go"},
+			}},
+			{role: roleUser, toolResults: []toolResult{
+				{toolUseID: "toolu_abc", content: "file contents"},
+			}},
+			{role: roleAssistant, text: "Done!"},
+		},
+	}
+
+	t.Run("hidden when showToolResults false", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{})
+		youCount := strings.Count(result, "## You")
+		if youCount != 1 {
+			t.Errorf("expected 1 You heading, got %d\nresult:\n%s", youCount, result)
+		}
+	})
+
+	t.Run("shown when showToolResults true", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{showToolResults: true})
+		youCount := strings.Count(result, "## You")
+		if youCount != 2 {
+			t.Errorf("expected 2 You headings, got %d\nresult:\n%s", youCount, result)
+		}
+		if !strings.Contains(result, "file contents") {
+			t.Errorf("tool result content should be visible\nresult:\n%s", result)
+		}
+	})
+}
+
+func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Question"},
+			{role: roleAssistant, text: "Answer"},
+			{role: roleUser, text: "", toolResults: []toolResult{
+				{toolUseID: "toolu_abc", content: "result"},
+			}},
+			{role: roleAssistant, text: "Final"},
+		},
+	}
+
+	result := renderPreview(session, 10, 80)
+	youCount := strings.Count(result, "▶ You")
+	if youCount != 1 {
+		t.Errorf("expected 1 You in preview, got %d\nresult:\n%s", youCount, result)
+	}
+}
+
 func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 	t.Parallel()
 
