@@ -12,11 +12,11 @@ func newDelegate() list.DefaultDelegate {
 	d.SetHeight(3)
 
 	d.Styles.NormalTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#777777")).
+		Foreground(colorNormalTitle).
 		Padding(0, 0, 0, 2)
 
 	d.Styles.NormalDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#dddddd")).
+		Foreground(colorNormalDesc).
 		Padding(0, 0, 0, 2)
 
 	d.Styles.FilterMatch = lipgloss.NewStyle().
