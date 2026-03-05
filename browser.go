@@ -51,6 +51,25 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			browserKeys.Enter,
+			browserKeys.Tab,
+			browserKeys.DeepSearch,
+			browserKeys.Copy,
+		}
+	}
+	l.AdditionalFullHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			browserKeys.Enter,
+			browserKeys.Tab,
+			browserKeys.DeepSearch,
+			browserKeys.Resume,
+			browserKeys.Copy,
+			browserKeys.Export,
+			browserKeys.Editor,
+		}
+	}
 
 	vp := viewport.New()
 

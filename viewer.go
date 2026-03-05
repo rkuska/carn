@@ -25,6 +25,7 @@ type viewerModel struct {
 	currentMatch  int
 	statusText    string
 	rawContent    string // unrendered transcript
+	showHelp      bool
 }
 
 func newViewerModel(session sessionFull, width, height int) viewerModel {
@@ -147,6 +148,9 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 
 	case key.Matches(msg, viewerKeys.Resume):
 		return resumeSessionCmd(m.session.meta.id)
+
+	case key.Matches(msg, viewerKeys.Help):
+		m.showHelp = !m.showHelp
 	}
 
 	return nil
@@ -225,7 +229,42 @@ func (m viewerModel) footerView() string {
 		parts = append(parts, m.statusText)
 	}
 
-	return styleStatusBar.Width(m.width).Render(strings.Join(parts, "  "))
+	status := styleStatusBar.Width(m.width).Render(strings.Join(parts, "  "))
+
+	if m.showHelp {
+		helpLine := m.helpView()
+		return lipgloss.JoinVertical(lipgloss.Left, helpLine, status)
+	}
+
+	return status
+}
+
+func (m viewerModel) helpView() string {
+	bindings := []key.Binding{
+		viewerKeys.ToggleThinking,
+		viewerKeys.ToggleTools,
+		viewerKeys.ToggleToolResults,
+		viewerKeys.ToggleSidechain,
+		viewerKeys.Search,
+		viewerKeys.NextMatch,
+		viewerKeys.PrevMatch,
+		viewerKeys.Resume,
+		viewerKeys.Copy,
+		viewerKeys.Export,
+		viewerKeys.Editor,
+		viewerKeys.Help,
+		viewerKeys.Back,
+	}
+
+	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	keyStyle := lipgloss.NewStyle().Foreground(colorAccent)
+
+	var parts []string
+	for _, b := range bindings {
+		h := b.Help()
+		parts = append(parts, keyStyle.Render(h.Key)+helpStyle.Render(" "+h.Desc))
+	}
+	return helpStyle.Width(m.width).Padding(0, 1).Render(strings.Join(parts, "  "))
 }
 
 func (m *viewerModel) renderContent() {
