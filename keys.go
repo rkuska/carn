@@ -71,19 +71,19 @@ type viewerKeyMap struct {
 var viewerKeys = viewerKeyMap{
 	ToggleThinking: key.NewBinding(
 		key.WithKeys("t"),
-		key.WithHelp("t", "toggle thinking"),
+		key.WithHelp("t", "thinking"),
 	),
 	ToggleTools: key.NewBinding(
 		key.WithKeys("T"),
-		key.WithHelp("T", "toggle tools"),
+		key.WithHelp("T", "tools"),
 	),
 	ToggleToolResults: key.NewBinding(
 		key.WithKeys("r"),
-		key.WithHelp("r", "toggle tool results"),
+		key.WithHelp("r", "results"),
 	),
 	ToggleSidechain: key.NewBinding(
 		key.WithKeys("s"),
-		key.WithHelp("s", "toggle sidechain"),
+		key.WithHelp("s", "sidechain"),
 	),
 	Search: key.NewBinding(
 		key.WithKeys("/"),

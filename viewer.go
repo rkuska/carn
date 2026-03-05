@@ -255,22 +255,24 @@ func (m viewerModel) footerView() string {
 	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
 
 	type helpItem struct {
-		binding key.Binding
-		glow    bool
+		binding  key.Binding
+		glow     bool
+		isToggle bool
+		on       bool
 	}
 	items := []helpItem{
-		{viewerKeys.ToggleThinking, !m.opts.showThinking && m.content.hasThinking},
-		{viewerKeys.ToggleTools, !m.opts.showTools && m.content.hasToolCalls},
-		{viewerKeys.ToggleToolResults, !m.opts.showToolResults && m.content.hasToolResults},
-		{viewerKeys.ToggleSidechain, m.opts.hideSidechain && m.content.hasSidechain},
-		{viewerKeys.Search, false},
-		{viewerKeys.NextMatch, false},
-		{viewerKeys.PrevMatch, false},
-		{viewerKeys.Resume, false},
-		{viewerKeys.Copy, false},
-		{viewerKeys.Export, false},
-		{viewerKeys.Editor, false},
-		{viewerKeys.Back, false},
+		{viewerKeys.ToggleThinking, !m.opts.showThinking && m.content.hasThinking, true, m.opts.showThinking},
+		{viewerKeys.ToggleTools, !m.opts.showTools && m.content.hasToolCalls, true, m.opts.showTools},
+		{viewerKeys.ToggleToolResults, !m.opts.showToolResults && m.content.hasToolResults, true, m.opts.showToolResults},
+		{viewerKeys.ToggleSidechain, m.opts.hideSidechain && m.content.hasSidechain, true, !m.opts.hideSidechain},
+		{viewerKeys.Search, false, false, false},
+		{viewerKeys.NextMatch, false, false, false},
+		{viewerKeys.PrevMatch, false, false, false},
+		{viewerKeys.Resume, false, false, false},
+		{viewerKeys.Copy, false, false, false},
+		{viewerKeys.Export, false, false, false},
+		{viewerKeys.Editor, false, false, false},
+		{viewerKeys.Back, false, false, false},
 	}
 
 	var helpParts []string
@@ -280,7 +282,15 @@ func (m viewerModel) footerView() string {
 		if item.glow {
 			ks = keyGlow
 		}
-		helpParts = append(helpParts, ks.Render(h.Key)+helpStyle.Render(" "+h.Desc))
+		keyText := h.Key
+		if item.isToggle {
+			if item.on {
+				keyText = "+" + keyText
+			} else {
+				keyText = "-" + keyText
+			}
+		}
+		helpParts = append(helpParts, ks.Render(keyText)+helpStyle.Render(" "+h.Desc))
 	}
 	left := strings.Join(helpParts, "  ")
 
