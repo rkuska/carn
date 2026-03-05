@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -16,34 +17,63 @@ const toolResultPrefixW = 2 // ▎ border (1 cell) + space (1 cell)
 func renderStyledToolResult(tr toolResult, width int) string {
 	var sb strings.Builder
 
-	// Header badge: bold white on purple background
+	// Choose badge color based on error status
+	badgeBg := colorPrimary
+	borderColor := colorPrimary
+	if tr.isError {
+		badgeBg = colorDiffRemove
+		borderColor = colorDiffRemove
+	}
+
 	badgeStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(colorStatusFg).
-		Background(colorPrimary).
+		Background(badgeBg).
 		Padding(0, 1)
 
-	name := contentTypeToolResult
+	name := "Result"
 	if tr.toolName != "" {
 		name = tr.toolName
 	}
 	sb.WriteString(badgeStyle.Render(name))
 
-	if tr.toolSummary != "" {
-		summaryStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	// Build content lines early so we can show line count
+	contentLines := buildContentLines(tr)
+
+	summaryStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	summary := tr.toolSummary
+	if summary == "" && tr.toolName == "" {
+		summary = contentFallbackSummary(tr.content)
+	}
+	if summary != "" {
 		sb.WriteString(" ")
-		sb.WriteString(summaryStyle.Render(tr.toolSummary))
+		sb.WriteString(summaryStyle.Render(summary))
+	}
+	if len(contentLines) > 0 {
+		lineCount := fmt.Sprintf(" %d lines", len(contentLines))
+		sb.WriteString(summaryStyle.Render(lineCount))
 	}
 	sb.WriteString("\n")
 
 	// Content area
-	contentLines := buildContentLines(tr)
 	if len(contentLines) > 0 {
-		renderContentArea(&sb, contentLines, tr.structuredPatch != nil, width)
+		renderContentArea(&sb, contentLines, tr.structuredPatch != nil, width, borderColor)
 	}
 
 	sb.WriteString("\n")
 	return sb.String()
+}
+
+// contentFallbackSummary returns the first non-empty trimmed line of content,
+// truncated to 80 chars. Used when toolSummary is empty and tool is unresolved.
+func contentFallbackSummary(content string) string {
+	for line := range strings.SplitSeq(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			return truncate(trimmed, 80)
+		}
+	}
+	return ""
 }
 
 func buildContentLines(tr toolResult) []string {
@@ -65,9 +95,9 @@ func buildContentLines(tr toolResult) []string {
 	return nil
 }
 
-func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width int) {
+func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width int, borderClr color.Color) {
 	border := lipgloss.NewStyle().
-		Foreground(colorPrimary).
+		Foreground(borderClr).
 		Render("▎")
 
 	bgStyle := lipgloss.NewStyle().

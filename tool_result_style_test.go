@@ -70,7 +70,7 @@ func TestRenderStyledToolResult(t *testing.T) {
 				content:   "output",
 			},
 			width:    80,
-			contains: []string{"tool_result", "output"},
+			contains: []string{"Result", "output"},
 		},
 	}
 
@@ -183,7 +183,7 @@ func TestRenderContentAreaConsistentWidth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var sb strings.Builder
-			renderContentArea(&sb, tt.lines, false, tt.width)
+			renderContentArea(&sb, tt.lines, false, tt.width, colorPrimary)
 			output := sb.String()
 
 			rendered := strings.Split(strings.TrimRight(output, "\n"), "\n")
@@ -211,7 +211,7 @@ func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 	width := 30
 	longLine := strings.Repeat("a", 50)
 	var sb strings.Builder
-	renderContentArea(&sb, []string{longLine}, false, width)
+	renderContentArea(&sb, []string{longLine}, false, width, colorPrimary)
 
 	output := sb.String()
 	rendered := strings.Split(strings.TrimRight(output, "\n"), "\n")
@@ -229,5 +229,108 @@ func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 		if w != expected {
 			t.Errorf("wrapped line %d: width %d, want %d\nline: %q", i, w, expected, stripped)
 		}
+	}
+}
+
+func TestRenderStyledToolResultErrorStyling(t *testing.T) {
+	t.Parallel()
+
+	initPalette(true)
+
+	t.Run("error result uses different ANSI styling than success", func(t *testing.T) {
+		t.Parallel()
+		errTR := toolResult{
+			toolName: "Bash",
+			content:  "command failed",
+			isError:  true,
+		}
+		okTR := toolResult{
+			toolName: "Bash",
+			content:  "command succeeded",
+			isError:  false,
+		}
+		errOutput := renderStyledToolResult(errTR, 80)
+		okOutput := renderStyledToolResult(okTR, 80)
+		// Both should contain the tool name
+		if !strings.Contains(ansi.Strip(errOutput), "Bash") {
+			t.Error("error output missing tool name")
+		}
+		// The raw ANSI output should differ (different colors)
+		if errOutput == okOutput {
+			t.Error("error and success output should have different ANSI styling")
+		}
+	})
+}
+
+func TestRenderStyledToolResultLineCount(t *testing.T) {
+	t.Parallel()
+
+	initPalette(true)
+
+	tr := toolResult{
+		toolName: "Read",
+		content:  "line1\nline2\nline3",
+	}
+	got := renderStyledToolResult(tr, 80)
+	stripped := ansi.Strip(got)
+	if !strings.Contains(stripped, "3 lines") {
+		t.Errorf("expected line count in output, got:\n%s", stripped)
+	}
+}
+
+func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
+	t.Parallel()
+
+	initPalette(true)
+
+	tr := toolResult{
+		toolUseID: "toolu_xyz",
+		content:   "first line of output\nsecond line",
+	}
+	got := renderStyledToolResult(tr, 80)
+	stripped := ansi.Strip(got)
+	if !strings.Contains(stripped, "first line of output") {
+		t.Errorf("expected content fallback summary, got:\n%s", stripped)
+	}
+}
+
+func TestContentFallbackSummary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "first line used",
+			content: "hello world\nsecond line",
+			want:    "hello world",
+		},
+		{
+			name:    "skips empty lines",
+			content: "\n\n  actual content\nmore",
+			want:    "actual content",
+		},
+		{
+			name:    "empty content",
+			content: "",
+			want:    "",
+		},
+		{
+			name:    "long line truncated",
+			content: strings.Repeat("x", 100),
+			want:    strings.Repeat("x", 80) + "...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := contentFallbackSummary(tt.content)
+			if got != tt.want {
+				t.Errorf("contentFallbackSummary() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

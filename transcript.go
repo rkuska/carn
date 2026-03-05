@@ -160,7 +160,7 @@ func formatToolCall(tc toolCall) string {
 func formatToolResult(tr toolResult) string {
 	var sb strings.Builder
 
-	header := contentTypeToolResult
+	header := "Result"
 	if tr.toolName != "" {
 		header = tr.toolName
 	}

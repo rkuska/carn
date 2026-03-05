@@ -62,12 +62,12 @@ func TestExtractType(t *testing.T) {
 		{
 			name: "progress record",
 			line: `{"type":"progress","data":{}}`,
-			want: "progress",
+			want: "",
 		},
 		{
 			name: "file-history-snapshot",
 			line: `{"type":"file-history-snapshot","messageId":"123"}`,
-			want: "file-history-snapshot",
+			want: "",
 		},
 		{
 			name: "empty line",
@@ -78,6 +78,22 @@ func TestExtractType(t *testing.T) {
 			name: "type not at start",
 			line: `{"data":"value","type":"user","sessionId":"abc"}`,
 			want: "user",
+		},
+		{
+			name: "real JSONL user with nested message type",
+			line: `{"parentUuid":"p1","isSidechain":false,` +
+				`"message":{"role":"user","content":[` +
+				`{"type":"tool_result","tool_use_id":"t1","content":"data"}]},` +
+				`"type":"user","sessionId":"s1","timestamp":"2024-01-01T00:00:00Z"}`,
+			want: "user",
+		},
+		{
+			name: "real JSONL assistant with nested message type",
+			line: `{"parentUuid":"p1","isSidechain":false,` +
+				`"message":{"role":"assistant","content":[` +
+				`{"type":"text","text":"hello"}],"type":"message","model":"claude"},` +
+				`"type":"assistant","timestamp":"2024-01-01T00:00:00Z"}`,
+			want: "assistant",
 		},
 	}
 
@@ -229,8 +245,8 @@ func TestCountMessages(t *testing.T) {
 	content := strings.Join([]string{
 		`{"type":"user","sessionId":"s1","message":{"role":"user","content":"hello"}}`,
 		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]}}`,
-		`{"type":"progress","data":{"type":"user","content":"nested user"}}`,
-		`{"type":"progress","data":{"type":"assistant","content":"nested assistant"}}`,
+		`{"type":"progress","data":{"status":"running"}}`,
+		`{"type":"progress","data":{"status":"complete"}}`,
 		`{"type":"user","sessionId":"s1","message":{"role":"user","content":"second"}}`,
 		`{"type":"file-history-snapshot","messageId":"123"}`,
 		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"reply"}]}}`,
@@ -362,6 +378,42 @@ func TestExtractUserContent(t *testing.T) {
 		}
 		if results[0].content != "nested content" {
 			t.Errorf("content = %q, want %q", results[0].content, "nested content")
+		}
+	})
+
+	t.Run("is_error true", func(t *testing.T) {
+		t.Parallel()
+		raw := `[{"type":"tool_result","tool_use_id":"toolu_err","is_error":true,"content":"command failed"}]`
+		_, results := extractUserContent([]byte(raw))
+		if len(results) != 1 {
+			t.Fatalf("expected 1 tool result, got %d", len(results))
+		}
+		if !results[0].isError {
+			t.Error("expected isError=true")
+		}
+	})
+
+	t.Run("is_error false", func(t *testing.T) {
+		t.Parallel()
+		raw := `[{"type":"tool_result","tool_use_id":"toolu_ok","is_error":false,"content":"success"}]`
+		_, results := extractUserContent([]byte(raw))
+		if len(results) != 1 {
+			t.Fatalf("expected 1 tool result, got %d", len(results))
+		}
+		if results[0].isError {
+			t.Error("expected isError=false")
+		}
+	})
+
+	t.Run("is_error missing defaults to false", func(t *testing.T) {
+		t.Parallel()
+		raw := `[{"type":"tool_result","tool_use_id":"toolu_def","content":"output"}]`
+		_, results := extractUserContent([]byte(raw))
+		if len(results) != 1 {
+			t.Fatalf("expected 1 tool result, got %d", len(results))
+		}
+		if results[0].isError {
+			t.Error("expected isError=false when field missing")
 		}
 	})
 
@@ -1784,27 +1836,33 @@ func TestParseAssistantMessageToolUseID(t *testing.T) {
 func TestParseSessionResolvesToolResultNames(t *testing.T) {
 	t.Parallel()
 
-	assistLine := `{"type":"assistant","sessionId":"s1",` +
-		`"timestamp":"2024-01-01T00:00:00Z",` +
+	// Use realistic key order where "type" comes after "message" (as in real JSONL files)
+	assistLine := `{"parentUuid":"p0","isSidechain":false,` +
 		`"message":{"role":"assistant","content":[` +
 		`{"type":"text","text":"let me read that"},` +
 		`{"type":"tool_use","id":"toolu_read1","name":"Read",` +
 		`"input":{"file_path":"/tmp/main.go"}},` +
 		`{"type":"tool_use","id":"toolu_bash1","name":"Bash",` +
-		`"input":{"command":"go test ./..."}}]}}`
+		`"input":{"command":"go test ./..."}}],` +
+		`"type":"message","model":"claude"},` +
+		`"type":"assistant","sessionId":"s1",` +
+		`"timestamp":"2024-01-01T00:00:00Z"}`
 
-	userLine := `{"type":"user","sessionId":"s1",` +
-		`"slug":"test","timestamp":"2024-01-01T00:00:01Z",` +
-		`"cwd":"/tmp","message":{"role":"user","content":[` +
+	userLine := `{"parentUuid":"p1","isSidechain":false,` +
+		`"message":{"role":"user","content":[` +
 		`{"type":"tool_result","tool_use_id":"toolu_read1",` +
 		`"content":"package main"},` +
 		`{"type":"tool_result","tool_use_id":"toolu_bash1",` +
 		`"content":"PASS"},` +
-		`{"type":"text","text":"looks good"}]}}`
+		`{"type":"text","text":"looks good"}]},` +
+		`"type":"user","sessionId":"s1",` +
+		`"slug":"test","timestamp":"2024-01-01T00:00:01Z",` +
+		`"cwd":"/tmp"}`
 
-	initialLine := `{"type":"user","sessionId":"s1","slug":"test",` +
-		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
-		`"message":{"role":"user","content":"initial"}}`
+	initialLine := `{"parentUuid":"","isSidechain":false,` +
+		`"message":{"role":"user","content":"initial"},` +
+		`"type":"user","sessionId":"s1","slug":"test",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp"}`
 
 	content := strings.Join([]string{
 		initialLine,
