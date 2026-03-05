@@ -22,13 +22,7 @@ const (
 )
 
 // scanSessions discovers all session JSONL files and extracts metadata.
-func scanSessions(ctx context.Context) ([]sessionMeta, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("os.UserHomeDir: %w", err)
-	}
-	baseDir := filepath.Join(home, claudeProjectsDir)
-
+func scanSessions(ctx context.Context, baseDir string) ([]sessionMeta, error) {
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("os.ReadDir: %w", err)

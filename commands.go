@@ -40,9 +40,9 @@ type clearStatusMsg struct{}
 
 // Commands
 
-func loadSessionsCmd(ctx context.Context) tea.Cmd {
+func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 	return func() tea.Msg {
-		sessions, err := scanSessions(ctx)
+		sessions, err := scanSessions(ctx, archiveDir)
 		if err != nil {
 			return sessionsLoadErrorMsg{err: err}
 		}

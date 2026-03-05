@@ -26,7 +26,12 @@ func run() error {
 	logger := zerolog.New(logFile).With().Timestamp().Logger()
 	ctx := logger.WithContext(context.Background())
 
-	model := newAppModel(ctx)
+	cfg, err := defaultArchiveConfig()
+	if err != nil {
+		return fmt.Errorf("defaultArchiveConfig: %w", err)
+	}
+
+	model := newAppModel(ctx, cfg)
 
 	p := tea.NewProgram(
 		model,
