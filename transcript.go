@@ -60,15 +60,19 @@ func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []tr
 
 		switch msg.role {
 		case roleUser:
-			hasContent := msg.text != "" || (opts.showToolResults && len(msg.toolResults) > 0)
+			userText := msg.text
+			if isSystemInterrupt(userText) {
+				userText = ""
+			}
+			hasContent := userText != "" || (opts.showToolResults && len(msg.toolResults) > 0)
 			if !hasContent {
 				continue
 			}
 
 			flush()
 			segments = append(segments, transcriptSegment{kind: segmentRoleHeader, role: roleUser})
-			if msg.text != "" {
-				md.WriteString(msg.text)
+			if userText != "" {
+				md.WriteString(userText)
 				md.WriteString("\n\n")
 			}
 			if opts.showToolResults && len(msg.toolResults) > 0 {
@@ -213,7 +217,7 @@ func renderPreview(session sessionFull, maxMessages int, width int) string {
 
 		switch msg.role {
 		case roleUser:
-			if msg.text == "" {
+			if msg.text == "" || isSystemInterrupt(msg.text) {
 				continue
 			}
 			sb.WriteString("▶ You\n")

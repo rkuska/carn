@@ -33,6 +33,16 @@ func testSession(id string) sessionFull {
 	}
 }
 
+func testConv(id string) conversation {
+	return conversation{
+		name:    "test-slug",
+		project: project{dirName: "test", displayName: "test"},
+		sessions: []sessionMeta{
+			{id: id, slug: "test-slug", timestamp: time.Now(), project: project{displayName: "test"}},
+		},
+	}
+}
+
 func TestAddToCacheEvictsBothCaches(t *testing.T) {
 	t.Parallel()
 
@@ -110,24 +120,24 @@ func TestCheckPreviewUpdateUsesSessionCacheFallback(t *testing.T) {
 	b := testBrowser(t)
 
 	session := testSession("fallback-id")
-	meta := session.meta
-	b.sessionCache[meta.id] = session
+	conv := testConv("fallback-id")
+	b.sessionCache[conv.id()] = session
 
-	// Set up the list with this session as selected item
-	b.list.SetItems([]list.Item{meta})
+	// Set up the list with this conversation as selected item
+	b.list.SetItems([]list.Item{conv})
 	b.list.Select(0)
 
 	// No preview cached — should fall back to session cache
 	var cmds []tea.Cmd
 	b.checkPreviewUpdate(&cmds)
 
-	// Should NOT have issued a parseSessionCmd (no commands)
+	// Should NOT have issued a parseConversationCmd (no commands)
 	if len(cmds) != 0 {
 		t.Errorf("expected 0 cmds (session cache fallback), got %d", len(cmds))
 	}
 
 	// Preview cache should now be populated from the session cache
-	if _, ok := b.previewCache[meta.id]; !ok {
+	if _, ok := b.previewCache[conv.id()]; !ok {
 		t.Error("expected previewCache to be populated from session cache")
 	}
 }

@@ -9,51 +9,52 @@ import (
 )
 
 type deepSearchResultMsg struct {
-	sessions []sessionMeta
-	indexed  map[string]string
+	conversations []conversation
+	indexed       map[string]string
 }
 
-// deepSearchCmd searches main sessions using cached normalized blobs when available.
+// deepSearchCmd searches conversations using cached normalized blobs when available.
 func deepSearchCmd(
 	ctx context.Context,
 	query string,
-	mainSessions []sessionMeta,
+	mainConversations []conversation,
 	indexCache map[string]string,
 	sessionCache map[string]sessionFull,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if query == "" {
-			return deepSearchResultMsg{sessions: mainSessions}
+			return deepSearchResultMsg{conversations: mainConversations}
 		}
 
 		queryLower := strings.ToLower(query)
-		matches := make([]sessionMeta, 0, len(mainSessions))
+		matches := make([]conversation, 0, len(mainConversations))
 		indexed := make(map[string]string)
 
-		for _, meta := range mainSessions {
-			blob, ok := indexCache[meta.id]
+		for _, conv := range mainConversations {
+			cid := conv.id()
+			blob, ok := indexCache[cid]
 			if !ok {
-				if session, cached := sessionCache[meta.id]; cached {
+				if session, cached := sessionCache[cid]; cached {
 					blob = buildSessionSearchBlob(session)
 				} else {
-					session, err := parseSession(ctx, meta)
+					session, err := parseConversation(ctx, conv)
 					if err != nil {
-						zerolog.Ctx(ctx).Debug().Err(err).Msgf("deepSearch: skipping %s", meta.filePath)
+						zerolog.Ctx(ctx).Debug().Err(err).Msgf("deepSearch: skipping %s", cid)
 						continue
 					}
 					blob = buildSessionSearchBlob(session)
 				}
-				indexed[meta.id] = blob
+				indexed[cid] = blob
 			}
 
 			if strings.Contains(blob, queryLower) {
-				matches = append(matches, meta)
+				matches = append(matches, conv)
 			}
 		}
 
 		return deepSearchResultMsg{
-			sessions: matches,
-			indexed:  indexed,
+			conversations: matches,
+			indexed:       indexed,
 		}
 	}
 }

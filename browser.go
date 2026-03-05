@@ -28,20 +28,20 @@ const (
 )
 
 type browserModel struct {
-	ctx              context.Context
-	archiveDir       string
-	list             list.Model
-	preview          viewport.Model
-	focus            focusArea
-	allSessions      []sessionMeta
-	width, height    int
-	mainSessionCount int
-	statusText       string
-	deepSearch       bool
-	previewCache     map[string]string      // session ID -> rendered preview
-	sessionCache     map[string]sessionFull // session ID -> parsed session
-	searchIndex      map[string]string      // session ID -> lower-cased searchable blob
-	lastPreviewID    string
+	ctx                   context.Context
+	archiveDir            string
+	list                  list.Model
+	preview               viewport.Model
+	focus                 focusArea
+	allConversations      []conversation
+	width, height         int
+	mainConversationCount int
+	statusText            string
+	deepSearch            bool
+	previewCache          map[string]string      // conv ID -> rendered preview
+	sessionCache          map[string]sessionFull // conv ID -> parsed session
+	searchIndex           map[string]string      // conv ID -> lower-cased searchable blob
+	lastPreviewID         string
 
 	// for LRU eviction
 	cacheOrder []string
@@ -117,12 +117,12 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.previewCache = make(map[string]string, previewCacheSize)
 		m.lastPreviewID = ""
 
-	case sessionsLoadedMsg:
-		m.allSessions = msg.sessions
-		mainSessions := filterMainSessions(msg.sessions)
-		m.mainSessionCount = len(mainSessions)
+	case conversationsLoadedMsg:
+		m.allConversations = msg.conversations
+		mainConvs := filterMainConversations(msg.conversations)
+		m.mainConversationCount = len(mainConvs)
 		m.searchIndex = make(map[string]string, previewCacheSize)
-		cmd := m.list.SetItems(sessionMetaItems(mainSessions))
+		cmd := m.list.SetItems(conversationItems(mainConvs))
 		cmds = append(cmds, cmd)
 		m.updatePreview()
 
@@ -136,14 +136,14 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.sessionCache[msg.session.meta.id] = msg.session
 		m.searchIndex[msg.session.meta.id] = buildSessionSearchBlob(msg.session)
 		m.addToCache(msg.session.meta.id)
-		// Only update preview if this is still the selected session
-		if selected, ok := m.selectedMeta(); ok && selected.id == msg.session.meta.id {
+		// Only update preview if this is still the selected conversation
+		if selected, ok := m.selectedConversation(); ok && selected.id() == msg.session.meta.id {
 			m.preview.SetContent(preview)
 		}
 
 	case deepSearchResultMsg:
 		maps.Copy(m.searchIndex, msg.indexed)
-		items := sessionMetaItems(msg.sessions)
+		items := conversationItems(msg.conversations)
 		cmd := m.list.SetItems(items)
 		cmds = append(cmds, cmd)
 		m.statusText = fmt.Sprintf("Deep search: %d results", len(items))
@@ -198,46 +198,46 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		if m.deepSearch {
 			m.statusText = "Deep search: loading..."
 			filterVal := m.list.FilterValue()
-			mainSessions := filterMainSessions(m.allSessions)
+			mainConvs := filterMainConversations(m.allConversations)
 			return deepSearchCmd(
 				m.ctx,
 				filterVal,
-				mainSessions,
+				mainConvs,
 				m.cloneSearchIndex(),
 				m.cloneSessionCache(),
 			)
 		}
-		// Reset to all sessions
-		items := sessionMetaItems(filterMainSessions(m.allSessions))
+		// Reset to all conversations
+		items := conversationItems(filterMainConversations(m.allConversations))
 		*cmds = append(*cmds, m.list.SetItems(items))
 		m.statusText = "Deep search disabled"
 		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
 		return nil
 
 	case key.Matches(msg, browserKeys.Copy):
-		if meta, ok := m.selectedMeta(); ok {
-			if session, cached := m.cachedSession(meta.id); cached {
+		if conv, ok := m.selectedConversation(); ok {
+			if session, cached := m.cachedSession(conv.id()); cached {
 				return copyTranscriptCmd(session, transcriptOptions{})
 			}
-			return copyFromMetaCmd(m.ctx, meta)
+			return copyFromConversationCmd(m.ctx, conv)
 		}
 
 	case key.Matches(msg, browserKeys.Export):
-		if meta, ok := m.selectedMeta(); ok {
-			if session, cached := m.cachedSession(meta.id); cached {
+		if conv, ok := m.selectedConversation(); ok {
+			if session, cached := m.cachedSession(conv.id()); cached {
 				return exportTranscriptCmd(session, transcriptOptions{})
 			}
-			return exportFromMetaCmd(m.ctx, meta)
+			return exportFromConversationCmd(m.ctx, conv)
 		}
 
 	case key.Matches(msg, browserKeys.Editor):
-		if meta, ok := m.selectedMeta(); ok {
-			return openInEditorCmd(meta.filePath)
+		if conv, ok := m.selectedConversation(); ok {
+			return openInEditorCmd(conv.latestFilePath())
 		}
 
 	case key.Matches(msg, browserKeys.Resume):
-		if meta, ok := m.selectedMeta(); ok {
-			return resumeSessionCmd(meta.id)
+		if conv, ok := m.selectedConversation(); ok {
+			return resumeSessionCmd(conv.resumeID())
 		}
 	}
 
@@ -292,31 +292,31 @@ func (m *browserModel) updateLayout() {
 	m.preview.SetHeight(m.height - 5)
 }
 
-func (m *browserModel) selectedMeta() (sessionMeta, bool) {
+func (m *browserModel) selectedConversation() (conversation, bool) {
 	item := m.list.SelectedItem()
 	if item == nil {
-		return sessionMeta{}, false
+		return conversation{}, false
 	}
-	meta, ok := item.(sessionMeta)
-	return meta, ok
+	conv, ok := item.(conversation)
+	return conv, ok
 }
 
 func (m *browserModel) updatePreview() {
-	meta, ok := m.selectedMeta()
+	conv, ok := m.selectedConversation()
 	if !ok {
 		m.preview.SetContent("No session selected")
 		return
 	}
 
-	if cached, ok := m.previewCache[meta.id]; ok {
+	if cached, ok := m.previewCache[conv.id()]; ok {
 		m.preview.SetContent(cached)
 		return
 	}
 
 	// Re-render from cached session if available
-	if session, ok := m.sessionCache[meta.id]; ok {
+	if session, ok := m.sessionCache[conv.id()]; ok {
 		preview := renderPreview(session, previewMessages, m.preview.Width())
-		m.previewCache[meta.id] = preview
+		m.previewCache[conv.id()] = preview
 		m.preview.SetContent(preview)
 		return
 	}
@@ -325,31 +325,31 @@ func (m *browserModel) updatePreview() {
 }
 
 func (m *browserModel) checkPreviewUpdate(cmds *[]tea.Cmd) {
-	meta, ok := m.selectedMeta()
+	conv, ok := m.selectedConversation()
 	if !ok {
 		return
 	}
 
-	if meta.id == m.lastPreviewID {
+	if conv.id() == m.lastPreviewID {
 		return
 	}
-	m.lastPreviewID = meta.id
+	m.lastPreviewID = conv.id()
 
-	if cached, ok := m.previewCache[meta.id]; ok {
+	if cached, ok := m.previewCache[conv.id()]; ok {
 		m.preview.SetContent(cached)
 		return
 	}
 
 	// Re-render from cached session if available (e.g. after resize)
-	if session, ok := m.sessionCache[meta.id]; ok {
+	if session, ok := m.sessionCache[conv.id()]; ok {
 		preview := renderPreview(session, previewMessages, m.preview.Width())
-		m.previewCache[meta.id] = preview
+		m.previewCache[conv.id()] = preview
 		m.preview.SetContent(preview)
 		return
 	}
 
 	m.preview.SetContent("Loading preview...")
-	*cmds = append(*cmds, parseSessionCmd(m.ctx, meta))
+	*cmds = append(*cmds, parseConversationCmd(m.ctx, conv))
 }
 
 func (m *browserModel) addToCache(id string) {
@@ -385,20 +385,20 @@ func (m browserModel) cloneSessionCache() map[string]sessionFull {
 	return out
 }
 
-func filterMainSessions(sessions []sessionMeta) []sessionMeta {
-	items := make([]sessionMeta, 0, len(sessions))
-	for _, s := range sessions {
-		if !s.isSubagent {
-			items = append(items, s)
+func filterMainConversations(convs []conversation) []conversation {
+	items := make([]conversation, 0, len(convs))
+	for _, c := range convs {
+		if !c.isSubagent() {
+			items = append(items, c)
 		}
 	}
 	return items
 }
 
-func sessionMetaItems(sessions []sessionMeta) []list.Item {
-	items := make([]list.Item, 0, len(sessions))
-	for _, s := range sessions {
-		items = append(items, s)
+func conversationItems(convs []conversation) []list.Item {
+	items := make([]list.Item, 0, len(convs))
+	for _, c := range convs {
+		items = append(items, c)
 	}
 	return items
 }
@@ -412,9 +412,9 @@ func (m browserModel) statusBar() string {
 		parts = append(parts, m.statusText)
 	}
 
-	info := fmt.Sprintf("%d sessions", m.mainSessionCount)
-	if meta, ok := m.selectedMeta(); ok {
-		info = fmt.Sprintf("%s | %s", info, meta.project.displayName)
+	info := fmt.Sprintf("%d sessions", m.mainConversationCount)
+	if conv, ok := m.selectedConversation(); ok {
+		info = fmt.Sprintf("%s | %s", info, conv.project.displayName)
 	}
 	parts = append(parts, info)
 

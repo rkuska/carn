@@ -81,11 +81,11 @@ func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		// Handle enter to switch to viewer
 		if key.Matches(msg, browserKeys.Enter) && m.browser.list.FilterState() != 1 {
-			if meta, ok := m.browser.selectedMeta(); ok {
-				if session, cached := m.browser.cachedSession(meta.id); cached {
-					return m, openSessionCmdCached(m.ctx, meta, session)
+			if conv, ok := m.browser.selectedConversation(); ok {
+				if session, cached := m.browser.cachedSession(conv.id()); cached {
+					return m, openConversationCmdCached(m.ctx, conv, session)
 				}
-				return m, openSessionCmd(m.ctx, meta)
+				return m, openConversationCmd(m.ctx, conv)
 			}
 		}
 
