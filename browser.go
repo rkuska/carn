@@ -53,30 +53,10 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
-	l.SetShowHelp(true)
-	l.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			browserKeys.Enter,
-			browserKeys.Tab,
-			browserKeys.DeepSearch,
-			browserKeys.Copy,
-		}
-	}
+	l.SetShowHelp(false)
 	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
 		Background(colorHighlight).
 		Bold(true)
-
-	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			browserKeys.Enter,
-			browserKeys.Tab,
-			browserKeys.DeepSearch,
-			browserKeys.Resume,
-			browserKeys.Copy,
-			browserKeys.Export,
-			browserKeys.Editor,
-		}
-	}
 
 	vp := viewport.New()
 
@@ -248,8 +228,8 @@ func (m browserModel) View() string {
 	listBoxWidth := m.width * 6 / 10
 	previewBoxWidth := m.width - listBoxWidth - 1 // 1 for gap
 
-	// Status bar
-	status := m.statusBar()
+	// Footer with help + status
+	footer := m.footerView()
 
 	// Render list pane with embedded title in frame border
 	listTopBorder := renderBorderTop("Claude Sessions", listBoxWidth, colorAccent, colorAccent)
@@ -276,7 +256,7 @@ func (m browserModel) View() string {
 	// Join horizontally with gap
 	content := lipgloss.JoinHorizontal(lipgloss.Top, listView, " ", previewView)
 
-	return lipgloss.JoinVertical(lipgloss.Left, content, status)
+	return lipgloss.JoinVertical(lipgloss.Left, content, footer)
 }
 
 func (m *browserModel) updateLayout() {
@@ -401,20 +381,49 @@ func conversationItems(convs []conversation) []list.Item {
 	return items
 }
 
-func (m browserModel) statusBar() string {
-	var parts []string
-	if m.deepSearch {
-		parts = append(parts, styleToolCall.Render("[DEEP SEARCH]"))
-	}
-	if m.statusText != "" {
-		parts = append(parts, m.statusText)
+func (m browserModel) footerView() string {
+	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	keyStyle := lipgloss.NewStyle().Foreground(colorAccent)
+
+	items := []key.Binding{
+		browserKeys.Enter,
+		browserKeys.Tab,
+		browserKeys.DeepSearch,
+		browserKeys.Resume,
+		browserKeys.Copy,
+		browserKeys.Export,
+		browserKeys.Editor,
+		browserKeys.Help,
+		browserKeys.Quit,
 	}
 
+	var helpParts []string
+	for _, b := range items {
+		h := b.Help()
+		helpParts = append(helpParts, keyStyle.Render(h.Key)+helpStyle.Render(" "+h.Desc))
+	}
+	left := strings.Join(helpParts, "  ")
+
+	// Right side: status info
+	var rightParts []string
+	if m.deepSearch {
+		rightParts = append(rightParts, styleToolCall.Render("[DEEP SEARCH]"))
+	}
+	if m.statusText != "" {
+		rightParts = append(rightParts, m.statusText)
+	}
 	info := fmt.Sprintf("%d sessions", m.mainConversationCount)
 	if conv, ok := m.selectedConversation(); ok {
 		info = fmt.Sprintf("%s | %s", info, conv.project.displayName)
 	}
-	parts = append(parts, info)
+	rightParts = append(rightParts, info)
+	right := strings.Join(rightParts, "  ")
 
-	return styleStatusBar.Width(m.width).Render(strings.Join(parts, "  "))
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
+	gap := max(m.width-leftW-rightW-2, 1)
+
+	return helpStyle.Padding(0, 1).Width(m.width).Render(
+		left + strings.Repeat(" ", gap) + right,
+	)
 }
