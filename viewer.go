@@ -14,10 +14,40 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+type contentFlags struct {
+	hasThinking    bool
+	hasToolCalls   bool
+	hasToolResults bool
+	hasSidechain   bool
+}
+
+func scanContentFlags(messages []message) contentFlags {
+	var flags contentFlags
+	for _, msg := range messages {
+		if msg.thinking != "" {
+			flags.hasThinking = true
+		}
+		if len(msg.toolCalls) > 0 {
+			flags.hasToolCalls = true
+		}
+		if len(msg.toolResults) > 0 {
+			flags.hasToolResults = true
+		}
+		if msg.isSidechain {
+			flags.hasSidechain = true
+		}
+		if flags.hasThinking && flags.hasToolCalls && flags.hasToolResults && flags.hasSidechain {
+			break
+		}
+	}
+	return flags
+}
+
 type viewerModel struct {
 	viewport     viewport.Model
 	session      sessionFull
 	opts         transcriptOptions
+	content      contentFlags
 	glamourStyle string
 	width        int
 	height       int
@@ -28,11 +58,10 @@ type viewerModel struct {
 	currentMatch int
 	statusText   string
 	rawContent   string // unrendered transcript
-	showHelp     bool
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
-	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-3))
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-4))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
@@ -44,6 +73,7 @@ func newViewerModel(session sessionFull, glamourStyle string, width, height int)
 		viewport:     vp,
 		session:      session,
 		opts:         transcriptOptions{},
+		content:      scanContentFlags(session.messages),
 		glamourStyle: glamourStyle,
 		width:        width,
 		height:       height,
@@ -74,7 +104,7 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - 3)
+		m.viewport.SetHeight(msg.Height - 4)
 		m.renderContent()
 
 	case statusMsg:
@@ -154,8 +184,6 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	case key.Matches(msg, viewerKeys.Resume):
 		return resumeSessionCmd(m.session.meta.id)
 
-	case key.Matches(msg, viewerKeys.Help):
-		m.showHelp = !m.showHelp
 	}
 
 	return nil
@@ -239,39 +267,43 @@ func (m viewerModel) footerView() string {
 	}
 
 	status := styleStatusBar.Width(m.width).Render(strings.Join(parts, "  "))
-
-	if m.showHelp {
-		helpLine := m.helpView()
-		return lipgloss.JoinVertical(lipgloss.Left, helpLine, status)
-	}
-
-	return status
+	helpLine := m.helpView()
+	return lipgloss.JoinVertical(lipgloss.Left, helpLine, status)
 }
 
 func (m viewerModel) helpView() string {
-	bindings := []key.Binding{
-		viewerKeys.ToggleThinking,
-		viewerKeys.ToggleTools,
-		viewerKeys.ToggleToolResults,
-		viewerKeys.ToggleSidechain,
-		viewerKeys.Search,
-		viewerKeys.NextMatch,
-		viewerKeys.PrevMatch,
-		viewerKeys.Resume,
-		viewerKeys.Copy,
-		viewerKeys.Export,
-		viewerKeys.Editor,
-		viewerKeys.Help,
-		viewerKeys.Back,
+	type helpItem struct {
+		binding key.Binding
+		glow    bool
+	}
+
+	items := []helpItem{
+		{viewerKeys.ToggleThinking, !m.opts.showThinking && m.content.hasThinking},
+		{viewerKeys.ToggleTools, !m.opts.showTools && m.content.hasToolCalls},
+		{viewerKeys.ToggleToolResults, !m.opts.showToolResults && m.content.hasToolResults},
+		{viewerKeys.ToggleSidechain, m.opts.hideSidechain && m.content.hasSidechain},
+		{viewerKeys.Search, false},
+		{viewerKeys.NextMatch, false},
+		{viewerKeys.PrevMatch, false},
+		{viewerKeys.Resume, false},
+		{viewerKeys.Copy, false},
+		{viewerKeys.Export, false},
+		{viewerKeys.Editor, false},
+		{viewerKeys.Back, false},
 	}
 
 	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	keyStyle := lipgloss.NewStyle().Foreground(colorAccent)
+	keyNormal := lipgloss.NewStyle().Foreground(colorAccent)
+	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
 
 	var parts []string
-	for _, b := range bindings {
-		h := b.Help()
-		parts = append(parts, keyStyle.Render(h.Key)+helpStyle.Render(" "+h.Desc))
+	for _, item := range items {
+		h := item.binding.Help()
+		ks := keyNormal
+		if item.glow {
+			ks = keyGlow
+		}
+		parts = append(parts, ks.Render(h.Key)+helpStyle.Render(" "+h.Desc))
 	}
 	return helpStyle.Width(m.width).Padding(0, 1).Render(strings.Join(parts, "  "))
 }
