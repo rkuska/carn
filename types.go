@@ -36,6 +36,7 @@ type toolResult struct {
 	toolName        string
 	toolSummary     string
 	content         string
+	isError         bool
 	structuredPatch []diffHunk
 }
 

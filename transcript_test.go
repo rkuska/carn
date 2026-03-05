@@ -453,7 +453,7 @@ func TestFormatToolResult(t *testing.T) {
 			content:   "some output",
 		}
 		got := formatToolResult(tr)
-		if !strings.Contains(got, "**tool_result**\n") {
+		if !strings.Contains(got, "**Result**\n") {
 			t.Errorf("expected fallback header, got:\n%s", got)
 		}
 	})

@@ -219,23 +219,19 @@ type jsonUsage struct {
 	OutputTokens             int `json:"output_tokens"`
 }
 
-// extractType quickly checks the type field without full unmarshal.
-// Returns the value of the first "type":"..." occurrence in the line.
-// For top-level record types (user, assistant, etc.), the first occurrence
-// is either the top-level "type" field or an inner "type" like "message"
-// which is harmlessly ignored by callers checking for specific roles.
+// extractType identifies the top-level record type without full unmarshal.
+// Uses targeted substring matching: "type":"user" only appears as a
+// top-level field (content blocks use "text", "tool_result", etc.),
+// and "type":"assistant" only appears top-level (nested message has
+// "type":"message"). All callers only check for roleUser/roleAssistant.
 func extractType(line []byte) string {
-	marker := []byte(`"type":"`)
-	idx := bytes.Index(line, marker)
-	if idx == -1 {
-		return ""
+	if bytes.Contains(line, []byte(`"type":"user"`)) {
+		return "user"
 	}
-	start := idx + len(marker)
-	end := bytes.IndexByte(line[start:], '"')
-	if end == -1 {
-		return ""
+	if bytes.Contains(line, []byte(`"type":"assistant"`)) {
+		return "assistant"
 	}
-	return string(line[start : start+end])
+	return ""
 }
 
 // extractUserContent parses user message content that may be a plain string
@@ -253,6 +249,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 		Text      string          `json:"text"`
 		ToolUseID string          `json:"tool_use_id"`
 		Content   json.RawMessage `json:"content"`
+		IsError   bool            `json:"is_error"`
 	}
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return "", nil
@@ -272,6 +269,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 				results = append(results, toolResult{
 					toolUseID: b.ToolUseID,
 					content:   truncatePreserveNewlines(content, maxToolResultChars),
+					isError:   b.IsError,
 				})
 			}
 		}
