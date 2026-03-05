@@ -14,6 +14,13 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+const (
+	viewerBorderH  = 2 // left + right rounded border
+	viewerPaddingH = 2 // left + right viewport padding
+	viewerMarginH  = 2 // aesthetic margin for markdown text
+	viewerBorderV  = 3 // top border + bottom border + footer
+)
+
 type contentFlags struct {
 	hasThinking    bool
 	hasToolCalls   bool
@@ -64,8 +71,7 @@ type viewerModel struct {
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
-	// height: 1 top border + viewport + 1 bottom border + 1 footer = viewport + 3
-	vp := viewport.New(viewport.WithWidth(width-2), viewport.WithHeight(height-3))
+	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(height-viewerBorderV))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
@@ -107,8 +113,8 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.SetWidth(msg.Width - 2)
-		m.viewport.SetHeight(msg.Height - 3)
+		m.viewport.SetWidth(m.viewportWidth())
+		m.viewport.SetHeight(max(m.height-viewerBorderV, 1))
 		m.renderContent()
 
 	case statusMsg:
@@ -320,7 +326,6 @@ func (m *viewerModel) renderContent() {
 	m.rawContent = flattenSegments(segments)
 
 	renderer, rendererErr := m.ensureRenderer()
-	contentWidth := max(m.width-6, 1) // 2 border + 2 viewport padding + 2 margin
 
 	var sb strings.Builder
 	for _, seg := range segments {
@@ -335,9 +340,9 @@ func (m *viewerModel) renderContent() {
 			}
 			sb.WriteString(seg.text)
 		case segmentToolResult:
-			sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
+			sb.WriteString(renderStyledToolResult(seg.result, m.contentWidth()))
 		case segmentRoleHeader:
-			sb.WriteString(renderRoleHeader(seg.role, contentWidth))
+			sb.WriteString(renderRoleHeader(seg.role, m.contentWidth()))
 		case segmentThinking:
 			sb.WriteString(renderThinkingBlock(seg.text))
 		case segmentToolCall:
@@ -354,8 +359,24 @@ func (m *viewerModel) renderContent() {
 	}
 }
 
+// viewportWidth returns the viewport width (terminal minus outer border).
+func (m *viewerModel) viewportWidth() int {
+	return max(m.width-viewerBorderH, 1)
+}
+
+// contentWidth returns the width available inside the viewport for
+// content that should fill the viewport edge-to-edge (tool results, headers).
+func (m *viewerModel) contentWidth() int {
+	return max(m.width-viewerBorderH-viewerPaddingH, 1)
+}
+
+// markdownWrapWidth returns the word-wrap width for markdown with aesthetic margin.
+func (m *viewerModel) markdownWrapWidth() int {
+	return max(m.width-viewerBorderH-viewerPaddingH-viewerMarginH, 1)
+}
+
 func (m *viewerModel) ensureRenderer() (*glamour.TermRenderer, error) {
-	wrapWidth := max(m.width-6, 1)
+	wrapWidth := m.markdownWrapWidth()
 	if m.renderer != nil && m.renderWrap == wrapWidth {
 		return m.renderer, nil
 	}
