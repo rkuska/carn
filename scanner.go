@@ -80,23 +80,25 @@ func scanSessions(ctx context.Context, baseDir string) ([]sessionMeta, error) {
 }
 
 // projectFromDirName converts a directory name like "-Users-testuser-Work-apropos"
-// into a project with a cleaned display name using last 2 path components.
+// into a project with a best-effort display name. Since the encoding is ambiguous
+// (dashes replace both '/' and appear in real names), we strip known prefixes
+// (Users/<name>, home/<name>) and preserve the rest with original dashes.
+// displayNameFromCWD overwrites this with the correct name when cwd is available.
 func projectFromDirName(dirName string) project {
-	// Convert dashes back to path separators to extract meaningful parts
-	parts := strings.Split(dirName, "-")
-	// Remove leading empty string from initial dash
-	cleaned := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p != "" {
-			cleaned = append(cleaned, p)
-		}
-	}
-
+	trimmed := strings.TrimPrefix(dirName, "-")
 	display := dirName
-	if len(cleaned) >= 2 {
-		display = strings.Join(cleaned[len(cleaned)-2:], "/")
-	} else if len(cleaned) == 1 {
-		display = cleaned[0]
+
+	// Known prefixes to strip: Users/<name>, home/<name>
+	parts := strings.SplitN(trimmed, "-", 4)
+	if len(parts) >= 3 {
+		switch parts[0] {
+		case "Users", "home":
+			prefix := parts[0] + "-" + parts[1] + "-"
+			rest := strings.TrimPrefix(trimmed, prefix)
+			if rest != "" {
+				display = rest
+			}
+		}
 	}
 
 	return project{
@@ -124,6 +126,9 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 
 	var foundUser, foundAssistant bool
 	var total, mainOnly int
+	var totalUsage tokenUsage
+	var lastTS time.Time
+	toolCounts := make(map[string]int)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -137,6 +142,11 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 			if !extractIsSidechain(line) {
 				mainOnly++
 			}
+			if ts := extractTimestamp(line); ts != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+					lastTS = t
+				}
+			}
 		}
 
 		switch recRole {
@@ -148,8 +158,15 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 			if err := parseAssistantRecord(line, &meta, &foundAssistant); err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", filePath)
 			}
+			u := extractUsage(line)
+			totalUsage.inputTokens += u.inputTokens
+			totalUsage.cacheCreationInputTokens += u.cacheCreationInputTokens
+			totalUsage.cacheReadInputTokens += u.cacheReadInputTokens
+			totalUsage.outputTokens += u.outputTokens
+			for _, name := range extractToolNames(line) {
+				toolCounts[name]++
+			}
 		}
-
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -162,6 +179,11 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 
 	meta.messageCount = total
 	meta.mainMessageCount = mainOnly
+	meta.totalUsage = totalUsage
+	meta.lastTimestamp = lastTS
+	if len(toolCounts) > 0 {
+		meta.toolCounts = toolCounts
+	}
 
 	return meta, nil
 }
@@ -198,13 +220,17 @@ type jsonUsage struct {
 }
 
 // extractType quickly checks the type field without full unmarshal.
+// Returns the value of the first "type":"..." occurrence in the line.
+// For top-level record types (user, assistant, etc.), the first occurrence
+// is either the top-level "type" field or an inner "type" like "message"
+// which is harmlessly ignored by callers checking for specific roles.
 func extractType(line []byte) string {
-	// Fast path: look for "type":" pattern
-	idx := bytes.Index(line, []byte(`"type":"`))
+	marker := []byte(`"type":"`)
+	idx := bytes.Index(line, marker)
 	if idx == -1 {
 		return ""
 	}
-	start := idx + 8
+	start := idx + len(marker)
 	end := bytes.IndexByte(line[start:], '"')
 	if end == -1 {
 		return ""
@@ -326,10 +352,93 @@ func extractStructuredPatch(raw json.RawMessage) []diffHunk {
 	return hunks
 }
 
+// extractTimestamp quickly extracts the timestamp value from a JSONL line
+// without full unmarshal.
+func extractTimestamp(line []byte) string {
+	marker := []byte(`"timestamp":"`)
+	idx := bytes.Index(line, marker)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(marker)
+	end := bytes.IndexByte(line[start:], '"')
+	if end == -1 {
+		return ""
+	}
+	return string(line[start : start+end])
+}
+
+// extractUsage extracts the "usage":{...} sub-object from a JSONL line
+// using depth-counted brace matching, then unmarshals only that fragment.
+func extractUsage(line []byte) tokenUsage {
+	marker := []byte(`"usage":{`)
+	idx := bytes.Index(line, marker)
+	if idx == -1 {
+		return tokenUsage{}
+	}
+	start := idx + len(marker) - 1
+	depth := 0
+	for end := start; end < len(line); end++ {
+		switch line[end] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				var usage jsonUsage
+				if err := json.Unmarshal(line[start:end+1], &usage); err != nil {
+					return tokenUsage{}
+				}
+				return tokenUsage{
+					inputTokens:              usage.InputTokens,
+					cacheCreationInputTokens: usage.CacheCreationInputTokens,
+					cacheReadInputTokens:     usage.CacheReadInputTokens,
+					outputTokens:             usage.OutputTokens,
+				}
+			}
+		}
+	}
+	return tokenUsage{}
+}
+
+// extractToolNames extracts tool_use names from an assistant JSONL line
+// without full unmarshal. Returns names of all tool_use blocks found.
+func extractToolNames(line []byte) []string {
+	var names []string
+	search := []byte(`"type":"tool_use"`)
+	nameMarker := []byte(`"name":"`)
+
+	offset := 0
+	for offset < len(line) {
+		idx := bytes.Index(line[offset:], search)
+		if idx == -1 {
+			break
+		}
+		pos := offset + idx + len(search)
+
+		// Look for "name":" within the next 200 bytes (tool_use blocks are compact)
+		window := line[pos:]
+		if len(window) > 200 {
+			window = window[:200]
+		}
+		nameIdx := bytes.Index(window, nameMarker)
+		if nameIdx != -1 {
+			start := nameIdx + len(nameMarker)
+			end := bytes.IndexByte(window[start:], '"')
+			if end != -1 {
+				names = append(names, string(window[start:start+end]))
+			}
+		}
+		offset = pos
+	}
+	return names
+}
+
 // extractIsSidechain quickly checks if a JSONL line has isSidechain:true
 // without full unmarshal.
 func extractIsSidechain(line []byte) bool {
-	return bytes.Contains(line, []byte(`"isSidechain":true`))
+	return bytes.Contains(line, []byte(`"isSidechain":true`)) ||
+		bytes.Contains(line, []byte(`"isSidechain": true`))
 }
 
 // aggregateUsage sums token usage across all messages.

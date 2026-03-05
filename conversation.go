@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -48,6 +49,12 @@ func (c conversation) Description() string {
 	}
 	if total := c.totalTokenUsage().totalTokens(); total > 0 {
 		desc += fmt.Sprintf("  %dk tokens", total/1000)
+	}
+	if d := c.duration(); d > 0 {
+		desc += "  " + formatDuration(d)
+	}
+	if counts := c.totalToolCounts(); len(counts) > 0 {
+		desc += "  " + formatToolCounts(counts)
 	}
 	if fm := c.firstMessage(); fm != "" {
 		desc += "\n" + fm
@@ -117,6 +124,64 @@ func (c conversation) totalTokenUsage() tokenUsage {
 		total.outputTokens += s.totalUsage.outputTokens
 	}
 	return total
+}
+
+// duration returns the total duration from the earliest session start
+// to the latest session end across all sessions in the conversation.
+func (c conversation) duration() time.Duration {
+	earliest := c.sessions[0].timestamp
+	var latest time.Time
+	for _, s := range c.sessions {
+		if s.lastTimestamp.After(latest) {
+			latest = s.lastTimestamp
+		}
+	}
+	if earliest.IsZero() || latest.IsZero() {
+		return 0
+	}
+	return latest.Sub(earliest)
+}
+
+// totalToolCounts aggregates tool invocation counts across all sessions.
+func (c conversation) totalToolCounts() map[string]int {
+	merged := make(map[string]int)
+	for _, s := range c.sessions {
+		for name, count := range s.toolCounts {
+			merged[name] += count
+		}
+	}
+	return merged
+}
+
+// formatToolCounts returns a compact summary of the top 3 tools by count,
+// e.g. "Bash:12 Read:8 Edit:5".
+func formatToolCounts(counts map[string]int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+
+	type toolCount struct {
+		name  string
+		count int
+	}
+	sorted := make([]toolCount, 0, len(counts))
+	for name, count := range counts {
+		sorted = append(sorted, toolCount{name, count})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].count != sorted[j].count {
+			return sorted[i].count > sorted[j].count
+		}
+		return sorted[i].name < sorted[j].name
+	})
+
+	limit := min(len(sorted), 3)
+
+	parts := make([]string, limit)
+	for i := range limit {
+		parts[i] = fmt.Sprintf("%s:%d", sorted[i].name, sorted[i].count)
+	}
+	return strings.Join(parts, " ")
 }
 
 // isSubagent returns true if the primary session is a subagent.

@@ -63,6 +63,13 @@ func benchSessionJSONL(tb testing.TB, sessionID string, includeNeedle bool) stri
 			"model": "claude",
 			"content": []map[string]any{
 				{"type": "text", "text": "assistant reply " + needle},
+				{"type": "tool_use", "id": "t1", "name": "Read", "input": map[string]any{"file_path": "/tmp/test.go"}},
+			},
+			"usage": map[string]any{
+				"input_tokens":                100,
+				"output_tokens":               50,
+				"cache_read_input_tokens":     10,
+				"cache_creation_input_tokens": 5,
 			},
 		},
 	}
