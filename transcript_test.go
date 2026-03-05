@@ -527,6 +527,100 @@ func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
 	}
 }
 
+func TestRenderTranscriptSegmented(t *testing.T) {
+	t.Parallel()
+
+	t.Run("messages without tool results produce only markdown segments", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleUser, text: "Hello"},
+				{role: roleAssistant, text: "Hi there"},
+			},
+		}
+		segments := renderTranscriptSegmented(session, transcriptOptions{})
+		if len(segments) != 1 {
+			t.Fatalf("expected 1 segment, got %d", len(segments))
+		}
+		if segments[0].kind != segmentMarkdown {
+			t.Errorf("expected segmentMarkdown, got %d", segments[0].kind)
+		}
+		if !strings.Contains(segments[0].text, "## You") {
+			t.Errorf("expected '## You' in markdown segment, got:\n%s", segments[0].text)
+		}
+	})
+
+	t.Run("tool results produce separate segments", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleUser, text: "Check this", toolResults: []toolResult{
+					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+				}},
+				{role: roleAssistant, text: "Done"},
+			},
+		}
+		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: true})
+
+		// Expected: markdown("## You\n\nCheck this\n\n"), toolResult, markdown("\n## Assistant..."),
+		mdCount := 0
+		trCount := 0
+		for _, seg := range segments {
+			switch seg.kind {
+			case segmentMarkdown:
+				mdCount++
+			case segmentToolResult:
+				trCount++
+			}
+		}
+		if trCount != 1 {
+			t.Errorf("expected 1 tool result segment, got %d", trCount)
+		}
+		if mdCount < 2 {
+			t.Errorf("expected at least 2 markdown segments, got %d", mdCount)
+		}
+	})
+
+	t.Run("tool results hidden when showToolResults false", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleUser, text: "", toolResults: []toolResult{
+					{toolName: "Read", content: "contents"},
+				}},
+				{role: roleAssistant, text: "Done"},
+			},
+		}
+		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: false})
+
+		for _, seg := range segments {
+			if seg.kind == segmentToolResult {
+				t.Error("tool result segment should not appear when showToolResults is false")
+			}
+		}
+	})
+
+	t.Run("flattenSegments matches renderTranscript output", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleUser, text: "Hello", toolResults: []toolResult{
+					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+				}},
+				{role: roleAssistant, text: "Done", toolCalls: []toolCall{
+					{name: "Write", summary: "/out.go"},
+				}},
+			},
+		}
+		opts := transcriptOptions{showToolResults: true, showTools: true}
+		transcript := renderTranscript(session, opts)
+		flattened := flattenSegments(renderTranscriptSegmented(session, opts))
+		if transcript != flattened {
+			t.Errorf("renderTranscript and flattenSegments differ:\ntranscript:\n%s\nflattened:\n%s", transcript, flattened)
+		}
+	})
+}
+
 func TestFormatToolResultMultipleHunks(t *testing.T) {
 	t.Parallel()
 

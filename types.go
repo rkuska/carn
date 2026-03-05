@@ -10,6 +10,8 @@ type role string
 const (
 	roleUser      role = "user"
 	roleAssistant role = "assistant"
+
+	contentTypeToolResult = "tool_result"
 )
 
 type project struct {

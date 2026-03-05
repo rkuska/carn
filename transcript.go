@@ -14,9 +14,33 @@ type transcriptOptions struct {
 	hideSidechain   bool
 }
 
-// renderTranscript produces a clean text transcript from a parsed session.
-func renderTranscript(session sessionFull, opts transcriptOptions) string {
-	var sb strings.Builder
+type segmentKind int
+
+const (
+	segmentMarkdown   segmentKind = iota
+	segmentToolResult segmentKind = iota
+)
+
+type transcriptSegment struct {
+	kind   segmentKind
+	text   string     // for markdown segments
+	result toolResult // for tool result segments
+}
+
+// renderTranscriptSegmented walks messages and produces segments.
+// Markdown text accumulates into markdown segments; each tool result
+// becomes its own segmentToolResult. When a tool result is encountered,
+// the accumulated markdown is flushed first.
+func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []transcriptSegment {
+	var segments []transcriptSegment
+	var md strings.Builder
+
+	flush := func() {
+		if md.Len() > 0 {
+			segments = append(segments, transcriptSegment{kind: segmentMarkdown, text: md.String()})
+			md.Reset()
+		}
+	}
 
 	for _, msg := range session.messages {
 		if opts.hideSidechain && msg.isSidechain {
@@ -24,75 +48,82 @@ func renderTranscript(session sessionFull, opts transcriptOptions) string {
 		}
 
 		if msg.isAgentDivider {
-			renderAgentDivider(&sb, msg)
+			md.WriteString("---\n### Subagent\n")
+			md.WriteString(msg.text)
+			md.WriteString("\n---\n\n")
 			continue
 		}
 
 		switch msg.role {
 		case roleUser:
-			renderUserMessage(&sb, msg, opts)
+			hasContent := msg.text != "" || (opts.showToolResults && len(msg.toolResults) > 0)
+			if !hasContent {
+				continue
+			}
+
+			md.WriteString("## You\n\n")
+			if msg.text != "" {
+				md.WriteString(msg.text)
+				md.WriteString("\n\n")
+			}
+			if opts.showToolResults && len(msg.toolResults) > 0 {
+				flush()
+				for _, tr := range msg.toolResults {
+					segments = append(segments, transcriptSegment{kind: segmentToolResult, result: tr})
+				}
+				md.WriteString("\n")
+			}
+
 		case roleAssistant:
-			renderAssistantMessage(&sb, msg, opts)
+			hasContent := msg.text != "" ||
+				(opts.showThinking && msg.thinking != "") ||
+				(opts.showTools && len(msg.toolCalls) > 0)
+			if !hasContent {
+				continue
+			}
+
+			md.WriteString("## Assistant\n\n")
+			if opts.showThinking && msg.thinking != "" {
+				md.WriteString("*Thinking:*\n")
+				md.WriteString(msg.thinking)
+				md.WriteString("\n\n")
+			}
+			if msg.text != "" {
+				md.WriteString(msg.text)
+				md.WriteString("\n\n")
+			}
+			if opts.showTools && len(msg.toolCalls) > 0 {
+				for _, tc := range msg.toolCalls {
+					md.WriteString(formatToolCall(tc))
+					md.WriteString("\n")
+				}
+				md.WriteString("\n")
+			}
 		}
 	}
 
+	flush()
+	return segments
+}
+
+// flattenSegments produces a plain-text transcript from segments.
+func flattenSegments(segments []transcriptSegment) string {
+	var sb strings.Builder
+	for _, seg := range segments {
+		switch seg.kind {
+		case segmentMarkdown:
+			sb.WriteString(seg.text)
+		case segmentToolResult:
+			sb.WriteString(formatToolResult(seg.result))
+			sb.WriteString("\n")
+		}
+	}
 	return sb.String()
 }
 
-func renderUserMessage(sb *strings.Builder, msg message, opts transcriptOptions) {
-	hasContent := msg.text != "" || (opts.showToolResults && len(msg.toolResults) > 0)
-	if !hasContent {
-		return
-	}
-
-	sb.WriteString("## You\n\n")
-	if msg.text != "" {
-		sb.WriteString(msg.text)
-		sb.WriteString("\n\n")
-	}
-	if opts.showToolResults && len(msg.toolResults) > 0 {
-		for _, tr := range msg.toolResults {
-			sb.WriteString(formatToolResult(tr))
-			sb.WriteString("\n")
-		}
-		sb.WriteString("\n")
-	}
-}
-
-func renderAssistantMessage(sb *strings.Builder, msg message, opts transcriptOptions) {
-	hasContent := msg.text != "" ||
-		(opts.showThinking && msg.thinking != "") ||
-		(opts.showTools && len(msg.toolCalls) > 0)
-	if !hasContent {
-		return
-	}
-
-	sb.WriteString("## Assistant\n\n")
-
-	if opts.showThinking && msg.thinking != "" {
-		sb.WriteString("*Thinking:*\n")
-		sb.WriteString(msg.thinking)
-		sb.WriteString("\n\n")
-	}
-
-	if msg.text != "" {
-		sb.WriteString(msg.text)
-		sb.WriteString("\n\n")
-	}
-
-	if opts.showTools && len(msg.toolCalls) > 0 {
-		for _, tc := range msg.toolCalls {
-			sb.WriteString(formatToolCall(tc))
-			sb.WriteString("\n")
-		}
-		sb.WriteString("\n")
-	}
-}
-
-func renderAgentDivider(sb *strings.Builder, msg message) {
-	sb.WriteString("---\n### Subagent\n")
-	sb.WriteString(msg.text)
-	sb.WriteString("\n---\n\n")
+// renderTranscript produces a clean text transcript from a parsed session.
+func renderTranscript(session sessionFull, opts transcriptOptions) string {
+	return flattenSegments(renderTranscriptSegmented(session, opts))
 }
 
 func formatToolCall(tc toolCall) string {
@@ -106,7 +137,7 @@ func formatToolCall(tc toolCall) string {
 func formatToolResult(tr toolResult) string {
 	var sb strings.Builder
 
-	header := "tool_result"
+	header := contentTypeToolResult
 	if tr.toolName != "" {
 		header = tr.toolName
 	}

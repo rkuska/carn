@@ -238,7 +238,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 			if b.Text != "" {
 				texts = append(texts, b.Text)
 			}
-		case "tool_result":
+		case contentTypeToolResult:
 			content := extractToolResultContent(b.Content)
 			if content != "" {
 				results = append(results, toolResult{
