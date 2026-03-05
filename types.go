@@ -28,7 +28,7 @@ type tokenUsage struct {
 }
 
 func (u tokenUsage) totalTokens() int {
-	return u.inputTokens + u.outputTokens
+	return u.inputTokens + u.cacheCreationInputTokens + u.cacheReadInputTokens + u.outputTokens
 }
 
 type toolResult struct {
@@ -52,6 +52,7 @@ type sessionMeta struct {
 	project          project
 	slug             string
 	timestamp        time.Time
+	lastTimestamp    time.Time
 	cwd              string
 	gitBranch        string
 	version          string
@@ -61,8 +62,31 @@ type sessionMeta struct {
 	mainMessageCount int
 	filePath         string
 	totalUsage       tokenUsage
+	toolCounts       map[string]int
 	isSubagent       bool
 	parentSessionID  string
+}
+
+func (s sessionMeta) duration() time.Duration {
+	if s.lastTimestamp.IsZero() || s.timestamp.IsZero() {
+		return 0
+	}
+	return s.lastTimestamp.Sub(s.timestamp)
+}
+
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if m == 0 {
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dh %dm", h, m)
 }
 
 // FilterValue implements list.Item for fuzzy filtering.
@@ -94,6 +118,12 @@ func (s sessionMeta) Description() string {
 	}
 	if total := s.totalUsage.totalTokens(); total > 0 {
 		desc += fmt.Sprintf("  %dk tokens", total/1000)
+	}
+	if d := s.duration(); d > 0 {
+		desc += "  " + formatDuration(d)
+	}
+	if len(s.toolCounts) > 0 {
+		desc += "  " + formatToolCounts(s.toolCounts)
 	}
 	if s.firstMessage != "" {
 		desc += "\n" + s.firstMessage

@@ -74,6 +74,11 @@ func TestExtractType(t *testing.T) {
 			line: `{}`,
 			want: "",
 		},
+		{
+			name: "type not at start",
+			line: `{"data":"value","type":"user","sessionId":"abc"}`,
+			want: "user",
+		},
 	}
 
 	for _, tt := range tests {
@@ -98,17 +103,27 @@ func TestProjectFromDirName(t *testing.T) {
 		{
 			name:        "typical project path",
 			dirName:     "-Users-testuser-Work-apropos",
-			wantDisplay: "Work/apropos",
+			wantDisplay: "Work-apropos",
 		},
 		{
-			name:        "deep path",
+			name:        "deep path preserves hyphens",
 			dirName:     "-Users-testuser-Projects-claude-search",
-			wantDisplay: "claude/search",
+			wantDisplay: "Projects-claude-search",
 		},
 		{
-			name:        "single component",
+			name:        "single component after prefix",
+			dirName:     "-Users-testuser-myproject",
+			wantDisplay: "myproject",
+		},
+		{
+			name:        "home prefix",
+			dirName:     "-home-user-my-project",
+			wantDisplay: "my-project",
+		},
+		{
+			name:        "only prefix no rest",
 			dirName:     "-Users-testuser",
-			wantDisplay: "Users/testuser",
+			wantDisplay: "-Users-testuser",
 		},
 	}
 
@@ -396,6 +411,11 @@ func TestExtractIsSidechain(t *testing.T) {
 			line: `{"type":"user","isSidechain":false,"message":{}}`,
 			want: false,
 		},
+		{
+			name: "sidechain true with space",
+			line: `{"type":"user","isSidechain": true,"message":{}}`,
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -474,6 +494,395 @@ func TestAggregateUsage(t *testing.T) {
 	}
 	if got.cacheCreationInputTokens != 20 {
 		t.Errorf("cacheCreationInputTokens = %d, want 20", got.cacheCreationInputTokens)
+	}
+}
+
+func TestExtractToolNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want []string
+	}{
+		{
+			name: "no tool_use",
+			line: `{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}`,
+			want: nil,
+		},
+		{
+			name: "single tool_use",
+			line: `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]}}`,
+			want: []string{"Read"},
+		},
+		{
+			name: "multiple tool_use",
+			line: `{"type":"assistant","message":{"content":[` +
+				`{"type":"tool_use","id":"t1","name":"Read","input":{}},` +
+				`{"type":"tool_use","id":"t2","name":"Edit","input":{}},` +
+				`{"type":"tool_use","id":"t3","name":"Bash","input":{}}]}}`,
+			want: []string{"Read", "Edit", "Bash"},
+		},
+		{
+			name: "empty line",
+			line: `{}`,
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractToolNames([]byte(tt.line))
+			if len(got) != len(tt.want) {
+				t.Fatalf("extractToolNames() returned %d names, want %d: got %v", len(got), len(tt.want), got)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("name[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestScanMetadataToolCounts(t *testing.T) {
+	t.Parallel()
+
+	userLine := `{"type":"user","sessionId":"s1","slug":"test",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"hello"}}`
+	assist1 := `{"type":"assistant",` +
+		`"timestamp":"2024-01-01T00:01:00Z",` +
+		`"message":{"role":"assistant","model":"claude",` +
+		`"content":[{"type":"tool_use","id":"t1","name":"Read","input":{}},` +
+		`{"type":"tool_use","id":"t2","name":"Edit","input":{}}]}}`
+	assist2 := `{"type":"assistant",` +
+		`"timestamp":"2024-01-01T00:02:00Z",` +
+		`"message":{"role":"assistant","model":"claude",` +
+		`"content":[{"type":"tool_use","id":"t3","name":"Read","input":{}}]}}`
+	content := strings.Join([]string{userLine, assist1, assist2}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.toolCounts["Read"] != 2 {
+		t.Errorf("Read count = %d, want 2", meta.toolCounts["Read"])
+	}
+	if meta.toolCounts["Edit"] != 1 {
+		t.Errorf("Edit count = %d, want 1", meta.toolCounts["Edit"])
+	}
+}
+
+func TestFormatToolCounts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		counts map[string]int
+		want   string
+	}{
+		{
+			name:   "empty",
+			counts: map[string]int{},
+			want:   "",
+		},
+		{
+			name:   "single tool",
+			counts: map[string]int{"Read": 5},
+			want:   "Read:5",
+		},
+		{
+			name:   "top 3 by count",
+			counts: map[string]int{"Read": 8, "Edit": 5, "Bash": 12, "Grep": 2, "Glob": 1},
+			want:   "Bash:12 Read:8 Edit:5",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := formatToolCounts(tt.counts)
+			if got != tt.want {
+				t.Errorf("formatToolCounts() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractTimestamp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want string
+	}{
+		{
+			name: "valid timestamp",
+			line: `{"type":"user","timestamp":"2024-01-15T10:30:00Z","message":{}}`,
+			want: "2024-01-15T10:30:00Z",
+		},
+		{
+			name: "no timestamp",
+			line: `{"type":"user","message":{}}`,
+			want: "",
+		},
+		{
+			name: "nano timestamp",
+			line: `{"type":"user","timestamp":"2024-01-15T10:30:00.123456789Z","message":{}}`,
+			want: "2024-01-15T10:30:00.123456789Z",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractTimestamp([]byte(tt.line))
+			if got != tt.want {
+				t.Errorf("extractTimestamp() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSessionDuration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		meta sessionMeta
+		want time.Duration
+	}{
+		{
+			name: "normal duration",
+			meta: sessionMeta{
+				timestamp:     time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+				lastTimestamp: time.Date(2024, 1, 1, 10, 30, 0, 0, time.UTC),
+			},
+			want: 30 * time.Minute,
+		},
+		{
+			name: "zero last timestamp",
+			meta: sessionMeta{
+				timestamp: time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			},
+			want: 0,
+		},
+		{
+			name: "zero start timestamp",
+			meta: sessionMeta{
+				lastTimestamp: time.Date(2024, 1, 1, 10, 30, 0, 0, time.UTC),
+			},
+			want: 0,
+		},
+		{
+			name: "both zero",
+			meta: sessionMeta{},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := tt.meta.duration()
+			if got != tt.want {
+				t.Errorf("duration() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		d    time.Duration
+		want string
+	}{
+		{name: "zero", d: 0, want: "0s"},
+		{name: "seconds", d: 45 * time.Second, want: "45s"},
+		{name: "minutes", d: 5 * time.Minute, want: "5m"},
+		{name: "exact hour", d: time.Hour, want: "1h"},
+		{name: "hours and minutes", d: 2*time.Hour + 15*time.Minute, want: "2h 15m"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := formatDuration(tt.d)
+			if got != tt.want {
+				t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScanMetadataLastTimestamp(t *testing.T) {
+	t.Parallel()
+
+	userLine := `{"type":"user","sessionId":"s1","slug":"test",` +
+		`"timestamp":"2024-01-01T10:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"hello"}}`
+	assist1 := `{"type":"assistant",` +
+		`"timestamp":"2024-01-01T10:05:00Z",` +
+		`"message":{"role":"assistant","model":"claude",` +
+		`"content":[{"type":"text","text":"hi"}]}}`
+	user2 := `{"type":"user","sessionId":"s1",` +
+		`"timestamp":"2024-01-01T10:10:00Z",` +
+		`"message":{"role":"user","content":"more"}}`
+	assist2 := `{"type":"assistant",` +
+		`"timestamp":"2024-01-01T10:15:00Z",` +
+		`"message":{"role":"assistant","model":"claude",` +
+		`"content":[{"type":"text","text":"bye"}]}}`
+	content := strings.Join([]string{userLine, assist1, user2, assist2}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	wantLast := time.Date(2024, 1, 1, 10, 15, 0, 0, time.UTC)
+	if !meta.lastTimestamp.Equal(wantLast) {
+		t.Errorf("lastTimestamp = %v, want %v", meta.lastTimestamp, wantLast)
+	}
+
+	wantDuration := 15 * time.Minute
+	if meta.duration() != wantDuration {
+		t.Errorf("duration() = %v, want %v", meta.duration(), wantDuration)
+	}
+}
+
+func TestExtractUsage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want tokenUsage
+	}{
+		{
+			name: "with usage",
+			line: `{"type":"assistant","message":{"role":"assistant",` +
+				`"content":[],"usage":{"input_tokens":100,` +
+				`"output_tokens":50,"cache_read_input_tokens":10,` +
+				`"cache_creation_input_tokens":5}}}`,
+			want: tokenUsage{
+				inputTokens:              100,
+				outputTokens:             50,
+				cacheReadInputTokens:     10,
+				cacheCreationInputTokens: 5,
+			},
+		},
+		{
+			name: "no usage",
+			line: `{"type":"assistant","message":{"role":"assistant","content":[]}}`,
+			want: tokenUsage{},
+		},
+		{
+			name: "nested objects inside usage",
+			line: `{"type":"assistant","message":{"usage":{"input_tokens":200,"output_tokens":100}}}`,
+			want: tokenUsage{inputTokens: 200, outputTokens: 100},
+		},
+		{
+			name: "malformed usage",
+			line: `{"type":"assistant","message":{"usage":{invalid}}}`,
+			want: tokenUsage{},
+		},
+		{
+			name: "empty line",
+			line: `{}`,
+			want: tokenUsage{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractUsage([]byte(tt.line))
+			if got != tt.want {
+				t.Errorf("extractUsage() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScanMetadataAggregatesUsage(t *testing.T) {
+	t.Parallel()
+
+	userLine := `{"type":"user","sessionId":"s1","slug":"test",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"hello"}}`
+	assist1 := `{"type":"assistant","message":{"role":"assistant",` +
+		`"model":"claude","content":[{"type":"text","text":"hi"}],` +
+		`"usage":{"input_tokens":100,"output_tokens":50,` +
+		`"cache_read_input_tokens":10}}}`
+	assist2 := `{"type":"assistant","message":{"role":"assistant",` +
+		`"model":"claude","content":[{"type":"text","text":"bye"}],` +
+		`"usage":{"input_tokens":200,"output_tokens":80,` +
+		`"cache_creation_input_tokens":15}}}`
+	content := strings.Join([]string{userLine, assist1, assist2}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.totalUsage.inputTokens != 300 {
+		t.Errorf("inputTokens = %d, want 300", meta.totalUsage.inputTokens)
+	}
+	if meta.totalUsage.outputTokens != 130 {
+		t.Errorf("outputTokens = %d, want 130", meta.totalUsage.outputTokens)
+	}
+	if meta.totalUsage.cacheReadInputTokens != 10 {
+		t.Errorf("cacheReadInputTokens = %d, want 10", meta.totalUsage.cacheReadInputTokens)
+	}
+	if meta.totalUsage.cacheCreationInputTokens != 15 {
+		t.Errorf("cacheCreationInputTokens = %d, want 15", meta.totalUsage.cacheCreationInputTokens)
+	}
+	if total := meta.totalUsage.totalTokens(); total != 455 {
+		t.Errorf("totalTokens() = %d, want 455", total)
+	}
+}
+
+func TestTotalTokensIncludesCacheTokens(t *testing.T) {
+	t.Parallel()
+
+	usage := tokenUsage{
+		inputTokens:              100,
+		cacheCreationInputTokens: 20,
+		cacheReadInputTokens:     30,
+		outputTokens:             50,
+	}
+	got := usage.totalTokens()
+	want := 200
+	if got != want {
+		t.Errorf("totalTokens() = %d, want %d", got, want)
 	}
 }
 
@@ -639,6 +1048,9 @@ func TestScanMetadataRealFile(t *testing.T) {
 	}
 	if meta.filePath != filePath {
 		t.Errorf("filePath = %q, want %q", meta.filePath, filePath)
+	}
+	if total := meta.totalUsage.totalTokens(); total == 0 {
+		t.Logf("totalTokens() = 0 for %s (file may use a format where extractType misses assistant records)", filePath)
 	}
 }
 
