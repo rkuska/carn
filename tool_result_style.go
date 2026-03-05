@@ -16,7 +16,7 @@ func renderStyledToolResult(tr toolResult, width int) string {
 	// Header badge: bold white on purple background
 	badgeStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("255")).
+		Foreground(colorStatusFg).
 		Background(colorPrimary).
 		Padding(0, 1)
 
@@ -69,7 +69,7 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 
 	bgStyle := lipgloss.NewStyle().
 		Background(colorToolBg).
-		Foreground(lipgloss.Color("252"))
+		Foreground(colorFgOnBg)
 
 	addStyle := lipgloss.NewStyle().
 		Background(colorToolBg).

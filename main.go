@@ -36,8 +36,11 @@ func run() error {
 	// glamour.WithAutoStyle() sends an OSC 11 query on every call, whose
 	// response bytes get misinterpreted as KeyPressMsg by bubbletea's
 	// input parser. Detecting once here avoids the issue entirely.
+	hasDarkBG := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	initPalette(hasDarkBG)
+
 	glamourStyle := "dark"
-	if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+	if !hasDarkBG {
 		glamourStyle = "light"
 	}
 

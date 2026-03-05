@@ -8,37 +8,70 @@ import (
 )
 
 var (
-	// Colors
-	colorPrimary    = lipgloss.Color("99")  // brighter purple (#875fff)
-	colorSecondary  = lipgloss.Color("243") // neutral gray
-	colorAccent     = lipgloss.Color("114") // soft green (#87d787)
-	colorHighlight  = lipgloss.Color("53")  // dark purple (#5f005f) for filter match bg
-	colorSelectedFg = lipgloss.Color("156") // light green (#afff87) for selected items
-	colorDiffRemove = lipgloss.Color("203") // soft red for removed diff lines
-	colorDiffHunk   = lipgloss.Color("37")  // cyan for @@ hunk headers
-	colorToolBg     = lipgloss.Color("236") // dark background for tool content
+	// Colors — set by initPalette based on terminal background.
+	colorPrimary     color.Color
+	colorSecondary   color.Color
+	colorAccent      color.Color
+	colorHighlight   color.Color
+	colorSelectedFg  color.Color
+	colorDiffRemove  color.Color
+	colorDiffHunk    color.Color
+	colorToolBg      color.Color
+	colorFgOnBg      color.Color // foreground on toolBg / status surfaces
+	colorStatusFg    color.Color
+	colorStatusBg    color.Color
+	colorNormalTitle color.Color
+	colorNormalDesc  color.Color
+	colorTitleFg     color.Color // list title text on primary bg
 
-	// Layout
+	// Styles — rebuilt by initPalette.
+	stylePreviewBorder lipgloss.Style
+	styleTitle         lipgloss.Style
+	styleSubtitle      lipgloss.Style
+	styleToolCall      lipgloss.Style
+	styleStatusBar     lipgloss.Style
+)
+
+// initPalette sets the colour palette and derived styles based on
+// whether the terminal has a dark background.
+func initPalette(hasDarkBG bool) {
+	ld := lipgloss.LightDark(hasDarkBG)
+
+	// (light-bg variant, dark-bg variant)
+	colorPrimary = ld(lipgloss.Color("55"), lipgloss.Color("99"))
+	colorSecondary = ld(lipgloss.Color("245"), lipgloss.Color("243"))
+	colorAccent = ld(lipgloss.Color("28"), lipgloss.Color("114"))
+	colorHighlight = ld(lipgloss.Color("225"), lipgloss.Color("53"))
+	colorSelectedFg = ld(lipgloss.Color("22"), lipgloss.Color("156"))
+	colorDiffRemove = ld(lipgloss.Color("124"), lipgloss.Color("203"))
+	colorDiffHunk = ld(lipgloss.Color("30"), lipgloss.Color("37"))
+	colorToolBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
+	colorFgOnBg = ld(lipgloss.Color("238"), lipgloss.Color("252"))
+	colorStatusFg = ld(lipgloss.Color("232"), lipgloss.Color("255"))
+	colorStatusBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
+	colorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
+	colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
+	colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
+
 	stylePreviewBorder = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colorPrimary)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorPrimary)
 
-	// Text
 	styleTitle = lipgloss.NewStyle().
-			Foreground(colorPrimary).
-			Bold(true)
+		Foreground(colorPrimary).
+		Bold(true)
 
 	styleSubtitle = lipgloss.NewStyle().
-			Foreground(colorSecondary)
+		Foreground(colorSecondary)
 
 	styleToolCall = lipgloss.NewStyle().
-			Foreground(colorAccent)
+		Foreground(colorAccent)
 
 	styleStatusBar = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
-			Background(lipgloss.Color("236")).
-			Padding(0, 1)
-)
+		Foreground(colorStatusFg).
+		Background(colorStatusBg).
+		Padding(0, 1)
+}
 
 // renderBorderTop builds a custom top border line with an embedded title:
 // ╭─ Title ──────────────────────╮

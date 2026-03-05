@@ -64,7 +64,7 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	}
 	l.Styles.Title = lipgloss.NewStyle().
 		Background(colorPrimary).
-		Foreground(lipgloss.Color("230")).
+		Foreground(colorTitleFg).
 		Padding(0, 1)
 	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
 		Background(colorHighlight).
