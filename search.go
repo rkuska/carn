@@ -10,52 +10,75 @@ import (
 
 type deepSearchResultMsg struct {
 	sessions []sessionMeta
+	indexed  map[string]string
 }
 
-// deepSearchCmd loads all sessions and searches their full content.
-func deepSearchCmd(ctx context.Context, query string, allSessions []sessionMeta) tea.Cmd {
+// deepSearchCmd searches main sessions using cached normalized blobs when available.
+func deepSearchCmd(
+	ctx context.Context,
+	query string,
+	mainSessions []sessionMeta,
+	indexCache map[string]string,
+	sessionCache map[string]sessionFull,
+) tea.Cmd {
 	return func() tea.Msg {
 		if query == "" {
-			return deepSearchResultMsg{sessions: allSessions}
+			return deepSearchResultMsg{sessions: mainSessions}
 		}
 
 		queryLower := strings.ToLower(query)
-		var matches []sessionMeta
+		matches := make([]sessionMeta, 0, len(mainSessions))
+		indexed := make(map[string]string)
 
-		for _, meta := range allSessions {
-			session, err := parseSession(ctx, meta)
-			if err != nil {
-				zerolog.Ctx(ctx).Debug().Err(err).Msgf("deepSearch: skipping %s", meta.filePath)
-				continue
+		for _, meta := range mainSessions {
+			blob, ok := indexCache[meta.id]
+			if !ok {
+				if session, cached := sessionCache[meta.id]; cached {
+					blob = buildSessionSearchBlob(session)
+				} else {
+					session, err := parseSession(ctx, meta)
+					if err != nil {
+						zerolog.Ctx(ctx).Debug().Err(err).Msgf("deepSearch: skipping %s", meta.filePath)
+						continue
+					}
+					blob = buildSessionSearchBlob(session)
+				}
+				indexed[meta.id] = blob
 			}
 
-			if sessionContains(session, queryLower) {
+			if strings.Contains(blob, queryLower) {
 				matches = append(matches, meta)
 			}
 		}
 
-		return deepSearchResultMsg{sessions: matches}
+		return deepSearchResultMsg{
+			sessions: matches,
+			indexed:  indexed,
+		}
 	}
 }
 
-func sessionContains(session sessionFull, queryLower string) bool {
+func buildSessionSearchBlob(session sessionFull) string {
+	var sb strings.Builder
 	for _, msg := range session.messages {
-		if strings.Contains(strings.ToLower(msg.text), queryLower) {
-			return true
-		}
-		if strings.Contains(strings.ToLower(msg.thinking), queryLower) {
-			return true
-		}
+		appendIfNotEmpty(&sb, msg.text)
+		appendIfNotEmpty(&sb, msg.thinking)
 		for _, tc := range msg.toolCalls {
-			if strings.Contains(strings.ToLower(tc.summary), queryLower) {
-				return true
-			}
+			appendIfNotEmpty(&sb, tc.summary)
 		}
 		for _, tr := range msg.toolResults {
-			if strings.Contains(strings.ToLower(tr.content), queryLower) {
-				return true
-			}
+			appendIfNotEmpty(&sb, tr.content)
 		}
 	}
-	return false
+	return strings.ToLower(sb.String())
+}
+
+func appendIfNotEmpty(sb *strings.Builder, s string) {
+	if s == "" {
+		return
+	}
+	if sb.Len() > 0 {
+		sb.WriteByte('\n')
+	}
+	sb.WriteString(s)
 }

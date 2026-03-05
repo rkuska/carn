@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"charm.land/bubbles/v2/progress"
@@ -25,14 +26,18 @@ type syncModel struct {
 	height      int
 
 	// Phase tracking
-	files   []string // files to sync, populated after scan
-	scanned bool
+	files      []string // files to sync, populated after scan
+	scanned    bool
+	nextIndex  int
+	inFlight   int
+	maxWorkers int
 }
 
 // Messages
 
 type syncFilesScannedMsg struct {
 	files []string
+	err   error
 }
 
 type syncFileCopiedMsg struct {
@@ -70,6 +75,12 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 
 	case syncFilesScannedMsg:
 		m.scanned = true
+		if msg.err != nil {
+			m.done = true
+			m.result.failed = 1
+			m.currentFile = fmt.Sprintf("scan error: %v", msg.err)
+			return m, nil
+		}
 		m.files = msg.files
 		m.total = len(msg.files)
 		if m.total == 0 {
@@ -77,7 +88,7 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 			m.result = syncResult{}
 			return m, nil
 		}
-		return m, copyNextFileCmd(m.cfg, m.files[0])
+		return m, m.startCopyBatch()
 
 	case syncFileCopiedMsg:
 		m.current++
@@ -86,14 +97,23 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 		} else {
 			m.result.copied++
 		}
+		m.currentFile = filepath.Base(msg.file)
+		if m.inFlight > 0 {
+			m.inFlight--
+		}
 
-		if m.current >= m.total {
+		if m.current >= m.total && m.inFlight == 0 {
 			m.done = true
 			return m, nil
 		}
 
-		m.currentFile = filepath.Base(m.files[m.current])
-		return m, copyNextFileCmd(m.cfg, m.files[m.current])
+		if m.nextIndex < m.total {
+			next := m.files[m.nextIndex]
+			m.nextIndex++
+			m.inFlight++
+			return m, copyNextFileCmd(m.cfg, next)
+		}
+		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -107,6 +127,27 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *syncModel) startCopyBatch() tea.Cmd {
+	if m.maxWorkers <= 0 {
+		m.maxWorkers = max(runtime.NumCPU(), 1)
+		if m.maxWorkers > 8 {
+			m.maxWorkers = 8
+		}
+	}
+
+	startCount := min(m.maxWorkers, m.total)
+
+	cmds := make([]tea.Cmd, 0, startCount)
+	for i := 0; i < startCount; i++ {
+		next := m.files[m.nextIndex]
+		m.nextIndex++
+		m.inFlight++
+		cmds = append(cmds, copyNextFileCmd(m.cfg, next))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m syncModel) View() string {
@@ -170,8 +211,8 @@ func (m syncModel) View() string {
 
 func scanFilesCmd(cfg archiveConfig) tea.Cmd {
 	return func() tea.Msg {
-		files, _ := collectFilesToSync(cfg)
-		return syncFilesScannedMsg{files: files}
+		files, err := collectFilesToSync(cfg)
+		return syncFilesScannedMsg{files: files, err: err}
 	}
 }
 

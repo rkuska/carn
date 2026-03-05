@@ -58,6 +58,9 @@ type viewerModel struct {
 	currentMatch int
 	statusText   string
 	rawContent   string // unrendered transcript
+	searchLines  []string
+	renderer     *glamour.TermRenderer
+	renderWrap   int
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
@@ -311,28 +314,47 @@ func (m viewerModel) helpView() string {
 func (m *viewerModel) renderContent() {
 	m.rawContent = renderTranscript(m.session, m.opts)
 
-	// Render markdown with glamour, then strip ANSI to avoid artifacts
-	// from lipgloss v1 escape codes being misinterpreted by bubbletea v2's
-	// cellbuf renderer.
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(m.glamourStyle),
-		glamour.WithWordWrap(m.width-4),
-	)
-	if err != nil {
-		m.viewport.SetContent(m.rawContent)
-		return
+	content := m.rawContent
+	if renderer, err := m.ensureRenderer(); err == nil {
+		// Render markdown with glamour, then strip ANSI to avoid artifacts
+		// from lipgloss v1 escape codes being misinterpreted by bubbletea v2's
+		// cellbuf renderer.
+		if rendered, renderErr := renderer.Render(m.rawContent); renderErr == nil {
+			content = ansi.Strip(rendered)
+		}
 	}
 
-	rendered, err := renderer.Render(m.rawContent)
-	if err != nil {
-		m.viewport.SetContent(m.rawContent)
-		return
-	}
-
-	m.viewport.SetContent(ansi.Strip(rendered))
+	m.viewport.SetContent(content)
+	m.rebuildSearchIndex(content)
 
 	if m.searchQuery != "" {
 		m.performSearch()
+	}
+}
+
+func (m *viewerModel) ensureRenderer() (*glamour.TermRenderer, error) {
+	wrapWidth := max(m.width-4, 1)
+	if m.renderer != nil && m.renderWrap == wrapWidth {
+		return m.renderer, nil
+	}
+
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithStandardStyle(m.glamourStyle),
+		glamour.WithWordWrap(wrapWidth),
+	)
+	if err != nil {
+		return nil, err
+	}
+	m.renderer = renderer
+	m.renderWrap = wrapWidth
+	return renderer, nil
+}
+
+func (m *viewerModel) rebuildSearchIndex(content string) {
+	lines := strings.Split(content, "\n")
+	m.searchLines = make([]string, len(lines))
+	for i, line := range lines {
+		m.searchLines[i] = strings.ToLower(line)
 	}
 }
 
@@ -344,10 +366,9 @@ func (m *viewerModel) performSearch() {
 		return
 	}
 
-	lines := strings.Split(m.viewport.GetContent(), "\n")
 	queryLower := strings.ToLower(m.searchQuery)
-	for i, line := range lines {
-		if strings.Contains(strings.ToLower(ansi.Strip(line)), queryLower) {
+	for i, line := range m.searchLines {
+		if strings.Contains(line, queryLower) {
 			m.matchIndices = append(m.matchIndices, i)
 		}
 	}
