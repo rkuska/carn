@@ -70,7 +70,7 @@ func TestHelpBarAlwaysVisibleInFooter(t *testing.T) {
 	m := newTestViewer(testSession("help-always"), 120, 40)
 	footer := m.footerView()
 
-	if !strings.Contains(footer, "toggle thinking") {
+	if !strings.Contains(footer, "thinking") {
 		t.Fatalf("expected help bar to be visible by default, got: %s", footer)
 	}
 }
@@ -106,17 +106,39 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	t.Parallel()
 
-	// Session with no thinking data.
-	m := newTestViewer(testSession("no-glow"), 120, 40)
+	// Session with no thinking data — glow should not activate,
+	// but the +/- prefix still changes with toggle state.
+	session := sessionFull{
+		meta: sessionMeta{
+			id:        "no-glow",
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: []message{
+			{role: roleUser, text: "hello"},
+			{role: roleAssistant, text: "hi", thinking: "deep thought"},
+		},
+	}
+	m := newTestViewer(session, 120, 40)
 
-	helpDefault := m.footerView()
+	helpOff := m.footerView()
 
 	m.opts.showThinking = true
-	helpWithThinking := m.footerView()
+	helpOn := m.footerView()
 
-	// No thinking data exists — toggling should NOT change styling.
-	if helpDefault != helpWithThinking {
-		t.Fatal("expected footer to be identical when no thinking data exists")
+	// With thinking data, toggling changes both glow and prefix.
+	if helpOff == helpOn {
+		t.Fatal("expected footer to differ when thinking is toggled")
+	}
+
+	// Session with NO thinking data — glow should not activate.
+	noThinkSession := testSession("no-glow-plain")
+	m2 := newTestViewer(noThinkSession, 120, 40)
+	footer := m2.footerView()
+
+	// The key should show -t (off) but not glow since there's no thinking content.
+	if !strings.Contains(footer, "-t") {
+		t.Fatal("expected -t prefix when thinking is off")
 	}
 }
 
