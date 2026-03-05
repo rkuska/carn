@@ -40,6 +40,11 @@ func renderTranscript(session sessionFull, opts transcriptOptions) string {
 }
 
 func renderUserMessage(sb *strings.Builder, msg message, opts transcriptOptions) {
+	hasContent := msg.text != "" || (opts.showToolResults && len(msg.toolResults) > 0)
+	if !hasContent {
+		return
+	}
+
 	sb.WriteString("## You\n\n")
 	if msg.text != "" {
 		sb.WriteString(msg.text)
@@ -118,6 +123,9 @@ func renderPreview(session sessionFull, maxMessages int, width int) string {
 
 		switch msg.role {
 		case roleUser:
+			if msg.text == "" {
+				continue
+			}
 			sb.WriteString("▶ You\n")
 			sb.WriteString(wrapText(msg.text, width))
 			sb.WriteString("\n\n")
