@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/rs/zerolog"
 )
 
@@ -848,11 +850,41 @@ func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessio
 			isAgentDivider: true,
 			text:           dividerText,
 		}
-		session.messages = append(session.messages, divider)
-		session.messages = append(session.messages, subSession.messages...)
+		// Find chronologically correct insertion position
+		anchor := firstTimestamp(subSession.messages)
+		pos := findInsertPosition(session.messages, anchor)
+
+		session.messages = slices.Insert(session.messages, pos, divider)
+		session.messages = slices.Insert(session.messages, pos+1, subSession.messages...)
 	}
 
 	return session
+}
+
+// firstTimestamp returns the first non-zero timestamp from a message slice.
+func firstTimestamp(messages []message) time.Time {
+	for _, msg := range messages {
+		if !msg.timestamp.IsZero() {
+			return msg.timestamp
+		}
+	}
+	return time.Time{}
+}
+
+// findInsertPosition returns the index at which to insert subagent messages.
+// It finds the last message with a non-zero timestamp <= anchor, and returns
+// the index after it. Falls back to len(messages) when anchor is zero.
+func findInsertPosition(messages []message, anchor time.Time) int {
+	if anchor.IsZero() {
+		return len(messages)
+	}
+	pos := 0
+	for i, msg := range messages {
+		if !msg.timestamp.IsZero() && !msg.timestamp.After(anchor) {
+			pos = i + 1
+		}
+	}
+	return pos
 }
 
 // parseConversationWithSubagents reads all files in a conversation and merges

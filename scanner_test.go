@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testTextHello = "hello"
@@ -873,13 +874,158 @@ func TestFindSubagentFiles(t *testing.T) {
 	})
 }
 
+func TestFirstTimestamp(t *testing.T) {
+	t.Parallel()
+
+	t1 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	t2 := time.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		messages []message
+		want     time.Time
+	}{
+		{
+			name:     "empty messages",
+			messages: nil,
+			want:     time.Time{},
+		},
+		{
+			name:     "all zero timestamps",
+			messages: []message{{role: roleUser}, {role: roleAssistant}},
+			want:     time.Time{},
+		},
+		{
+			name:     "first has timestamp",
+			messages: []message{{role: roleUser, timestamp: t1}, {role: roleAssistant}},
+			want:     t1,
+		},
+		{
+			name: "second has timestamp",
+			messages: []message{
+				{role: roleAssistant},
+				{role: roleUser, timestamp: t2},
+			},
+			want: t2,
+		},
+		{
+			name: "returns first non-zero",
+			messages: []message{
+				{role: roleAssistant},
+				{role: roleUser, timestamp: t1},
+				{role: roleUser, timestamp: t2},
+			},
+			want: t1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := firstTimestamp(tt.messages)
+			if !got.Equal(tt.want) {
+				t.Errorf("firstTimestamp() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindInsertPosition(t *testing.T) {
+	t.Parallel()
+
+	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	t1 := time.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
+	t2 := time.Date(2024, 1, 1, 0, 2, 0, 0, time.UTC)
+	t3 := time.Date(2024, 1, 1, 0, 3, 0, 0, time.UTC)
+
+	messages := []message{
+		{role: roleUser, timestamp: t0},
+		{role: roleAssistant, timestamp: t1},
+		{role: roleUser, timestamp: t2},
+		{role: roleAssistant, timestamp: t3},
+	}
+
+	tests := []struct {
+		name     string
+		messages []message
+		anchor   time.Time
+		want     int
+	}{
+		{
+			name:     "zero anchor appends at end",
+			messages: messages,
+			anchor:   time.Time{},
+			want:     4,
+		},
+		{
+			name:     "anchor between messages",
+			messages: messages,
+			anchor:   time.Date(2024, 1, 1, 0, 1, 30, 0, time.UTC),
+			want:     2,
+		},
+		{
+			name:     "anchor before all messages",
+			messages: messages,
+			anchor:   time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC),
+			want:     0,
+		},
+		{
+			name:     "anchor after all messages",
+			messages: messages,
+			anchor:   time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC),
+			want:     4,
+		},
+		{
+			name:     "anchor equals a message timestamp",
+			messages: messages,
+			anchor:   t1,
+			want:     2,
+		},
+		{
+			name:     "empty messages",
+			messages: nil,
+			anchor:   t1,
+			want:     0,
+		},
+		{
+			name: "skips messages without timestamps",
+			messages: []message{
+				{role: roleUser, timestamp: t0},
+				{role: roleAssistant}, // no timestamp
+				{role: roleUser, timestamp: t2},
+			},
+			anchor: time.Date(2024, 1, 1, 0, 0, 30, 0, time.UTC),
+			want:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := findInsertPosition(tt.messages, tt.anchor)
+			if got != tt.want {
+				t.Errorf("findInsertPosition() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseSessionWithSubagents(t *testing.T) {
 	t.Parallel()
 
-	userLine := func(content string) string {
+	userLineAt := func(content, ts string) string {
 		return `{"type":"user","sessionId":"s1","slug":"test",` +
-			`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+			`"timestamp":"` + ts + `","cwd":"/tmp",` +
 			`"message":{"role":"user","content":"` + content + `"}}`
+	}
+	assistLineAt := func(text, ts string) string {
+		return `{"type":"assistant","timestamp":"` + ts + `",` +
+			`"message":{"role":"assistant",` +
+			`"model":"claude-3","content":[{"type":"text",` +
+			`"text":"` + text + `"}]}}`
+	}
+	userLine := func(content string) string {
+		return userLineAt(content, "2024-01-01T00:00:00Z")
 	}
 	assistLine := func(text string) string {
 		return `{"type":"assistant","message":{"role":"assistant",` +
@@ -914,7 +1060,10 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 
-		parentContent := strings.Join([]string{userLine("parent question"), assistLine("parent answer")}, "\n")
+		parentContent := strings.Join([]string{
+			userLineAt("parent question", "2024-01-01T00:00:00Z"),
+			assistLineAt("parent answer", "2024-01-01T00:01:00Z"),
+		}, "\n")
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
 		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
@@ -924,7 +1073,10 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		if err := os.MkdirAll(subDir, 0o755); err != nil {
 			t.Fatalf("MkdirAll: %v", err)
 		}
-		subContent := strings.Join([]string{userLine("sub question"), assistLine("sub answer")}, "\n")
+		subContent := strings.Join([]string{
+			userLineAt("sub question", "2024-01-01T00:02:00Z"),
+			assistLineAt("sub answer", "2024-01-01T00:03:00Z"),
+		}, "\n")
 		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
@@ -944,7 +1096,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			t.Fatalf("expected 5 messages, got %d", len(session.messages))
 		}
 
-		// Third message should be the divider
+		// Third message should be the divider (after parent at T=00:01)
 		divider := session.messages[2]
 		if !divider.isAgentDivider {
 			t.Error("expected divider message to have isAgentDivider=true")
@@ -956,6 +1108,191 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		// Fourth message should be the subagent's user message
 		if session.messages[3].text != "sub question" {
 			t.Errorf("expected subagent user message, got %q", session.messages[3].text)
+		}
+	})
+
+	t.Run("subagent ordered between parent messages", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		parentContent := strings.Join([]string{
+			userLineAt("start", "2024-01-01T00:00:00Z"),
+			assistLineAt("reply1", "2024-01-01T00:01:00Z"),
+			userLineAt("followup", "2024-01-01T00:05:00Z"),
+			assistLineAt("reply2", "2024-01-01T00:06:00Z"),
+		}, "\n")
+		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
+		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		subContent := strings.Join([]string{
+			userLineAt("explore code", "2024-01-01T00:02:00Z"),
+			assistLineAt("found it", "2024-01-01T00:03:00Z"),
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		meta := sessionMeta{
+			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			filePath: parentFile,
+			project:  project{dirName: "test", displayName: "test"},
+		}
+		session, err := parseSessionWithSubagents(context.Background(), meta)
+		if err != nil {
+			t.Fatalf("parseSessionWithSubagents: %v", err)
+		}
+
+		// 4 parent + 1 divider + 2 subagent = 7
+		if len(session.messages) != 7 {
+			t.Fatalf("expected 7 messages, got %d", len(session.messages))
+		}
+
+		// Order: start(0), reply1(1), divider(2), explore(3), found(4), followup(5), reply2(6)
+		if !session.messages[2].isAgentDivider {
+			t.Errorf("messages[2] should be divider, got role=%s text=%q", session.messages[2].role, session.messages[2].text)
+		}
+		if session.messages[3].text != "explore code" {
+			t.Errorf("messages[3] = %q, want %q", session.messages[3].text, "explore code")
+		}
+		if session.messages[5].text != "followup" {
+			t.Errorf("messages[5] = %q, want %q", session.messages[5].text, "followup")
+		}
+		if session.messages[6].text != "reply2" {
+			t.Errorf("messages[6] = %q, want %q", session.messages[6].text, "reply2")
+		}
+	})
+
+	t.Run("multiple subagents ordered correctly", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		parentContent := strings.Join([]string{
+			userLineAt("start", "2024-01-01T00:00:00Z"),
+			assistLineAt("reply1", "2024-01-01T00:01:00Z"),
+			userLineAt("middle", "2024-01-01T00:05:00Z"),
+			assistLineAt("reply2", "2024-01-01T00:06:00Z"),
+			userLineAt("end", "2024-01-01T00:10:00Z"),
+			assistLineAt("reply3", "2024-01-01T00:11:00Z"),
+		}, "\n")
+		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
+		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		// First subagent at T=00:02 (between reply1 and middle)
+		sub1 := strings.Join([]string{
+			userLineAt("sub1 task", "2024-01-01T00:02:00Z"),
+			assistLineAt("sub1 done", "2024-01-01T00:03:00Z"),
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(sub1), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		// Second subagent at T=00:07 (between reply2 and end)
+		sub2 := strings.Join([]string{
+			userLineAt("sub2 task", "2024-01-01T00:07:00Z"),
+			assistLineAt("sub2 done", "2024-01-01T00:08:00Z"),
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(subDir, "agent-2.jsonl"), []byte(sub2), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		meta := sessionMeta{
+			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			filePath: parentFile,
+			project:  project{dirName: "test", displayName: "test"},
+		}
+		session, err := parseSessionWithSubagents(context.Background(), meta)
+		if err != nil {
+			t.Fatalf("parseSessionWithSubagents: %v", err)
+		}
+
+		// 6 parent + 2 dividers + 4 subagent = 12
+		if len(session.messages) != 12 {
+			t.Fatalf("expected 12 messages, got %d", len(session.messages))
+		}
+
+		// Expected order:
+		// 0: start, 1: reply1, 2: div1, 3: sub1 task, 4: sub1 done,
+		// 5: middle, 6: reply2, 7: div2, 8: sub2 task, 9: sub2 done,
+		// 10: end, 11: reply3
+		if !session.messages[2].isAgentDivider {
+			t.Errorf("messages[2] should be divider")
+		}
+		if session.messages[3].text != "sub1 task" {
+			t.Errorf("messages[3] = %q, want %q", session.messages[3].text, "sub1 task")
+		}
+		if session.messages[5].text != "middle" {
+			t.Errorf("messages[5] = %q, want %q", session.messages[5].text, "middle")
+		}
+		if !session.messages[7].isAgentDivider {
+			t.Errorf("messages[7] should be divider")
+		}
+		if session.messages[8].text != "sub2 task" {
+			t.Errorf("messages[8] = %q, want %q", session.messages[8].text, "sub2 task")
+		}
+		if session.messages[10].text != "end" {
+			t.Errorf("messages[10] = %q, want %q", session.messages[10].text, "end")
+		}
+	})
+
+	t.Run("subagent without timestamps appended at end", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		parentContent := strings.Join([]string{
+			userLineAt("parent q", "2024-01-01T00:00:00Z"),
+			assistLineAt("parent a", "2024-01-01T00:01:00Z"),
+		}, "\n")
+		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
+		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		// Subagent messages without timestamps
+		subContent := strings.Join([]string{
+			`{"type":"user","sessionId":"s2","slug":"test","cwd":"/tmp","message":{"role":"user","content":"no ts task"}}`,
+			assistLine("no ts done"),
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		meta := sessionMeta{
+			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			filePath: parentFile,
+			project:  project{dirName: "test", displayName: "test"},
+		}
+		session, err := parseSessionWithSubagents(context.Background(), meta)
+		if err != nil {
+			t.Fatalf("parseSessionWithSubagents: %v", err)
+		}
+
+		// 2 parent + 1 divider + 2 subagent = 5
+		if len(session.messages) != 5 {
+			t.Fatalf("expected 5 messages, got %d", len(session.messages))
+		}
+
+		// Divider should be at end (index 2) since no timestamp to anchor
+		if !session.messages[2].isAgentDivider {
+			t.Errorf("messages[2] should be divider, got text=%q", session.messages[2].text)
+		}
+		// Last message is subagent assistant
+		if session.messages[4].text != "no ts done" {
+			t.Errorf("messages[4] = %q, want %q", session.messages[4].text, "no ts done")
 		}
 	})
 }
