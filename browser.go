@@ -28,6 +28,7 @@ const (
 
 type browserModel struct {
 	ctx           context.Context
+	archiveDir    string
 	list          list.Model
 	preview       viewport.Model
 	focus         focusArea
@@ -43,7 +44,7 @@ type browserModel struct {
 	cacheOrder []string
 }
 
-func newBrowserModel(ctx context.Context) browserModel {
+func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	delegate := newDelegate()
 	l := list.New(nil, delegate, 0, 0)
 	l.Title = "Claude Sessions"
@@ -55,6 +56,7 @@ func newBrowserModel(ctx context.Context) browserModel {
 
 	return browserModel{
 		ctx:          ctx,
+		archiveDir:   archiveDir,
 		list:         l,
 		preview:      vp,
 		focus:        focusList,
@@ -64,7 +66,7 @@ func newBrowserModel(ctx context.Context) browserModel {
 }
 
 func (m browserModel) Init() tea.Cmd {
-	return loadSessionsCmd(m.ctx)
+	return loadSessionsCmd(m.ctx, m.archiveDir)
 }
 
 func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {

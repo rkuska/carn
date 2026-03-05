@@ -10,28 +10,33 @@ import (
 type viewState int
 
 const (
-	viewBrowser viewState = iota
+	viewSync viewState = iota
+	viewBrowser
 	viewViewer
 )
 
 type appModel struct {
 	ctx           context.Context
+	cfg           archiveConfig
 	state         viewState
+	sync          syncModel
 	browser       browserModel
 	viewer        viewerModel
 	width, height int
 }
 
-func newAppModel(ctx context.Context) appModel {
+func newAppModel(ctx context.Context, cfg archiveConfig) appModel {
 	return appModel{
 		ctx:     ctx,
-		state:   viewBrowser,
-		browser: newBrowserModel(ctx),
+		cfg:     cfg,
+		state:   viewSync,
+		sync:    newSyncModel(cfg),
+		browser: newBrowserModel(ctx, cfg.archiveDir),
 	}
 }
 
 func (m appModel) Init() tea.Cmd {
-	return m.browser.Init()
+	return m.sync.Init()
 }
 
 func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -41,6 +46,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
+	case viewSync:
+		return m.updateSync(msg)
 	case viewBrowser:
 		return m.updateBrowser(msg)
 	case viewViewer:
@@ -48,6 +55,23 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m appModel) updateSync(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.sync, cmd = m.sync.Update(msg)
+
+	if m.sync.done {
+		m.state = viewBrowser
+		return m, tea.Batch(
+			m.browser.Init(),
+			func() tea.Msg {
+				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			},
+		)
+	}
+
+	return m, cmd
 }
 
 func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -91,6 +115,8 @@ func (m appModel) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m appModel) View() string {
 	switch m.state {
+	case viewSync:
+		return m.sync.View()
 	case viewBrowser:
 		return m.browser.View()
 	case viewViewer:

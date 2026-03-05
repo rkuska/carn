@@ -679,7 +679,12 @@ func TestParseSessionRealFile(t *testing.T) {
 func TestScanSessions(t *testing.T) {
 	t.Parallel()
 
-	sessions, err := scanSessions(context.Background())
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	baseDir := filepath.Join(home, claudeProjectsDir)
+	sessions, err := scanSessions(context.Background(), baseDir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}

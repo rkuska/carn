@@ -12,7 +12,7 @@ import (
 
 func testBrowser(t *testing.T) browserModel {
 	t.Helper()
-	b := newBrowserModel(context.Background())
+	b := newBrowserModel(context.Background(), t.TempDir())
 	b.width = 120
 	b.height = 40
 	b.preview.Width = 40
