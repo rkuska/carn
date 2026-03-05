@@ -59,6 +59,14 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 			browserKeys.Copy,
 		}
 	}
+	l.Styles.Title = lipgloss.NewStyle().
+		Background(colorPrimary).
+		Foreground(lipgloss.Color("230")).
+		Padding(0, 1)
+	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
+		Background(colorHighlight).
+		Bold(true)
+
 	l.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			browserKeys.Enter,
