@@ -15,35 +15,39 @@ import (
 )
 
 type viewerModel struct {
-	viewport      viewport.Model
-	session       sessionFull
-	opts          transcriptOptions
-	width, height int
-	searchInput   textinput.Model
-	searching     bool
-	searchQuery   string
-	matchIndices  []int // line indices of matches
-	currentMatch  int
-	statusText    string
-	rawContent    string // unrendered transcript
-	showHelp      bool
+	viewport     viewport.Model
+	session      sessionFull
+	opts         transcriptOptions
+	glamourStyle string
+	width        int
+	height       int
+	searchInput  textinput.Model
+	searching    bool
+	searchQuery  string
+	matchIndices []int // line indices of matches
+	currentMatch int
+	statusText   string
+	rawContent   string // unrendered transcript
+	showHelp     bool
 }
 
-func newViewerModel(session sessionFull, width, height int) viewerModel {
+func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
 	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-3))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
 	ti.Prompt = "/"
 	ti.CharLimit = 100
+	ti.Blur()
 
 	m := viewerModel{
-		viewport:    vp,
-		session:     session,
-		opts:        transcriptOptions{},
-		width:       width,
-		height:      height,
-		searchInput: ti,
+		viewport:     vp,
+		session:      session,
+		opts:         transcriptOptions{},
+		glamourStyle: glamourStyle,
+		width:        width,
+		height:       height,
+		searchInput:  ti,
 	}
 	m.renderContent()
 	return m
@@ -275,9 +279,11 @@ func (m viewerModel) helpView() string {
 func (m *viewerModel) renderContent() {
 	m.rawContent = renderTranscript(m.session, m.opts)
 
-	// Render markdown with glamour
+	// Render markdown with glamour, then strip ANSI to avoid artifacts
+	// from lipgloss v1 escape codes being misinterpreted by bubbletea v2's
+	// cellbuf renderer.
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle(m.glamourStyle),
 		glamour.WithWordWrap(m.width-4),
 	)
 	if err != nil {
@@ -291,7 +297,7 @@ func (m *viewerModel) renderContent() {
 		return
 	}
 
-	m.viewport.SetContent(rendered)
+	m.viewport.SetContent(ansi.Strip(rendered))
 
 	if m.searchQuery != "" {
 		m.performSearch()

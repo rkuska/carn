@@ -18,6 +18,7 @@ const (
 type appModel struct {
 	ctx           context.Context
 	cfg           archiveConfig
+	glamourStyle  string
 	state         viewState
 	sync          syncModel
 	browser       browserModel
@@ -25,13 +26,14 @@ type appModel struct {
 	width, height int
 }
 
-func newAppModel(ctx context.Context, cfg archiveConfig) appModel {
+func newAppModel(ctx context.Context, cfg archiveConfig, glamourStyle string) appModel {
 	return appModel{
-		ctx:     ctx,
-		cfg:     cfg,
-		state:   viewSync,
-		sync:    newSyncModel(cfg),
-		browser: newBrowserModel(ctx, cfg.archiveDir),
+		ctx:          ctx,
+		cfg:          cfg,
+		glamourStyle: glamourStyle,
+		state:        viewSync,
+		sync:         newSyncModel(cfg),
+		browser:      newBrowserModel(ctx, cfg.archiveDir),
 	}
 }
 
@@ -90,9 +92,14 @@ func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case openViewerMsg:
-		m.viewer = newViewerModel(msg.session, m.width, m.height)
+		m.viewer = newViewerModel(msg.session, m.glamourStyle, m.width, m.height)
 		m.state = viewViewer
-		return m, m.viewer.Init()
+		return m, tea.Batch(
+			m.viewer.Init(),
+			func() tea.Msg {
+				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+			},
+		)
 	}
 
 	var cmd tea.Cmd
