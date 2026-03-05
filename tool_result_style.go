@@ -5,7 +5,10 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
+
+const toolResultPrefixW = 2 // ▎ border (1 cell) + space (1 cell)
 
 // renderStyledToolResult renders a tool result with lipgloss styling:
 // colored header badge, dark background content area with left border,
@@ -83,13 +86,9 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 		Background(colorToolBg).
 		Foreground(colorDiffHunk)
 
-	// Content width: total width minus border char (2 cells) minus padding (1 space)
-	contentWidth := max(width-3, 1)
+	contentWidth := max(width-toolResultPrefixW, 1)
 
 	for _, line := range lines {
-		sb.WriteString(border)
-		sb.WriteString(" ")
-
 		style := bgStyle
 		if isDiff {
 			switch {
@@ -102,15 +101,21 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 			}
 		}
 
-		padded := padRight(line, contentWidth)
-		sb.WriteString(style.Render(padded))
-		sb.WriteString("\n")
+		wrapped := ansi.Hardwrap(line, contentWidth, false)
+		for subLine := range strings.SplitSeq(wrapped, "\n") {
+			sb.WriteString(border)
+			sb.WriteString(" ")
+			padded := fitToWidth(subLine, contentWidth)
+			sb.WriteString(style.Render(padded))
+			sb.WriteString("\n")
+		}
 	}
 }
 
-func padRight(s string, width int) string {
-	if len(s) >= width {
+func fitToWidth(s string, width int) string {
+	sw := lipgloss.Width(s)
+	if sw >= width {
 		return s
 	}
-	return s + strings.Repeat(" ", width-len(s))
+	return s + strings.Repeat(" ", width-sw)
 }
