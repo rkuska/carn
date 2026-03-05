@@ -122,6 +122,14 @@ Make sure the code conforms the latest go code guidelines:
 go fix ./...
 ```
 
+Run performance benchmarks when touching runtime-sensitive paths:
+```bash
+go test -run '^$' -bench 'Benchmark(ScanSessions|DeepSearch|ViewerRenderContent|ViewerSearch|CollectFilesToSync)$' -benchmem ./...
+```
+
+Keep benchmark scenarios in `perf_bench_test.go` and update `PERF_BASELINE.md`
+when benchmark results change in a meaningful way.
+
 ### Unit tests
 
 We write unit tests to test small (but complex) functions (both private and public). 

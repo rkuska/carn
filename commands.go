@@ -78,6 +78,13 @@ func openSessionCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
 	}
 }
 
+func openSessionCmdCached(ctx context.Context, meta sessionMeta, parent sessionFull) tea.Cmd {
+	return func() tea.Msg {
+		session := parseSessionWithSubagentsCached(ctx, meta, parent)
+		return openViewerMsg{session: session}
+	}
+}
+
 func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	return func() tea.Msg {
 		text := renderTranscript(session, opts)

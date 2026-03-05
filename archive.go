@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -107,19 +109,18 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 	}
 
 	// Phase 2: Copy concurrently
-	var (
-		copied  int
-		skipped int
-		failed  int
-	)
+	var copied atomic.Int64
+	var failed atomic.Int64
+	var completed atomic.Int64
+	var progressMu sync.Mutex
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
 	g, gctx := errgroup.WithContext(ctx)
 
-	for i, src := range filesToSync {
+	for _, src := range filesToSync {
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+				return fmt.Errorf("sem.Acquire: %w", err)
 			}
 			defer sem.Release(1)
 
@@ -128,18 +129,31 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 
 			if err := copyFile(src, dst); err != nil {
 				log.Warn().Err(err).Msgf("failed to copy %s", src)
-				failed++
+				failed.Add(1)
+				if onProgress != nil {
+					progress := syncProgress{
+						current: int(completed.Add(1)),
+						total:   total,
+						file:    filepath.Base(src),
+					}
+					progressMu.Lock()
+					onProgress(progress)
+					progressMu.Unlock()
+				}
 				return nil // continue other copies
 			}
 
-			copied++
+			copied.Add(1)
 
 			if onProgress != nil {
-				onProgress(syncProgress{
-					current: i + 1,
+				progress := syncProgress{
+					current: int(completed.Add(1)),
 					total:   total,
 					file:    filepath.Base(src),
-				})
+				}
+				progressMu.Lock()
+				onProgress(progress)
+				progressMu.Unlock()
 			}
 
 			return nil
@@ -151,9 +165,9 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 	}
 
 	result := syncResult{
-		copied:  copied,
-		skipped: skipped,
-		failed:  failed,
+		copied:  int(copied.Load()),
+		skipped: 0,
+		failed:  int(failed.Load()),
 		elapsed: time.Since(start),
 	}
 

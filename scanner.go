@@ -104,8 +104,7 @@ func projectFromDirName(dirName string) project {
 	}
 }
 
-// scanMetadata reads the beginning of a JSONL file to extract session metadata
-// without parsing the entire file.
+// scanMetadata scans a JSONL file once to extract metadata and message counts.
 func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMeta, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -122,6 +121,7 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 	}
 
 	var foundUser, foundAssistant bool
+	var total, mainOnly int
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -129,9 +129,15 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 			continue
 		}
 
-		recType := extractType(line)
+		recRole := role(extractType(line))
+		if recRole == roleUser || recRole == roleAssistant {
+			total++
+			if !extractIsSidechain(line) {
+				mainOnly++
+			}
+		}
 
-		switch role(recType) {
+		switch recRole {
 		case roleUser:
 			if err := parseUserRecord(line, &meta, &foundUser); err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", filePath)
@@ -142,9 +148,6 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 			}
 		}
 
-		if foundUser && foundAssistant {
-			break
-		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -155,11 +158,6 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 		return sessionMeta{}, fmt.Errorf("no session metadata found in %s", filePath)
 	}
 
-	// Count total messages by scanning for type markers
-	total, mainOnly, countErr := countMessages(filePath)
-	if countErr != nil {
-		zerolog.Ctx(ctx).Debug().Err(countErr).Msgf("countMessages failed for %s", filePath)
-	}
 	meta.messageCount = total
 	meta.mainMessageCount = mainOnly
 
@@ -648,9 +646,21 @@ func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFu
 		return sessionFull{}, fmt.Errorf("parseSession: %w", err)
 	}
 
+	return mergeSubagentSessions(ctx, meta, session), nil
+}
+
+// parseSessionWithSubagentsCached merges subagents into a cached parent session.
+func parseSessionWithSubagentsCached(ctx context.Context, meta sessionMeta, parent sessionFull) sessionFull {
+	// Copy the message slice so appending subagent content never mutates cache entries.
+	parent.messages = append([]message(nil), parent.messages...)
+	parent.meta = meta
+	return mergeSubagentSessions(ctx, meta, parent)
+}
+
+func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessionFull) sessionFull {
 	subFiles := findSubagentFiles(meta.filePath)
 	if len(subFiles) == 0 {
-		return session, nil
+		return session
 	}
 
 	log := zerolog.Ctx(ctx)
@@ -684,7 +694,7 @@ func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFu
 		session.messages = append(session.messages, subSession.messages...)
 	}
 
-	return session, nil
+	return session
 }
 
 func displayNameFromCWD(cwd string) string {
