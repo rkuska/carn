@@ -312,15 +312,30 @@ func (m viewerModel) helpView() string {
 }
 
 func (m *viewerModel) renderContent() {
-	m.rawContent = renderTranscript(m.session, m.opts)
+	segments := renderTranscriptSegmented(m.session, m.opts)
+	m.rawContent = flattenSegments(segments)
 
-	content := m.rawContent
-	if renderer, err := m.ensureRenderer(); err == nil {
-		if rendered, renderErr := renderer.Render(m.rawContent); renderErr == nil {
-			content = rendered
+	renderer, rendererErr := m.ensureRenderer()
+	contentWidth := max(m.width-4, 1)
+
+	var sb strings.Builder
+	for _, seg := range segments {
+		switch seg.kind {
+		case segmentMarkdown:
+			if rendererErr == nil {
+				if rendered, err := renderer.Render(seg.text); err == nil {
+					sb.WriteString(strings.TrimRight(rendered, "\n"))
+					sb.WriteString("\n")
+					continue
+				}
+			}
+			sb.WriteString(seg.text)
+		case segmentToolResult:
+			sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
 		}
 	}
 
+	content := sb.String()
 	m.viewport.SetContent(content)
 	m.rebuildSearchIndex(content)
 
