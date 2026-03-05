@@ -50,7 +50,7 @@ type browserModel struct {
 func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	delegate := newDelegate()
 	l := list.New(nil, delegate, 0, 0)
-	l.Title = "Claude Sessions"
+	l.SetShowTitle(false)
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
@@ -62,10 +62,6 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 			browserKeys.Copy,
 		}
 	}
-	l.Styles.Title = lipgloss.NewStyle().
-		Background(colorPrimary).
-		Foreground(colorTitleFg).
-		Padding(0, 1)
 	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
 		Background(colorHighlight).
 		Bold(true)
@@ -255,25 +251,27 @@ func (m browserModel) View() string {
 	// Status bar
 	status := m.statusBar()
 
-	// Render list pane inside a border
-	listBorder := stylePreviewBorder
-	if m.focus == focusList {
-		listBorder = listBorder.BorderForeground(colorAccent)
-	}
-	listView := listBorder.
+	// Render list pane with embedded title in frame border
+	listTopBorder := renderBorderTop("Claude Sessions", listBoxWidth, colorAccent, colorAccent)
+	listBody := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		BorderForeground(colorAccent).
 		Width(listBoxWidth).
 		Height(m.height - 3).
 		Render(m.list.View())
+	listView := listTopBorder + "\n" + listBody
 
-	// Render preview pane
-	previewBorder := stylePreviewBorder
-	if m.focus == focusPreview {
-		previewBorder = previewBorder.BorderForeground(colorAccent)
-	}
-	previewView := previewBorder.
+	// Render preview pane with embedded title in frame border
+	previewTopBorder := renderBorderTop("Preview", previewBoxWidth, colorPrimary, colorPrimary)
+	previewBody := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		BorderForeground(colorPrimary).
 		Width(previewBoxWidth).
 		Height(m.height - 3).
 		Render(m.preview.View())
+	previewView := previewTopBorder + "\n" + previewBody
 
 	// Join horizontally with gap
 	content := lipgloss.JoinHorizontal(lipgloss.Top, listView, " ", previewView)
@@ -285,11 +283,11 @@ func (m *browserModel) updateLayout() {
 	listBoxWidth := m.width * 6 / 10
 	previewBoxWidth := m.width - listBoxWidth - 1
 
-	// List inner dimensions (inside border: box - 2 border chars)
-	m.list.SetSize(listBoxWidth-2, m.height-5)
+	// List inner dimensions (inside border: box - 2 border chars, no built-in title)
+	m.list.SetSize(listBoxWidth-2, m.height-3)
 	// Preview inner dimensions (inside border: box - 2 border chars)
 	m.preview.SetWidth(previewBoxWidth - 2)
-	m.preview.SetHeight(m.height - 5)
+	m.preview.SetHeight(m.height - 3)
 }
 
 func (m *browserModel) selectedConversation() (conversation, bool) {

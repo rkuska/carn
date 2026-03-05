@@ -25,11 +25,9 @@ var (
 	colorTitleFg     color.Color // list title text on primary bg
 
 	// Styles — rebuilt by initPalette.
-	stylePreviewBorder lipgloss.Style
-	styleTitle         lipgloss.Style
-	styleSubtitle      lipgloss.Style
-	styleToolCall      lipgloss.Style
-	styleStatusBar     lipgloss.Style
+	styleSubtitle  lipgloss.Style
+	styleToolCall  lipgloss.Style
+	styleStatusBar lipgloss.Style
 )
 
 // initPalette sets the colour palette and derived styles based on
@@ -53,14 +51,6 @@ func initPalette(hasDarkBG bool) {
 	colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
 	colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
 
-	stylePreviewBorder = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorPrimary)
-
-	styleTitle = lipgloss.NewStyle().
-		Foreground(colorPrimary).
-		Bold(true)
-
 	styleSubtitle = lipgloss.NewStyle().
 		Foreground(colorSecondary)
 
@@ -73,12 +63,16 @@ func initPalette(hasDarkBG bool) {
 		Padding(0, 1)
 }
 
-// renderBorderTop builds a custom top border line with an embedded title:
+// renderBorderTop builds a custom top border line with an embedded title badge:
 // ╭─ Title ──────────────────────╮
-func renderBorderTop(title string, width int, fg color.Color) string {
+func renderBorderTop(title string, width int, fg, bg color.Color) string {
 	border := lipgloss.RoundedBorder()
 	bs := lipgloss.NewStyle().Foreground(fg)
-	ts := styleTitle
+	ts := lipgloss.NewStyle().
+		Background(bg).
+		Foreground(colorTitleFg).
+		Bold(true).
+		Padding(0, 1)
 
 	titleRendered := ts.Render(title)
 	titleW := lipgloss.Width(titleRendered)
