@@ -54,16 +54,18 @@ var browserKeys = browserKeyMap{
 }
 
 type viewerKeyMap struct {
-	ToggleThinking key.Binding
-	ToggleTools    key.Binding
-	Search         key.Binding
-	NextMatch      key.Binding
-	PrevMatch      key.Binding
-	Resume         key.Binding
-	Copy           key.Binding
-	Export         key.Binding
-	Editor         key.Binding
-	Back           key.Binding
+	ToggleThinking    key.Binding
+	ToggleTools       key.Binding
+	ToggleToolResults key.Binding
+	ToggleSidechain   key.Binding
+	Search            key.Binding
+	NextMatch         key.Binding
+	PrevMatch         key.Binding
+	Resume            key.Binding
+	Copy              key.Binding
+	Export            key.Binding
+	Editor            key.Binding
+	Back              key.Binding
 }
 
 var viewerKeys = viewerKeyMap{
@@ -74,6 +76,14 @@ var viewerKeys = viewerKeyMap{
 	ToggleTools: key.NewBinding(
 		key.WithKeys("T"),
 		key.WithHelp("T", "toggle tools"),
+	),
+	ToggleToolResults: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "toggle tool results"),
+	),
+	ToggleSidechain: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "toggle sidechain"),
 	),
 	Search: key.NewBinding(
 		key.WithKeys("/"),

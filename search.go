@@ -51,6 +51,11 @@ func sessionContains(session sessionFull, queryLower string) bool {
 				return true
 			}
 		}
+		for _, tr := range msg.toolResults {
+			if strings.Contains(strings.ToLower(tr.content), queryLower) {
+				return true
+			}
+		}
 	}
 	return false
 }

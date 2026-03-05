@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	claudeProjectsDir = ".claude/projects"
-	maxFirstMessage   = 200
+	claudeProjectsDir  = ".claude/projects"
+	maxFirstMessage    = 200
+	maxToolResultChars = 500
+	blockTypeText      = "text"
 )
 
 // scanSessions discovers all session JSONL files and extracts metadata.
@@ -53,6 +55,26 @@ func scanSessions(ctx context.Context) ([]sessionMeta, error) {
 			if err != nil {
 				log.Debug().Err(err).Msgf("skipping %s", f)
 				continue
+			}
+			sessions = append(sessions, meta)
+		}
+
+		// Discover subagent session files
+		subagentFiles, err := filepath.Glob(filepath.Join(projDir, "*/subagents/agent-*.jsonl"))
+		if err != nil {
+			log.Warn().Err(err).Msgf("subagent glob failed for %s", projDir)
+			continue
+		}
+
+		for _, f := range subagentFiles {
+			meta, err := scanMetadata(ctx, f, proj)
+			if err != nil {
+				log.Debug().Err(err).Msgf("skipping subagent %s", f)
+				continue
+			}
+			meta.isSubagent = true
+			if parentID, ok := parseSubagentPath(f); ok {
+				meta.parentSessionID = parentID
 			}
 			sessions = append(sessions, meta)
 		}
@@ -140,31 +162,44 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 	}
 
 	// Count total messages by scanning for type markers
-	meta.messageCount, err = countMessages(filePath)
-	if err != nil {
-		zerolog.Ctx(ctx).Debug().Err(err).Msgf("countMessages failed for %s", filePath)
+	total, mainOnly, countErr := countMessages(filePath)
+	if countErr != nil {
+		zerolog.Ctx(ctx).Debug().Err(countErr).Msgf("countMessages failed for %s", filePath)
 	}
+	meta.messageCount = total
+	meta.mainMessageCount = mainOnly
 
 	return meta, nil
 }
 
 // jsonRecord is used for partial unmarshaling of JSONL records.
 type jsonRecord struct {
-	Type       string          `json:"type"`
-	SessionID  string          `json:"sessionId"`
-	Slug       string          `json:"slug"`
-	CWD        string          `json:"cwd"`
-	GitBranch  string          `json:"gitBranch"`
-	Version    string          `json:"version"`
-	Timestamp  string          `json:"timestamp"`
-	Message    json.RawMessage `json:"message"`
-	ParentUUID *string         `json:"parentUuid"`
+	Type        string          `json:"type"`
+	SessionID   string          `json:"sessionId"`
+	Slug        string          `json:"slug"`
+	CWD         string          `json:"cwd"`
+	GitBranch   string          `json:"gitBranch"`
+	Version     string          `json:"version"`
+	Timestamp   string          `json:"timestamp"`
+	Message     json.RawMessage `json:"message"`
+	UUID        string          `json:"uuid"`
+	ParentUUID  string          `json:"parentUuid"`
+	IsSidechain bool            `json:"isSidechain"`
 }
 
 type jsonMessage struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	Model   string          `json:"model"`
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content"`
+	Model      string          `json:"model"`
+	StopReason string          `json:"stop_reason"`
+	Usage      *jsonUsage      `json:"usage"`
+}
+
+type jsonUsage struct {
+	InputTokens              int `json:"input_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
 }
 
 // extractType quickly checks the type field without full unmarshal.
@@ -180,6 +215,109 @@ func extractType(line []byte) string {
 		return ""
 	}
 	return string(line[start : start+end])
+}
+
+// extractUserContent parses user message content that may be a plain string
+// or an array of content blocks. Returns the text content and any tool results.
+func extractUserContent(raw json.RawMessage) (string, []toolResult) {
+	// Fast path: try as plain string
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, nil
+	}
+
+	// Slow path: parse as array of content blocks
+	var blocks []struct {
+		Type      string          `json:"type"`
+		Text      string          `json:"text"`
+		ToolUseID string          `json:"tool_use_id"`
+		Content   json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return "", nil
+	}
+
+	var texts []string
+	var results []toolResult
+	for _, b := range blocks {
+		switch b.Type {
+		case blockTypeText:
+			if b.Text != "" {
+				texts = append(texts, b.Text)
+			}
+		case "tool_result":
+			content := extractToolResultContent(b.Content)
+			if content != "" {
+				results = append(results, toolResult{
+					toolUseID: b.ToolUseID,
+					content:   truncate(content, maxToolResultChars),
+				})
+			}
+		}
+	}
+	return strings.Join(texts, "\n"), results
+}
+
+// extractToolResultContent extracts text from tool_result content,
+// which can be a string or an array of content blocks.
+func extractToolResultContent(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	// Try as plain string
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+
+	// Try as array of content blocks
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return ""
+	}
+
+	var parts []string
+	for _, b := range blocks {
+		if b.Type == blockTypeText && b.Text != "" {
+			parts = append(parts, b.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// extractIsSidechain quickly checks if a JSONL line has isSidechain:true
+// without full unmarshal.
+func extractIsSidechain(line []byte) bool {
+	return bytes.Contains(line, []byte(`"isSidechain":true`))
+}
+
+// aggregateUsage sums token usage across all messages.
+func aggregateUsage(messages []message) tokenUsage {
+	var total tokenUsage
+	for i := range messages {
+		total.inputTokens += messages[i].usage.inputTokens
+		total.cacheCreationInputTokens += messages[i].usage.cacheCreationInputTokens
+		total.cacheReadInputTokens += messages[i].usage.cacheReadInputTokens
+		total.outputTokens += messages[i].usage.outputTokens
+	}
+	return total
+}
+
+// parseSubagentPath extracts the parent session UUID from a subagent file path.
+// Expected path: .../<parent-session-uuid>/subagents/agent-<id>.jsonl
+func parseSubagentPath(filePath string) (string, bool) {
+	dir := filepath.Dir(filePath) // .../subagents
+	parent := filepath.Dir(dir)   // .../<parent-session-uuid>
+	parentID := filepath.Base(parent)
+	// Validate it looks like a UUID (36 chars with dashes)
+	if len(parentID) == 36 && strings.Count(parentID, "-") == 4 {
+		return parentID, true
+	}
+	return "", false
 }
 
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) error {
@@ -216,13 +354,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) error {
 		return fmt.Errorf("json.Unmarshal message: %w", err)
 	}
 
-	// Only count string content as real user messages
-	var content string
-	if err := json.Unmarshal(msg.Content, &content); err != nil {
-		// Content is likely a list (tool_result), skip
-		return nil
-	}
-
+	content, _ := extractUserContent(msg.Content)
 	if content != "" {
 		meta.firstMessage = truncate(content, maxFirstMessage)
 		*found = true
@@ -255,27 +387,31 @@ func parseAssistantRecord(line []byte, meta *sessionMeta, found *bool) error {
 }
 
 // countMessages counts user and assistant records in a JSONL file efficiently.
-func countMessages(filePath string) (int, error) {
+// Returns (total, mainOnly, error) where mainOnly excludes sidechain messages.
+func countMessages(filePath string) (int, int, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("os.Open: %w", err)
+		return 0, 0, fmt.Errorf("os.Open: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
 
-	count := 0
+	var total, mainOnly int
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		t := role(extractType(line))
 		if t == roleUser || t == roleAssistant {
-			count++
+			total++
+			if !extractIsSidechain(line) {
+				mainOnly++
+			}
 		}
 	}
 
-	return count, scanner.Err()
+	return total, mainOnly, scanner.Err()
 }
 
 // parseSession reads a full JSONL file and returns a complete session.
@@ -316,6 +452,8 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 		return sessionFull{}, fmt.Errorf("scanner.Err: %w", err)
 	}
 
+	meta.totalUsage = aggregateUsage(messages)
+
 	return sessionFull{
 		meta:     meta,
 		messages: messages,
@@ -333,13 +471,8 @@ func parseUserMessage(line []byte) (message, bool) {
 		return message{}, false
 	}
 
-	// Only include string content (real user prompts), skip tool results
-	var content string
-	if err := json.Unmarshal(msg.Content, &content); err != nil {
-		return message{}, false
-	}
-
-	if content == "" {
+	content, toolResults := extractUserContent(msg.Content)
+	if content == "" && len(toolResults) == 0 {
 		return message{}, false
 	}
 
@@ -349,9 +482,13 @@ func parseUserMessage(line []byte) (message, bool) {
 	}
 
 	return message{
-		role:      roleUser,
-		timestamp: ts,
-		text:      content,
+		role:        roleUser,
+		timestamp:   ts,
+		text:        content,
+		toolResults: toolResults,
+		uuid:        rec.UUID,
+		parentUUID:  rec.ParentUUID,
+		isSidechain: rec.IsSidechain,
 	}, true
 }
 
@@ -386,7 +523,7 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 
 	for _, b := range blocks {
 		switch b.Type {
-		case "text":
+		case blockTypeText:
 			if text != "" {
 				text += "\n"
 			}
@@ -414,12 +551,27 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
 	}
 
+	var usage tokenUsage
+	if msg.Usage != nil {
+		usage = tokenUsage{
+			inputTokens:              msg.Usage.InputTokens,
+			cacheCreationInputTokens: msg.Usage.CacheCreationInputTokens,
+			cacheReadInputTokens:     msg.Usage.CacheReadInputTokens,
+			outputTokens:             msg.Usage.OutputTokens,
+		}
+	}
+
 	return message{
-		role:      roleAssistant,
-		timestamp: ts,
-		text:      text,
-		thinking:  thinking,
-		toolCalls: toolCalls,
+		role:        roleAssistant,
+		timestamp:   ts,
+		text:        text,
+		thinking:    thinking,
+		toolCalls:   toolCalls,
+		usage:       usage,
+		stopReason:  msg.StopReason,
+		uuid:        rec.UUID,
+		parentUUID:  rec.ParentUUID,
+		isSidechain: rec.IsSidechain,
 	}, true
 }
 
@@ -448,6 +600,22 @@ func summarizeToolCall(name string, input json.RawMessage) string {
 		return extractStringParam(params, "url")
 	case "WebSearch":
 		return extractStringParam(params, "query")
+	case "Agent":
+		return truncate(extractStringParam(params, "prompt"), 80)
+	case "Skill":
+		return extractStringParam(params, "skill")
+	case "TaskCreate":
+		return extractStringParam(params, "subject")
+	case "TaskUpdate", "TaskGet":
+		return extractStringParam(params, "taskId")
+	case "AskUserQuestion":
+		return truncate(extractStringParam(params, "question"), 80)
+	case "NotebookEdit":
+		return extractStringParam(params, "notebook_path")
+	case "EnterPlanMode":
+		return "enter plan mode"
+	case "EnterWorktree":
+		return extractStringParam(params, "name")
 	default:
 		return ""
 	}
@@ -463,6 +631,66 @@ func extractStringParam(params map[string]json.RawMessage, key string) string {
 		return ""
 	}
 	return val
+}
+
+// findSubagentFiles discovers subagent JSONL files for a parent session.
+// Parent file: <project>/<uuid>.jsonl
+// Subagent dir: <project>/<uuid>/subagents/agent-*.jsonl
+func findSubagentFiles(parentFilePath string) []string {
+	base := strings.TrimSuffix(parentFilePath, ".jsonl")
+	pattern := filepath.Join(base, "subagents", "agent-*.jsonl")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil
+	}
+	return matches
+}
+
+// parseSessionWithSubagents reads a parent session and merges subagent
+// conversations into its message list, separated by divider messages.
+func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFull, error) {
+	session, err := parseSession(ctx, meta)
+	if err != nil {
+		return sessionFull{}, fmt.Errorf("parseSession: %w", err)
+	}
+
+	subFiles := findSubagentFiles(meta.filePath)
+	if len(subFiles) == 0 {
+		return session, nil
+	}
+
+	log := zerolog.Ctx(ctx)
+
+	for _, sf := range subFiles {
+		subMeta := sessionMeta{filePath: sf, project: meta.project}
+		subSession, err := parseSession(ctx, subMeta)
+		if err != nil {
+			log.Debug().Err(err).Msgf("skipping subagent file %s", sf)
+			continue
+		}
+		if len(subSession.messages) == 0 {
+			continue
+		}
+
+		// Build divider text from the first user message
+		dividerText := "Subagent"
+		for _, msg := range subSession.messages {
+			if msg.role == roleUser && msg.text != "" {
+				dividerText = truncate(msg.text, maxFirstMessage)
+				break
+			}
+		}
+
+		divider := message{
+			role:           roleUser,
+			isAgentDivider: true,
+			text:           dividerText,
+		}
+		session.messages = append(session.messages, divider)
+		session.messages = append(session.messages, subSession.messages...)
+	}
+
+	return session, nil
 }
 
 func displayNameFromCWD(cwd string) string {

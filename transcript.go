@@ -8,8 +8,10 @@ import (
 )
 
 type transcriptOptions struct {
-	showThinking bool
-	showTools    bool
+	showThinking    bool
+	showTools       bool
+	showToolResults bool
+	hideSidechain   bool
 }
 
 // renderTranscript produces a clean text transcript from a parsed session.
@@ -17,9 +19,18 @@ func renderTranscript(session sessionFull, opts transcriptOptions) string {
 	var sb strings.Builder
 
 	for _, msg := range session.messages {
+		if opts.hideSidechain && msg.isSidechain {
+			continue
+		}
+
+		if msg.isAgentDivider {
+			renderAgentDivider(&sb, msg)
+			continue
+		}
+
 		switch msg.role {
 		case roleUser:
-			renderUserMessage(&sb, msg)
+			renderUserMessage(&sb, msg, opts)
 		case roleAssistant:
 			renderAssistantMessage(&sb, msg, opts)
 		}
@@ -28,10 +39,18 @@ func renderTranscript(session sessionFull, opts transcriptOptions) string {
 	return sb.String()
 }
 
-func renderUserMessage(sb *strings.Builder, msg message) {
+func renderUserMessage(sb *strings.Builder, msg message, opts transcriptOptions) {
 	sb.WriteString("## You\n\n")
-	sb.WriteString(msg.text)
-	sb.WriteString("\n\n")
+	if msg.text != "" {
+		sb.WriteString(msg.text)
+		sb.WriteString("\n\n")
+	}
+	if opts.showToolResults && len(msg.toolResults) > 0 {
+		for _, tr := range msg.toolResults {
+			fmt.Fprintf(sb, "[tool_result %s]: %s\n", tr.toolUseID, tr.content)
+		}
+		sb.WriteString("\n")
+	}
 }
 
 func renderAssistantMessage(sb *strings.Builder, msg message, opts transcriptOptions) {
@@ -64,6 +83,12 @@ func renderAssistantMessage(sb *strings.Builder, msg message, opts transcriptOpt
 	}
 }
 
+func renderAgentDivider(sb *strings.Builder, msg message) {
+	sb.WriteString("---\n### Subagent\n")
+	sb.WriteString(msg.text)
+	sb.WriteString("\n---\n\n")
+}
+
 func formatToolCall(tc toolCall) string {
 	if tc.summary != "" {
 		return fmt.Sprintf("[%s: %s]", tc.name, tc.summary)
@@ -81,6 +106,14 @@ func renderPreview(session sessionFull, maxMessages int, width int) string {
 		if count >= maxMessages {
 			sb.WriteString("...\n")
 			break
+		}
+
+		if msg.isAgentDivider {
+			sb.WriteString("--- Subagent ---\n")
+			sb.WriteString(wrapText(msg.text, width))
+			sb.WriteString("\n\n")
+			count++
+			continue
 		}
 
 		switch msg.role {

@@ -88,26 +88,41 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func toggleLabel(on bool) string {
+	if on {
+		return "on"
+	}
+	return "off"
+}
+
 func (m *viewerModel) handleKey(msg tea.KeyMsg, cmds *[]tea.Cmd) tea.Cmd {
 	switch {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
 		m.renderContent()
-		label := "off"
-		if m.opts.showThinking {
-			label = "on"
-		}
-		m.statusText = fmt.Sprintf("Thinking: %s", label)
+		m.statusText = fmt.Sprintf("Thinking: %s", toggleLabel(m.opts.showThinking))
 		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
 
 	case key.Matches(msg, viewerKeys.ToggleTools):
 		m.opts.showTools = !m.opts.showTools
 		m.renderContent()
-		label := "off"
-		if m.opts.showTools {
-			label = "on"
+		m.statusText = fmt.Sprintf("Tools: %s", toggleLabel(m.opts.showTools))
+		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+
+	case key.Matches(msg, viewerKeys.ToggleToolResults):
+		m.opts.showToolResults = !m.opts.showToolResults
+		m.renderContent()
+		m.statusText = fmt.Sprintf("Tool results: %s", toggleLabel(m.opts.showToolResults))
+		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+
+	case key.Matches(msg, viewerKeys.ToggleSidechain):
+		m.opts.hideSidechain = !m.opts.hideSidechain
+		m.renderContent()
+		label := "shown"
+		if m.opts.hideSidechain {
+			label = "hidden"
 		}
-		m.statusText = fmt.Sprintf("Tools: %s", label)
+		m.statusText = fmt.Sprintf("Sidechain: %s", label)
 		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
 
 	case key.Matches(msg, viewerKeys.Search):
@@ -192,6 +207,12 @@ func (m viewerModel) footerView() string {
 	}
 	if m.opts.showTools {
 		parts = append(parts, styleToolCall.Render("[tools]"))
+	}
+	if m.opts.showToolResults {
+		parts = append(parts, styleToolCall.Render("[results]"))
+	}
+	if m.opts.hideSidechain {
+		parts = append(parts, styleToolCall.Render("[no-sidechain]"))
 	}
 
 	// Search matches
