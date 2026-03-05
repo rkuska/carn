@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,5 +140,37 @@ func TestCheckPreviewUpdateUsesSessionCacheFallback(t *testing.T) {
 	// Preview cache should now be populated from the session cache
 	if _, ok := b.previewCache[conv.id()]; !ok {
 		t.Error("expected previewCache to be populated from session cache")
+	}
+}
+
+func TestBrowserFooterShowsHelpAndStatus(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.mainConversationCount = 5
+
+	footer := b.footerView()
+
+	if !strings.Contains(footer, "open transcript") {
+		t.Fatalf("expected footer to contain 'open transcript' help, got: %s", footer)
+	}
+	if !strings.Contains(footer, "deep search") {
+		t.Fatalf("expected footer to contain 'deep search' help, got: %s", footer)
+	}
+	if !strings.Contains(footer, "5 sessions") {
+		t.Fatalf("expected footer to contain '5 sessions', got: %s", footer)
+	}
+}
+
+func TestBrowserFooterShowsDeepSearchIndicator(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.deepSearch = true
+
+	footer := b.footerView()
+
+	if !strings.Contains(footer, "DEEP SEARCH") {
+		t.Fatalf("expected footer to show deep search indicator, got: %s", footer)
 	}
 }

@@ -19,15 +19,13 @@ var (
 	colorToolBg      color.Color
 	colorFgOnBg      color.Color // foreground on toolBg / status surfaces
 	colorStatusFg    color.Color
-	colorStatusBg    color.Color
 	colorNormalTitle color.Color
 	colorNormalDesc  color.Color
 	colorTitleFg     color.Color // list title text on primary bg
 
 	// Styles — rebuilt by initPalette.
-	styleSubtitle  lipgloss.Style
-	styleToolCall  lipgloss.Style
-	styleStatusBar lipgloss.Style
+	styleSubtitle lipgloss.Style
+	styleToolCall lipgloss.Style
 )
 
 // initPalette sets the colour palette and derived styles based on
@@ -46,7 +44,6 @@ func initPalette(hasDarkBG bool) {
 	colorToolBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
 	colorFgOnBg = ld(lipgloss.Color("238"), lipgloss.Color("252"))
 	colorStatusFg = ld(lipgloss.Color("232"), lipgloss.Color("255"))
-	colorStatusBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
 	colorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
 	colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
 	colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
@@ -56,11 +53,6 @@ func initPalette(hasDarkBG bool) {
 
 	styleToolCall = lipgloss.NewStyle().
 		Foreground(colorAccent)
-
-	styleStatusBar = lipgloss.NewStyle().
-		Foreground(colorStatusFg).
-		Background(colorStatusBg).
-		Padding(0, 1)
 }
 
 // renderBorderTop builds a custom top border line with an embedded title badge:
