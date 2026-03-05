@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 const (
@@ -52,7 +52,7 @@ func newBrowserModel(ctx context.Context, archiveDir string) browserModel {
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
 
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 
 	return browserModel{
 		ctx:          ctx,
@@ -73,7 +73,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		cmd := m.handleKey(msg, &cmds)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -98,7 +98,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		cmds = append(cmds, clearStatusAfter(5*time.Second))
 
 	case sessionParsedMsg:
-		preview := renderPreview(msg.session, previewMessages, m.preview.Width)
+		preview := renderPreview(msg.session, previewMessages, m.preview.Width())
 		m.previewCache[msg.session.meta.id] = preview
 		m.sessionCache[msg.session.meta.id] = msg.session
 		m.addToCache(msg.session.meta.id)
@@ -143,7 +143,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *browserModel) handleKey(msg tea.KeyMsg, cmds *[]tea.Cmd) tea.Cmd {
+func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	// Don't handle keys when list is filtering
 	if m.list.FilterState() == list.Filtering {
 		return nil
@@ -212,8 +212,8 @@ func (m browserModel) View() string {
 	listView := m.list.View()
 
 	// Render preview pane
-	m.preview.Width = previewWidth - 2
-	m.preview.Height = m.height - 4
+	m.preview.SetWidth(previewWidth - 2)
+	m.preview.SetHeight(m.height - 4)
 	previewBorder := stylePreviewBorder
 	if m.focus == focusPreview {
 		previewBorder = previewBorder.BorderForeground(colorAccent)
@@ -234,8 +234,8 @@ func (m *browserModel) updateLayout() {
 	previewWidth := m.width - listWidth - 3
 
 	m.list.SetSize(listWidth, m.height-2)
-	m.preview.Width = previewWidth - 2
-	m.preview.Height = m.height - 4
+	m.preview.SetWidth(previewWidth - 2)
+	m.preview.SetHeight(m.height - 4)
 }
 
 func (m *browserModel) selectedMeta() (sessionMeta, bool) {
@@ -261,7 +261,7 @@ func (m *browserModel) updatePreview() {
 
 	// Re-render from cached session if available
 	if session, ok := m.sessionCache[meta.id]; ok {
-		preview := renderPreview(session, previewMessages, m.preview.Width)
+		preview := renderPreview(session, previewMessages, m.preview.Width())
 		m.previewCache[meta.id] = preview
 		m.preview.SetContent(preview)
 		return
@@ -288,7 +288,7 @@ func (m *browserModel) checkPreviewUpdate(cmds *[]tea.Cmd) {
 
 	// Re-render from cached session if available (e.g. after resize)
 	if session, ok := m.sessionCache[meta.id]; ok {
-		preview := renderPreview(session, previewMessages, m.preview.Width)
+		preview := renderPreview(session, previewMessages, m.preview.Width())
 		m.previewCache[meta.id] = preview
 		m.preview.SetContent(preview)
 		return

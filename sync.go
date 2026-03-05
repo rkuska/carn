@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type syncModel struct {
@@ -46,7 +46,7 @@ func newSyncModel(cfg archiveConfig) syncModel {
 	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
 
 	p := progress.New(
-		progress.WithDefaultGradient(),
+		progress.WithDefaultBlend(),
 		progress.WithoutPercentage(),
 	)
 
@@ -66,7 +66,7 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.progress.Width = msg.Width / 3
+		m.progress.SetWidth(msg.Width / 3)
 
 	case syncFilesScannedMsg:
 		m.scanned = true
@@ -101,8 +101,8 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 		return m, cmd
 
 	case progress.FrameMsg:
-		model, cmd := m.progress.Update(msg)
-		m.progress = model.(progress.Model)
+		var cmd tea.Cmd
+		m.progress, cmd = m.progress.Update(msg)
 		return m, cmd
 	}
 

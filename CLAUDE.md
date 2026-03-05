@@ -140,3 +140,21 @@ logic. They exist in scenarios/ folder.
 * test via most outer layer 
 * tests are run sequentially (no parallelism) and each is atomic (test shouldn't depend on values from other test)
 * write generators for objects in `helpers/generators.go` when you need various objects for tests
+
+
+## Commit messages
+
+Write commits using following pattern:
+type(scope): message
+
+where:
+* type is either fix, feat, chore, docs, refactor, style
+* scope marks what is affected
+* message is short description of a change, lowercased
+
+Keep the commit message under 72 characters.
+
+Always write body with the commit message where you thoroughly explain
+what was done, how was it done and why it was done in a continuous human
+readable text.
+For fixes try to include an error message that you are fixing.

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/list"
 )
 
 func newDelegate() list.DefaultDelegate {

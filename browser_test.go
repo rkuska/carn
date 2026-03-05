@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 )
 
 func testBrowser(t *testing.T) browserModel {
@@ -15,7 +15,7 @@ func testBrowser(t *testing.T) browserModel {
 	b := newBrowserModel(context.Background(), t.TempDir())
 	b.width = 120
 	b.height = 40
-	b.preview.Width = 40
+	b.preview.SetWidth(40)
 	return b
 }
 
