@@ -93,13 +93,13 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	// Thinking is off by default and there IS thinking content — should glow.
-	helpOff := m.helpView()
+	helpOff := m.footerView()
 
 	m.opts.showThinking = true
-	helpOn := m.helpView()
+	helpOn := m.footerView()
 
 	if helpOff == helpOn {
-		t.Fatal("expected help view to differ when thinking is toggled (purple glow indicator)")
+		t.Fatal("expected footer to differ when thinking is toggled (purple glow indicator)")
 	}
 }
 
@@ -109,14 +109,14 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	// Session with no thinking data.
 	m := newTestViewer(testSession("no-glow"), 120, 40)
 
-	helpDefault := m.helpView()
+	helpDefault := m.footerView()
 
 	m.opts.showThinking = true
-	helpWithThinking := m.helpView()
+	helpWithThinking := m.footerView()
 
 	// No thinking data exists — toggling should NOT change styling.
 	if helpDefault != helpWithThinking {
-		t.Fatal("expected help view to be identical when no thinking data exists")
+		t.Fatal("expected footer to be identical when no thinking data exists")
 	}
 }
 

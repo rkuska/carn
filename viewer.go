@@ -64,7 +64,8 @@ type viewerModel struct {
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
-	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-4))
+	// height: 1 top border + viewport + 1 bottom border + 1 footer = viewport + 3
+	vp := viewport.New(viewport.WithWidth(width-2), viewport.WithHeight(height-3))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
@@ -106,8 +107,8 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - 4)
+		m.viewport.SetWidth(msg.Width - 2)
+		m.viewport.SetHeight(msg.Height - 3)
 		m.renderContent()
 
 	case statusMsg:
@@ -214,21 +215,27 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 }
 
 func (m viewerModel) View() string {
-	header := m.headerView()
-	content := m.viewport.View()
-	footer := m.footerView()
-
-	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
-}
-
-func (m viewerModel) headerView() string {
-	title := styleTitle.Render(fmt.Sprintf(
-		"%s / %s",
+	title := fmt.Sprintf("%s / %s  %s",
 		m.session.meta.project.displayName,
 		m.session.meta.slug,
-	))
-	date := styleSubtitle.Render(m.session.meta.timestamp.Format("2006-01-02 15:04"))
-	return lipgloss.JoinHorizontal(lipgloss.Bottom, title, "  ", date)
+		m.session.meta.timestamp.Format("2006-01-02 15:04"),
+	)
+	topBorder := renderBorderTop(title, m.width, colorPrimary)
+
+	// Height is content only; lipgloss adds 1 bottom border line.
+	// Total frame = 1 (top border) + m.height-3 (content) + 1 (bottom border) = m.height-1.
+	// Plus 1 footer line = m.height.
+	body := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		BorderForeground(colorPrimary).
+		Width(m.width).
+		Height(m.height - 3).
+		Render(m.viewport.View())
+
+	footer := m.footerView()
+
+	return topBorder + "\n" + body + "\n" + footer
 }
 
 func (m viewerModel) footerView() string {
@@ -236,50 +243,15 @@ func (m viewerModel) footerView() string {
 		return m.searchInput.View()
 	}
 
-	var parts []string
+	// Left side: help keys
+	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	keyNormal := lipgloss.NewStyle().Foreground(colorAccent)
+	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
 
-	// Scroll position
-	parts = append(parts, fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
-
-	// Toggle status
-	if m.opts.showThinking {
-		parts = append(parts, styleToolCall.Render("[thinking]"))
-	}
-	if m.opts.showTools {
-		parts = append(parts, styleToolCall.Render("[tools]"))
-	}
-	if m.opts.showToolResults {
-		parts = append(parts, styleToolCall.Render("[results]"))
-	}
-	if m.opts.hideSidechain {
-		parts = append(parts, styleToolCall.Render("[no-sidechain]"))
-	}
-
-	// Search matches
-	if m.searchQuery != "" {
-		if len(m.matchIndices) == 0 {
-			parts = append(parts, fmt.Sprintf("/%s (no matches)", m.searchQuery))
-		} else {
-			parts = append(parts, fmt.Sprintf("/%s (%d/%d)",
-				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
-		}
-	}
-
-	if m.statusText != "" {
-		parts = append(parts, m.statusText)
-	}
-
-	status := styleStatusBar.Width(m.width).Render(strings.Join(parts, "  "))
-	helpLine := m.helpView()
-	return lipgloss.JoinVertical(lipgloss.Left, helpLine, status)
-}
-
-func (m viewerModel) helpView() string {
 	type helpItem struct {
 		binding key.Binding
 		glow    bool
 	}
-
 	items := []helpItem{
 		{viewerKeys.ToggleThinking, !m.opts.showThinking && m.content.hasThinking},
 		{viewerKeys.ToggleTools, !m.opts.showTools && m.content.hasToolCalls},
@@ -295,20 +267,52 @@ func (m viewerModel) helpView() string {
 		{viewerKeys.Back, false},
 	}
 
-	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	keyNormal := lipgloss.NewStyle().Foreground(colorAccent)
-	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
-
-	var parts []string
+	var helpParts []string
 	for _, item := range items {
 		h := item.binding.Help()
 		ks := keyNormal
 		if item.glow {
 			ks = keyGlow
 		}
-		parts = append(parts, ks.Render(h.Key)+helpStyle.Render(" "+h.Desc))
+		helpParts = append(helpParts, ks.Render(h.Key)+helpStyle.Render(" "+h.Desc))
 	}
-	return helpStyle.Width(m.width).Padding(0, 1).Render(strings.Join(parts, "  "))
+	left := strings.Join(helpParts, "  ")
+
+	// Right side: status info
+	var rightParts []string
+	rightParts = append(rightParts, fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
+
+	if m.opts.showThinking && m.content.hasThinking {
+		rightParts = append(rightParts, styleToolCall.Render("[thinking]"))
+	}
+	if m.opts.showTools && m.content.hasToolCalls {
+		rightParts = append(rightParts, styleToolCall.Render("[tools]"))
+	}
+	if m.opts.showToolResults && m.content.hasToolResults {
+		rightParts = append(rightParts, styleToolCall.Render("[results]"))
+	}
+	if m.opts.hideSidechain && m.content.hasSidechain {
+		rightParts = append(rightParts, styleToolCall.Render("[no-sidechain]"))
+	}
+	if m.searchQuery != "" {
+		if len(m.matchIndices) == 0 {
+			rightParts = append(rightParts, fmt.Sprintf("/%s (no matches)", m.searchQuery))
+		} else {
+			rightParts = append(rightParts, fmt.Sprintf("/%s (%d/%d)",
+				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
+		}
+	}
+	if m.statusText != "" {
+		rightParts = append(rightParts, m.statusText)
+	}
+	right := strings.Join(rightParts, "  ")
+
+	// Combine: help left, status right, fill gap with spaces
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
+	gap := max(m.width-leftW-rightW-2, 1) // 2 for padding
+
+	return helpStyle.Padding(0, 1).Width(m.width).Render(left + strings.Repeat(" ", gap) + right)
 }
 
 func (m *viewerModel) renderContent() {
@@ -316,7 +320,7 @@ func (m *viewerModel) renderContent() {
 	m.rawContent = flattenSegments(segments)
 
 	renderer, rendererErr := m.ensureRenderer()
-	contentWidth := max(m.width-4, 1)
+	contentWidth := max(m.width-6, 1) // 2 border + 2 viewport padding + 2 margin
 
 	var sb strings.Builder
 	for _, seg := range segments {
@@ -332,6 +336,12 @@ func (m *viewerModel) renderContent() {
 			sb.WriteString(seg.text)
 		case segmentToolResult:
 			sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
+		case segmentRoleHeader:
+			sb.WriteString(renderRoleHeader(seg.role, contentWidth))
+		case segmentThinking:
+			sb.WriteString(renderThinkingBlock(seg.text))
+		case segmentToolCall:
+			sb.WriteString(renderStyledToolCall(seg.text))
 		}
 	}
 
@@ -345,7 +355,7 @@ func (m *viewerModel) renderContent() {
 }
 
 func (m *viewerModel) ensureRenderer() (*glamour.TermRenderer, error) {
-	wrapWidth := max(m.width-4, 1)
+	wrapWidth := max(m.width-6, 1)
 	if m.renderer != nil && m.renderWrap == wrapWidth {
 		return m.renderer, nil
 	}
@@ -397,4 +407,53 @@ func (m *viewerModel) jumpToMatch(delta int) {
 
 	m.currentMatch = (m.currentMatch + delta + len(m.matchIndices)) % len(m.matchIndices)
 	m.viewport.SetYOffset(m.matchIndices[m.currentMatch])
+}
+
+func renderRoleHeader(r role, width int) string {
+	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+
+	switch r {
+	case roleUser:
+		return ruleStyle.Render(strings.Repeat("─", width)) + "\n\n"
+	case roleAssistant:
+		badge := lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(" Assistant")
+		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
+		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+	}
+	return "\n"
+}
+
+func renderThinkingBlock(text string) string {
+	var sb strings.Builder
+
+	label := lipgloss.NewStyle().
+		Italic(true).
+		Foreground(colorSecondary).
+		Render("Thinking")
+	sb.WriteString(label)
+	sb.WriteString("\n")
+
+	border := lipgloss.NewStyle().
+		Foreground(colorSecondary).
+		Render("▎")
+	lineStyle := lipgloss.NewStyle().
+		Foreground(colorSecondary).
+		Italic(true)
+
+	for line := range strings.SplitSeq(text, "\n") {
+		sb.WriteString(border)
+		sb.WriteString(" ")
+		sb.WriteString(lineStyle.Render(line))
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+func renderStyledToolCall(text string) string {
+	styled := lipgloss.NewStyle().
+		Foreground(colorAccent).
+		Italic(true).
+		Render(text)
+	return styled + "\n"
 }

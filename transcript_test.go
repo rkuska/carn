@@ -530,7 +530,7 @@ func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
 func TestRenderTranscriptSegmented(t *testing.T) {
 	t.Parallel()
 
-	t.Run("messages without tool results produce only markdown segments", func(t *testing.T) {
+	t.Run("messages produce role header and markdown segments", func(t *testing.T) {
 		t.Parallel()
 		session := sessionFull{
 			messages: []message{
@@ -539,14 +539,29 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{})
-		if len(segments) != 1 {
-			t.Fatalf("expected 1 segment, got %d", len(segments))
+
+		roleCount := 0
+		mdCount := 0
+		for _, seg := range segments {
+			switch seg.kind {
+			case segmentRoleHeader:
+				roleCount++
+			case segmentMarkdown:
+				mdCount++
+			case segmentToolResult, segmentThinking, segmentToolCall:
+			}
 		}
-		if segments[0].kind != segmentMarkdown {
-			t.Errorf("expected segmentMarkdown, got %d", segments[0].kind)
+		if roleCount != 2 {
+			t.Errorf("expected 2 role header segments, got %d", roleCount)
 		}
-		if !strings.Contains(segments[0].text, "## You") {
-			t.Errorf("expected '## You' in markdown segment, got:\n%s", segments[0].text)
+		if mdCount != 2 {
+			t.Errorf("expected 2 markdown segments, got %d", mdCount)
+		}
+		if segments[0].kind != segmentRoleHeader || segments[0].role != roleUser {
+			t.Errorf("first segment should be user role header")
+		}
+		if segments[2].kind != segmentRoleHeader || segments[2].role != roleAssistant {
+			t.Errorf("third segment should be assistant role header")
 		}
 	})
 
@@ -571,6 +586,7 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 				mdCount++
 			case segmentToolResult:
 				trCount++
+			case segmentRoleHeader, segmentThinking, segmentToolCall:
 			}
 		}
 		if trCount != 1 {
@@ -600,6 +616,52 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		}
 	})
 
+	t.Run("thinking produces segmentThinking", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleAssistant, text: "answer", thinking: "deep thought"},
+			},
+		}
+		segments := renderTranscriptSegmented(session, transcriptOptions{showThinking: true})
+
+		thinkCount := 0
+		for _, seg := range segments {
+			if seg.kind == segmentThinking {
+				thinkCount++
+				if seg.text != "deep thought" {
+					t.Errorf("thinking text = %q, want %q", seg.text, "deep thought")
+				}
+			}
+		}
+		if thinkCount != 1 {
+			t.Errorf("expected 1 thinking segment, got %d", thinkCount)
+		}
+	})
+
+	t.Run("tool calls produce segmentToolCall", func(t *testing.T) {
+		t.Parallel()
+		session := sessionFull{
+			messages: []message{
+				{role: roleAssistant, text: "done", toolCalls: []toolCall{
+					{name: "Read", summary: "/file.go"},
+					{name: "Write", summary: "/out.go"},
+				}},
+			},
+		}
+		segments := renderTranscriptSegmented(session, transcriptOptions{showTools: true})
+
+		tcCount := 0
+		for _, seg := range segments {
+			if seg.kind == segmentToolCall {
+				tcCount++
+			}
+		}
+		if tcCount != 2 {
+			t.Errorf("expected 2 tool call segments, got %d", tcCount)
+		}
+	})
+
 	t.Run("flattenSegments matches renderTranscript output", func(t *testing.T) {
 		t.Parallel()
 		session := sessionFull{
@@ -607,12 +669,12 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 				{role: roleUser, text: "Hello", toolResults: []toolResult{
 					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
 				}},
-				{role: roleAssistant, text: "Done", toolCalls: []toolCall{
+				{role: roleAssistant, text: "Done", thinking: "let me think", toolCalls: []toolCall{
 					{name: "Write", summary: "/out.go"},
 				}},
 			},
 		}
-		opts := transcriptOptions{showToolResults: true, showTools: true}
+		opts := transcriptOptions{showToolResults: true, showTools: true, showThinking: true}
 		transcript := renderTranscript(session, opts)
 		flattened := flattenSegments(renderTranscriptSegmented(session, opts))
 		if transcript != flattened {

@@ -19,12 +19,16 @@ type segmentKind int
 const (
 	segmentMarkdown   segmentKind = iota
 	segmentToolResult segmentKind = iota
+	segmentRoleHeader segmentKind = iota
+	segmentThinking   segmentKind = iota
+	segmentToolCall   segmentKind = iota
 )
 
 type transcriptSegment struct {
 	kind   segmentKind
-	text   string     // for markdown segments
+	text   string     // for markdown, thinking, and tool call segments
 	result toolResult // for tool result segments
+	role   role       // for role header segments
 }
 
 // renderTranscriptSegmented walks messages and produces segments.
@@ -61,7 +65,8 @@ func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []tr
 				continue
 			}
 
-			md.WriteString("## You\n\n")
+			flush()
+			segments = append(segments, transcriptSegment{kind: segmentRoleHeader, role: roleUser})
 			if msg.text != "" {
 				md.WriteString(msg.text)
 				md.WriteString("\n\n")
@@ -82,20 +87,20 @@ func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []tr
 				continue
 			}
 
-			md.WriteString("## Assistant\n\n")
+			flush()
+			segments = append(segments, transcriptSegment{kind: segmentRoleHeader, role: roleAssistant})
 			if opts.showThinking && msg.thinking != "" {
-				md.WriteString("*Thinking:*\n")
-				md.WriteString(msg.thinking)
-				md.WriteString("\n\n")
+				flush()
+				segments = append(segments, transcriptSegment{kind: segmentThinking, text: msg.thinking})
 			}
 			if msg.text != "" {
 				md.WriteString(msg.text)
 				md.WriteString("\n\n")
 			}
 			if opts.showTools && len(msg.toolCalls) > 0 {
+				flush()
 				for _, tc := range msg.toolCalls {
-					md.WriteString(formatToolCall(tc))
-					md.WriteString("\n")
+					segments = append(segments, transcriptSegment{kind: segmentToolCall, text: formatToolCall(tc)})
 				}
 				md.WriteString("\n")
 			}
@@ -115,6 +120,20 @@ func flattenSegments(segments []transcriptSegment) string {
 			sb.WriteString(seg.text)
 		case segmentToolResult:
 			sb.WriteString(formatToolResult(seg.result))
+			sb.WriteString("\n")
+		case segmentRoleHeader:
+			switch seg.role {
+			case roleUser:
+				sb.WriteString("## You\n\n")
+			case roleAssistant:
+				sb.WriteString("## Assistant\n\n")
+			}
+		case segmentThinking:
+			sb.WriteString("*Thinking:*\n")
+			sb.WriteString(seg.text)
+			sb.WriteString("\n\n")
+		case segmentToolCall:
+			sb.WriteString(seg.text)
 			sb.WriteString("\n")
 		}
 	}
