@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type viewerModel struct {
@@ -28,7 +28,7 @@ type viewerModel struct {
 }
 
 func newViewerModel(session sessionFull, width, height int) viewerModel {
-	vp := viewport.New(width, height-3)
+	vp := viewport.New(viewport.WithWidth(width), viewport.WithHeight(height-3))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
@@ -55,7 +55,7 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.searching {
 			return m.handleSearchKey(msg)
 		}
@@ -67,8 +67,8 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 3
+		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(msg.Height - 3)
 		m.renderContent()
 
 	case statusMsg:
@@ -95,7 +95,7 @@ func toggleLabel(on bool) string {
 	return "off"
 }
 
-func (m *viewerModel) handleKey(msg tea.KeyMsg, cmds *[]tea.Cmd) tea.Cmd {
+func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	switch {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
@@ -152,8 +152,8 @@ func (m *viewerModel) handleKey(msg tea.KeyMsg, cmds *[]tea.Cmd) tea.Cmd {
 	return nil
 }
 
-func (m viewerModel) handleSearchKey(msg tea.KeyMsg) (viewerModel, tea.Cmd) {
-	if msg.Type == tea.KeyEnter {
+func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
+	if msg.Code == tea.KeyEnter {
 		m.searching = false
 		m.searchQuery = m.searchInput.Value()
 		m.searchInput.Blur()
@@ -161,7 +161,7 @@ func (m viewerModel) handleSearchKey(msg tea.KeyMsg) (viewerModel, tea.Cmd) {
 		return m, nil
 	}
 
-	if msg.Type == tea.KeyEscape {
+	if msg.Code == tea.KeyEscape {
 		m.searching = false
 		m.searchInput.Blur()
 		m.searchInput.SetValue("")

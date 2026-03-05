@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/rs/zerolog"
 )
 
@@ -33,11 +33,7 @@ func run() error {
 
 	model := newAppModel(ctx, cfg)
 
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
+	p := tea.NewProgram(model)
 
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("p.Run: %w", err)

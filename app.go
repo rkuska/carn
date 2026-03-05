@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 )
 
 type viewState int
@@ -76,7 +76,7 @@ func (m appModel) updateSync(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Handle enter to switch to viewer
 		if key.Matches(msg, browserKeys.Enter) && m.browser.list.FilterState() != 1 {
 			if meta, ok := m.browser.selectedMeta(); ok {
@@ -101,7 +101,7 @@ func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		if key.Matches(msg, viewerKeys.Back) && !m.viewer.searching {
 			m.state = viewBrowser
 			return m, nil
@@ -113,14 +113,19 @@ func (m appModel) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m appModel) View() string {
+func (m appModel) View() tea.View {
+	var content string
 	switch m.state {
 	case viewSync:
-		return m.sync.View()
+		content = m.sync.View()
 	case viewBrowser:
-		return m.browser.View()
+		content = m.browser.View()
 	case viewViewer:
-		return m.viewer.View()
+		content = m.viewer.View()
 	}
-	return ""
+
+	v := tea.NewView(content)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
