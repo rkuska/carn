@@ -215,6 +215,129 @@ func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
 	})
 }
 
+func TestRenderTranscriptToolResults(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Check this", toolResults: []toolResult{
+				{toolUseID: "toolu_123", content: "file contents here"},
+			}},
+			{role: roleAssistant, text: "Done!"},
+		},
+	}
+
+	t.Run("hidden by default", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{})
+		if strings.Contains(result, "tool_result") {
+			t.Errorf("tool results should be hidden by default\nresult:\n%s", result)
+		}
+	})
+
+	t.Run("shown when enabled", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{showToolResults: true})
+		if !strings.Contains(result, "[tool_result toolu_123]") {
+			t.Errorf("tool results should be visible\nresult:\n%s", result)
+		}
+		if !strings.Contains(result, "file contents here") {
+			t.Errorf("tool result content should be visible\nresult:\n%s", result)
+		}
+	})
+}
+
+func TestRenderTranscriptHideSidechain(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Main message"},
+			{role: roleAssistant, text: "Main reply"},
+			{role: roleUser, text: "Sidechain message", isSidechain: true},
+			{role: roleAssistant, text: "Sidechain reply", isSidechain: true},
+			{role: roleUser, text: "Back to main"},
+		},
+	}
+
+	t.Run("sidechain shown by default", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{})
+		if !strings.Contains(result, "Sidechain message") {
+			t.Errorf("sidechain should be visible by default\nresult:\n%s", result)
+		}
+	})
+
+	t.Run("sidechain hidden when enabled", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{hideSidechain: true})
+		if strings.Contains(result, "Sidechain message") {
+			t.Errorf("sidechain should be hidden\nresult:\n%s", result)
+		}
+		if strings.Contains(result, "Sidechain reply") {
+			t.Errorf("sidechain reply should be hidden\nresult:\n%s", result)
+		}
+		if !strings.Contains(result, "Main message") {
+			t.Errorf("main messages should still be visible\nresult:\n%s", result)
+		}
+		if !strings.Contains(result, "Back to main") {
+			t.Errorf("non-sidechain messages should be visible\nresult:\n%s", result)
+		}
+	})
+}
+
+func TestRenderTranscriptAgentDivider(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Main question"},
+			{role: roleAssistant, text: "Main answer"},
+			{role: roleUser, text: "Search the codebase", isAgentDivider: true},
+			{role: roleUser, text: "Sub question"},
+			{role: roleAssistant, text: "Sub answer"},
+		},
+	}
+
+	result := renderTranscript(session, transcriptOptions{})
+
+	if !strings.Contains(result, "### Subagent") {
+		t.Errorf("expected subagent heading in result:\n%s", result)
+	}
+	if !strings.Contains(result, "Search the codebase") {
+		t.Errorf("expected divider text in result:\n%s", result)
+	}
+	if !strings.Contains(result, "---") {
+		t.Errorf("expected divider markers in result:\n%s", result)
+	}
+	// Divider should not produce a "## You" heading
+	youCount := strings.Count(result, "## You")
+	if youCount != 2 {
+		t.Errorf("expected 2 '## You' headings (main + sub), got %d\nresult:\n%s", youCount, result)
+	}
+}
+
+func TestRenderPreviewAgentDivider(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Main question"},
+			{role: roleAssistant, text: "Main answer"},
+			{role: roleUser, text: "Explore files", isAgentDivider: true},
+			{role: roleUser, text: "Sub question"},
+		},
+	}
+
+	result := renderPreview(session, 10, 80)
+	if !strings.Contains(result, "--- Subagent ---") {
+		t.Errorf("expected subagent divider in preview:\n%s", result)
+	}
+	if !strings.Contains(result, "Explore files") {
+		t.Errorf("expected divider text in preview:\n%s", result)
+	}
+}
+
 func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 	t.Parallel()
 

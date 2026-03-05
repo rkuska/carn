@@ -69,9 +69,9 @@ func parseSessionCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
 
 func openSessionCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseSession(ctx, meta)
+		session, err := parseSessionWithSubagents(ctx, meta)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseSession failed for %s", meta.filePath)
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseSessionWithSubagents failed for %s", meta.filePath)
 			return statusMsg{text: fmt.Sprintf("Error loading session: %v", err)}
 		}
 		return openViewerMsg{session: session}

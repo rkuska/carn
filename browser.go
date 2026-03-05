@@ -86,10 +86,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 
 	case sessionsLoadedMsg:
 		m.allSessions = msg.sessions
-		items := make([]list.Item, len(msg.sessions))
-		for i, s := range msg.sessions {
-			items[i] = s
-		}
+		items := filterMainSessionItems(msg.sessions)
 		cmd := m.list.SetItems(items)
 		cmds = append(cmds, cmd)
 		m.updatePreview()
@@ -109,13 +106,10 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		}
 
 	case deepSearchResultMsg:
-		items := make([]list.Item, len(msg.sessions))
-		for i, s := range msg.sessions {
-			items[i] = s
-		}
+		items := filterMainSessionItems(msg.sessions)
 		cmd := m.list.SetItems(items)
 		cmds = append(cmds, cmd)
-		m.statusText = fmt.Sprintf("Deep search: %d results", len(msg.sessions))
+		m.statusText = fmt.Sprintf("Deep search: %d results", len(items))
 		cmds = append(cmds, clearStatusAfter(3*time.Second))
 
 	case statusMsg:
@@ -170,10 +164,7 @@ func (m *browserModel) handleKey(msg tea.KeyMsg, cmds *[]tea.Cmd) tea.Cmd {
 			return deepSearchCmd(m.ctx, filterVal, m.allSessions)
 		}
 		// Reset to all sessions
-		items := make([]list.Item, len(m.allSessions))
-		for i, s := range m.allSessions {
-			items[i] = s
-		}
+		items := filterMainSessionItems(m.allSessions)
 		*cmds = append(*cmds, m.list.SetItems(items))
 		m.statusText = "Deep search disabled"
 		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
@@ -326,6 +317,16 @@ func (m browserModel) cachedSession(id string) (sessionFull, bool) {
 	return s, ok
 }
 
+func filterMainSessionItems(sessions []sessionMeta) []list.Item {
+	items := make([]list.Item, 0, len(sessions))
+	for _, s := range sessions {
+		if !s.isSubagent {
+			items = append(items, s)
+		}
+	}
+	return items
+}
+
 func (m browserModel) statusBar() string {
 	var parts []string
 	if m.deepSearch {
@@ -335,7 +336,13 @@ func (m browserModel) statusBar() string {
 		parts = append(parts, m.statusText)
 	}
 
-	info := fmt.Sprintf("%d sessions", len(m.allSessions))
+	mainCount := 0
+	for _, s := range m.allSessions {
+		if !s.isSubagent {
+			mainCount++
+		}
+	}
+	info := fmt.Sprintf("%d sessions", mainCount)
 	if meta, ok := m.selectedMeta(); ok {
 		info = fmt.Sprintf("%s | %s", info, meta.project.displayName)
 	}
