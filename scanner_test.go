@@ -1244,3 +1244,109 @@ func findSubstring(s, sub string) bool {
 	}
 	return false
 }
+
+func TestScanMetadataSkipsInterruptFirstMessage(t *testing.T) {
+	t.Parallel()
+
+	interruptLine := `{"type":"user","sessionId":"s1",` +
+		`"slug":"test","timestamp":"2024-01-02T00:00:00Z",` +
+		`"cwd":"/tmp","message":{"role":"user",` +
+		`"content":"[Request interrupted by user for tool use]"}}`
+	realLine := `{"type":"user","sessionId":"s1",` +
+		`"slug":"test","timestamp":"2024-01-02T00:00:01Z",` +
+		`"cwd":"/tmp","message":{"role":"user",` +
+		`"content":"actual user question"}}`
+	assistLine := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"reply"}]}}`
+
+	content := strings.Join([]string{interruptLine, realLine, assistLine}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.firstMessage != "actual user question" {
+		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, "actual user question")
+	}
+}
+
+func TestParseConversation(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	// First session file (original)
+	userLine1 := `{"type":"user","sessionId":"s1",` +
+		`"slug":"test","timestamp":"2024-01-01T00:00:00Z",` +
+		`"cwd":"/tmp","message":{"role":"user","content":"hello"}}`
+	assistLine1 := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"hi there"}]}}`
+
+	file1 := filepath.Join(dir, "first.jsonl")
+	if err := os.WriteFile(file1, []byte(strings.Join([]string{userLine1, assistLine1}, "\n")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	// Second session file (resumed)
+	userLine2 := `{"type":"user","sessionId":"s2",` +
+		`"slug":"test","timestamp":"2024-01-02T00:00:00Z",` +
+		`"cwd":"/tmp","message":{"role":"user",` +
+		`"content":"[Request interrupted by user for tool use]"}}`
+	userLine3 := `{"type":"user","sessionId":"s2",` +
+		`"slug":"test","timestamp":"2024-01-02T00:00:01Z",` +
+		`"cwd":"/tmp","message":{"role":"user","content":"continue please"}}`
+	assistLine2 := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"continuing"}]}}`
+
+	file2 := filepath.Join(dir, "second.jsonl")
+	content2 := strings.Join([]string{userLine2, userLine3, assistLine2}, "\n")
+	if err := os.WriteFile(file2, []byte(content2), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	conv := conversation{
+		name:    "test",
+		project: proj,
+		sessions: []sessionMeta{
+			{id: "s1", slug: "test", filePath: file1, project: proj},
+			{id: "s2", slug: "test", filePath: file2, project: proj},
+		},
+	}
+
+	session, err := parseConversation(context.Background(), conv)
+	if err != nil {
+		t.Fatalf("parseConversation: %v", err)
+	}
+
+	// 2 from first file + 3 from second file = 5
+	if len(session.messages) != 5 {
+		t.Fatalf("expected 5 messages, got %d", len(session.messages))
+	}
+
+	// First message should be "hello"
+	if session.messages[0].text != testTextHello {
+		t.Errorf("first message text = %q, want %q", session.messages[0].text, testTextHello)
+	}
+
+	// Third message (first from second file) should be the interrupt
+	if session.messages[2].text != "[Request interrupted by user for tool use]" {
+		t.Errorf("third message text = %q, want interrupt text", session.messages[2].text)
+	}
+
+	// Fourth message should be real content
+	if session.messages[3].text != "continue please" {
+		t.Errorf("fourth message text = %q, want %q", session.messages[3].text, "continue please")
+	}
+}

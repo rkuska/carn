@@ -139,26 +139,26 @@ func BenchmarkDeepSearch(b *testing.B) {
 	if err != nil {
 		b.Fatalf("scanSessions: %v", err)
 	}
-	mainSessions := filterMainSessions(sessions)
+	mainConvs := filterMainConversations(groupConversations(sessions))
 
 	b.Run("cold", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			msg := deepSearchCmd(ctx, "important_needle", mainSessions, nil, nil)()
+			msg := deepSearchCmd(ctx, "important_needle", mainConvs, nil, nil)()
 			result, ok := msg.(deepSearchResultMsg)
-			if !ok || len(result.sessions) == 0 {
+			if !ok || len(result.conversations) == 0 {
 				b.Fatalf("unexpected deep search result: %#v", msg)
 			}
 		}
 	})
 
-	warm := deepSearchCmd(ctx, "important_needle", mainSessions, nil, nil)().(deepSearchResultMsg)
+	warm := deepSearchCmd(ctx, "important_needle", mainConvs, nil, nil)().(deepSearchResultMsg)
 	index := warm.indexed
 
 	b.Run("warm", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			msg := deepSearchCmd(ctx, "important_needle", mainSessions, index, nil)()
+			msg := deepSearchCmd(ctx, "important_needle", mainConvs, index, nil)()
 			result, ok := msg.(deepSearchResultMsg)
-			if !ok || len(result.sessions) == 0 {
+			if !ok || len(result.conversations) == 0 {
 				b.Fatalf("unexpected deep search result: %#v", msg)
 			}
 		}

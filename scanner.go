@@ -390,7 +390,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) error {
 	}
 
 	content, _ := extractUserContent(msg.Content)
-	if content != "" {
+	if content != "" && !isSystemInterrupt(content) {
 		meta.firstMessage = truncate(content, maxFirstMessage)
 		*found = true
 	}
@@ -504,6 +504,81 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 	return sessionFull{
 		meta:     meta,
 		messages: messages,
+	}, nil
+}
+
+// parseSessionFile reads a single JSONL file and returns its messages.
+func parseSessionFile(ctx context.Context, filePath string) ([]message, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("os.Open: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
+
+	var messages []message
+	toolCallIndex := make(map[string]toolCall)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		recType := role(extractType(line))
+		switch recType {
+		case roleUser:
+			msg, ok := parseUserMessage(line)
+			if ok {
+				for i, tr := range msg.toolResults {
+					if tc, found := toolCallIndex[tr.toolUseID]; found {
+						msg.toolResults[i].toolName = tc.name
+						msg.toolResults[i].toolSummary = tc.summary
+					}
+				}
+				messages = append(messages, msg)
+			}
+		case roleAssistant:
+			msg, ok := parseAssistantMessage(ctx, line)
+			if ok {
+				for _, tc := range msg.toolCalls {
+					if tc.id != "" {
+						toolCallIndex[tc.id] = tc
+					}
+				}
+				messages = append(messages, msg)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scanner.Err: %w", err)
+	}
+
+	return messages, nil
+}
+
+// parseConversation reads all JSONL files in a conversation and returns
+// a combined session. The meta is taken from the first session.
+func parseConversation(ctx context.Context, conv conversation) (sessionFull, error) {
+	var allMessages []message
+	for _, path := range conv.filePaths() {
+		msgs, err := parseSessionFile(ctx, path)
+		if err != nil {
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseSessionFile failed for %s", path)
+			continue
+		}
+		allMessages = append(allMessages, msgs...)
+	}
+
+	meta := conv.sessions[0]
+	meta.totalUsage = aggregateUsage(allMessages)
+
+	return sessionFull{
+		meta:     meta,
+		messages: allMessages,
 	}, nil
 }
 
@@ -740,14 +815,6 @@ func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFu
 	return mergeSubagentSessions(ctx, meta, session), nil
 }
 
-// parseSessionWithSubagentsCached merges subagents into a cached parent session.
-func parseSessionWithSubagentsCached(ctx context.Context, meta sessionMeta, parent sessionFull) sessionFull {
-	// Copy the message slice so appending subagent content never mutates cache entries.
-	parent.messages = append([]message(nil), parent.messages...)
-	parent.meta = meta
-	return mergeSubagentSessions(ctx, meta, parent)
-}
-
 func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessionFull) sessionFull {
 	subFiles := findSubagentFiles(meta.filePath)
 	if len(subFiles) == 0 {
@@ -770,7 +837,7 @@ func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessio
 		// Build divider text from the first user message
 		dividerText := "Subagent"
 		for _, msg := range subSession.messages {
-			if msg.role == roleUser && msg.text != "" {
+			if msg.role == roleUser && msg.text != "" && !isSystemInterrupt(msg.text) {
 				dividerText = truncate(msg.text, maxFirstMessage)
 				break
 			}
@@ -786,6 +853,32 @@ func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessio
 	}
 
 	return session
+}
+
+// parseConversationWithSubagents reads all files in a conversation and merges
+// subagent sessions from all file paths.
+func parseConversationWithSubagents(ctx context.Context, conv conversation) (sessionFull, error) {
+	session, err := parseConversation(ctx, conv)
+	if err != nil {
+		return sessionFull{}, fmt.Errorf("parseConversation: %w", err)
+	}
+
+	for _, path := range conv.filePaths() {
+		meta := sessionMeta{filePath: path, project: conv.project}
+		session = mergeSubagentSessions(ctx, meta, session)
+	}
+
+	return session, nil
+}
+
+// parseConversationWithSubagentsCached merges subagents into a cached conversation session.
+func parseConversationWithSubagentsCached(ctx context.Context, conv conversation, parent sessionFull) sessionFull {
+	parent.messages = append([]message(nil), parent.messages...)
+	for _, path := range conv.filePaths() {
+		meta := sessionMeta{filePath: path, project: conv.project}
+		parent = mergeSubagentSessions(ctx, meta, parent)
+	}
+	return parent
 }
 
 func displayNameFromCWD(cwd string) string {

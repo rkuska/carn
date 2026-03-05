@@ -16,8 +16,8 @@ import (
 
 // Messages
 
-type sessionsLoadedMsg struct {
-	sessions []sessionMeta
+type conversationsLoadedMsg struct {
+	conversations []conversation
 }
 
 type sessionsLoadErrorMsg struct {
@@ -47,40 +47,42 @@ func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 			return sessionsLoadErrorMsg{err: err}
 		}
 
+		conversations := groupConversations(sessions)
+
 		// Sort by timestamp descending (newest first)
-		sort.Slice(sessions, func(i, j int) bool {
-			return sessions[i].timestamp.After(sessions[j].timestamp)
+		sort.Slice(conversations, func(i, j int) bool {
+			return conversations[i].timestamp().After(conversations[j].timestamp())
 		})
 
-		return sessionsLoadedMsg{sessions: sessions}
+		return conversationsLoadedMsg{conversations: conversations}
 	}
 }
 
-func parseSessionCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
+func parseConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseSession(ctx, meta)
+		session, err := parseConversation(ctx, conv)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseSession failed for %s", meta.filePath)
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversation failed for %s", conv.id())
 			return statusMsg{text: fmt.Sprintf("Error loading session: %v", err)}
 		}
 		return sessionParsedMsg{session: session}
 	}
 }
 
-func openSessionCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
+func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseSessionWithSubagents(ctx, meta)
+		session, err := parseConversationWithSubagents(ctx, conv)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseSessionWithSubagents failed for %s", meta.filePath)
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversationWithSubagents failed for %s", conv.id())
 			return statusMsg{text: fmt.Sprintf("Error loading session: %v", err)}
 		}
 		return openViewerMsg{session: session}
 	}
 }
 
-func openSessionCmdCached(ctx context.Context, meta sessionMeta, parent sessionFull) tea.Cmd {
+func openConversationCmdCached(ctx context.Context, conv conversation, parent sessionFull) tea.Cmd {
 	return func() tea.Msg {
-		session := parseSessionWithSubagentsCached(ctx, meta, parent)
+		session := parseConversationWithSubagentsCached(ctx, conv, parent)
 		return openViewerMsg{session: session}
 	}
 }
@@ -95,9 +97,9 @@ func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	}
 }
 
-func copyFromMetaCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
+func copyFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseSession(ctx, meta)
+		session, err := parseConversation(ctx, conv)
 		if err != nil {
 			return statusMsg{text: fmt.Sprintf("Copy failed: %v", err)}
 		}
@@ -116,14 +118,14 @@ func exportTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	}
 }
 
-func exportFromMetaCmd(ctx context.Context, meta sessionMeta) tea.Cmd {
+func exportFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseSession(ctx, meta)
+		session, err := parseConversation(ctx, conv)
 		if err != nil {
 			return statusMsg{text: fmt.Sprintf("Export failed: %v", err)}
 		}
 		text := renderTranscript(session, transcriptOptions{})
-		return exportText(text, meta)
+		return exportText(text, session.meta)
 	}
 }
 

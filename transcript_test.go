@@ -719,3 +719,96 @@ func TestFormatToolResultMultipleHunks(t *testing.T) {
 		t.Errorf("expected 4 @@ markers, got %d\n%s", count, got)
 	}
 }
+
+func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Hello"},
+			{role: roleAssistant, text: "Hi there"},
+			{role: roleUser, text: "[Request interrupted by user for tool use]"},
+			{role: roleUser, text: "Continue please"},
+			{role: roleAssistant, text: "Continuing"},
+		},
+	}
+
+	result := renderTranscript(session, transcriptOptions{})
+
+	if strings.Contains(result, "[Request interrupted") {
+		t.Errorf("interrupt message should be filtered:\n%s", result)
+	}
+	if !strings.Contains(result, "Hello") {
+		t.Errorf("normal message should be present:\n%s", result)
+	}
+	if !strings.Contains(result, "Continue please") {
+		t.Errorf("post-interrupt message should be present:\n%s", result)
+	}
+	youCount := strings.Count(result, "## You")
+	if youCount != 2 {
+		t.Errorf("expected 2 You headings, got %d\nresult:\n%s", youCount, result)
+	}
+}
+
+func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "Hello"},
+			{role: roleAssistant, text: "Hi there"},
+			{role: roleUser, text: "[Request interrupted by user]"},
+			{role: roleUser, text: "Continue"},
+			{role: roleAssistant, text: "Continuing"},
+		},
+	}
+
+	result := renderPreview(session, 10, 80)
+
+	if strings.Contains(result, "[Request interrupted") {
+		t.Errorf("interrupt message should be filtered:\n%s", result)
+	}
+	if !strings.Contains(result, "Hello") {
+		t.Errorf("normal message should be present:\n%s", result)
+	}
+	if !strings.Contains(result, "Continue") {
+		t.Errorf("post-interrupt message should be present:\n%s", result)
+	}
+}
+
+func TestRenderTranscriptInterruptWithToolResults(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "[Request interrupted by user for tool use]",
+				toolResults: []toolResult{
+					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+				}},
+			{role: roleAssistant, text: "Done"},
+		},
+	}
+
+	t.Run("interrupt text hidden but tool results shown when enabled", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{showToolResults: true})
+		if strings.Contains(result, "[Request interrupted") {
+			t.Errorf("interrupt text should be filtered:\n%s", result)
+		}
+		if !strings.Contains(result, "**Read**") {
+			t.Errorf("tool result should be visible:\n%s", result)
+		}
+	})
+
+	t.Run("entire message hidden when tool results disabled", func(t *testing.T) {
+		t.Parallel()
+		result := renderTranscript(session, transcriptOptions{showToolResults: false})
+		if strings.Contains(result, "[Request interrupted") {
+			t.Errorf("interrupt text should be filtered:\n%s", result)
+		}
+		youCount := strings.Count(result, "## You")
+		if youCount != 0 {
+			t.Errorf("expected 0 You headings (only interrupt message), got %d\nresult:\n%s", youCount, result)
+		}
+	})
+}
