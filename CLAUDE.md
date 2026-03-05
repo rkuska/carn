@@ -24,7 +24,7 @@ Write code using TDD platform. First write stubs. Then tests (following testing 
 ### Logging.
 
 * Don't use fmt.Print* methods.
-* Always use zerolog.Ctx(ctx) to retrieve logger.
+* Use zerolog for logging with a global default logger
 * Use Msgf to print messages with enough details
 * Use fields (like .Str and similair) only for things we expect to search for in structured logging
 

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/rs/zerolog"
 )
 
@@ -31,7 +32,16 @@ func run() error {
 		return fmt.Errorf("defaultArchiveConfig: %w", err)
 	}
 
-	model := newAppModel(ctx, cfg)
+	// Detect terminal background before bubbletea takes over stdin.
+	// glamour.WithAutoStyle() sends an OSC 11 query on every call, whose
+	// response bytes get misinterpreted as KeyPressMsg by bubbletea's
+	// input parser. Detecting once here avoids the issue entirely.
+	glamourStyle := "dark"
+	if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+		glamourStyle = "light"
+	}
+
+	model := newAppModel(ctx, cfg, glamourStyle)
 
 	p := tea.NewProgram(model)
 

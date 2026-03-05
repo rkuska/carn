@@ -9,10 +9,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+func newTestViewer(session sessionFull, width, height int) viewerModel {
+	return newViewerModel(session, "dark", width, height)
+}
+
 func TestNewViewerModelStartsWithSearchInactive(t *testing.T) {
 	t.Parallel()
 
-	m := newViewerModel(testSession("viewer-init"), 120, 40)
+	m := newTestViewer(testSession("viewer-init"), 120, 40)
 
 	if m.searching {
 		t.Fatal("expected searching to be false on init")
@@ -25,7 +29,7 @@ func TestNewViewerModelStartsWithSearchInactive(t *testing.T) {
 func TestViewerSearchBindingUsesSlash(t *testing.T) {
 	t.Parallel()
 
-	m := newViewerModel(testSession("viewer-keys"), 120, 40)
+	m := newTestViewer(testSession("viewer-keys"), 120, 40)
 
 	// Slash should enter search mode.
 	m, _ = m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
@@ -62,7 +66,7 @@ func TestPerformSearchFindsMatchesBeyondViewport(t *testing.T) {
 	t.Parallel()
 
 	// Use a small viewport height so most content is off-screen.
-	m := newViewerModel(testSessionLong("search-full", "UNIQUEWORD"), 120, 10)
+	m := newTestViewer(testSessionLong("search-full", "UNIQUEWORD"), 120, 10)
 
 	m.searchQuery = "UNIQUEWORD"
 	m.performSearch()
@@ -77,7 +81,7 @@ func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
 
 	// Create a session where the rendered output will contain ANSI codes around the keyword.
 	// Glamour wraps text in ANSI escapes; searching raw ANSI would miss a plain-text query.
-	m := newViewerModel(testSession("search-ansi"), 120, 40)
+	m := newTestViewer(testSession("search-ansi"), 120, 40)
 
 	// The rendered content will have ANSI escape codes around "hello" (glamour renders markdown).
 	m.searchQuery = "hello"
@@ -98,7 +102,7 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 		thinking: "deep thought about TARGETWORD",
 	})
 
-	m := newViewerModel(session, 120, 10)
+	m := newTestViewer(session, 120, 10)
 
 	m.searchQuery = "TARGETWORD"
 	m.performSearch()
@@ -117,7 +121,7 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
 	t.Parallel()
 
-	m := newViewerModel(testSession("footer-zero"), 120, 40)
+	m := newTestViewer(testSession("footer-zero"), 120, 40)
 
 	m.searchQuery = "XYZNONEXISTENT"
 	m.performSearch()
@@ -135,7 +139,7 @@ func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
 func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	t.Parallel()
 
-	m := newViewerModel(testSession("footer-match"), 120, 40)
+	m := newTestViewer(testSession("footer-match"), 120, 40)
 
 	m.searchQuery = "hello"
 	m.performSearch()
