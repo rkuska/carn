@@ -11,6 +11,14 @@ func newDelegate() list.DefaultDelegate {
 	d.SetSpacing(1)
 	d.SetHeight(3)
 
+	d.Styles.NormalTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#777777")).
+		Padding(0, 0, 0, 2)
+
+	d.Styles.NormalDesc = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#dddddd")).
+		Padding(0, 0, 0, 2)
+
 	d.Styles.FilterMatch = lipgloss.NewStyle().
 		Background(colorHighlight).
 		Bold(true)
@@ -18,13 +26,13 @@ func newDelegate() list.DefaultDelegate {
 	d.Styles.SelectedTitle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(colorAccent).
-		Foreground(colorSelectedFg).
+		Foreground(colorSecondary).
 		Padding(0, 0, 0, 1)
 
 	d.Styles.SelectedDesc = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(colorAccent).
-		Foreground(colorSecondary).
+		Foreground(colorSelectedFg).
 		Padding(0, 0, 0, 1)
 
 	return d
