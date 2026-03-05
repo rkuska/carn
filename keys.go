@@ -65,7 +65,6 @@ type viewerKeyMap struct {
 	Copy              key.Binding
 	Export            key.Binding
 	Editor            key.Binding
-	Help              key.Binding
 	Back              key.Binding
 }
 
@@ -113,10 +112,6 @@ var viewerKeys = viewerKeyMap{
 	Editor: key.NewBinding(
 		key.WithKeys("ctrl+o"),
 		key.WithHelp("ctrl+o", "open in editor"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "q"),
