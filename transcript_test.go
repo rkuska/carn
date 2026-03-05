@@ -221,7 +221,7 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	session := sessionFull{
 		messages: []message{
 			{role: roleUser, text: "Check this", toolResults: []toolResult{
-				{toolUseID: "toolu_123", content: "file contents here"},
+				{toolUseID: "toolu_123", toolName: "Read", toolSummary: "/path/file.go", content: "file contents here"},
 			}},
 			{role: roleAssistant, text: "Done!"},
 		},
@@ -230,7 +230,7 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	t.Run("hidden by default", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{})
-		if strings.Contains(result, "tool_result") {
+		if strings.Contains(result, "**Read**") {
 			t.Errorf("tool results should be hidden by default\nresult:\n%s", result)
 		}
 	})
@@ -238,11 +238,11 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	t.Run("shown when enabled", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showToolResults: true})
-		if !strings.Contains(result, "[tool_result toolu_123]") {
-			t.Errorf("tool results should be visible\nresult:\n%s", result)
+		if !strings.Contains(result, "**Read**: `/path/file.go`") {
+			t.Errorf("tool result should show resolved name and summary\nresult:\n%s", result)
 		}
-		if !strings.Contains(result, "file contents here") {
-			t.Errorf("tool result content should be visible\nresult:\n%s", result)
+		if !strings.Contains(result, "```\nfile contents here\n```") {
+			t.Errorf("tool result content should be in code block\nresult:\n%s", result)
 		}
 	})
 }
@@ -348,7 +348,7 @@ func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
 				{name: "Read", summary: "/path/file.go"},
 			}},
 			{role: roleUser, toolResults: []toolResult{
-				{toolUseID: "toolu_abc", content: "file contents"},
+				{toolUseID: "toolu_abc", toolName: "Read", toolSummary: "/path/file.go", content: "file contents"},
 			}},
 			{role: roleAssistant, text: "Done!"},
 		},
@@ -412,5 +412,154 @@ func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 	result := renderPreview(session, 10, 80)
 	if !strings.Contains(result, "[Bash: ls -la]") {
 		t.Errorf("expected tool call in preview when no text, got:\n%s", result)
+	}
+}
+
+func TestFormatToolResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("resolved with summary", func(t *testing.T) {
+		t.Parallel()
+		tr := toolResult{
+			toolName:    "Read",
+			toolSummary: "/path/to/file.go",
+			content:     "package main",
+		}
+		got := formatToolResult(tr)
+		if !strings.Contains(got, "**Read**: `/path/to/file.go`") {
+			t.Errorf("expected header with name and summary, got:\n%s", got)
+		}
+		if !strings.Contains(got, "```\npackage main\n```") {
+			t.Errorf("expected content in code block, got:\n%s", got)
+		}
+	})
+
+	t.Run("resolved without summary", func(t *testing.T) {
+		t.Parallel()
+		tr := toolResult{
+			toolName: "TaskList",
+			content:  "no tasks",
+		}
+		got := formatToolResult(tr)
+		if !strings.Contains(got, "**TaskList**\n") {
+			t.Errorf("expected header without summary, got:\n%s", got)
+		}
+	})
+
+	t.Run("unresolved fallback", func(t *testing.T) {
+		t.Parallel()
+		tr := toolResult{
+			toolUseID: "toolu_xyz",
+			content:   "some output",
+		}
+		got := formatToolResult(tr)
+		if !strings.Contains(got, "**tool_result**\n") {
+			t.Errorf("expected fallback header, got:\n%s", got)
+		}
+	})
+}
+
+func TestFormatToolResultPreservesNewlines(t *testing.T) {
+	t.Parallel()
+
+	tr := toolResult{
+		toolName:    "Read",
+		toolSummary: "/file.go",
+		content:     "line1\nline2\nline3",
+	}
+	got := formatToolResult(tr)
+	if !strings.Contains(got, "line1\nline2\nline3") {
+		t.Errorf("expected newlines preserved in content, got:\n%s", got)
+	}
+}
+
+func TestFormatToolResultDiff(t *testing.T) {
+	t.Parallel()
+
+	tr := toolResult{
+		toolName:    "Edit",
+		toolSummary: "/path/to/file.go",
+		content:     "file updated",
+		structuredPatch: []diffHunk{
+			{
+				oldStart: 10,
+				oldLines: 3,
+				newStart: 10,
+				newLines: 5,
+				lines:    []string{" context", "-old line", "+new line1", "+new line2", " more context"},
+			},
+		},
+	}
+	got := formatToolResult(tr)
+
+	if !strings.Contains(got, "**Edit**: `/path/to/file.go`") {
+		t.Errorf("expected header with name and summary, got:\n%s", got)
+	}
+	if !strings.Contains(got, "```diff\n") {
+		t.Errorf("expected diff code block, got:\n%s", got)
+	}
+	if !strings.Contains(got, "@@ -10,3 +10,5 @@") {
+		t.Errorf("expected hunk header, got:\n%s", got)
+	}
+	if !strings.Contains(got, "-old line\n") {
+		t.Errorf("expected removed line, got:\n%s", got)
+	}
+	if !strings.Contains(got, "+new line1\n") {
+		t.Errorf("expected added line, got:\n%s", got)
+	}
+}
+
+func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
+	t.Parallel()
+
+	tr := toolResult{
+		toolName:    "Edit",
+		toolSummary: "/path/to/file.go",
+		content:     "file updated successfully",
+	}
+	got := formatToolResult(tr)
+
+	if strings.Contains(got, "```diff") {
+		t.Errorf("should not use diff block without patch, got:\n%s", got)
+	}
+	if !strings.Contains(got, "```\nfile updated successfully\n```") {
+		t.Errorf("expected plain code block fallback, got:\n%s", got)
+	}
+}
+
+func TestFormatToolResultMultipleHunks(t *testing.T) {
+	t.Parallel()
+
+	tr := toolResult{
+		toolName:    "Edit",
+		toolSummary: "/path/to/file.go",
+		structuredPatch: []diffHunk{
+			{
+				oldStart: 5,
+				oldLines: 2,
+				newStart: 5,
+				newLines: 3,
+				lines:    []string{" ctx", "-removed", "+added1", "+added2"},
+			},
+			{
+				oldStart: 20,
+				oldLines: 1,
+				newStart: 21,
+				newLines: 2,
+				lines:    []string{"-old", "+new1", "+new2"},
+			},
+		},
+	}
+	got := formatToolResult(tr)
+
+	if !strings.Contains(got, "@@ -5,2 +5,3 @@") {
+		t.Errorf("expected first hunk header, got:\n%s", got)
+	}
+	if !strings.Contains(got, "@@ -20,1 +21,2 @@") {
+		t.Errorf("expected second hunk header, got:\n%s", got)
+	}
+	count := strings.Count(got, "@@")
+	if count != 4 { // 2 hunk headers × 2 @@ each
+		t.Errorf("expected 4 @@ markers, got %d\n%s", count, got)
 	}
 }

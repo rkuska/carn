@@ -30,8 +30,19 @@ func (u tokenUsage) totalTokens() int {
 }
 
 type toolResult struct {
-	toolUseID string
-	content   string
+	toolUseID       string
+	toolName        string
+	toolSummary     string
+	content         string
+	structuredPatch []diffHunk
+}
+
+type diffHunk struct {
+	oldStart int
+	oldLines int
+	newStart int
+	newLines int
+	lines    []string
 }
 
 type sessionMeta struct {
@@ -109,6 +120,7 @@ type message struct {
 }
 
 type toolCall struct {
+	id      string
 	name    string
 	summary string
 }
