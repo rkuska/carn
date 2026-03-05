@@ -226,7 +226,7 @@ func (m viewerModel) View() string {
 		m.session.meta.slug,
 		m.session.meta.timestamp.Format("2006-01-02 15:04"),
 	)
-	topBorder := renderBorderTop(title, m.width, colorPrimary)
+	topBorder := renderBorderTop(title, m.width, colorPrimary, colorPrimary)
 
 	// Height is content only; lipgloss adds 1 bottom border line.
 	// Total frame = 1 (top border) + m.height-3 (content) + 1 (bottom border) = m.height-1.
