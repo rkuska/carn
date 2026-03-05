@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type viewerModel struct {
@@ -221,8 +222,12 @@ func (m viewerModel) footerView() string {
 
 	// Search matches
 	if m.searchQuery != "" {
-		parts = append(parts, fmt.Sprintf("/%s (%d/%d)",
-			m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
+		if len(m.matchIndices) == 0 {
+			parts = append(parts, fmt.Sprintf("/%s (no matches)", m.searchQuery))
+		} else {
+			parts = append(parts, fmt.Sprintf("/%s (%d/%d)",
+				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
+		}
 	}
 
 	if m.statusText != "" {
@@ -287,6 +292,10 @@ func (m *viewerModel) renderContent() {
 	}
 
 	m.viewport.SetContent(rendered)
+
+	if m.searchQuery != "" {
+		m.performSearch()
+	}
 }
 
 func (m *viewerModel) performSearch() {
@@ -297,10 +306,10 @@ func (m *viewerModel) performSearch() {
 		return
 	}
 
-	lines := strings.Split(m.viewport.View(), "\n")
+	lines := strings.Split(m.viewport.GetContent(), "\n")
 	queryLower := strings.ToLower(m.searchQuery)
 	for i, line := range lines {
-		if strings.Contains(strings.ToLower(line), queryLower) {
+		if strings.Contains(strings.ToLower(ansi.Strip(line)), queryLower) {
 			m.matchIndices = append(m.matchIndices, i)
 		}
 	}
