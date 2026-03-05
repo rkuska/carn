@@ -1,6 +1,11 @@
 package main
 
-import "charm.land/lipgloss/v2"
+import (
+	"image/color"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 var (
 	// Colors
@@ -34,3 +39,20 @@ var (
 			Background(lipgloss.Color("236")).
 			Padding(0, 1)
 )
+
+// renderBorderTop builds a custom top border line with an embedded title:
+// ╭─ Title ──────────────────────╮
+func renderBorderTop(title string, width int, fg color.Color) string {
+	border := lipgloss.RoundedBorder()
+	bs := lipgloss.NewStyle().Foreground(fg)
+	ts := styleTitle
+
+	titleRendered := ts.Render(title)
+	titleW := lipgloss.Width(titleRendered)
+	innerWidth := width - 2 // minus two corners
+	padLen := max(innerWidth-titleW-3, 0)
+
+	return bs.Render(string(border.TopLeft)+"─") +
+		" " + titleRendered + " " +
+		bs.Render(strings.Repeat("─", padLen)+string(border.TopRight))
+}

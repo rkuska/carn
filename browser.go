@@ -249,14 +249,21 @@ func (m browserModel) View() string {
 		return "Loading..."
 	}
 
-	listWidth := m.width * 6 / 10
-	previewWidth := m.width - listWidth - 3 // 3 for borders/gap
+	listBoxWidth := m.width * 6 / 10
+	previewBoxWidth := m.width - listBoxWidth - 1 // 1 for gap
 
 	// Status bar
 	status := m.statusBar()
 
-	// Render list pane
-	listView := m.list.View()
+	// Render list pane inside a border
+	listBorder := stylePreviewBorder
+	if m.focus == focusList {
+		listBorder = listBorder.BorderForeground(colorAccent)
+	}
+	listView := listBorder.
+		Width(listBoxWidth).
+		Height(m.height - 3).
+		Render(m.list.View())
 
 	// Render preview pane
 	previewBorder := stylePreviewBorder
@@ -264,23 +271,25 @@ func (m browserModel) View() string {
 		previewBorder = previewBorder.BorderForeground(colorAccent)
 	}
 	previewView := previewBorder.
-		Width(previewWidth).
-		Height(m.height - 2).
+		Width(previewBoxWidth).
+		Height(m.height - 3).
 		Render(m.preview.View())
 
-	// Join horizontally
+	// Join horizontally with gap
 	content := lipgloss.JoinHorizontal(lipgloss.Top, listView, " ", previewView)
 
 	return lipgloss.JoinVertical(lipgloss.Left, content, status)
 }
 
 func (m *browserModel) updateLayout() {
-	listWidth := m.width * 6 / 10
-	previewWidth := m.width - listWidth - 3
+	listBoxWidth := m.width * 6 / 10
+	previewBoxWidth := m.width - listBoxWidth - 1
 
-	m.list.SetSize(listWidth, m.height-2)
-	m.preview.SetWidth(previewWidth - 2)
-	m.preview.SetHeight(m.height - 4)
+	// List inner dimensions (inside border: box - 2 border chars)
+	m.list.SetSize(listBoxWidth-2, m.height-5)
+	// Preview inner dimensions (inside border: box - 2 border chars)
+	m.preview.SetWidth(previewBoxWidth - 2)
+	m.preview.SetHeight(m.height - 5)
 }
 
 func (m *browserModel) selectedMeta() (sessionMeta, bool) {
