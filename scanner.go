@@ -166,17 +166,18 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 
 // jsonRecord is used for partial unmarshaling of JSONL records.
 type jsonRecord struct {
-	Type        string          `json:"type"`
-	SessionID   string          `json:"sessionId"`
-	Slug        string          `json:"slug"`
-	CWD         string          `json:"cwd"`
-	GitBranch   string          `json:"gitBranch"`
-	Version     string          `json:"version"`
-	Timestamp   string          `json:"timestamp"`
-	Message     json.RawMessage `json:"message"`
-	UUID        string          `json:"uuid"`
-	ParentUUID  string          `json:"parentUuid"`
-	IsSidechain bool            `json:"isSidechain"`
+	Type          string          `json:"type"`
+	SessionID     string          `json:"sessionId"`
+	Slug          string          `json:"slug"`
+	CWD           string          `json:"cwd"`
+	GitBranch     string          `json:"gitBranch"`
+	Version       string          `json:"version"`
+	Timestamp     string          `json:"timestamp"`
+	Message       json.RawMessage `json:"message"`
+	UUID          string          `json:"uuid"`
+	ParentUUID    string          `json:"parentUuid"`
+	IsSidechain   bool            `json:"isSidechain"`
+	ToolUseResult json.RawMessage `json:"toolUseResult"`
 }
 
 type jsonMessage struct {
@@ -242,7 +243,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 			if content != "" {
 				results = append(results, toolResult{
 					toolUseID: b.ToolUseID,
-					content:   truncate(content, maxToolResultChars),
+					content:   truncatePreserveNewlines(content, maxToolResultChars),
 				})
 			}
 		}
@@ -279,6 +280,48 @@ func extractToolResultContent(raw json.RawMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+type jsonEditResult struct {
+	StructuredPatch []jsonDiffHunk `json:"structuredPatch"`
+}
+
+type jsonDiffHunk struct {
+	OldStart int      `json:"oldStart"`
+	OldLines int      `json:"oldLines"`
+	NewStart int      `json:"newStart"`
+	NewLines int      `json:"newLines"`
+	Lines    []string `json:"lines"`
+}
+
+// extractStructuredPatch tries to parse a toolUseResult as an Edit result
+// containing a structuredPatch. Returns nil for non-Edit tools or if the
+// data doesn't contain a patch.
+func extractStructuredPatch(raw json.RawMessage) []diffHunk {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var result jsonEditResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil
+	}
+
+	if len(result.StructuredPatch) == 0 {
+		return nil
+	}
+
+	hunks := make([]diffHunk, len(result.StructuredPatch))
+	for i, h := range result.StructuredPatch {
+		hunks[i] = diffHunk{
+			oldStart: h.OldStart,
+			oldLines: h.OldLines,
+			newStart: h.NewStart,
+			newLines: h.NewLines,
+			lines:    h.Lines,
+		}
+	}
+	return hunks
 }
 
 // extractIsSidechain quickly checks if a JSONL line has isSidechain:true
@@ -418,6 +461,7 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
 
 	var messages []message
+	toolCallIndex := make(map[string]toolCall)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -430,11 +474,22 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 		case roleUser:
 			msg, ok := parseUserMessage(line)
 			if ok {
+				for i, tr := range msg.toolResults {
+					if tc, found := toolCallIndex[tr.toolUseID]; found {
+						msg.toolResults[i].toolName = tc.name
+						msg.toolResults[i].toolSummary = tc.summary
+					}
+				}
 				messages = append(messages, msg)
 			}
 		case roleAssistant:
 			msg, ok := parseAssistantMessage(ctx, line)
 			if ok {
+				for _, tc := range msg.toolCalls {
+					if tc.id != "" {
+						toolCallIndex[tc.id] = tc
+					}
+				}
 				messages = append(messages, msg)
 			}
 		}
@@ -468,6 +523,12 @@ func parseUserMessage(line []byte) (message, bool) {
 		return message{}, false
 	}
 
+	if len(rec.ToolUseResult) > 0 && len(toolResults) == 1 {
+		if patch := extractStructuredPatch(rec.ToolUseResult); patch != nil {
+			toolResults[0].structuredPatch = patch
+		}
+	}
+
 	var ts time.Time
 	if rec.Timestamp != "" {
 		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
@@ -489,6 +550,7 @@ type contentBlock struct {
 	Type     string          `json:"type"`
 	Text     string          `json:"text"`
 	Thinking string          `json:"thinking"`
+	ID       string          `json:"id"`
 	Name     string          `json:"name"`
 	Input    json.RawMessage `json:"input"`
 }
@@ -527,6 +589,7 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 			thinking += b.Thinking
 		case "tool_use":
 			tc := toolCall{
+				id:      b.ID,
 				name:    b.Name,
 				summary: summarizeToolCall(b.Name, b.Input),
 			}
@@ -606,9 +669,20 @@ func summarizeToolCall(name string, input json.RawMessage) string {
 		return extractStringParam(params, "notebook_path")
 	case "EnterPlanMode":
 		return "enter plan mode"
+	case "ExitPlanMode":
+		return "exit plan mode"
 	case "EnterWorktree":
 		return extractStringParam(params, "name")
+	case "Task":
+		return truncate(extractStringParam(params, "description"), 80)
+	case "TaskOutput":
+		return extractStringParam(params, "task_id")
+	case "TaskList":
+		return "list tasks"
 	default:
+		if strings.HasPrefix(name, "mcp__") {
+			return summarizeMCPTool(params)
+		}
 		return ""
 	}
 }
@@ -623,6 +697,23 @@ func extractStringParam(params map[string]json.RawMessage, key string) string {
 		return ""
 	}
 	return val
+}
+
+// summarizeMCPTool extracts a useful summary from MCP tool params.
+// Tries query, then libraryName, then falls back to first string param.
+func summarizeMCPTool(params map[string]json.RawMessage) string {
+	for _, key := range []string{"query", "libraryName"} {
+		if v := extractStringParam(params, key); v != "" {
+			return truncate(v, 80)
+		}
+	}
+	for _, raw := range params {
+		var v string
+		if err := json.Unmarshal(raw, &v); err == nil && v != "" {
+			return truncate(v, 80)
+		}
+	}
+	return ""
 }
 
 // findSubagentFiles discovers subagent JSONL files for a parent session.
@@ -714,6 +805,15 @@ func truncate(s string, maxLen int) string {
 	s = strings.ReplaceAll(s, "\r", "")
 	if len(s) > maxLen {
 		return s[:maxLen] + "..."
+	}
+	return s
+}
+
+// truncatePreserveNewlines truncates at char limit but keeps newlines intact.
+func truncatePreserveNewlines(s string, maxLen int) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	if len(s) > maxLen {
+		return s[:maxLen] + "\n..."
 	}
 	return s
 }

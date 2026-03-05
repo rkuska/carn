@@ -316,11 +316,8 @@ func (m *viewerModel) renderContent() {
 
 	content := m.rawContent
 	if renderer, err := m.ensureRenderer(); err == nil {
-		// Render markdown with glamour, then strip ANSI to avoid artifacts
-		// from lipgloss v1 escape codes being misinterpreted by bubbletea v2's
-		// cellbuf renderer.
 		if rendered, renderErr := renderer.Render(m.rawContent); renderErr == nil {
-			content = ansi.Strip(rendered)
+			content = rendered
 		}
 	}
 
@@ -354,7 +351,7 @@ func (m *viewerModel) rebuildSearchIndex(content string) {
 	lines := strings.Split(content, "\n")
 	m.searchLines = make([]string, len(lines))
 	for i, line := range lines {
-		m.searchLines[i] = strings.ToLower(line)
+		m.searchLines[i] = strings.ToLower(ansi.Strip(line))
 	}
 }
 

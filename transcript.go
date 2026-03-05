@@ -52,7 +52,8 @@ func renderUserMessage(sb *strings.Builder, msg message, opts transcriptOptions)
 	}
 	if opts.showToolResults && len(msg.toolResults) > 0 {
 		for _, tr := range msg.toolResults {
-			fmt.Fprintf(sb, "[tool_result %s]: %s\n", tr.toolUseID, tr.content)
+			sb.WriteString(formatToolResult(tr))
+			sb.WriteString("\n")
 		}
 		sb.WriteString("\n")
 	}
@@ -99,6 +100,45 @@ func formatToolCall(tc toolCall) string {
 		return fmt.Sprintf("[%s: %s]", tc.name, tc.summary)
 	}
 	return fmt.Sprintf("[%s]", tc.name)
+}
+
+// formatToolResult renders a tool result with its resolved name and content.
+func formatToolResult(tr toolResult) string {
+	var sb strings.Builder
+
+	header := "tool_result"
+	if tr.toolName != "" {
+		header = tr.toolName
+	}
+
+	if tr.toolSummary != "" {
+		fmt.Fprintf(&sb, "**%s**: `%s`\n", header, tr.toolSummary)
+	} else {
+		fmt.Fprintf(&sb, "**%s**\n", header)
+	}
+
+	if len(tr.structuredPatch) > 0 {
+		sb.WriteString("```diff\n")
+		for _, hunk := range tr.structuredPatch {
+			fmt.Fprintf(&sb, "@@ -%d,%d +%d,%d @@\n",
+				hunk.oldStart, hunk.oldLines,
+				hunk.newStart, hunk.newLines)
+			for _, line := range hunk.lines {
+				sb.WriteString(line)
+				sb.WriteString("\n")
+			}
+		}
+		sb.WriteString("```")
+	} else if tr.content != "" {
+		sb.WriteString("```\n")
+		sb.WriteString(tr.content)
+		if !strings.HasSuffix(tr.content, "\n") {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("```")
+	}
+
+	return sb.String()
 }
 
 // renderPreview renders a short preview of a session (first few exchanges).

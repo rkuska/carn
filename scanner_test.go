@@ -9,6 +9,7 @@ import (
 )
 
 const testTextHello = "hello"
+const testToolRead = "Read"
 
 func findTestJSONL(t *testing.T) string {
 	t.Helper()
@@ -764,10 +765,52 @@ func TestSummarizeToolCall(t *testing.T) {
 			wantContains: "enter plan mode",
 		},
 		{
+			name:         "ExitPlanMode tool",
+			toolName:     "ExitPlanMode",
+			input:        `{}`,
+			wantContains: "exit plan mode",
+		},
+		{
 			name:         "NotebookEdit tool",
 			toolName:     "NotebookEdit",
 			input:        `{"notebook_path":"/path/to/notebook.ipynb"}`,
 			wantContains: "/path/to/notebook.ipynb",
+		},
+		{
+			name:         "Task tool",
+			toolName:     "Task",
+			input:        `{"description":"search for patterns"}`,
+			wantContains: "search for patterns",
+		},
+		{
+			name:         "TaskOutput tool",
+			toolName:     "TaskOutput",
+			input:        `{"task_id":"task-42"}`,
+			wantContains: "task-42",
+		},
+		{
+			name:         "TaskList tool",
+			toolName:     "TaskList",
+			input:        `{}`,
+			wantContains: "list tasks",
+		},
+		{
+			name:         "MCP tool with query",
+			toolName:     "mcp__context7__query-docs",
+			input:        `{"libraryId":"/vercel/next.js","query":"how to use middleware"}`,
+			wantContains: "how to use middleware",
+		},
+		{
+			name:         "MCP tool with libraryName",
+			toolName:     "mcp__context7__resolve-library-id",
+			input:        `{"libraryName":"react"}`,
+			wantContains: "react",
+		},
+		{
+			name:         "MCP tool fallback to first string param",
+			toolName:     "mcp__custom__do-thing",
+			input:        `{"some_param":"custom value"}`,
+			wantContains: "custom value",
 		},
 		{
 			name:         "unknown tool",
@@ -915,6 +958,278 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			t.Errorf("expected subagent user message, got %q", session.messages[3].text)
 		}
 	})
+}
+
+func TestTruncatePreserveNewlines(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		maxLen int
+		want   string
+	}{
+		{
+			name:   "short string unchanged",
+			input:  "hello",
+			maxLen: 10,
+			want:   "hello",
+		},
+		{
+			name:   "preserves newlines",
+			input:  "line1\nline2\nline3",
+			maxLen: 100,
+			want:   "line1\nline2\nline3",
+		},
+		{
+			name:   "strips carriage returns",
+			input:  "line1\r\nline2\r\n",
+			maxLen: 100,
+			want:   "line1\nline2\n",
+		},
+		{
+			name:   "truncates with newline ellipsis",
+			input:  "line1\nline2\nline3",
+			maxLen: 11,
+			want:   "line1\nline2\n...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := truncatePreserveNewlines(tt.input, tt.maxLen)
+			if got != tt.want {
+				t.Errorf("truncatePreserveNewlines(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseAssistantMessageToolUseID(t *testing.T) {
+	t.Parallel()
+
+	line := `{"type":"assistant","timestamp":"2024-01-01T00:00:00Z",` +
+		`"message":{"role":"assistant","content":[` +
+		`{"type":"tool_use","id":"toolu_abc123","name":"Read",` +
+		`"input":{"file_path":"/tmp/file.go"}}]}}`
+
+	msg, ok := parseAssistantMessage(context.Background(), []byte(line))
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if len(msg.toolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(msg.toolCalls))
+	}
+	if msg.toolCalls[0].id != "toolu_abc123" {
+		t.Errorf("id = %q, want %q", msg.toolCalls[0].id, "toolu_abc123")
+	}
+	if msg.toolCalls[0].name != testToolRead {
+		t.Errorf("name = %q, want %q", msg.toolCalls[0].name, testToolRead)
+	}
+	if msg.toolCalls[0].summary != "/tmp/file.go" {
+		t.Errorf("summary = %q, want %q", msg.toolCalls[0].summary, "/tmp/file.go")
+	}
+}
+
+func TestParseSessionResolvesToolResultNames(t *testing.T) {
+	t.Parallel()
+
+	assistLine := `{"type":"assistant","sessionId":"s1",` +
+		`"timestamp":"2024-01-01T00:00:00Z",` +
+		`"message":{"role":"assistant","content":[` +
+		`{"type":"text","text":"let me read that"},` +
+		`{"type":"tool_use","id":"toolu_read1","name":"Read",` +
+		`"input":{"file_path":"/tmp/main.go"}},` +
+		`{"type":"tool_use","id":"toolu_bash1","name":"Bash",` +
+		`"input":{"command":"go test ./..."}}]}}`
+
+	userLine := `{"type":"user","sessionId":"s1",` +
+		`"slug":"test","timestamp":"2024-01-01T00:00:01Z",` +
+		`"cwd":"/tmp","message":{"role":"user","content":[` +
+		`{"type":"tool_result","tool_use_id":"toolu_read1",` +
+		`"content":"package main"},` +
+		`{"type":"tool_result","tool_use_id":"toolu_bash1",` +
+		`"content":"PASS"},` +
+		`{"type":"text","text":"looks good"}]}}`
+
+	initialLine := `{"type":"user","sessionId":"s1","slug":"test",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"initial"}}`
+
+	content := strings.Join([]string{
+		initialLine,
+		assistLine,
+		userLine,
+	}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	meta := sessionMeta{
+		id:       "s1",
+		filePath: filePath,
+		project:  project{dirName: "test", displayName: "test"},
+	}
+	session, err := parseSession(context.Background(), meta)
+	if err != nil {
+		t.Fatalf("parseSession: %v", err)
+	}
+
+	// Find the user message with tool results (index 2)
+	if len(session.messages) < 3 {
+		t.Fatalf("expected at least 3 messages, got %d", len(session.messages))
+	}
+
+	userMsg := session.messages[2]
+	if len(userMsg.toolResults) != 2 {
+		t.Fatalf("expected 2 tool results, got %d", len(userMsg.toolResults))
+	}
+
+	readResult := userMsg.toolResults[0]
+	if readResult.toolName != testToolRead {
+		t.Errorf("toolName = %q, want %q", readResult.toolName, testToolRead)
+	}
+	if readResult.toolSummary != "/tmp/main.go" {
+		t.Errorf("toolSummary = %q, want %q", readResult.toolSummary, "/tmp/main.go")
+	}
+
+	bashResult := userMsg.toolResults[1]
+	if bashResult.toolName != "Bash" {
+		t.Errorf("toolName = %q, want %q", bashResult.toolName, "Bash")
+	}
+	if bashResult.toolSummary != "go test ./..." {
+		t.Errorf("toolSummary = %q, want %q", bashResult.toolSummary, "go test ./...")
+	}
+}
+
+func TestExtractStructuredPatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid edit result", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`{
+			"filePath": "/tmp/file.go",
+			"structuredPatch": [
+				{
+					"oldStart": 10,
+					"oldLines": 3,
+					"newStart": 10,
+					"newLines": 5,
+					"lines": [" context", "-old line", "+new line1", "+new line2", " more context"]
+				}
+			]
+		}`)
+		hunks := extractStructuredPatch(raw)
+		if len(hunks) != 1 {
+			t.Fatalf("expected 1 hunk, got %d", len(hunks))
+		}
+		if hunks[0].oldStart != 10 {
+			t.Errorf("oldStart = %d, want 10", hunks[0].oldStart)
+		}
+		if hunks[0].oldLines != 3 {
+			t.Errorf("oldLines = %d, want 3", hunks[0].oldLines)
+		}
+		if hunks[0].newStart != 10 {
+			t.Errorf("newStart = %d, want 10", hunks[0].newStart)
+		}
+		if hunks[0].newLines != 5 {
+			t.Errorf("newLines = %d, want 5", hunks[0].newLines)
+		}
+		if len(hunks[0].lines) != 5 {
+			t.Errorf("lines count = %d, want 5", len(hunks[0].lines))
+		}
+	})
+
+	t.Run("string input returns nil", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`"file updated successfully"`)
+		hunks := extractStructuredPatch(raw)
+		if hunks != nil {
+			t.Errorf("expected nil for string input, got %v", hunks)
+		}
+	})
+
+	t.Run("object without patch returns nil", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`{"filePath": "/tmp/file.go"}`)
+		hunks := extractStructuredPatch(raw)
+		if hunks != nil {
+			t.Errorf("expected nil for object without patch, got %v", hunks)
+		}
+	})
+
+	t.Run("empty patch returns nil", func(t *testing.T) {
+		t.Parallel()
+		raw := []byte(`{"structuredPatch": []}`)
+		hunks := extractStructuredPatch(raw)
+		if hunks != nil {
+			t.Errorf("expected nil for empty patch, got %v", hunks)
+		}
+	})
+
+	t.Run("empty input returns nil", func(t *testing.T) {
+		t.Parallel()
+		hunks := extractStructuredPatch(nil)
+		if hunks != nil {
+			t.Errorf("expected nil for empty input, got %v", hunks)
+		}
+	})
+}
+
+func TestParseUserMessageAttachesStructuredPatch(t *testing.T) {
+	t.Parallel()
+
+	line := `{"type":"user","sessionId":"s1","timestamp":"2024-01-01T00:00:00Z",` +
+		`"message":{"role":"user","content":[` +
+		`{"type":"tool_result","tool_use_id":"toolu_edit1","content":"file updated"}` +
+		`]},` +
+		`"toolUseResult":{` +
+		`"filePath":"/tmp/main.go",` +
+		`"structuredPatch":[{"oldStart":1,"oldLines":2,"newStart":1,"newLines":3,` +
+		`"lines":[" line1","-old","+new1","+new2"]}]}}`
+
+	msg, ok := parseUserMessage([]byte(line))
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if len(msg.toolResults) != 1 {
+		t.Fatalf("expected 1 tool result, got %d", len(msg.toolResults))
+	}
+	if len(msg.toolResults[0].structuredPatch) != 1 {
+		t.Fatalf("expected 1 hunk, got %d", len(msg.toolResults[0].structuredPatch))
+	}
+	hunk := msg.toolResults[0].structuredPatch[0]
+	if hunk.oldStart != 1 || hunk.newLines != 3 {
+		t.Errorf("hunk = %+v, want oldStart=1 newLines=3", hunk)
+	}
+}
+
+func TestParseUserMessageSkipsPatchForMultipleResults(t *testing.T) {
+	t.Parallel()
+
+	line := `{"type":"user","sessionId":"s1","timestamp":"2024-01-01T00:00:00Z",` +
+		`"message":{"role":"user","content":[` +
+		`{"type":"tool_result","tool_use_id":"toolu_1","content":"result1"},` +
+		`{"type":"tool_result","tool_use_id":"toolu_2","content":"result2"}` +
+		`]},` +
+		`"toolUseResult":{"structuredPatch":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+x"]}]}}`
+
+	msg, ok := parseUserMessage([]byte(line))
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if len(msg.toolResults) != 2 {
+		t.Fatalf("expected 2 tool results, got %d", len(msg.toolResults))
+	}
+	for i, tr := range msg.toolResults {
+		if tr.structuredPatch != nil {
+			t.Errorf("toolResults[%d] should not have patch when multiple results", i)
+		}
+	}
 }
 
 func contains(s, substr string) bool {
