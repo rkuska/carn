@@ -24,7 +24,7 @@ func run() error {
 	}
 	defer func() { _ = logFile.Close() }()
 
-	logger := zerolog.New(logFile).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: logFile, NoColor: true}).With().Timestamp().Logger()
 	ctx := logger.WithContext(context.Background())
 
 	cfg, err := defaultArchiveConfig()
