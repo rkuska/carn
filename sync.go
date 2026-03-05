@@ -131,16 +131,13 @@ func (m syncModel) Update(msg tea.Msg) (syncModel, tea.Cmd) {
 
 func (m *syncModel) startCopyBatch() tea.Cmd {
 	if m.maxWorkers <= 0 {
-		m.maxWorkers = max(runtime.NumCPU(), 1)
-		if m.maxWorkers > 8 {
-			m.maxWorkers = 8
-		}
+		m.maxWorkers = min(max(runtime.NumCPU(), 1), 8)
 	}
 
 	startCount := min(m.maxWorkers, m.total)
 
 	cmds := make([]tea.Cmd, 0, startCount)
-	for i := 0; i < startCount; i++ {
+	for range startCount {
 		next := m.files[m.nextIndex]
 		m.nextIndex++
 		m.inFlight++

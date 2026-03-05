@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -141,9 +142,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		}
 
 	case deepSearchResultMsg:
-		for id, blob := range msg.indexed {
-			m.searchIndex[id] = blob
-		}
+		maps.Copy(m.searchIndex, msg.indexed)
 		items := sessionMetaItems(msg.sessions)
 		cmd := m.list.SetItems(items)
 		cmds = append(cmds, cmd)
@@ -367,17 +366,13 @@ func (m browserModel) cachedSession(id string) (sessionFull, bool) {
 
 func (m browserModel) cloneSearchIndex() map[string]string {
 	out := make(map[string]string, len(m.searchIndex))
-	for k, v := range m.searchIndex {
-		out[k] = v
-	}
+	maps.Copy(out, m.searchIndex)
 	return out
 }
 
 func (m browserModel) cloneSessionCache() map[string]sessionFull {
 	out := make(map[string]sessionFull, len(m.sessionCache))
-	for k, v := range m.sessionCache {
-		out[k] = v
-	}
+	maps.Copy(out, m.sessionCache)
 	return out
 }
 
