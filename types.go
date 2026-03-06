@@ -68,6 +68,18 @@ type sessionMeta struct {
 	parentSessionID  string
 }
 
+const maxSlugFromMessage = 40
+
+func (s sessionMeta) displaySlug() string {
+	if s.slug != "" {
+		return s.slug
+	}
+	if s.firstMessage != "" {
+		return truncate(s.firstMessage, maxSlugFromMessage)
+	}
+	return "untitled"
+}
+
 func (s sessionMeta) duration() time.Duration {
 	if s.lastTimestamp.IsZero() || s.timestamp.IsZero() {
 		return 0
@@ -92,13 +104,13 @@ func formatDuration(d time.Duration) string {
 
 // FilterValue implements list.Item for fuzzy filtering.
 func (s sessionMeta) FilterValue() string {
-	return fmt.Sprintf("%s %s %s %s", s.project.displayName, s.slug, s.firstMessage, s.gitBranch)
+	return fmt.Sprintf("%s %s %s %s", s.project.displayName, s.displaySlug(), s.firstMessage, s.gitBranch)
 }
 
 // Title implements list.DefaultItem.
 func (s sessionMeta) Title() string {
 	date := s.timestamp.Format("2006-01-02 15:04")
-	title := fmt.Sprintf("%s / %s  %s", s.project.displayName, s.slug, date)
+	title := fmt.Sprintf("%s / %s  %s", s.project.displayName, s.displaySlug(), date)
 	if s.isSubagent {
 		title = "[sub] " + title
 	}

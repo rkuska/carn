@@ -345,3 +345,83 @@ func TestConversationListItem(t *testing.T) {
 		}
 	})
 }
+
+func TestConversationDisplayName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		convName     string
+		firstMessage string
+		want         string
+	}{
+		{
+			name:     "name present",
+			convName: "cheerful-ocean",
+			want:     "cheerful-ocean",
+		},
+		{
+			name:         "empty name with firstMessage",
+			convName:     "",
+			firstMessage: "help me with Go",
+			want:         "help me with Go",
+		},
+		{
+			name:     "both empty",
+			convName: "",
+			want:     "untitled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			conv := conversation{
+				name:    tt.convName,
+				project: project{displayName: "proj"},
+				sessions: []sessionMeta{
+					{firstMessage: tt.firstMessage, timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+				},
+			}
+			if got := conv.displayName(); got != tt.want {
+				t.Errorf("displayName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConversationTitleNoGap(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2024, 6, 15, 14, 30, 0, 0, time.UTC)
+
+	t.Run("empty name shows firstMessage fallback", func(t *testing.T) {
+		t.Parallel()
+		conv := conversation{
+			name:    "",
+			project: project{displayName: "my/project"},
+			sessions: []sessionMeta{
+				{firstMessage: "help me", timestamp: ts},
+			},
+		}
+		title := conv.Title()
+		if !strings.Contains(title, "help me") {
+			t.Errorf("Title() = %q, should contain firstMessage fallback", title)
+		}
+	})
+
+	t.Run("empty name and firstMessage shows untitled", func(t *testing.T) {
+		t.Parallel()
+		conv := conversation{
+			name:    "",
+			project: project{displayName: "my/project"},
+			sessions: []sessionMeta{
+				{timestamp: ts},
+			},
+		}
+		title := conv.Title()
+		if !strings.Contains(title, "untitled") {
+			t.Errorf("Title() = %q, should contain 'untitled'", title)
+		}
+	})
+}

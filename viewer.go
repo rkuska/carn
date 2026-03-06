@@ -219,7 +219,7 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 func (m viewerModel) View() string {
 	title := fmt.Sprintf("%s / %s  %s",
 		m.session.meta.project.displayName,
-		m.session.meta.slug,
+		m.session.meta.displaySlug(),
 		m.session.meta.timestamp.Format("2006-01-02 15:04"),
 	)
 	topBorder := renderBorderTop(title, m.width, colorPrimary, colorPrimary)

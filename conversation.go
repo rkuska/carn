@@ -15,15 +15,25 @@ type conversation struct {
 	sessions []sessionMeta // chronologically ordered, len >= 1
 }
 
+func (c conversation) displayName() string {
+	if c.name != "" {
+		return c.name
+	}
+	if fm := c.firstMessage(); fm != "" {
+		return truncate(fm, maxSlugFromMessage)
+	}
+	return "untitled"
+}
+
 // FilterValue implements list.Item for fuzzy filtering.
 func (c conversation) FilterValue() string {
-	return fmt.Sprintf("%s %s %s %s", c.project.displayName, c.name, c.firstMessage(), c.gitBranch())
+	return fmt.Sprintf("%s %s %s %s", c.project.displayName, c.displayName(), c.firstMessage(), c.gitBranch())
 }
 
 // Title implements list.DefaultItem.
 func (c conversation) Title() string {
 	date := c.timestamp().Format("2006-01-02 15:04")
-	title := fmt.Sprintf("%s / %s  %s", c.project.displayName, c.name, date)
+	title := fmt.Sprintf("%s / %s  %s", c.project.displayName, c.displayName(), date)
 	if c.isSubagent() {
 		title = "[sub] " + title
 	}
