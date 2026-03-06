@@ -103,8 +103,9 @@ func TestRenderPreview(t *testing.T) {
 		{
 			name:        "limited to 2",
 			maxMessages: 2,
-			contains:    []string{"First question", "First answer", "..."},
-			excludes:    []string{"Second question"},
+			// First question in prompt section; First answer + Second question fill the 2-message limit
+			contains: []string{"First question", "First answer", "Second question", "..."},
+			excludes: []string{"Second answer"},
 		},
 		{
 			name:        "all messages",
@@ -336,6 +337,10 @@ func TestRenderPreviewAgentDivider(t *testing.T) {
 	if !strings.Contains(result, "Explore files") {
 		t.Errorf("expected divider text in preview:\n%s", result)
 	}
+	// Main question goes to prompt section, not as ▶ You
+	if !strings.Contains(result, "▎") {
+		t.Errorf("expected Main question in prompt section with ▎:\n%s", result)
+	}
 }
 
 func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
@@ -392,8 +397,8 @@ func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 
 	result := renderPreview(session, 10, 80)
 	youCount := strings.Count(result, "▶ You")
-	if youCount != 1 {
-		t.Errorf("expected 1 You in preview, got %d\nresult:\n%s", youCount, result)
+	if youCount != 0 {
+		t.Errorf("expected 0 You in preview (only user msg goes to prompt), got %d\nresult:\n%s", youCount, result)
 	}
 }
 
@@ -717,6 +722,184 @@ func TestFormatToolResultMultipleHunks(t *testing.T) {
 	count := strings.Count(got, "@@")
 	if count != 4 { // 2 hunk headers × 2 @@ each
 		t.Errorf("expected 4 @@ markers, got %d\n%s", count, got)
+	}
+}
+
+func TestRenderPreviewHeader(t *testing.T) {
+	t.Parallel()
+	initPalette(true)
+
+	tests := []struct {
+		name     string
+		meta     sessionMeta
+		contains []string
+		excludes []string
+	}{
+		{
+			name: "full metadata",
+			meta: sessionMeta{
+				model:         "claude-sonnet-4",
+				messageCount:  42,
+				timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				lastTimestamp: time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
+				gitBranch:     "feat/auth",
+				totalUsage:    tokenUsage{inputTokens: 5000, outputTokens: 3000},
+				toolCounts:    map[string]int{"Bash": 12, "Read": 8, "Edit": 5},
+			},
+			contains: []string{
+				"claude-sonnet-4", "23m", "42 msgs", "8k",
+				"feat/auth", "Bash:12",
+				"2026-03-06 14:30", "2026-03-06 14:53",
+				"started", "last",
+			},
+			excludes: nil,
+		},
+		{
+			name: "missing optional fields",
+			meta: sessionMeta{
+				messageCount: 5,
+			},
+			contains: []string{"5 msgs"},
+			excludes: []string{"started", "last"},
+		},
+		{
+			name: "no branch no tools",
+			meta: sessionMeta{
+				model:         "claude-haiku",
+				messageCount:  10,
+				timestamp:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				lastTimestamp: time.Date(2026, 1, 1, 0, 5, 0, 0, time.UTC),
+			},
+			contains: []string{"claude-haiku", "10 msgs", "5m"},
+			excludes: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := renderPreviewHeader(tt.meta)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("result missing %q\nresult:\n%s", want, result)
+				}
+			}
+			for _, exclude := range tt.excludes {
+				if strings.Contains(result, exclude) {
+					t.Errorf("result should not contain %q\nresult:\n%s", exclude, result)
+				}
+			}
+		})
+	}
+}
+
+func TestFirstUserMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		messages []message
+		want     string
+	}{
+		{
+			name: "normal first user message",
+			messages: []message{
+				{role: roleUser, text: "Hello world"},
+				{role: roleAssistant, text: "Hi"},
+			},
+			want: "Hello world",
+		},
+		{
+			name: "skips interrupt",
+			messages: []message{
+				{role: roleUser, text: "[Request interrupted by user]"},
+				{role: roleUser, text: "Real question"},
+			},
+			want: "Real question",
+		},
+		{
+			name: "skips empty",
+			messages: []message{
+				{role: roleUser, text: ""},
+				{role: roleUser, text: "Actual message"},
+			},
+			want: "Actual message",
+		},
+		{
+			name: "skips agent divider",
+			messages: []message{
+				{role: roleUser, text: "Explore code", isAgentDivider: true},
+				{role: roleUser, text: "My question"},
+			},
+			want: "My question",
+		},
+		{
+			name: "no user messages",
+			messages: []message{
+				{role: roleAssistant, text: "Hello"},
+			},
+			want: "",
+		},
+		{
+			name:     "empty message list",
+			messages: nil,
+			want:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := firstUserMessage(tt.messages)
+			if got != tt.want {
+				t.Errorf("firstUserMessage() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderPreviewWithHeader(t *testing.T) {
+	t.Parallel()
+	initPalette(true)
+
+	session := sessionFull{
+		meta: sessionMeta{
+			model:         "claude-sonnet-4",
+			messageCount:  3,
+			timestamp:     time.Date(2026, 3, 6, 14, 0, 0, 0, time.UTC),
+			lastTimestamp: time.Date(2026, 3, 6, 14, 10, 0, 0, time.UTC),
+		},
+		messages: []message{
+			{role: roleUser, text: "Help me with auth"},
+			{role: roleAssistant, text: "Sure, I can help."},
+			{role: roleUser, text: "Follow-up question"},
+		},
+	}
+
+	result := renderPreview(session, 10, 80)
+
+	// First user message appears in prompt section with ▎, not as ▶ You
+	if !strings.Contains(result, "▎") {
+		t.Errorf("expected prompt section with ▎:\n%s", result)
+	}
+	if !strings.Contains(result, "Help me with auth") {
+		t.Errorf("expected first user message in prompt section:\n%s", result)
+	}
+
+	// Metadata header present
+	if !strings.Contains(result, "claude-sonnet-4") {
+		t.Errorf("expected model in header:\n%s", result)
+	}
+
+	// First user message should NOT appear as ▶ You
+	youCount := strings.Count(result, "▶ You")
+	if youCount != 1 {
+		t.Errorf("expected 1 ▶ You (follow-up only), got %d\nresult:\n%s", youCount, result)
+	}
+
+	// Follow-up appears as regular message
+	if !strings.Contains(result, "Follow-up question") {
+		t.Errorf("expected follow-up question:\n%s", result)
 	}
 }
 
