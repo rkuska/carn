@@ -141,20 +141,21 @@ func exportText(text string, meta sessionMeta) notificationMsg {
 }
 
 func openInEditorCmd(filePath string) tea.Cmd {
-	return func() tea.Msg {
-		editor := os.Getenv("EDITOR")
-		if editor == "" {
-			editor = "vim"
-		}
-		cmd := exec.Command(editor, filePath)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return errorNotification(fmt.Sprintf("editor failed: %v", err))
-		}
-		return nil
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vim"
 	}
+	cmd := exec.Command(editor, filePath)
+
+	return tea.ExecProcess(
+		cmd,
+		func(err error) tea.Msg {
+			if err != nil {
+				return errorNotification(fmt.Sprintf("editor failed: %v", err))
+			}
+			return nil
+		},
+	)
 }
 
 func resumeSessionCmd(sessionID, cwd string) tea.Cmd {
