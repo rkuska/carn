@@ -3,15 +3,17 @@ package main
 import "charm.land/bubbles/v2/key"
 
 type browserKeyMap struct {
-	Enter      key.Binding
-	Tab        key.Binding
-	DeepSearch key.Binding
-	Resume     key.Binding
-	Copy       key.Binding
-	Export     key.Binding
-	Editor     key.Binding
-	Help       key.Binding
-	Quit       key.Binding
+	Enter            key.Binding
+	ToggleFullscreen key.Binding
+	FocusPane        key.Binding
+	DeepSearch       key.Binding
+	Resume           key.Binding
+	Copy             key.Binding
+	Export           key.Binding
+	Editor           key.Binding
+	Help             key.Binding
+	Close            key.Binding
+	Quit             key.Binding
 }
 
 var browserKeys = browserKeyMap{
@@ -19,7 +21,11 @@ var browserKeys = browserKeyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "open transcript"),
 	),
-	Tab: key.NewBinding(
+	ToggleFullscreen: key.NewBinding(
+		key.WithKeys("O"),
+		key.WithHelp("O", "toggle fullscreen"),
+	),
+	FocusPane: key.NewBinding(
 		key.WithKeys("tab"),
 		key.WithHelp("tab", "toggle focus"),
 	),
@@ -28,24 +34,28 @@ var browserKeys = browserKeyMap{
 		key.WithHelp("ctrl+s", "deep search"),
 	),
 	Resume: key.NewBinding(
-		key.WithKeys("ctrl+r"),
-		key.WithHelp("ctrl+r", "resume session"),
+		key.WithKeys("r", "ctrl+r"),
+		key.WithHelp("r", "resume session"),
 	),
 	Copy: key.NewBinding(
-		key.WithKeys("ctrl+y"),
-		key.WithHelp("ctrl+y", "copy transcript"),
+		key.WithKeys("y", "ctrl+y"),
+		key.WithHelp("y", "copy transcript"),
 	),
 	Export: key.NewBinding(
-		key.WithKeys("ctrl+e"),
-		key.WithHelp("ctrl+e", "export markdown"),
+		key.WithKeys("e", "ctrl+e"),
+		key.WithHelp("e", "export markdown"),
 	),
 	Editor: key.NewBinding(
-		key.WithKeys("ctrl+o"),
-		key.WithHelp("ctrl+o", "open in editor"),
+		key.WithKeys("o", "ctrl+o"),
+		key.WithHelp("o", "open in editor"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
+	),
+	Close: key.NewBinding(
+		key.WithKeys("esc", "q"),
+		key.WithHelp("q/esc", "close transcript"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -55,6 +65,7 @@ var browserKeys = browserKeyMap{
 
 type importOverviewKeyMap struct {
 	Enter key.Binding
+	Help  key.Binding
 	Quit  key.Binding
 }
 
@@ -62,6 +73,10 @@ var importOverviewKeys = importOverviewKeyMap{
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "continue"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "help"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -94,8 +109,8 @@ var viewerKeys = viewerKeyMap{
 		key.WithHelp("T", "tools"),
 	),
 	ToggleToolResults: key.NewBinding(
-		key.WithKeys("r"),
-		key.WithHelp("r", "results"),
+		key.WithKeys("R"),
+		key.WithHelp("R", "results"),
 	),
 	ToggleSidechain: key.NewBinding(
 		key.WithKeys("s"),
@@ -114,23 +129,23 @@ var viewerKeys = viewerKeyMap{
 		key.WithHelp("N", "prev match"),
 	),
 	Resume: key.NewBinding(
-		key.WithKeys("ctrl+r"),
-		key.WithHelp("ctrl+r", "resume session"),
+		key.WithKeys("r", "ctrl+r"),
+		key.WithHelp("r", "resume session"),
 	),
 	Copy: key.NewBinding(
-		key.WithKeys("ctrl+y"),
-		key.WithHelp("ctrl+y", "copy transcript"),
+		key.WithKeys("y", "ctrl+y"),
+		key.WithHelp("y", "copy transcript"),
 	),
 	Export: key.NewBinding(
-		key.WithKeys("ctrl+e"),
-		key.WithHelp("ctrl+e", "export"),
+		key.WithKeys("e", "ctrl+e"),
+		key.WithHelp("e", "export"),
 	),
 	Editor: key.NewBinding(
-		key.WithKeys("ctrl+o"),
-		key.WithHelp("ctrl+o", "open in editor"),
+		key.WithKeys("o", "ctrl+o"),
+		key.WithHelp("o", "open in editor"),
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "q"),
-		key.WithHelp("esc/q", "back"),
+		key.WithHelp("q/esc", "back"),
 	),
 }

@@ -84,3 +84,27 @@ func renderBorderTop(title string, width int, fg, bg color.Color) string {
 		" " + titleRendered + " " +
 		bs.Render(strings.Repeat("─", padLen)+string(border.TopRight))
 }
+
+func renderFramedPane(title string, width, bodyHeight int, borderColor color.Color, content string) string {
+	topBorder := renderBorderTop(title, width, borderColor, borderColor)
+	body := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		BorderForeground(borderColor).
+		Width(width).
+		Height(bodyHeight).
+		MaxHeight(bodyHeight + 1).
+		Render(content)
+	return topBorder + "\n" + body
+}
+
+func renderFramedBox(title string, width int, borderColor color.Color, content string) string {
+	topBorder := renderBorderTop(title, width, borderColor, borderColor)
+	body := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		BorderForeground(borderColor).
+		Width(width).
+		Render(content)
+	return topBorder + "\n" + body
+}

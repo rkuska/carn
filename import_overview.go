@@ -67,9 +67,10 @@ type importOverviewModel struct {
 	startTime   time.Time
 	result      syncResult
 
-	done   bool // signals app.go to transition to browser
-	width  int
-	height int
+	done     bool // signals app.go to transition to browser
+	width    int
+	height   int
+	helpOpen bool
 
 	// Analysis pipeline state
 	projectDirs    []string                        // discovered project dirs
@@ -139,7 +140,19 @@ func (m importOverviewModel) Update(msg tea.Msg) (importOverviewModel, tea.Cmd) 
 }
 
 func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel, tea.Cmd) {
+	if m.helpOpen {
+		switch {
+		case key.Matches(msg, importOverviewKeys.Help), msg.Code == tea.KeyEscape, msg.Text == "q":
+			m.helpOpen = false
+		}
+		return m, nil
+	}
+
 	switch {
+	case key.Matches(msg, importOverviewKeys.Help):
+		m.helpOpen = true
+		return m, nil
+
 	case key.Matches(msg, importOverviewKeys.Quit):
 		return m, tea.Quit
 
@@ -312,18 +325,94 @@ func (m importOverviewModel) View() string {
 		return ""
 	}
 
-	switch m.phase {
-	case phaseAnalyzing:
-		return m.viewAnalyzing()
-	case phaseReady:
-		return m.viewReady()
-	case phaseSyncing:
-		return m.viewSyncing()
-	case phaseDone:
-		return m.viewDone()
+	var body string
+	switch {
+	case m.helpOpen:
+		body = renderHelpOverlay(m.width, m.height, "Import Help", m.helpSections())
+	case m.phase == phaseAnalyzing:
+		body = m.viewAnalyzing()
+	case m.phase == phaseReady:
+		body = m.viewReady()
+	case m.phase == phaseSyncing:
+		body = m.viewSyncing()
+	case m.phase == phaseDone:
+		body = m.viewDone()
 	}
 
-	return ""
+	return lipgloss.JoinVertical(lipgloss.Left, body, m.footerView())
+}
+
+func (m importOverviewModel) footerView() string {
+	if m.helpOpen {
+		return renderHelpFooter(
+			m.width,
+			[]helpItem{
+				{key: "?", desc: "close help"},
+				{key: "q/esc", desc: "close help"},
+			},
+			[]string{m.phaseLabel()},
+			notification{},
+		)
+	}
+
+	return renderHelpFooter(m.width, m.footerItems(), []string{m.phaseLabel()}, notification{})
+}
+
+func (m importOverviewModel) footerItems() []helpItem {
+	switch m.phase {
+	case phaseAnalyzing:
+		return []helpItem{
+			{key: "?", desc: "help"},
+			{key: "q", desc: "quit"},
+		}
+	case phaseReady:
+		action := "continue"
+		if m.analysis.needsSync() {
+			action = "sync"
+		}
+		return []helpItem{
+			{key: "enter", desc: action},
+			{key: "?", desc: "help"},
+			{key: "q", desc: "quit"},
+		}
+	case phaseSyncing:
+		return []helpItem{
+			{key: "?", desc: "help"},
+			{key: "q", desc: "quit"},
+		}
+	case phaseDone:
+		return []helpItem{
+			{key: "enter", desc: "continue"},
+			{key: "?", desc: "help"},
+			{key: "q", desc: "quit"},
+		}
+	default:
+		return nil
+	}
+}
+
+func (m importOverviewModel) helpSections() []helpSection {
+	return []helpSection{
+		{
+			title: "Actions",
+			items: m.footerItems(),
+		},
+	}
+}
+
+func (m importOverviewModel) phaseLabel() string {
+	switch m.phase {
+	case phaseAnalyzing:
+		return "analyzing"
+	case phaseReady:
+		return "ready"
+	case phaseSyncing:
+		return "syncing"
+	case phaseDone:
+		return "done"
+	default:
+		return ""
+	}
 }
 
 func (m importOverviewModel) viewAnalyzing() string {
@@ -472,21 +561,8 @@ func (m importOverviewModel) renderPaths(_ int) string {
 }
 
 func (m importOverviewModel) renderBox(title string, boxWidth int, content string) string {
-	top := renderBorderTop(title, boxWidth, colorPrimary, colorPrimary)
-
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorPrimary).
-		Width(boxWidth).
-		Padding(0)
-
-	// Render the box body without top border
-	bodyStyle := boxStyle.BorderTop(false)
-	body := bodyStyle.Render(content)
-
-	box := top + "\n" + body
-
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	box := renderFramedBox(title, boxWidth, colorPrimary, content)
+	return lipgloss.Place(m.width, max(m.height-framedFooterRows, 1), lipgloss.Center, lipgloss.Center, box)
 }
 
 // shortenPath replaces the home directory with ~ for display.

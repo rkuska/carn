@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -49,28 +50,37 @@ func scanContentFlags(messages []message) contentFlags {
 }
 
 type viewerModel struct {
-	viewport     viewport.Model
-	session      sessionFull
-	opts         transcriptOptions
-	content      contentFlags
-	glamourStyle string
-	width        int
-	height       int
-	searchInput  textinput.Model
-	searching    bool
-	searchQuery  string
-	matchIndices []int // line indices of matches
-	currentMatch int
-	notification notification
-	rawContent   string // unrendered transcript
-	searchLines  []string
-	renderer     *glamour.TermRenderer
-	renderWrap   int
+	viewport          viewport.Model
+	session           sessionFull
+	opts              transcriptOptions
+	content           contentFlags
+	glamourStyle      string
+	width             int
+	height            int
+	searchInput       textinput.Model
+	searching         bool
+	searchQuery       string
+	matchIndices      []int // line indices of matches
+	currentMatch      int
+	notification      notification
+	rawContent        string // unrendered transcript
+	searchLines       []string
+	renderer          *glamour.TermRenderer
+	renderWrap        int
+	pendingGotoTopKey bool
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
 	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
+	vp.KeyMap.PageDown = key.NewBinding(
+		key.WithKeys("pgdown", "ctrl+f"),
+		key.WithHelp("ctrl+f/pgdn", "page down"),
+	)
+	vp.KeyMap.PageUp = key.NewBinding(
+		key.WithKeys("pgup", "ctrl+b"),
+		key.WithHelp("ctrl+b/pgup", "page up"),
+	)
 
 	ti := textinput.New()
 	ti.Prompt = "/"
@@ -95,6 +105,14 @@ func (m viewerModel) Init() tea.Cmd {
 	return nil
 }
 
+func (m *viewerModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	m.viewport.SetWidth(m.viewportWidth())
+	m.viewport.SetHeight(framedBodyHeight(m.height))
+	m.renderContent()
+}
+
 func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -109,11 +127,7 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.viewport.SetWidth(m.viewportWidth())
-		m.viewport.SetHeight(framedBodyHeight(m.height))
-		m.renderContent()
+		m.SetSize(msg.Width, msg.Height)
 
 	case notificationMsg:
 		m.setNotification(msg.notification, &cmds)
@@ -139,7 +153,24 @@ func toggleLabel(on bool) string {
 }
 
 func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
+	if msg.Text == "g" {
+		if m.pendingGotoTopKey {
+			m.viewport.GotoTop()
+			m.pendingGotoTopKey = false
+			return nil
+		}
+		m.pendingGotoTopKey = true
+		return nil
+	}
+	m.pendingGotoTopKey = false
+
 	switch {
+	case msg.Code == tea.KeyHome:
+		m.viewport.GotoTop()
+
+	case msg.Code == tea.KeyEnd || msg.Text == "G":
+		m.viewport.GotoBottom()
+
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
 		m.renderContent()
@@ -217,81 +248,39 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 }
 
 func (m viewerModel) View() string {
-	title := fmt.Sprintf("%s / %s  %s",
+	return m.paneView(colorPrimary) + "\n" + m.footerView()
+}
+
+func (m viewerModel) paneTitle() string {
+	return fmt.Sprintf("%s / %s  %s",
 		m.session.meta.project.displayName,
 		m.session.meta.displaySlug(),
 		m.session.meta.timestamp.Format("2006-01-02 15:04"),
 	)
-	topBorder := renderBorderTop(title, m.width, colorPrimary, colorPrimary)
+}
 
-	// Height is content only; lipgloss adds 1 bottom border line.
-	// Total frame = 1 (top border) + body height + 1 (bottom border) + 2 footer lines.
-	body := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderTop(false).
-		BorderForeground(colorPrimary).
-		Width(m.width).
-		Height(framedBodyHeight(m.height)).
-		Render(m.viewport.View())
-
-	footer := m.footerView()
-
-	return topBorder + "\n" + body + "\n" + footer
+func (m viewerModel) paneView(borderColor color.Color) string {
+	return renderFramedPane(m.paneTitle(), m.width, framedBodyHeight(m.height), borderColor, m.viewport.View())
 }
 
 func (m viewerModel) footerView() string {
 	if m.searching {
-		return renderFramedFooter(m.width, m.searchInput.View(), renderNotification(m.notification))
+		return renderSearchFooter(m.width, m.searchInput.View(), m.notification)
 	}
 
-	// Left side: help keys
-	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	keyNormal := lipgloss.NewStyle().Foreground(colorAccent)
-	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
+	return renderHelpFooter(m.width, m.footerItems(), m.footerStatusParts(), m.notification)
+}
 
-	type helpItem struct {
-		binding  key.Binding
-		glow     bool
-		isToggle bool
-		on       bool
-	}
-	items := []helpItem{
-		{viewerKeys.ToggleThinking, !m.opts.showThinking && m.content.hasThinking, true, m.opts.showThinking},
-		{viewerKeys.ToggleTools, !m.opts.showTools && m.content.hasToolCalls, true, m.opts.showTools},
-		{viewerKeys.ToggleToolResults, !m.opts.showToolResults && m.content.hasToolResults, true, m.opts.showToolResults},
-		{viewerKeys.ToggleSidechain, m.opts.hideSidechain && m.content.hasSidechain, true, !m.opts.hideSidechain},
-		{viewerKeys.Search, false, false, false},
-		{viewerKeys.NextMatch, false, false, false},
-		{viewerKeys.PrevMatch, false, false, false},
-		{viewerKeys.Resume, false, false, false},
-		{viewerKeys.Copy, false, false, false},
-		{viewerKeys.Export, false, false, false},
-		{viewerKeys.Editor, false, false, false},
-		{viewerKeys.Back, false, false, false},
-	}
+func (m viewerModel) footerItems() []helpItem {
+	return transcriptFooterItems(m.opts, m.content)
+}
 
-	var helpParts []string
-	for _, item := range items {
-		h := item.binding.Help()
-		ks := keyNormal
-		if item.glow {
-			ks = keyGlow
-		}
-		keyText := h.Key
-		if item.isToggle {
-			if item.on {
-				keyText = "+" + keyText
-			} else {
-				keyText = "-" + keyText
-			}
-		}
-		helpParts = append(helpParts, ks.Render(keyText)+helpStyle.Render(" "+h.Desc))
-	}
-	left := strings.Join(helpParts, "  ")
+func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
+	return transcriptHelpSections(m.opts, m.content, extraActions)
+}
 
-	// Right side: status info
-	var rightParts []string
-	rightParts = append(rightParts, fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
+func (m viewerModel) footerStatusParts() []string {
+	rightParts := []string{fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100)}
 
 	if m.opts.showThinking && m.content.hasThinking {
 		rightParts = append(rightParts, styleToolCall.Render("[thinking]"))
@@ -313,13 +302,7 @@ func (m viewerModel) footerView() string {
 				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
 		}
 	}
-	topRow := composeFooterRow(m.width, left, strings.Join(rightParts, "  "))
-
-	return renderFramedFooter(
-		m.width,
-		topRow,
-		renderNotification(m.notification),
-	)
+	return rightParts
 }
 
 func (m *viewerModel) setNotification(n notification, cmds *[]tea.Cmd) {

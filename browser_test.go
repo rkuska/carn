@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,12 +12,19 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+const (
+	testConversationIDPrimary   = "id-1"
+	testConversationIDSecondary = "id-2"
+)
+
 func testBrowser(t *testing.T) browserModel {
 	t.Helper()
-	b := newBrowserModel(context.Background(), t.TempDir())
+	initPalette(true)
+
+	b := newBrowserModel(context.Background(), t.TempDir(), "dark")
 	b.width = 120
 	b.height = 40
-	b.preview.SetWidth(40)
+	b.updateLayout()
 	return b
 }
 
@@ -36,6 +42,27 @@ func testSession(id string) sessionFull {
 	}
 }
 
+func testBrowserSessionLong(id string, keyword string) sessionFull {
+	msgs := make([]message, 0, 40)
+	for i := range 20 {
+		msgs = append(msgs, message{role: roleUser, text: "user message"})
+		text := "assistant response"
+		if i == 15 {
+			text = "assistant response with " + keyword
+		}
+		msgs = append(msgs, message{role: roleAssistant, text: text})
+	}
+
+	return sessionFull{
+		meta: sessionMeta{
+			id:        id,
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: msgs,
+	}
+}
+
 func testConv(id string) conversation {
 	return conversation{
 		name:    "test-slug",
@@ -46,143 +73,228 @@ func testConv(id string) conversation {
 	}
 }
 
-func TestAddToCacheEvictsBothCaches(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-
-	// Fill cache to capacity
-	for i := range previewCacheSize {
-		id := fmt.Sprintf("session-%d", i)
-		b.previewCache[id] = "preview"
-		b.sessionCache[id] = testSession(id)
-		b.addToCache(id)
-	}
-
-	if len(b.cacheOrder) != previewCacheSize {
-		t.Fatalf("cacheOrder len = %d, want %d", len(b.cacheOrder), previewCacheSize)
-	}
-
-	// Add one more to trigger eviction
-	evictedID := "session-0"
-	newID := "session-new"
-	b.previewCache[newID] = "preview"
-	b.sessionCache[newID] = testSession(newID)
-	b.addToCache(newID)
-
-	if _, ok := b.previewCache[evictedID]; ok {
-		t.Error("expected evicted session removed from previewCache")
-	}
-	if _, ok := b.sessionCache[evictedID]; ok {
-		t.Error("expected evicted session removed from sessionCache")
-	}
-
-	// New entry should exist
-	if _, ok := b.previewCache[newID]; !ok {
-		t.Error("expected new session in previewCache")
-	}
-	if _, ok := b.sessionCache[newID]; !ok {
-		t.Error("expected new session in sessionCache")
+func testLongConv(id string) conversation {
+	return conversation{
+		name: "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
+		project: project{
+			dirName:     "test",
+			displayName: "Projects/claude-search/with-a-very-long-project-name",
+		},
+		sessions: []sessionMeta{
+			{
+				id:           id,
+				slug:         "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
+				timestamp:    time.Now(),
+				project:      project{displayName: "Projects/claude-search/with-a-very-long-project-name"},
+				firstMessage: strings.Repeat("This is a long first message that wraps. ", 4),
+				model:        "claude-opus-4-1",
+				version:      "1.2.3",
+				messageCount: 20,
+			},
+		},
 	}
 }
 
-func TestCachedSessionReturnsHitAndMiss(t *testing.T) {
+func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-
-	session := testSession("cached-id")
-	b.sessionCache["cached-id"] = session
-
-	t.Run("hit", func(t *testing.T) {
-		t.Parallel()
-		got, ok := b.cachedSession("cached-id")
-		if !ok {
-			t.Fatal("expected cache hit")
-		}
-		if got.meta.id != "cached-id" {
-			t.Errorf("got id = %q, want %q", got.meta.id, "cached-id")
-		}
-		if len(got.messages) != 2 {
-			t.Errorf("got %d messages, want 2", len(got.messages))
-		}
-	})
-
-	t.Run("miss", func(t *testing.T) {
-		t.Parallel()
-		_, ok := b.cachedSession("nonexistent")
-		if ok {
-			t.Error("expected cache miss")
-		}
-	})
-}
-
-func TestCheckPreviewUpdateUsesSessionCacheFallback(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-
-	session := testSession("fallback-id")
-	conv := testConv("fallback-id")
-	b.sessionCache[conv.id()] = session
-
-	// Set up the list with this conversation as selected item
+	conv := testConv(testConversationIDPrimary)
 	b.list.SetItems([]list.Item{conv})
 	b.list.Select(0)
 
-	// No preview cached — should fall back to session cache
-	var cmds []tea.Cmd
-	b.checkPreviewUpdate(&cmds)
+	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	// Should NOT have issued a parseConversationCmd (no commands)
-	if len(cmds) != 0 {
-		t.Errorf("expected 0 cmds (session cache fallback), got %d", len(cmds))
+	if b.transcriptMode != transcriptSplit {
+		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptSplit)
 	}
-
-	// Preview cache should now be populated from the session cache
-	if _, ok := b.previewCache[conv.id()]; !ok {
-		t.Error("expected previewCache to be populated from session cache")
+	if b.loadingConversationID != conv.id() {
+		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv.id())
 	}
-}
-
-func TestBrowserFooterShowsHelpAndStatus(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-	b.mainConversationCount = 5
-
-	footer := b.footerView()
-
-	if !strings.Contains(footer, "open transcript") {
-		t.Fatalf("expected footer to contain 'open transcript' help, got: %s", footer)
+	if cmd == nil {
+		t.Fatal("expected open transcript command")
 	}
-	if !strings.Contains(footer, "deep search") {
-		t.Fatalf("expected footer to contain 'deep search' help, got: %s", footer)
-	}
-	if !strings.Contains(footer, "5 sessions") {
-		t.Fatalf("expected footer to contain '5 sessions', got: %s", footer)
+	if got, want := b.list.Width(), b.listPaneWidth()-2; got != want {
+		t.Fatalf("list width = %d, want %d after entering split mode", got, want)
 	}
 }
 
-func TestBrowserFooterShowsDeepSearchIndicator(t *testing.T) {
+func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	b.deepSearch = true
+	session := testSession(testConversationIDPrimary)
+	b.transcriptMode = transcriptSplit
+	b.loadingConversationID = session.meta.id
 
-	footer := b.footerView()
+	b, _ = b.Update(openViewerMsg{conversationID: session.meta.id, session: session})
 
-	if !strings.Contains(footer, "DEEP SEARCH") {
-		t.Fatalf("expected footer to show deep search indicator, got: %s", footer)
+	if b.openConversationID != session.meta.id {
+		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
+	}
+	if b.loadingConversationID != "" {
+		t.Fatalf("loadingConversationID = %q, want empty", b.loadingConversationID)
+	}
+	if b.viewer.session.meta.id != session.meta.id {
+		t.Fatalf("viewer session id = %q, want %q", b.viewer.session.meta.id, session.meta.id)
+	}
+	if _, ok := b.transcriptCache[session.meta.id]; !ok {
+		t.Fatal("expected transcript cache to contain opened session")
 	}
 }
 
-func TestBrowserFooterUsesSeparateStatusRow(t *testing.T) {
+func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	b.mainConversationCount = 5
-	b.notification = errorNotification("resume failed: directory not found: /tmp/project").notification
+	conv1 := testConv(testConversationIDPrimary)
+	conv2 := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conv1, conv2})
+	b.list.Select(1)
+	b.transcriptMode = transcriptSplit
+	b.loadingConversationID = conv2.id()
+
+	b, _ = b.Update(openViewerMsg{
+		conversationID: conv1.id(),
+		session:        testSession(conv1.id()),
+	})
+
+	if b.openConversationID != "" {
+		t.Fatalf("openConversationID = %q, want empty", b.openConversationID)
+	}
+	if b.loadingConversationID != conv2.id() {
+		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv2.id())
+	}
+	if b.viewer.session.meta.id != "" {
+		t.Fatalf("viewer session id = %q, want empty", b.viewer.session.meta.id)
+	}
+}
+
+func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	session := testSession(testConversationIDPrimary)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusList
+	b.loadingConversationID = session.meta.id
+	b, _ = b.Update(openViewerMsg{conversationID: session.meta.id, session: session})
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
+	if b.transcriptMode != transcriptFullscreen {
+		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptFullscreen)
+	}
+	if b.openConversationID != session.meta.id {
+		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
+	}
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
+	if b.transcriptMode != transcriptSplit {
+		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptSplit)
+	}
+	if b.openConversationID != session.meta.id {
+		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
+	}
+}
+
+func TestBrowserQClosesTranscriptBeforeQuit(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	b, cmd := b.Update(tea.KeyPressMsg{Text: "q"})
+	if b.transcriptMode != transcriptClosed {
+		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptClosed)
+	}
+	if cmd != nil {
+		if _, ok := cmd().(tea.QuitMsg); ok {
+			t.Fatal("expected close transcript, not quit")
+		}
+	}
+
+	_, cmd = b.Update(tea.KeyPressMsg{Text: "q"})
+	if cmd == nil {
+		t.Fatal("expected quit command from list-only view")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("cmd() = %T, want tea.QuitMsg", cmd())
+	}
+}
+
+func TestBrowserSplitListFocusUpdatesTranscriptSelection(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	conv1 := testConv(testConversationIDPrimary)
+	conv2 := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conv1, conv2})
+	b.list.Select(0)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusList
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	if b.list.Index() != 1 {
+		t.Fatalf("list index = %d, want 1", b.list.Index())
+	}
+	if b.loadingConversationID != conv2.id() {
+		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv2.id())
+	}
+	if cmd == nil {
+		t.Fatal("expected transcript reload command after selection change")
+	}
+}
+
+func TestBrowserTranscriptFocusDoesNotMoveList(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	conv1 := testConv(testConversationIDPrimary)
+	conv2 := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conv1, conv2})
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testBrowserSessionLong(testConversationIDPrimary, "KEYWORD"),
+	})
+
+	indexBefore := b.list.Index()
+	yBefore := b.viewer.viewport.YOffset()
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	if b.list.Index() != indexBefore {
+		t.Fatalf("list index = %d, want %d", b.list.Index(), indexBefore)
+	}
+	if b.viewer.viewport.YOffset() <= yBefore {
+		t.Fatalf("viewer Y offset = %d, want > %d", b.viewer.viewport.YOffset(), yBefore)
+	}
+}
+
+func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testSession(testConversationIDPrimary),
+	})
 
 	lines := strings.Split(b.footerView(), "\n")
 	if len(lines) != 2 {
@@ -190,117 +302,75 @@ func TestBrowserFooterUsesSeparateStatusRow(t *testing.T) {
 	}
 
 	helpLine := ansi.Strip(lines[0])
-	statusLine := ansi.Strip(lines[1])
-
-	if !strings.Contains(helpLine, "open transcript") {
-		t.Fatalf("help line = %q, want help text", helpLine)
+	if !strings.Contains(helpLine, "-t") {
+		t.Fatalf("help line = %q, want -t", helpLine)
 	}
-	if strings.Contains(helpLine, "resume failed") {
-		t.Fatalf("help line should not contain notification text: %q", helpLine)
+	if !strings.Contains(helpLine, "-T") {
+		t.Fatalf("help line = %q, want -T", helpLine)
 	}
-	if !strings.Contains(statusLine, "resume failed: directory not found") {
-		t.Fatalf("status line = %q, want notification text", statusLine)
+	if !strings.Contains(helpLine, "-R") {
+		t.Fatalf("help line = %q, want -R", helpLine)
 	}
-}
-
-func TestBrowserFooterReservesBlankStatusRow(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-
-	lines := strings.Split(b.footerView(), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("footer line count = %d, want 2", len(lines))
+	if !strings.Contains(helpLine, "+s") {
+		t.Fatalf("help line = %q, want +s", helpLine)
 	}
-	if strings.TrimSpace(ansi.Strip(lines[1])) != "" {
-		t.Fatalf("status line = %q, want blank", ansi.Strip(lines[1]))
+	if !strings.Contains(helpLine, "? help") {
+		t.Fatalf("help line = %q, want help binding", helpLine)
+	}
+	if !strings.Contains(helpLine, "thinking") {
+		t.Fatalf("help line = %q, want shared transcript terminology", helpLine)
+	}
+	if !strings.Contains(helpLine, "editor") {
+		t.Fatalf("help line = %q, want shared editor terminology", helpLine)
 	}
 }
 
-func TestBrowserViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {
+func TestBrowserSplitViewKeepsWindowHeightWithLongListItems(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
+	b.width = 90
+	b.height = 24
+	b.transcriptMode = transcriptSplit
+	b.focus = focusList
+	b.list.SetItems([]list.Item{
+		testLongConv(testConversationIDPrimary),
+		testLongConv(testConversationIDSecondary),
+	})
+	b.list.Select(0)
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testBrowserSessionLong(testConversationIDPrimary, "KEYWORD"),
+	})
 	b.updateLayout()
 
-	if got := lipgloss.Height(b.View()); got != b.height {
+	view := b.View()
+	if got := lipgloss.Height(view); got != b.height {
 		t.Fatalf("view height = %d, want %d", got, b.height)
 	}
-}
-
-func TestBrowserUpdateShowsAndClearsNotifications(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-
-	b, _ = b.Update(successNotification("transcript copied to clipboard"))
-	if b.notification.text != "transcript copied to clipboard" {
-		t.Fatalf("notification text = %q, want %q", b.notification.text, "transcript copied to clipboard")
-	}
-	if b.notification.kind != notificationSuccess {
-		t.Fatalf("notification kind = %q, want %q", b.notification.kind, notificationSuccess)
-	}
-
-	b, _ = b.Update(clearNotificationMsg{})
-	if b.notification.text != "" {
-		t.Fatalf("notification text = %q, want empty", b.notification.text)
+	if !strings.Contains(view, "╰") {
+		t.Fatalf("expected split view to keep bottom frame visible, got: %s", view)
 	}
 }
 
-func TestBrowserTabTogglesFocus(t *testing.T) {
+func TestBrowserCloseTranscriptRestoresFullWidthList(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	b.updateLayout()
+	conv := testConv(testConversationIDPrimary)
+	b.list.SetItems([]list.Item{conv})
+	b.list.Select(0)
 
-	if b.focus != focusList {
-		t.Fatal("initial focus should be focusList")
-	}
+	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		session:        testSession(testConversationIDPrimary),
+	})
+	b, _ = b.Update(tea.KeyPressMsg{Text: "q"})
 
-	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if b.focus != focusPreview {
-		t.Fatal("after first tab, focus should be focusPreview")
-	}
-
-	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if b.focus != focusList {
-		t.Fatal("after second tab, focus should be focusList")
-	}
-}
-
-func TestBrowserKeyPressNotForwardedToUnfocusedList(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-	b.updateLayout()
-
-	conv1 := testConv("id-1")
-	conv2 := testConv("id-2")
-	b.list.SetItems([]list.Item{conv1, conv2})
-
-	b.focus = focusPreview
-	indexBefore := b.list.Index()
-
-	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-
-	if b.list.Index() != indexBefore {
-		t.Fatalf("list cursor moved from %d to %d while preview was focused", indexBefore, b.list.Index())
-	}
-}
-
-func TestBrowserViewChangesFocusIndicator(t *testing.T) {
-	t.Parallel()
-
-	initPalette(true)
-	b := testBrowser(t)
-	b.updateLayout()
-
-	listFocused := b.View()
-
-	b.focus = focusPreview
-	previewFocused := b.View()
-
-	if listFocused == previewFocused {
-		t.Fatal("view should change when focus toggles")
+	if got, want := b.list.Width(), b.width-2; got != want {
+		t.Fatalf("list width = %d, want %d after closing transcript", got, want)
 	}
 }

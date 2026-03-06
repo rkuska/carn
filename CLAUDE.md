@@ -161,8 +161,10 @@ where:
 * message is short description of a change, lowercased
 
 Keep the commit message under 72 characters.
+Also keep the body of the commit message compact and readable.
 
 Always write body with the commit message where you thoroughly explain
 what was done, how was it done and why it was done in a continuous human
 readable text.
 For fixes try to include an error message that you are fixing.
+Don't use first person speech.
