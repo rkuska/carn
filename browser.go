@@ -6,7 +6,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -36,7 +35,7 @@ type browserModel struct {
 	allConversations      []conversation
 	width, height         int
 	mainConversationCount int
-	statusText            string
+	notification          notification
 	deepSearch            bool
 	previewCache          map[string]string      // conv ID -> rendered preview
 	sessionCache          map[string]sessionFull // conv ID -> parsed session
@@ -103,8 +102,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.updatePreview()
 
 	case sessionsLoadErrorMsg:
-		m.statusText = fmt.Sprintf("Error: %v", msg.err)
-		cmds = append(cmds, clearStatusAfter(5*time.Second))
+		m.setNotification(errorNotification(fmt.Sprintf("load sessions failed: %v", msg.err)).notification, &cmds)
 
 	case sessionParsedMsg:
 		preview := renderPreview(msg.session, previewMessages, m.preview.Width())
@@ -122,15 +120,13 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		items := conversationItems(msg.conversations)
 		cmd := m.list.SetItems(items)
 		cmds = append(cmds, cmd)
-		m.statusText = fmt.Sprintf("Deep search: %d results", len(items))
-		cmds = append(cmds, clearStatusAfter(3*time.Second))
+		m.setNotification(infoNotification(fmt.Sprintf("deep search: %d results", len(items))).notification, &cmds)
 
-	case statusMsg:
-		m.statusText = msg.text
-		cmds = append(cmds, clearStatusAfter(3*time.Second))
+	case notificationMsg:
+		m.setNotification(msg.notification, &cmds)
 
-	case clearStatusMsg:
-		m.statusText = ""
+	case clearNotificationMsg:
+		m.notification = notification{}
 	}
 
 	// Update list
@@ -172,7 +168,7 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	case key.Matches(msg, browserKeys.DeepSearch):
 		m.deepSearch = !m.deepSearch
 		if m.deepSearch {
-			m.statusText = "Deep search: loading..."
+			m.notification = infoNotification("deep search: loading...").notification
 			filterVal := m.list.FilterValue()
 			mainConvs := filterMainConversations(m.allConversations)
 			return deepSearchCmd(
@@ -186,8 +182,7 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		// Reset to all conversations
 		items := conversationItems(filterMainConversations(m.allConversations))
 		*cmds = append(*cmds, m.list.SetItems(items))
-		m.statusText = "Deep search disabled"
-		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+		m.setNotification(infoNotification("deep search disabled").notification, cmds)
 		return nil
 
 	case key.Matches(msg, browserKeys.Copy):
@@ -213,7 +208,7 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 
 	case key.Matches(msg, browserKeys.Resume):
 		if conv, ok := m.selectedConversation(); ok {
-			return resumeSessionCmd(conv.resumeID())
+			return resumeSessionCmd(conv.resumeID(), conv.resumeCWD())
 		}
 	}
 
@@ -238,7 +233,7 @@ func (m browserModel) View() string {
 		BorderTop(false).
 		BorderForeground(colorAccent).
 		Width(listBoxWidth).
-		Height(m.height - 3).
+		Height(framedBodyHeight(m.height)).
 		Render(m.list.View())
 	listView := listTopBorder + "\n" + listBody
 
@@ -249,7 +244,7 @@ func (m browserModel) View() string {
 		BorderTop(false).
 		BorderForeground(colorPrimary).
 		Width(previewBoxWidth).
-		Height(m.height - 3).
+		Height(framedBodyHeight(m.height)).
 		Render(m.preview.View())
 	previewView := previewTopBorder + "\n" + previewBody
 
@@ -264,10 +259,10 @@ func (m *browserModel) updateLayout() {
 	previewBoxWidth := m.width - listBoxWidth - 1
 
 	// List inner dimensions (inside border: box - 2 border chars, no built-in title)
-	m.list.SetSize(listBoxWidth-2, m.height-3)
+	m.list.SetSize(listBoxWidth-2, framedBodyHeight(m.height))
 	// Preview inner dimensions (inside border: box - 2 border chars)
 	m.preview.SetWidth(previewBoxWidth - 2)
-	m.preview.SetHeight(m.height - 3)
+	m.preview.SetHeight(framedBodyHeight(m.height))
 }
 
 func (m *browserModel) selectedConversation() (conversation, bool) {
@@ -346,6 +341,11 @@ func (m *browserModel) addToCache(id string) {
 	}
 }
 
+func (m *browserModel) setNotification(n notification, cmds *[]tea.Cmd) {
+	m.notification = n
+	*cmds = append(*cmds, clearNotificationAfter(n.kind))
+}
+
 func (m browserModel) cachedSession(id string) (sessionFull, bool) {
 	s, ok := m.sessionCache[id]
 	return s, ok
@@ -409,21 +409,16 @@ func (m browserModel) footerView() string {
 	if m.deepSearch {
 		rightParts = append(rightParts, styleToolCall.Render("[DEEP SEARCH]"))
 	}
-	if m.statusText != "" {
-		rightParts = append(rightParts, m.statusText)
-	}
 	info := fmt.Sprintf("%d sessions", m.mainConversationCount)
 	if conv, ok := m.selectedConversation(); ok {
 		info = fmt.Sprintf("%s | %s", info, conv.project.displayName)
 	}
 	rightParts = append(rightParts, info)
-	right := strings.Join(rightParts, "  ")
+	topRow := composeFooterRow(m.width, left, strings.Join(rightParts, "  "))
 
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
-	gap := max(m.width-leftW-rightW-2, 1)
-
-	return helpStyle.Padding(0, 1).Width(m.width).Render(
-		left + strings.Repeat(" ", gap) + right,
+	return renderFramedFooter(
+		m.width,
+		topRow,
+		renderNotification(m.notification),
 	)
 }

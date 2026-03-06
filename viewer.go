@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
@@ -18,7 +17,6 @@ const (
 	viewerBorderH  = 2 // left + right rounded border
 	viewerPaddingH = 2 // left + right viewport padding
 	viewerMarginH  = 2 // aesthetic margin for markdown text
-	viewerBorderV  = 3 // top border + bottom border + footer
 )
 
 type contentFlags struct {
@@ -63,7 +61,7 @@ type viewerModel struct {
 	searchQuery  string
 	matchIndices []int // line indices of matches
 	currentMatch int
-	statusText   string
+	notification notification
 	rawContent   string // unrendered transcript
 	searchLines  []string
 	renderer     *glamour.TermRenderer
@@ -71,7 +69,7 @@ type viewerModel struct {
 }
 
 func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
-	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(height-viewerBorderV))
+	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 
 	ti := textinput.New()
@@ -114,15 +112,14 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.viewport.SetWidth(m.viewportWidth())
-		m.viewport.SetHeight(max(m.height-viewerBorderV, 1))
+		m.viewport.SetHeight(framedBodyHeight(m.height))
 		m.renderContent()
 
-	case statusMsg:
-		m.statusText = msg.text
-		cmds = append(cmds, clearStatusAfter(3*time.Second))
+	case notificationMsg:
+		m.setNotification(msg.notification, &cmds)
 
-	case clearStatusMsg:
-		m.statusText = ""
+	case clearNotificationMsg:
+		m.notification = notification{}
 	}
 
 	var cmd tea.Cmd
@@ -146,20 +143,20 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
 		m.renderContent()
-		m.statusText = fmt.Sprintf("Thinking: %s", toggleLabel(m.opts.showThinking))
-		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+		m.setNotification(infoNotification(fmt.Sprintf("thinking: %s", toggleLabel(m.opts.showThinking))).notification, cmds)
 
 	case key.Matches(msg, viewerKeys.ToggleTools):
 		m.opts.showTools = !m.opts.showTools
 		m.renderContent()
-		m.statusText = fmt.Sprintf("Tools: %s", toggleLabel(m.opts.showTools))
-		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+		m.setNotification(infoNotification(fmt.Sprintf("tools: %s", toggleLabel(m.opts.showTools))).notification, cmds)
 
 	case key.Matches(msg, viewerKeys.ToggleToolResults):
 		m.opts.showToolResults = !m.opts.showToolResults
 		m.renderContent()
-		m.statusText = fmt.Sprintf("Tool results: %s", toggleLabel(m.opts.showToolResults))
-		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+		m.setNotification(
+			infoNotification(fmt.Sprintf("tool results: %s", toggleLabel(m.opts.showToolResults))).notification,
+			cmds,
+		)
 
 	case key.Matches(msg, viewerKeys.ToggleSidechain):
 		m.opts.hideSidechain = !m.opts.hideSidechain
@@ -168,8 +165,7 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		if m.opts.hideSidechain {
 			label = "hidden"
 		}
-		m.statusText = fmt.Sprintf("Sidechain: %s", label)
-		*cmds = append(*cmds, clearStatusAfter(2*time.Second))
+		m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
 
 	case key.Matches(msg, viewerKeys.Search):
 		m.searching = true
@@ -192,7 +188,7 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		return openInEditorCmd(m.session.meta.filePath)
 
 	case key.Matches(msg, viewerKeys.Resume):
-		return resumeSessionCmd(m.session.meta.id)
+		return resumeSessionCmd(m.session.meta.id, m.session.meta.cwd)
 
 	}
 
@@ -229,14 +225,13 @@ func (m viewerModel) View() string {
 	topBorder := renderBorderTop(title, m.width, colorPrimary, colorPrimary)
 
 	// Height is content only; lipgloss adds 1 bottom border line.
-	// Total frame = 1 (top border) + m.height-3 (content) + 1 (bottom border) = m.height-1.
-	// Plus 1 footer line = m.height.
+	// Total frame = 1 (top border) + body height + 1 (bottom border) + 2 footer lines.
 	body := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderTop(false).
 		BorderForeground(colorPrimary).
 		Width(m.width).
-		Height(m.height - 3).
+		Height(framedBodyHeight(m.height)).
 		Render(m.viewport.View())
 
 	footer := m.footerView()
@@ -246,7 +241,7 @@ func (m viewerModel) View() string {
 
 func (m viewerModel) footerView() string {
 	if m.searching {
-		return m.searchInput.View()
+		return renderFramedFooter(m.width, m.searchInput.View(), renderNotification(m.notification))
 	}
 
 	// Left side: help keys
@@ -318,17 +313,18 @@ func (m viewerModel) footerView() string {
 				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
 		}
 	}
-	if m.statusText != "" {
-		rightParts = append(rightParts, m.statusText)
-	}
-	right := strings.Join(rightParts, "  ")
+	topRow := composeFooterRow(m.width, left, strings.Join(rightParts, "  "))
 
-	// Combine: help left, status right, fill gap with spaces
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
-	gap := max(m.width-leftW-rightW-2, 1) // 2 for padding
+	return renderFramedFooter(
+		m.width,
+		topRow,
+		renderNotification(m.notification),
+	)
+}
 
-	return helpStyle.Padding(0, 1).Width(m.width).Render(left + strings.Repeat(" ", gap) + right)
+func (m *viewerModel) setNotification(n notification, cmds *[]tea.Cmd) {
+	m.notification = n
+	*cmds = append(*cmds, clearNotificationAfter(n.kind))
 }
 
 func (m *viewerModel) renderContent() {

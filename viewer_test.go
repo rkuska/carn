@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -287,6 +288,85 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	expected := fmt.Sprintf("1/%d", len(m.matchIndices))
 	if !strings.Contains(footer, expected) {
 		t.Fatalf("footer should contain '%s', got: %s", expected, footer)
+	}
+}
+
+func TestViewerFooterUsesSeparateStatusRow(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-footer-status"), 120, 40)
+	m.notification = errorNotification("resume failed: directory not found: /tmp/project").notification
+
+	lines := strings.Split(m.footerView(), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("footer line count = %d, want 2", len(lines))
+	}
+
+	helpLine := ansi.Strip(lines[0])
+	statusLine := ansi.Strip(lines[1])
+
+	if !strings.Contains(helpLine, "thinking") {
+		t.Fatalf("help line = %q, want help text", helpLine)
+	}
+	if strings.Contains(helpLine, "resume failed") {
+		t.Fatalf("help line should not contain notification text: %q", helpLine)
+	}
+	if !strings.Contains(statusLine, "resume failed: directory not found") {
+		t.Fatalf("status line = %q, want notification text", statusLine)
+	}
+}
+
+func TestViewerFooterSearchKeepsStatusRow(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-search-footer"), 120, 40)
+	m.searching = true
+	m.searchInput.Focus()
+	m.searchInput.SetValue("hello")
+	m.notification = infoNotification("search ready").notification
+
+	lines := strings.Split(m.footerView(), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("footer line count = %d, want 2", len(lines))
+	}
+
+	searchLine := ansi.Strip(lines[0])
+	statusLine := ansi.Strip(lines[1])
+
+	if !strings.Contains(searchLine, "/hello") {
+		t.Fatalf("search line = %q, want search input", searchLine)
+	}
+	if !strings.Contains(statusLine, "search ready") {
+		t.Fatalf("status line = %q, want notification text", statusLine)
+	}
+}
+
+func TestViewerViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-height"), 120, 40)
+
+	if got := lipgloss.Height(m.View()); got != m.height {
+		t.Fatalf("view height = %d, want %d", got, m.height)
+	}
+}
+
+func TestViewerUpdateShowsAndClearsNotifications(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-notification"), 120, 40)
+
+	m, _ = m.Update(errorNotification("resume failed: directory not found: /tmp/missing"))
+	if m.notification.text != "resume failed: directory not found: /tmp/missing" {
+		t.Fatalf("notification text = %q", m.notification.text)
+	}
+	if m.notification.kind != notificationError {
+		t.Fatalf("notification kind = %q, want %q", m.notification.kind, notificationError)
+	}
+
+	m, _ = m.Update(clearNotificationMsg{})
+	if m.notification.text != "" {
+		t.Fatalf("notification text = %q, want empty", m.notification.text)
 	}
 }
 

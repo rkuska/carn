@@ -157,6 +157,19 @@ func TestConversationAccessors(t *testing.T) {
 		}
 	})
 
+	t.Run("resumeCWD returns last session cwd", func(t *testing.T) {
+		t.Parallel()
+		c := conversation{
+			sessions: []sessionMeta{
+				{cwd: "/tmp/first"},
+				{cwd: "/tmp/second"},
+			},
+		}
+		if got := c.resumeCWD(); got != "/tmp/second" {
+			t.Errorf("resumeCWD() = %q, want %q", got, "/tmp/second")
+		}
+	})
+
 	t.Run("timestamp returns earliest", func(t *testing.T) {
 		t.Parallel()
 		if got := conv.timestamp(); !got.Equal(ts1) {

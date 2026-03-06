@@ -9,6 +9,8 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func testBrowser(t *testing.T) browserModel {
@@ -172,5 +174,75 @@ func TestBrowserFooterShowsDeepSearchIndicator(t *testing.T) {
 
 	if !strings.Contains(footer, "DEEP SEARCH") {
 		t.Fatalf("expected footer to show deep search indicator, got: %s", footer)
+	}
+}
+
+func TestBrowserFooterUsesSeparateStatusRow(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.mainConversationCount = 5
+	b.notification = errorNotification("resume failed: directory not found: /tmp/project").notification
+
+	lines := strings.Split(b.footerView(), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("footer line count = %d, want 2", len(lines))
+	}
+
+	helpLine := ansi.Strip(lines[0])
+	statusLine := ansi.Strip(lines[1])
+
+	if !strings.Contains(helpLine, "open transcript") {
+		t.Fatalf("help line = %q, want help text", helpLine)
+	}
+	if strings.Contains(helpLine, "resume failed") {
+		t.Fatalf("help line should not contain notification text: %q", helpLine)
+	}
+	if !strings.Contains(statusLine, "resume failed: directory not found") {
+		t.Fatalf("status line = %q, want notification text", statusLine)
+	}
+}
+
+func TestBrowserFooterReservesBlankStatusRow(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+
+	lines := strings.Split(b.footerView(), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("footer line count = %d, want 2", len(lines))
+	}
+	if strings.TrimSpace(ansi.Strip(lines[1])) != "" {
+		t.Fatalf("status line = %q, want blank", ansi.Strip(lines[1]))
+	}
+}
+
+func TestBrowserViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.updateLayout()
+
+	if got := lipgloss.Height(b.View()); got != b.height {
+		t.Fatalf("view height = %d, want %d", got, b.height)
+	}
+}
+
+func TestBrowserUpdateShowsAndClearsNotifications(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+
+	b, _ = b.Update(successNotification("transcript copied to clipboard"))
+	if b.notification.text != "transcript copied to clipboard" {
+		t.Fatalf("notification text = %q, want %q", b.notification.text, "transcript copied to clipboard")
+	}
+	if b.notification.kind != notificationSuccess {
+		t.Fatalf("notification kind = %q, want %q", b.notification.kind, notificationSuccess)
+	}
+
+	b, _ = b.Update(clearNotificationMsg{})
+	if b.notification.text != "" {
+		t.Fatalf("notification text = %q, want empty", b.notification.text)
 	}
 }
