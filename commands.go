@@ -25,6 +25,7 @@ type sessionsLoadErrorMsg struct {
 
 type openViewerMsg struct {
 	conversationID string
+	conversation   conversation
 	session        sessionFull
 }
 
@@ -55,14 +56,14 @@ func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversationWithSubagents failed for %s", conv.id())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
-		return openViewerMsg{conversationID: conv.id(), session: session}
+		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
 	}
 }
 
 func openConversationCmdCached(ctx context.Context, conv conversation, parent sessionFull) tea.Cmd {
 	return func() tea.Msg {
 		session := parseConversationWithSubagentsCached(ctx, conv, parent)
-		return openViewerMsg{conversationID: conv.id(), session: session}
+		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
 	}
 }
 

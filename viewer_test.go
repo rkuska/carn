@@ -145,7 +145,7 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 }
 
 func newTestViewer(session sessionFull, width, height int) viewerModel {
-	return newViewerModel(session, "dark", width, height)
+	return newViewerModel(session, singleSessionConversation(session.meta), "dark", width, height)
 }
 
 func TestNewViewerModelStartsWithSearchInactive(t *testing.T) {

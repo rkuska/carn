@@ -127,7 +127,11 @@ func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	b.transcriptMode = transcriptSplit
 	b.loadingConversationID = session.meta.id
 
-	b, _ = b.Update(openViewerMsg{conversationID: session.meta.id, session: session})
+	b, _ = b.Update(openViewerMsg{
+		conversationID: session.meta.id,
+		conversation:   singleSessionConversation(session.meta),
+		session:        session,
+	})
 
 	if b.openConversationID != session.meta.id {
 		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
@@ -156,6 +160,7 @@ func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
 
 	b, _ = b.Update(openViewerMsg{
 		conversationID: conv1.id(),
+		conversation:   conv1,
 		session:        testSession(conv1.id()),
 	})
 
@@ -178,7 +183,11 @@ func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
 	b.transcriptMode = transcriptSplit
 	b.focus = focusList
 	b.loadingConversationID = session.meta.id
-	b, _ = b.Update(openViewerMsg{conversationID: session.meta.id, session: session})
+	b, _ = b.Update(openViewerMsg{
+		conversationID: session.meta.id,
+		conversation:   singleSessionConversation(session.meta),
+		session:        session,
+	})
 
 	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
 	if b.transcriptMode != transcriptFullscreen {
@@ -205,6 +214,7 @@ func TestBrowserQClosesTranscriptBeforeQuit(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
 		session:        testSession(testConversationIDPrimary),
 	})
 
@@ -240,6 +250,7 @@ func TestBrowserSplitListFocusUpdatesTranscriptSelection(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   conv1,
 		session:        testSession(testConversationIDPrimary),
 	})
 
@@ -268,6 +279,7 @@ func TestBrowserTranscriptFocusDoesNotMoveList(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
 		session:        testBrowserSessionLong(testConversationIDPrimary, "KEYWORD"),
 	})
 
@@ -293,6 +305,7 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
 		session:        testSession(testConversationIDPrimary),
 	})
 
@@ -341,6 +354,7 @@ func TestBrowserSplitViewKeepsWindowHeightWithLongListItems(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
 		session:        testBrowserSessionLong(testConversationIDPrimary, "KEYWORD"),
 	})
 	b.updateLayout()
@@ -366,6 +380,7 @@ func TestBrowserCloseTranscriptRestoresFullWidthList(t *testing.T) {
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
 		session:        testSession(testConversationIDPrimary),
 	})
 	b, _ = b.Update(tea.KeyPressMsg{Text: "q"})
