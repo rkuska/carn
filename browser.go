@@ -129,18 +129,20 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.notification = notification{}
 	}
 
-	// Update list
+	// Route key presses to focused component only; non-key messages reach both.
 	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	if cmd != nil {
-		cmds = append(cmds, cmd)
+	_, isKey := msg.(tea.KeyPressMsg)
+
+	if !isKey || m.focus == focusList {
+		m.list, cmd = m.list.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
-	// Update preview on cursor change
 	m.checkPreviewUpdate(&cmds)
 
-	// Update viewport if focused
-	if m.focus == focusPreview {
+	if !isKey || m.focus == focusPreview {
 		m.preview, cmd = m.preview.Update(msg)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -226,23 +228,31 @@ func (m browserModel) View() string {
 	// Footer with help + status
 	footer := m.footerView()
 
+	// Derive border colors from focus state
+	listColor, previewColor := colorSecondary, colorSecondary
+	if m.focus == focusList {
+		listColor = colorAccent
+	} else {
+		previewColor = colorAccent
+	}
+
 	// Render list pane with embedded title in frame border
-	listTopBorder := renderBorderTop("Claude Sessions", listBoxWidth, colorAccent, colorAccent)
+	listTopBorder := renderBorderTop("Claude Sessions", listBoxWidth, listColor, listColor)
 	listBody := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderTop(false).
-		BorderForeground(colorAccent).
+		BorderForeground(listColor).
 		Width(listBoxWidth).
 		Height(framedBodyHeight(m.height)).
 		Render(m.list.View())
 	listView := listTopBorder + "\n" + listBody
 
 	// Render preview pane with embedded title in frame border
-	previewTopBorder := renderBorderTop("Preview", previewBoxWidth, colorPrimary, colorPrimary)
+	previewTopBorder := renderBorderTop("Preview", previewBoxWidth, previewColor, previewColor)
 	previewBody := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderTop(false).
-		BorderForeground(colorPrimary).
+		BorderForeground(previewColor).
 		Width(previewBoxWidth).
 		Height(framedBodyHeight(m.height)).
 		Render(m.preview.View())

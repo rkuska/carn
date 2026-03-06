@@ -246,3 +246,61 @@ func TestBrowserUpdateShowsAndClearsNotifications(t *testing.T) {
 		t.Fatalf("notification text = %q, want empty", b.notification.text)
 	}
 }
+
+func TestBrowserTabTogglesFocus(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.updateLayout()
+
+	if b.focus != focusList {
+		t.Fatal("initial focus should be focusList")
+	}
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if b.focus != focusPreview {
+		t.Fatal("after first tab, focus should be focusPreview")
+	}
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if b.focus != focusList {
+		t.Fatal("after second tab, focus should be focusList")
+	}
+}
+
+func TestBrowserKeyPressNotForwardedToUnfocusedList(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.updateLayout()
+
+	conv1 := testConv("id-1")
+	conv2 := testConv("id-2")
+	b.list.SetItems([]list.Item{conv1, conv2})
+
+	b.focus = focusPreview
+	indexBefore := b.list.Index()
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	if b.list.Index() != indexBefore {
+		t.Fatalf("list cursor moved from %d to %d while preview was focused", indexBefore, b.list.Index())
+	}
+}
+
+func TestBrowserViewChangesFocusIndicator(t *testing.T) {
+	t.Parallel()
+
+	initPalette(true)
+	b := testBrowser(t)
+	b.updateLayout()
+
+	listFocused := b.View()
+
+	b.focus = focusPreview
+	previewFocused := b.View()
+
+	if listFocused == previewFocused {
+		t.Fatal("view should change when focus toggles")
+	}
+}
