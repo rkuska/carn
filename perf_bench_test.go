@@ -226,3 +226,57 @@ func BenchmarkCollectFilesToSync(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkStreamImportAnalysis(b *testing.B) {
+	dir := b.TempDir()
+	source := filepath.Join(dir, "source")
+	archive := filepath.Join(dir, "archive")
+	if err := os.MkdirAll(archive, 0o755); err != nil {
+		b.Fatalf("MkdirAll: %v", err)
+	}
+
+	// Create 6 projects × 60 sessions
+	for p := range 6 {
+		projDir := filepath.Join(source, fmt.Sprintf("project-%d", p))
+		if err := os.MkdirAll(projDir, 0o755); err != nil {
+			b.Fatalf("MkdirAll: %v", err)
+		}
+		for s := range 60 {
+			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
+			content := benchSessionJSONL(b, sessionID, false)
+			path := filepath.Join(projDir, sessionID+".jsonl")
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				b.Fatalf("WriteFile: %v", err)
+			}
+		}
+	}
+
+	cfg := archiveConfig{sourceDir: source, archiveDir: archive}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		dirs, err := listProjectDirs(source)
+		if err != nil {
+			b.Fatalf("listProjectDirs: %v", err)
+		}
+
+		seen := make(map[groupKey]*conversationState)
+		var syncCandidates []string
+		var totalInspected int
+
+		for _, projDir := range dirs {
+			inspected, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
+			if err != nil {
+				b.Fatalf("analyzeProjectDir: %v", err)
+			}
+			totalInspected += inspected
+		}
+
+		if totalInspected == 0 {
+			b.Fatal("no files inspected")
+		}
+		if len(seen) == 0 {
+			b.Fatal("no conversations found")
+		}
+	}
+}

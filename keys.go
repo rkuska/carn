@@ -53,6 +53,22 @@ var browserKeys = browserKeyMap{
 	),
 }
 
+type importOverviewKeyMap struct {
+	Enter key.Binding
+	Quit  key.Binding
+}
+
+var importOverviewKeys = importOverviewKeyMap{
+	Enter: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "continue"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "ctrl+c"),
+		key.WithHelp("q", "quit"),
+	),
+}
+
 type viewerKeyMap struct {
 	ToggleThinking    key.Binding
 	ToggleTools       key.Binding
