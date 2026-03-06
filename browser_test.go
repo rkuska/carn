@@ -119,6 +119,46 @@ func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 	}
 }
 
+func TestBrowserSplitModeUsesHalfWidthPanes(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+
+	listWidth := b.listPaneWidth()
+	viewerWidth := b.viewerWidth()
+	diff := listWidth - viewerWidth
+	if diff < 0 {
+		diff = -diff
+	}
+
+	if got, want := listWidth+viewerWidth+1, b.width; got != want {
+		t.Fatalf("combined split width = %d, want %d", got, want)
+	}
+	if diff > 1 {
+		t.Fatalf("pane width difference = %d, want <= 1 (list=%d viewer=%d)", diff, listWidth, viewerWidth)
+	}
+}
+
+func TestBrowserSplitModeKeepsMinimumListWidthOnNarrowTerminal(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.width = 50
+	b.transcriptMode = transcriptSplit
+	b.updateLayout()
+
+	if got, want := b.listPaneWidth(), 32; got != want {
+		t.Fatalf("listPaneWidth = %d, want %d", got, want)
+	}
+	if got, want := b.viewerWidth(), 17; got != want {
+		t.Fatalf("viewerWidth = %d, want %d", got, want)
+	}
+	if got, want := b.list.Width(), 30; got != want {
+		t.Fatalf("list width = %d, want %d after applying split guardrail", got, want)
+	}
+}
+
 func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	t.Parallel()
 

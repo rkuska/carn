@@ -94,11 +94,7 @@ func (m browserModel) listPaneWidth() int {
 		return m.width
 	}
 
-	listWidth := max(m.width*2/5, 32)
-	maxListWidth := max(m.width-40, 24)
-	if listWidth > maxListWidth {
-		listWidth = maxListWidth
-	}
+	listWidth := max((m.width-1)/2, 32)
 	return min(listWidth, max(m.width-1, 1))
 }
 
