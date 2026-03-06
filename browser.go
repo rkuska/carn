@@ -134,7 +134,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 
 	case openViewerMsg:
 		if msg.conversationID == m.loadingConversationID && msg.conversationID != "" {
-			m.installViewer(msg.session)
+			m.installViewer(msg.session, msg.conversation)
 		}
 
 	case deepSearchResultMsg:
@@ -355,7 +355,7 @@ func (m browserModel) cloneSessionCache() map[string]sessionFull {
 
 func (m *browserModel) openTranscript(conv conversation) tea.Cmd {
 	if session, ok := m.transcriptCache[conv.id()]; ok {
-		m.installViewer(session)
+		m.installViewer(session, conv)
 		return nil
 	}
 
@@ -367,7 +367,7 @@ func (m *browserModel) openTranscript(conv conversation) tea.Cmd {
 	return openConversationCmd(m.ctx, conv)
 }
 
-func (m *browserModel) installViewer(session sessionFull) {
+func (m *browserModel) installViewer(session sessionFull, conv conversation) {
 	m.openConversationID = session.meta.id
 	m.loadingConversationID = ""
 	m.transcriptCache[session.meta.id] = session
@@ -375,7 +375,7 @@ func (m *browserModel) installViewer(session sessionFull) {
 	m.searchIndex[session.meta.id] = buildSessionSearchBlob(session)
 	m.addToCache(session.meta.id)
 
-	m.viewer = newViewerModel(session, m.glamourStyle, m.viewerWidth(), m.height)
+	m.viewer = newViewerModel(session, conv, m.glamourStyle, m.viewerWidth(), m.height)
 	if m.transcriptMode == transcriptClosed {
 		m.transcriptMode = transcriptSplit
 	}

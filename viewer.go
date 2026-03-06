@@ -51,6 +51,7 @@ func scanContentFlags(messages []message) contentFlags {
 
 type viewerModel struct {
 	viewport          viewport.Model
+	conversation      conversation
 	session           sessionFull
 	opts              transcriptOptions
 	content           contentFlags
@@ -70,7 +71,7 @@ type viewerModel struct {
 	pendingGotoTopKey bool
 }
 
-func newViewerModel(session sessionFull, glamourStyle string, width, height int) viewerModel {
+func newViewerModel(session sessionFull, conv conversation, glamourStyle string, width, height int) viewerModel {
 	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 	vp.KeyMap.PageDown = key.NewBinding(
@@ -89,6 +90,7 @@ func newViewerModel(session sessionFull, glamourStyle string, width, height int)
 
 	m := viewerModel{
 		viewport:     vp,
+		conversation: conv,
 		session:      session,
 		opts:         transcriptOptions{},
 		content:      scanContentFlags(session.messages),
@@ -216,10 +218,11 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		return exportTranscriptCmd(m.session, m.opts)
 
 	case key.Matches(msg, viewerKeys.Editor):
-		return openInEditorCmd(m.session.meta.filePath)
+		return openInEditorCmd(m.editorFilePath())
 
 	case key.Matches(msg, viewerKeys.Resume):
-		return resumeSessionCmd(m.session.meta.id, m.session.meta.cwd)
+		id, cwd := m.resumeTarget()
+		return resumeSessionCmd(id, cwd)
 
 	}
 
@@ -253,9 +256,9 @@ func (m viewerModel) View() string {
 
 func (m viewerModel) paneTitle() string {
 	return fmt.Sprintf("%s / %s  %s",
-		m.session.meta.project.displayName,
-		m.session.meta.displaySlug(),
-		m.session.meta.timestamp.Format("2006-01-02 15:04"),
+		m.conversation.project.displayName,
+		m.conversation.displayName(),
+		m.conversation.timestamp().Format("2006-01-02 15:04"),
 	)
 }
 
@@ -317,6 +320,9 @@ func (m *viewerModel) renderContent() {
 	renderer, rendererErr := m.ensureRenderer()
 
 	var sb strings.Builder
+	if header := renderConversationHeader(m.conversation, m.contentWidth()); header != "" {
+		sb.WriteString(header)
+	}
 	for _, seg := range segments {
 		switch seg.kind {
 		case segmentMarkdown:
@@ -346,6 +352,20 @@ func (m *viewerModel) renderContent() {
 	if m.searchQuery != "" {
 		m.performSearch()
 	}
+}
+
+func (m viewerModel) editorFilePath() string {
+	if path := m.conversation.latestFilePath(); path != "" {
+		return path
+	}
+	return m.session.meta.filePath
+}
+
+func (m viewerModel) resumeTarget() (string, string) {
+	if id := m.conversation.resumeID(); id != "" {
+		return id, m.conversation.resumeCWD()
+	}
+	return m.session.meta.id, m.session.meta.cwd
 }
 
 // viewportWidth returns the viewport width (terminal minus outer border).

@@ -160,7 +160,7 @@ where:
 * scope marks what is affected
 * message is short description of a change, lowercased
 
-Keep the commit message under 72 characters.
+Keep the commit message and body under 72 characters.
 Also keep the body of the commit message compact and readable.
 
 Always write body with the commit message where you thoroughly explain

@@ -174,7 +174,7 @@ func BenchmarkDeepSearch(b *testing.B) {
 
 func BenchmarkViewerRenderContent(b *testing.B) {
 	session := benchViewerSession(180, true)
-	m := newViewerModel(session, "dark", 140, 45)
+	m := newViewerModel(session, singleSessionConversation(session.meta), "dark", 140, 45)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -184,7 +184,7 @@ func BenchmarkViewerRenderContent(b *testing.B) {
 
 func BenchmarkViewerSearch(b *testing.B) {
 	session := benchViewerSession(180, true)
-	m := newViewerModel(session, "dark", 140, 45)
+	m := newViewerModel(session, singleSessionConversation(session.meta), "dark", 140, 45)
 	m.searchQuery = "important_needle"
 
 	b.ResetTimer()

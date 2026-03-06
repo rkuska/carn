@@ -108,3 +108,12 @@ func renderFramedBox(title string, width int, borderColor color.Color, content s
 		Render(content)
 	return topBorder + "\n" + body
 }
+
+func renderInsetBox(width int, borderColor color.Color, content string) string {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(0, 1).
+		Width(width).
+		Render(content)
+}
