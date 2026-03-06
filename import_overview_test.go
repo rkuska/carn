@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -352,6 +353,33 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 			t.Error("expected empty view for zero width")
 		}
 	})
+}
+
+func TestImportOverviewViewPreservesBottomContentWhenPathsWrap(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cfg := archiveConfig{
+		sourceDir:  filepath.Join(dir, strings.Repeat("very-long-source-path-segment-", 4)),
+		archiveDir: filepath.Join(dir, strings.Repeat("very-long-archive-path-segment-", 4)),
+	}
+
+	m := newImportOverviewModel(cfg)
+	m.width = 52
+	m.height = 20
+	m.phase = phaseReady
+	m.analysis = importAnalysis{
+		sourceDir:  cfg.sourceDir,
+		archiveDir: cfg.archiveDir,
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Press") {
+		t.Fatalf("expected wrapped import overview to keep bottom hint visible, got: %s", view)
+	}
+	if !strings.Contains(view, "continue") {
+		t.Fatalf("expected wrapped import overview to keep continue hint visible, got: %s", view)
+	}
 }
 
 func TestImportOverviewAnalysisPipeline(t *testing.T) {

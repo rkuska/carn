@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -12,7 +11,6 @@ type viewState int
 const (
 	viewImportOverview viewState = iota
 	viewBrowser
-	viewViewer
 )
 
 type appModel struct {
@@ -22,8 +20,8 @@ type appModel struct {
 	state          viewState
 	importOverview importOverviewModel
 	browser        browserModel
-	viewer         viewerModel
-	width, height  int
+	width          int
+	height         int
 }
 
 func newAppModel(ctx context.Context, cfg archiveConfig, glamourStyle string) appModel {
@@ -33,7 +31,7 @@ func newAppModel(ctx context.Context, cfg archiveConfig, glamourStyle string) ap
 		glamourStyle:   glamourStyle,
 		state:          viewImportOverview,
 		importOverview: newImportOverviewModel(cfg),
-		browser:        newBrowserModel(ctx, cfg.archiveDir),
+		browser:        newBrowserModel(ctx, cfg.archiveDir, glamourStyle),
 	}
 }
 
@@ -52,8 +50,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateImportOverview(msg)
 	case viewBrowser:
 		return m.updateBrowser(msg)
-	case viewViewer:
-		return m.updateViewer(msg)
 	}
 
 	return m, nil
@@ -77,49 +73,8 @@ func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		// Handle enter to switch to viewer
-		if key.Matches(msg, browserKeys.Enter) && m.browser.list.FilterState() != 1 {
-			if conv, ok := m.browser.selectedConversation(); ok {
-				if session, cached := m.browser.cachedSession(conv.id()); cached {
-					return m, openConversationCmdCached(m.ctx, conv, session)
-				}
-				return m, openConversationCmd(m.ctx, conv)
-			}
-		}
-
-		// Handle quit
-		if key.Matches(msg, browserKeys.Quit) && m.browser.list.FilterState() != 1 {
-			return m, tea.Quit
-		}
-
-	case openViewerMsg:
-		m.viewer = newViewerModel(msg.session, m.glamourStyle, m.width, m.height)
-		m.state = viewViewer
-		return m, tea.Batch(
-			m.viewer.Init(),
-			func() tea.Msg {
-				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
-			},
-		)
-	}
-
 	var cmd tea.Cmd
 	m.browser, cmd = m.browser.Update(msg)
-	return m, cmd
-}
-
-func (m appModel) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyPressMsg); ok {
-		if key.Matches(msg, viewerKeys.Back) && !m.viewer.searching {
-			m.state = viewBrowser
-			return m, nil
-		}
-	}
-
-	var cmd tea.Cmd
-	m.viewer, cmd = m.viewer.Update(msg)
 	return m, cmd
 }
 
@@ -130,8 +85,6 @@ func (m appModel) View() tea.View {
 		content = m.importOverview.View()
 	case viewBrowser:
 		content = m.browser.View()
-	case viewViewer:
-		content = m.viewer.View()
 	}
 
 	v := tea.NewView(content)

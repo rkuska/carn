@@ -23,12 +23,9 @@ type sessionsLoadErrorMsg struct {
 	err error
 }
 
-type sessionParsedMsg struct {
-	session sessionFull
-}
-
 type openViewerMsg struct {
-	session sessionFull
+	conversationID string
+	session        sessionFull
 }
 
 // Commands
@@ -51,17 +48,6 @@ func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 	}
 }
 
-func parseConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
-	return func() tea.Msg {
-		session, err := parseConversation(ctx, conv)
-		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversation failed for %s", conv.id())
-			return errorNotification(fmt.Sprintf("load session failed: %v", err))
-		}
-		return sessionParsedMsg{session: session}
-	}
-}
-
 func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
 		session, err := parseConversationWithSubagents(ctx, conv)
@@ -69,14 +55,14 @@ func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversationWithSubagents failed for %s", conv.id())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
-		return openViewerMsg{session: session}
+		return openViewerMsg{conversationID: conv.id(), session: session}
 	}
 }
 
 func openConversationCmdCached(ctx context.Context, conv conversation, parent sessionFull) tea.Cmd {
 	return func() tea.Msg {
 		session := parseConversationWithSubagentsCached(ctx, conv, parent)
-		return openViewerMsg{session: session}
+		return openViewerMsg{conversationID: conv.id(), session: session}
 	}
 }
 
