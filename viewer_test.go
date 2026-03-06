@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestScanContentFlags(t *testing.T) {
@@ -286,5 +287,42 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	expected := fmt.Sprintf("1/%d", len(m.matchIndices))
 	if !strings.Contains(footer, expected) {
 		t.Fatalf("footer should contain '%s', got: %s", expected, footer)
+	}
+}
+
+func TestRenderRoleHeader(t *testing.T) {
+	t.Parallel()
+	initPalette(true)
+
+	tests := []struct {
+		name      string
+		role      role
+		wantLabel string
+	}{
+		{
+			name:      "user role shows User badge",
+			role:      roleUser,
+			wantLabel: "User",
+		},
+		{
+			name:      "assistant role shows Assistant badge",
+			role:      roleAssistant,
+			wantLabel: "Assistant",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := renderRoleHeader(tt.role, 80)
+			stripped := ansi.Strip(got)
+
+			if !strings.Contains(stripped, tt.wantLabel) {
+				t.Errorf("renderRoleHeader(%v) = %q, want label %q", tt.role, stripped, tt.wantLabel)
+			}
+			if !strings.Contains(stripped, "─") {
+				t.Error("expected horizontal rule in header")
+			}
+		})
 	}
 }

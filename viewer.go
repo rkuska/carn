@@ -445,7 +445,9 @@ func renderRoleHeader(r role, width int) string {
 
 	switch r {
 	case roleUser:
-		return ruleStyle.Render(strings.Repeat("─", width)) + "\n\n"
+		badge := lipgloss.NewStyle().Bold(true).Foreground(colorPrimary).Render(" User")
+		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
+		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
 	case roleAssistant:
 		badge := lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(" Assistant")
 		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
