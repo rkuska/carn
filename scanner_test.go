@@ -2157,3 +2157,184 @@ func TestParseConversation(t *testing.T) {
 		t.Errorf("fourth message text = %q, want %q", session.messages[3].text, "continue please")
 	}
 }
+
+func TestScanMetadataSlugFromLaterRecord(t *testing.T) {
+	t.Parallel()
+
+	// First user record has empty slug, second has a valid slug
+	firstUser := `{"type":"user","sessionId":"s1","slug":"",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"hello"}}`
+	secondUser := `{"type":"user","sessionId":"s1","slug":"cheerful-ocean",` +
+		`"timestamp":"2024-01-01T00:01:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"second message"}}`
+	assistLine := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"reply"}]}}`
+
+	content := strings.Join([]string{firstUser, assistLine, secondUser}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.slug != "cheerful-ocean" {
+		t.Errorf("slug = %q, want %q", meta.slug, "cheerful-ocean")
+	}
+	if meta.firstMessage != testTextHello {
+		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, testTextHello)
+	}
+}
+
+func TestScanMetadataSlugMissingEntirely(t *testing.T) {
+	t.Parallel()
+
+	firstUser := `{"type":"user","sessionId":"s1","slug":"",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"hello"}}`
+	secondUser := `{"type":"user","sessionId":"s1","slug":"",` +
+		`"timestamp":"2024-01-01T00:01:00Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"still no slug"}}`
+	assistLine := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"reply"}]}}`
+
+	content := strings.Join([]string{firstUser, assistLine, secondUser}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.slug != "" {
+		t.Errorf("slug = %q, want empty", meta.slug)
+	}
+}
+
+func TestSessionMetaDisplaySlug(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		slug         string
+		firstMessage string
+		want         string
+	}{
+		{
+			name: "slug present",
+			slug: "cheerful-ocean",
+			want: "cheerful-ocean",
+		},
+		{
+			name:         "empty slug with firstMessage",
+			slug:         "",
+			firstMessage: "help me with Go",
+			want:         "help me with Go",
+		},
+		{
+			name:         "empty slug with long firstMessage",
+			slug:         "",
+			firstMessage: "this is a very long first message that should be truncated at forty characters",
+			want:         "this is a very long first message that s...",
+		},
+		{
+			name:         "both empty",
+			slug:         "",
+			firstMessage: "",
+			want:         "untitled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			meta := sessionMeta{slug: tt.slug, firstMessage: tt.firstMessage}
+			if got := meta.displaySlug(); got != tt.want {
+				t.Errorf("displaySlug() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSessionMetaTitleNoGap(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2024, 6, 15, 14, 30, 0, 0, time.UTC)
+
+	t.Run("empty slug shows firstMessage fallback", func(t *testing.T) {
+		t.Parallel()
+		meta := sessionMeta{
+			slug:         "",
+			firstMessage: "help me",
+			project:      project{displayName: "my/project"},
+			timestamp:    ts,
+		}
+		title := meta.Title()
+		if strings.Contains(title, "/ ") && !strings.Contains(title, "/ help me") {
+			t.Errorf("Title() has gap: %q", title)
+		}
+		if !strings.Contains(title, "help me") {
+			t.Errorf("Title() = %q, should contain firstMessage fallback", title)
+		}
+	})
+
+	t.Run("empty slug and firstMessage shows untitled", func(t *testing.T) {
+		t.Parallel()
+		meta := sessionMeta{
+			slug:      "",
+			project:   project{displayName: "my/project"},
+			timestamp: ts,
+		}
+		title := meta.Title()
+		if !strings.Contains(title, "untitled") {
+			t.Errorf("Title() = %q, should contain 'untitled'", title)
+		}
+	})
+}
+
+func TestScanMetadataSkipsIsMetaFirstMessage(t *testing.T) {
+	t.Parallel()
+
+	metaLine := `{"type":"user","sessionId":"s1","slug":"",` +
+		`"timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp","isMeta":true,` +
+		`"message":{"role":"user","content":"<local-command-caveat>system caveat</local-command-caveat>"}}`
+	realLine := `{"type":"user","sessionId":"s1","slug":"",` +
+		`"timestamp":"2024-01-01T00:00:01Z","cwd":"/tmp",` +
+		`"message":{"role":"user","content":"actual question"}}`
+	assistLine := `{"type":"assistant",` +
+		`"message":{"role":"assistant","model":"claude-3",` +
+		`"content":[{"type":"text","text":"reply"}]}}`
+
+	content := strings.Join([]string{metaLine, realLine, assistLine}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	proj := project{dirName: "test", displayName: "test", path: "test"}
+	meta, err := scanMetadata(context.Background(), filePath, proj)
+	if err != nil {
+		t.Fatalf("scanMetadata: %v", err)
+	}
+
+	if meta.firstMessage != "actual question" {
+		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, "actual question")
+	}
+}

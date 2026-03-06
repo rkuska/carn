@@ -201,6 +201,7 @@ type jsonRecord struct {
 	UUID          string          `json:"uuid"`
 	ParentUUID    string          `json:"parentUuid"`
 	IsSidechain   bool            `json:"isSidechain"`
+	IsMeta        bool            `json:"isMeta"`
 	ToolUseResult json.RawMessage `json:"toolUseResult"`
 }
 
@@ -465,7 +466,7 @@ func parseSubagentPath(filePath string) (string, bool) {
 }
 
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) error {
-	if *found {
+	if *found && meta.slug != "" {
 		return nil
 	}
 
@@ -492,16 +493,23 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) error {
 		}
 	}
 
-	// Extract first user message text
-	var msg jsonMessage
-	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return fmt.Errorf("json.Unmarshal message: %w", err)
+	// Backfill slug from later records if still missing
+	if meta.slug == "" && rec.Slug != "" {
+		meta.slug = rec.Slug
 	}
 
-	content, _ := extractUserContent(msg.Content)
-	if content != "" && !isSystemInterrupt(content) {
-		meta.firstMessage = truncate(content, maxFirstMessage)
-		*found = true
+	// Extract first user message text; skip meta records (system-injected)
+	if !*found && !rec.IsMeta {
+		var msg jsonMessage
+		if err := json.Unmarshal(rec.Message, &msg); err != nil {
+			return fmt.Errorf("json.Unmarshal message: %w", err)
+		}
+
+		content, _ := extractUserContent(msg.Content)
+		if content != "" && !isSystemInterrupt(content) {
+			meta.firstMessage = truncate(content, maxFirstMessage)
+			*found = true
+		}
 	}
 
 	return nil

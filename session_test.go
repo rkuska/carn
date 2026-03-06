@@ -40,6 +40,22 @@ func TestIsSystemInterrupt(t *testing.T) {
 			text: "Request interrupted by user for tool use",
 			want: false,
 		},
+		{
+			name: "local command caveat",
+			text: "<local-command-caveat>Caveat: The messages below were generated" +
+				" by the user while running local commands.</local-command-caveat>",
+			want: true,
+		},
+		{
+			name: "command name",
+			text: "<command-name>/compact</command-name>\n            <command-message>compact</command-message>",
+			want: true,
+		},
+		{
+			name: "local command stdout",
+			text: "<local-command-stdout>Compacted</local-command-stdout>",
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
