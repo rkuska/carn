@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
@@ -31,12 +30,6 @@ type sessionParsedMsg struct {
 type openViewerMsg struct {
 	session sessionFull
 }
-
-type statusMsg struct {
-	text string
-}
-
-type clearStatusMsg struct{}
 
 // Commands
 
@@ -63,7 +56,7 @@ func parseConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 		session, err := parseConversation(ctx, conv)
 		if err != nil {
 			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversation failed for %s", conv.id())
-			return statusMsg{text: fmt.Sprintf("Error loading session: %v", err)}
+			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
 		return sessionParsedMsg{session: session}
 	}
@@ -74,7 +67,7 @@ func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 		session, err := parseConversationWithSubagents(ctx, conv)
 		if err != nil {
 			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversationWithSubagents failed for %s", conv.id())
-			return statusMsg{text: fmt.Sprintf("Error loading session: %v", err)}
+			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
 		return openViewerMsg{session: session}
 	}
@@ -91,9 +84,9 @@ func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	return func() tea.Msg {
 		text := renderTranscript(session, opts)
 		if err := clipboard.WriteAll(text); err != nil {
-			return statusMsg{text: fmt.Sprintf("Copy failed: %v", err)}
+			return errorNotification(fmt.Sprintf("copy failed: %v", err))
 		}
-		return statusMsg{text: "Transcript copied to clipboard"}
+		return successNotification("transcript copied to clipboard")
 	}
 }
 
@@ -101,13 +94,13 @@ func copyFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
 		session, err := parseConversation(ctx, conv)
 		if err != nil {
-			return statusMsg{text: fmt.Sprintf("Copy failed: %v", err)}
+			return errorNotification(fmt.Sprintf("copy failed: %v", err))
 		}
 		text := renderTranscript(session, transcriptOptions{})
 		if err := clipboard.WriteAll(text); err != nil {
-			return statusMsg{text: fmt.Sprintf("Copy failed: %v", err)}
+			return errorNotification(fmt.Sprintf("copy failed: %v", err))
 		}
-		return statusMsg{text: "Transcript copied to clipboard"}
+		return successNotification("transcript copied to clipboard")
 	}
 }
 
@@ -122,14 +115,14 @@ func exportFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
 		session, err := parseConversation(ctx, conv)
 		if err != nil {
-			return statusMsg{text: fmt.Sprintf("Export failed: %v", err)}
+			return errorNotification(fmt.Sprintf("export failed: %v", err))
 		}
 		text := renderTranscript(session, transcriptOptions{})
 		return exportText(text, session.meta)
 	}
 }
 
-func exportText(text string, meta sessionMeta) statusMsg {
+func exportText(text string, meta sessionMeta) notificationMsg {
 	name := fmt.Sprintf("claude-session-%s.md", meta.slug)
 	if meta.slug == "" {
 		name = fmt.Sprintf("claude-session-%s.md", meta.id[:8])
@@ -137,14 +130,14 @@ func exportText(text string, meta sessionMeta) statusMsg {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return statusMsg{text: fmt.Sprintf("Export failed: %v", err)}
+		return errorNotification(fmt.Sprintf("export failed: %v", err))
 	}
 	outPath := filepath.Join(home, "Desktop", name)
 
 	if err := os.WriteFile(outPath, []byte(text), 0o644); err != nil {
-		return statusMsg{text: fmt.Sprintf("Export failed: %v", err)}
+		return errorNotification(fmt.Sprintf("export failed: %v", err))
 	}
-	return statusMsg{text: fmt.Sprintf("Exported to %s", outPath)}
+	return successNotification(fmt.Sprintf("exported to %s", outPath))
 }
 
 func openInEditorCmd(filePath string) tea.Cmd {
@@ -158,26 +151,25 @@ func openInEditorCmd(filePath string) tea.Cmd {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return statusMsg{text: fmt.Sprintf("Editor failed: %v", err)}
+			return errorNotification(fmt.Sprintf("editor failed: %v", err))
 		}
 		return nil
 	}
 }
 
-func resumeSessionCmd(sessionID string) tea.Cmd {
+func resumeSessionCmd(sessionID, cwd string) tea.Cmd {
+	cmd, err := newResumeExecCmd(sessionID, cwd)
+	if err != nil {
+		return notificationCmd(resumeErrorNotification(err, cwd))
+	}
+
 	return tea.ExecProcess(
-		exec.Command("claude", "--resume", sessionID),
+		cmd,
 		func(err error) tea.Msg {
 			if err != nil {
-				return statusMsg{text: fmt.Sprintf("Resume failed: %v", err)}
+				return resumeErrorNotification(err, cwd)
 			}
 			return nil
 		},
 	)
-}
-
-func clearStatusAfter(d time.Duration) tea.Cmd {
-	return tea.Tick(d, func(_ time.Time) tea.Msg {
-		return clearStatusMsg{}
-	})
 }

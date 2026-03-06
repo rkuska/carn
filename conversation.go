@@ -72,6 +72,11 @@ func (c conversation) resumeID() string {
 	return c.sessions[len(c.sessions)-1].id
 }
 
+// resumeCWD returns the latest session's cwd — for `claude --resume`.
+func (c conversation) resumeCWD() string {
+	return c.sessions[len(c.sessions)-1].cwd
+}
+
 // timestamp returns the earliest timestamp across all sessions.
 func (c conversation) timestamp() time.Time {
 	return c.sessions[0].timestamp
