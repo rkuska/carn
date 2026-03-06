@@ -24,8 +24,10 @@ var (
 	colorTitleFg     color.Color // list title text on primary bg
 
 	// Styles — rebuilt by initPalette.
-	styleSubtitle lipgloss.Style
-	styleToolCall lipgloss.Style
+	styleSubtitle  lipgloss.Style
+	styleToolCall  lipgloss.Style
+	styleMetaLabel lipgloss.Style
+	styleMetaValue lipgloss.Style
 )
 
 // initPalette sets the colour palette and derived styles based on
@@ -53,6 +55,13 @@ func initPalette(hasDarkBG bool) {
 
 	styleToolCall = lipgloss.NewStyle().
 		Foreground(colorAccent)
+
+	styleMetaLabel = lipgloss.NewStyle().
+		Foreground(colorSecondary).
+		Bold(true)
+
+	styleMetaValue = lipgloss.NewStyle().
+		Foreground(colorNormalTitle)
 }
 
 // renderBorderTop builds a custom top border line with an embedded title badge:

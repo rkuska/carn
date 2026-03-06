@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -195,11 +196,108 @@ func formatToolResult(tr toolResult) string {
 	return sb.String()
 }
 
+// renderPreviewHeader renders metadata lines for the preview pane.
+// Empty fields are omitted; entire lines are omitted if all fields are empty.
+func renderPreviewHeader(meta sessionMeta) string {
+	sep := styleMetaLabel.Render("  ")
+
+	var lines []string
+
+	// Line 1: model  duration  msgs  tokens
+	var parts1 []string
+	if meta.model != "" {
+		parts1 = append(parts1, styleMetaValue.Render(meta.model))
+	}
+	if d := meta.duration(); d > 0 {
+		parts1 = append(parts1, styleMetaValue.Render(formatDuration(d)))
+	}
+	parts1 = append(parts1, styleMetaValue.Render(fmt.Sprintf("%d msgs", meta.messageCount)))
+	if total := meta.totalUsage.totalTokens(); total > 0 {
+		parts1 = append(parts1, styleMetaValue.Render(fmt.Sprintf("%dk", total/1000)))
+	}
+	lines = append(lines, strings.Join(parts1, sep))
+
+	// Line 2: branch  tools
+	var parts2 []string
+	if meta.gitBranch != "" {
+		parts2 = append(parts2, styleMetaValue.Render(meta.gitBranch))
+	}
+	if tc := formatToolCounts(meta.toolCounts); tc != "" {
+		parts2 = append(parts2, styleMetaValue.Render(tc))
+	}
+	if len(parts2) > 0 {
+		lines = append(lines, strings.Join(parts2, sep))
+	}
+
+	// Line 3: started <timestamp>  last <timestamp>
+	var parts3 []string
+	const tsFmt = "2006-01-02 15:04"
+	if !meta.timestamp.IsZero() {
+		started := styleMetaLabel.Render("started ") + styleMetaValue.Render(meta.timestamp.Format(tsFmt))
+		parts3 = append(parts3, started)
+	}
+	if !meta.lastTimestamp.IsZero() {
+		last := styleMetaLabel.Render("last ") + styleMetaValue.Render(meta.lastTimestamp.Format(tsFmt))
+		parts3 = append(parts3, last)
+	}
+	if len(parts3) > 0 {
+		lines = append(lines, strings.Join(parts3, sep))
+	}
+
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// firstUserMessage extracts the text of the first non-interrupt, non-empty
+// user message from the session.
+func firstUserMessage(messages []message) string {
+	for _, msg := range messages {
+		if msg.role != roleUser {
+			continue
+		}
+		if msg.isAgentDivider {
+			continue
+		}
+		if msg.text == "" || isSystemInterrupt(msg.text) {
+			continue
+		}
+		return msg.text
+	}
+	return ""
+}
+
+// renderInitialPrompt renders the initial user prompt in a quoted style
+// with a ▎ left border in colorPrimary.
+func renderInitialPrompt(prompt string, width int) string {
+	if prompt == "" {
+		return ""
+	}
+
+	promptStyle := lipgloss.NewStyle().Foreground(colorPrimary)
+	wrapWidth := max(width-2, 10) // account for "▎ " prefix
+	wrapped := wrapText(prompt, wrapWidth)
+
+	var sb strings.Builder
+	sb.WriteString("\n")
+	for line := range strings.SplitSeq(wrapped, "\n") {
+		sb.WriteString(promptStyle.Render("▎ " + line))
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n")
+	return sb.String()
+}
+
 // renderPreview renders a short preview of a session (first few exchanges).
 // width controls word wrapping; values <= 0 disable wrapping.
 func renderPreview(session sessionFull, maxMessages int, width int) string {
 	var sb strings.Builder
+
+	sb.WriteString(renderPreviewHeader(session.meta))
+
+	prompt := firstUserMessage(session.messages)
+	sb.WriteString(renderInitialPrompt(prompt, width))
+
 	count := 0
+	skippedFirstUser := false
 
 	for _, msg := range session.messages {
 		if count >= maxMessages {
@@ -218,6 +316,10 @@ func renderPreview(session sessionFull, maxMessages int, width int) string {
 		switch msg.role {
 		case roleUser:
 			if msg.text == "" || isSystemInterrupt(msg.text) {
+				continue
+			}
+			if !skippedFirstUser {
+				skippedFirstUser = true
 				continue
 			}
 			sb.WriteString("▶ You\n")
