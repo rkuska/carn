@@ -49,23 +49,24 @@ type diffHunk struct {
 }
 
 type sessionMeta struct {
-	id               string
-	project          project
-	slug             string
-	timestamp        time.Time
-	lastTimestamp    time.Time
-	cwd              string
-	gitBranch        string
-	version          string
-	model            string
-	firstMessage     string
-	messageCount     int
-	mainMessageCount int
-	filePath         string
-	totalUsage       tokenUsage
-	toolCounts       map[string]int
-	isSubagent       bool
-	parentSessionID  string
+	id                     string
+	project                project
+	slug                   string
+	timestamp              time.Time
+	lastTimestamp          time.Time
+	cwd                    string
+	gitBranch              string
+	version                string
+	model                  string
+	firstMessage           string
+	messageCount           int
+	mainMessageCount       int
+	filePath               string
+	totalUsage             tokenUsage
+	toolCounts             map[string]int
+	hasConversationContent bool
+	isSubagent             bool
+	parentSessionID        string
 }
 
 const maxSlugFromMessage = 40

@@ -151,10 +151,16 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 
 		switch recRole {
 		case roleUser:
+			if !meta.hasConversationContent && userRecordHasConversationContent(line) {
+				meta.hasConversationContent = true
+			}
 			if err := parseUserRecord(line, &meta, &foundUser); err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", filePath)
 			}
 		case roleAssistant:
+			if !meta.hasConversationContent && assistantRecordHasConversationContent(ctx, line) {
+				meta.hasConversationContent = true
+			}
 			if err := parseAssistantRecord(line, &meta, &foundAssistant); err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", filePath)
 			}
