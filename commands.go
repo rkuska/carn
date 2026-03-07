@@ -38,7 +38,7 @@ func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 			return sessionsLoadErrorMsg{err: err}
 		}
 
-		conversations := groupConversations(sessions)
+		conversations := filterRenderableConversations(groupConversations(sessions))
 
 		// Sort by timestamp descending (newest first)
 		sort.Slice(conversations, func(i, j int) bool {
