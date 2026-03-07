@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -107,5 +109,74 @@ func TestDeepSearchCmd_EmptyQueryReturnsMainConversations(t *testing.T) {
 	}
 	if len(result.conversations) != 2 {
 		t.Fatalf("conversations len = %d, want 2", len(result.conversations))
+	}
+}
+
+func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	parentID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	parentPath := filepath.Join(dir, parentID+".jsonl")
+	parentContent := strings.Join([]string{
+		strings.Join([]string{
+			`{"type":"user","sessionId":"`, parentID,
+			`","slug":"demo","timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp/demo",`,
+			`"message":{"role":"user","content":"parent"}}`,
+		}, ""),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2024-01-01T00:01:00Z",`,
+			`"message":{"role":"assistant","model":"claude-3","content":[`,
+			`{"type":"text","text":"parent response"}]}}`,
+		}, ""),
+	}, "\n")
+	if err := os.WriteFile(parentPath, []byte(parentContent), 0o644); err != nil {
+		t.Fatalf("os.WriteFile parent: %v", err)
+	}
+
+	subDir := filepath.Join(dir, parentID, "subagents")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll: %v", err)
+	}
+	subContent := strings.Join([]string{
+		strings.Join([]string{
+			`{"type":"user","sessionId":"sub-session","slug":"demo",`,
+			`"timestamp":"2024-01-01T00:02:00Z","cwd":"/tmp/demo",`,
+			`"message":{"role":"user","content":"subagent needle"}}`,
+		}, ""),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2024-01-01T00:03:00Z",`,
+			`"message":{"role":"assistant","model":"claude-3","content":[`,
+			`{"type":"text","text":"done"}]}}`,
+		}, ""),
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
+		t.Fatalf("os.WriteFile subagent: %v", err)
+	}
+
+	conv := conversation{
+		name:    "demo",
+		project: project{dirName: "proj", displayName: "proj"},
+		sessions: []sessionMeta{
+			{
+				id:        parentID,
+				slug:      "demo",
+				filePath:  parentPath,
+				timestamp: time.Now(),
+				project:   project{dirName: "proj", displayName: "proj"},
+			},
+		},
+	}
+
+	msg := deepSearchCmd(context.Background(), "needle", []conversation{conv}, nil, nil)()
+	result, ok := msg.(deepSearchResultMsg)
+	if !ok {
+		t.Fatalf("unexpected msg type: %T", msg)
+	}
+	if len(result.conversations) != 1 {
+		t.Fatalf("matches = %d, want 1", len(result.conversations))
+	}
+	if result.conversations[0].id() != parentID {
+		t.Fatalf("matched id = %q, want %q", result.conversations[0].id(), parentID)
 	}
 }

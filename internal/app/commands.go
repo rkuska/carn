@@ -51,9 +51,9 @@ func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 
 func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 	return func() tea.Msg {
-		session, err := parseConversationWithSubagents(ctx, conv)
+		session, err := loadConversationSession(ctx, conv)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("parseConversationWithSubagents failed for %s", conv.id())
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("loadConversationSession failed for %s", conv.id())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
 		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
@@ -62,7 +62,7 @@ func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
 
 func openConversationCmdCached(ctx context.Context, conv conversation, parent sessionFull) tea.Cmd {
 	return func() tea.Msg {
-		session := parseConversationWithSubagentsCached(ctx, conv, parent)
+		session := loadConversationSessionCached(ctx, conv, parent)
 		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
 	}
 }
@@ -77,34 +77,9 @@ func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	}
 }
 
-func copyFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
-	return func() tea.Msg {
-		session, err := parseConversation(ctx, conv)
-		if err != nil {
-			return errorNotification(fmt.Sprintf("copy failed: %v", err))
-		}
-		text := renderTranscript(session, transcriptOptions{})
-		if err := clipboard.WriteAll(text); err != nil {
-			return errorNotification(fmt.Sprintf("copy failed: %v", err))
-		}
-		return successNotification("transcript copied to clipboard")
-	}
-}
-
 func exportTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	return func() tea.Msg {
 		text := renderTranscript(session, opts)
-		return exportText(text, session.meta)
-	}
-}
-
-func exportFromConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
-	return func() tea.Msg {
-		session, err := parseConversation(ctx, conv)
-		if err != nil {
-			return errorNotification(fmt.Sprintf("export failed: %v", err))
-		}
-		text := renderTranscript(session, transcriptOptions{})
 		return exportText(text, session.meta)
 	}
 }

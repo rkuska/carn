@@ -1,8 +1,8 @@
 package app
 
 import (
+	"context"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -39,9 +39,17 @@ type analysisFinishedMsg struct {
 	analysis importAnalysis
 }
 
-type importSyncFileCopiedMsg struct {
-	file string
-	err  error
+type importSyncStartedMsg struct {
+	events <-chan tea.Msg
+}
+
+type importSyncProgressMsg struct {
+	progress syncProgress
+}
+
+type importSyncFinishedMsg struct {
+	result syncResult
+	err    error
 }
 
 type importOverviewModel struct {
@@ -54,16 +62,13 @@ type importOverviewModel struct {
 	analysisProgress importProgress // latest progress snapshot
 	analysis         importAnalysis // final result (valid when phase >= phaseReady)
 
-	// Sync state (worker pool pattern)
+	// Sync state
 	files       []string
 	current     int
 	total       int
 	currentFile string
-	nextIndex   int
-	inFlight    int
-	maxWorkers  int
-	startTime   time.Time
 	result      syncResult
+	syncEvents  <-chan tea.Msg
 
 	done     bool // signals app.go to transition to browser
 	width    int
@@ -120,8 +125,15 @@ func (m importOverviewModel) Update(msg tea.Msg) (importOverviewModel, tea.Cmd) 
 	case analysisFinishedMsg:
 		return m.handleAnalysisFinished(msg)
 
-	case importSyncFileCopiedMsg:
-		return m.handleSyncFileCopied(msg)
+	case importSyncStartedMsg:
+		m.syncEvents = msg.events
+		return m, waitForImportSyncMsg(m.syncEvents)
+
+	case importSyncProgressMsg:
+		return m.handleSyncProgress(msg)
+
+	case importSyncFinishedMsg:
+		return m.handleSyncFinished(msg)
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -168,9 +180,11 @@ func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel
 			// Start sync
 			m.phase = phaseSyncing
 			m.files = m.analysis.filesToSync
+			m.current = 0
 			m.total = len(m.files)
-			m.startTime = time.Now()
-			return m, m.startCopyBatch()
+			m.currentFile = ""
+			m.result = syncResult{}
+			return m, startImportSyncCmd(m.cfg, m.files)
 
 		case phaseSyncing:
 			// Disabled during sync
@@ -272,49 +286,21 @@ func (m importOverviewModel) handleAnalysisFinished(msg analysisFinishedMsg) (im
 	return m, nil
 }
 
-func (m importOverviewModel) handleSyncFileCopied(msg importSyncFileCopiedMsg) (importOverviewModel, tea.Cmd) {
-	m.current++
-	if msg.err != nil {
-		m.result.failed++
-	} else {
-		m.result.copied++
-	}
-	m.currentFile = filepath.Base(msg.file)
-	if m.inFlight > 0 {
-		m.inFlight--
-	}
-
-	if m.current >= m.total && m.inFlight == 0 {
-		m.phase = phaseDone
-		m.result.elapsed = time.Since(m.startTime)
-		return m, nil
-	}
-
-	if m.nextIndex < m.total {
-		next := m.files[m.nextIndex]
-		m.nextIndex++
-		m.inFlight++
-		return m, importCopyFileCmd(m.cfg, next)
-	}
-	return m, nil
+func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (importOverviewModel, tea.Cmd) {
+	m.current = msg.progress.current
+	m.total = msg.progress.total
+	m.currentFile = msg.progress.file
+	m.result.copied = msg.progress.copied
+	m.result.failed = msg.progress.failed
+	return m, waitForImportSyncMsg(m.syncEvents)
 }
 
-func (m *importOverviewModel) startCopyBatch() tea.Cmd {
-	if m.maxWorkers <= 0 {
-		m.maxWorkers = min(max(runtime.NumCPU(), 1), 8)
-	}
-
-	startCount := min(m.maxWorkers, m.total)
-
-	cmds := make([]tea.Cmd, 0, startCount)
-	for range startCount {
-		next := m.files[m.nextIndex]
-		m.nextIndex++
-		m.inFlight++
-		cmds = append(cmds, importCopyFileCmd(m.cfg, next))
-	}
-
-	return tea.Batch(cmds...)
+func (m importOverviewModel) handleSyncFinished(msg importSyncFinishedMsg) (importOverviewModel, tea.Cmd) {
+	m.phase = phaseDone
+	m.result = msg.result
+	m.current = m.total
+	m.syncEvents = nil
+	return m, nil
 }
 
 // View renders the import overview based on current phase.
@@ -471,11 +457,30 @@ func analyzeProjectCmd(projDir string, cfg archiveConfig) tea.Cmd {
 	}
 }
 
-func importCopyFileCmd(cfg archiveConfig, srcPath string) tea.Cmd {
+func startImportSyncCmd(cfg archiveConfig, files []string) tea.Cmd {
 	return func() tea.Msg {
-		rel, _ := filepath.Rel(cfg.sourceDir, srcPath)
-		dst := filepath.Join(cfg.archiveDir, rel)
-		err := copyFile(srcPath, dst)
-		return importSyncFileCopiedMsg{file: srcPath, err: err}
+		events := make(chan tea.Msg)
+		go func() {
+			result, err := syncFiles(context.Background(), cfg, files, func(progress syncProgress) {
+				events <- importSyncProgressMsg{progress: progress}
+			})
+			events <- importSyncFinishedMsg{result: result, err: err}
+			close(events)
+		}()
+		return importSyncStartedMsg{events: events}
+	}
+}
+
+func waitForImportSyncMsg(events <-chan tea.Msg) tea.Cmd {
+	if events == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		msg, ok := <-events
+		if !ok {
+			return nil
+		}
+		return msg
 	}
 }

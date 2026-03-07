@@ -1,24 +1,25 @@
 # Performance Baseline
 
-Captured on March 6, 2026.
+Captured on March 7, 2026.
 
 Command:
 
 ```bash
-go test -run '^$' -bench 'Benchmark(ScanSessions|DeepSearch|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./...
+go test -run '^$' -bench 'Benchmark(ScanSessions|ScanSessionsLongConversations|DeepSearch|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
 
 | Benchmark | ns/op | B/op | allocs/op |
 | --- | ---: | ---: | ---: |
-| BenchmarkScanSessions | 22,224,737 | 190,579,639 | 24,446 |
-| BenchmarkDeepSearch/cold | 12,081,770 | 106,848,751 | 24,082 |
-| BenchmarkDeepSearch/warm | 165 | 432 | 3 |
-| BenchmarkViewerRenderContent | 31,046,367 | 26,872,517 | 352,285 |
-| BenchmarkViewerSearch | 8,201 | 120 | 4 |
-| BenchmarkCollectFilesToSync | 1,207,888 | 514,827 | 4,041 |
-| BenchmarkStreamImportAnalysis | 8,325,589 | 24,590,835 | 9,689 |
+| BenchmarkScanSessions | 22,387,519 | 190,857,921 | 29,851 |
+| BenchmarkScanSessionsLongConversations | 14,942,393 | 64,463,599 | 29,366 |
+| BenchmarkDeepSearch/cold | 12,290,510 | 106,957,983 | 24,887 |
+| BenchmarkDeepSearch/warm | 163.3 | 432 | 3 |
+| BenchmarkViewerRenderContent | 30,685,549 | 26,953,553 | 352,639 |
+| BenchmarkViewerSearch | 8,481 | 120 | 4 |
+| BenchmarkCollectFilesToSync | 1,205,292 | 514,827 | 4,041 |
+| BenchmarkStreamImportAnalysis | 8,135,180 | 24,617,331 | 9,695 |
 
 Notes:
 - `go test -race ./...` is currently not runnable in this environment (`cannot find package` from the race toolchain).

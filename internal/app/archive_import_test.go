@@ -47,6 +47,14 @@ func TestExtractSessionSlug(t *testing.T) {
 			content:  makeJSONLRecord("user", "", "session-3"),
 			wantSlug: "",
 		},
+		{
+			name: "returns later non-empty slug",
+			content: strings.Join([]string{
+				makeJSONLRecord("user", "", "session-4"),
+				makeJSONLRecord("user", "late-slug", "session-4"),
+			}, "\n"),
+			wantSlug: "late-slug",
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,6 +223,35 @@ func TestAnalyzeProjectDir(t *testing.T) {
 
 		if len(seen) != 1 {
 			t.Errorf("conversations = %d, want 1 (same slug should group)", len(seen))
+		}
+	})
+
+	t.Run("later slug matches browser grouping", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		srcDir := filepath.Join(dir, "source")
+		archDir := filepath.Join(dir, "archive")
+		projDir := filepath.Join(srcDir, "proj1")
+
+		firstFile := strings.Join([]string{
+			makeJSONLRecord("user", "", "id1"),
+			makeJSONLRecord("user", "shared-slug", "id1"),
+		}, "\n")
+		writeTestFile(t, filepath.Join(projDir, "s1.jsonl"), firstFile)
+		writeTestFile(t, filepath.Join(projDir, "s2.jsonl"),
+			makeJSONLRecord("user", "shared-slug", "id2"))
+
+		cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
+		seen := make(map[groupKey]*conversationState)
+		var syncCandidates []string
+
+		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
+		if err != nil {
+			t.Fatalf("analyzeProjectDir: %v", err)
+		}
+
+		if len(seen) != 1 {
+			t.Errorf("conversations = %d, want 1 (late slug should group)", len(seen))
 		}
 	})
 
