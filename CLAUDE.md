@@ -11,6 +11,10 @@ We use flat layout wit no folders to not complicate things. We keep our files sm
 
 Write code using TDD platform. First write stubs. Then tests (following testing guidelines, scenarios are the most important tests) and implementation after. Write meaningful tests.
 
+### Dependencies
+
+When adding new dependencies always make sure you are using the latest major version. Either check git tags or the repository for vX (where X is a number) folder.
+
 ### Errors
 
 * Always wrap errors with fmt.Errorf using the %w directive when forwarding errors (use errors.New when there are no arguments to be passed to construct errors).
