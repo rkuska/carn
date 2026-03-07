@@ -37,7 +37,7 @@ func deepSearchCmd(
 				if session, cached := sessionCache[cid]; cached {
 					blob = buildSessionSearchBlob(session)
 				} else {
-					session, err := parseConversation(ctx, conv)
+					session, err := loadConversationSession(ctx, conv)
 					if err != nil {
 						zerolog.Ctx(ctx).Debug().Err(err).Msgf("deepSearch: skipping %s", cid)
 						continue

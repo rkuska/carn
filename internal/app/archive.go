@@ -35,6 +35,8 @@ type syncProgress struct {
 	current int
 	total   int
 	file    string // current file being copied (basename)
+	copied  int
+	failed  int
 }
 
 func defaultArchiveConfig() (archiveConfig, error) {
@@ -69,38 +71,9 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 		return syncResult{elapsed: time.Since(start)}, nil
 	}
 
-	// Phase 1: Walk source to collect .jsonl files needing sync
-	var filesToSync []string
-	err := filepath.WalkDir(cfg.sourceDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil // skip inaccessible entries
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".jsonl") {
-			return nil
-		}
-
-		rel, err := filepath.Rel(cfg.sourceDir, path)
-		if err != nil {
-			return nil
-		}
-		dstPath := filepath.Join(cfg.archiveDir, rel)
-
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-
-		if fileNeedsSync(info, dstPath) {
-			filesToSync = append(filesToSync, path)
-		}
-
-		return nil
-	})
+	filesToSync, err := collectFilesToSync(cfg)
 	if err != nil {
-		return syncResult{}, fmt.Errorf("filepath.WalkDir: %w", err)
+		return syncResult{}, fmt.Errorf("collectFilesToSync: %w", err)
 	}
 
 	total := len(filesToSync)
@@ -110,7 +83,34 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 		return result, nil
 	}
 
-	// Phase 2: Copy concurrently
+	result, err := syncFiles(ctx, cfg, filesToSync, onProgress)
+	if err != nil {
+		return syncResult{}, fmt.Errorf("syncFiles: %w", err)
+	}
+
+	log.Info().
+		Int("copied", result.copied).
+		Int("skipped", result.skipped).
+		Int("failed", result.failed).
+		Dur("elapsed", result.elapsed).
+		Msgf("archive sync complete")
+
+	return result, nil
+}
+
+func syncFiles(
+	ctx context.Context,
+	cfg archiveConfig,
+	filesToSync []string,
+	onProgress func(syncProgress),
+) (syncResult, error) {
+	start := time.Now()
+	total := len(filesToSync)
+	if total == 0 {
+		return syncResult{elapsed: time.Since(start)}, nil
+	}
+
+	log := zerolog.Ctx(ctx)
 	var copied atomic.Int64
 	var failed atomic.Int64
 	var completed atomic.Int64
@@ -137,6 +137,8 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 						current: int(completed.Add(1)),
 						total:   total,
 						file:    filepath.Base(src),
+						copied:  int(copied.Load()),
+						failed:  int(failed.Load()),
 					}
 					progressMu.Lock()
 					onProgress(progress)
@@ -152,6 +154,8 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 					current: int(completed.Add(1)),
 					total:   total,
 					file:    filepath.Base(src),
+					copied:  int(copied.Load()),
+					failed:  int(failed.Load()),
 				}
 				progressMu.Lock()
 				onProgress(progress)
@@ -166,21 +170,12 @@ func syncArchive(ctx context.Context, cfg archiveConfig, onProgress func(syncPro
 		return syncResult{}, fmt.Errorf("errgroup.Wait: %w", err)
 	}
 
-	result := syncResult{
+	return syncResult{
 		copied:  int(copied.Load()),
 		skipped: 0,
 		failed:  int(failed.Load()),
 		elapsed: time.Since(start),
-	}
-
-	log.Info().
-		Int("copied", result.copied).
-		Int("skipped", result.skipped).
-		Int("failed", result.failed).
-		Dur("elapsed", result.elapsed).
-		Msgf("archive sync complete")
-
-	return result, nil
+	}, nil
 }
 
 func fileNeedsSync(srcInfo os.FileInfo, dstPath string) bool {
@@ -259,7 +254,9 @@ func extractSessionSlug(filePath string) (string, error) {
 		if err := json.Unmarshal(line, &rec); err != nil {
 			return "", fmt.Errorf("json.Unmarshal: %w", err)
 		}
-		return rec.Slug, nil
+		if rec.Slug != "" {
+			return rec.Slug, nil
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -277,32 +274,17 @@ func analyzeProjectDir(
 	seen map[groupKey]*conversationState,
 	syncCandidates *[]string,
 ) (filesInspected int, err error) {
-	proj := filepath.Base(projDir)
-
-	// Glob main session files
-	mainFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
+	proj := projectFromDirName(filepath.Base(projDir))
+	files, err := discoverProjectSessionFiles(projDir, proj)
 	if err != nil {
-		return 0, fmt.Errorf("filepath.Glob_main: %w", err)
+		return 0, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
 
-	// Glob subagent files
-	subFiles, err := filepath.Glob(filepath.Join(projDir, "*/subagents/agent-*.jsonl"))
-	if err != nil {
-		return 0, fmt.Errorf("filepath.Glob_subagent: %w", err)
-	}
-
-	allFiles := make([]string, 0, len(mainFiles)+len(subFiles))
-	allFiles = append(allFiles, mainFiles...)
-	allFiles = append(allFiles, subFiles...)
-
-	for _, f := range allFiles {
+	for _, file := range files {
 		filesInspected++
 
-		// Determine if this is a subagent
-		isSubagent := strings.Contains(f, "/subagents/")
-
 		// Extract slug
-		slug, slugErr := extractSessionSlug(f)
+		slug, slugErr := extractSessionSlug(file.path)
 		if slugErr != nil {
 			// Skip files we can't read
 			continue
@@ -311,20 +293,20 @@ func analyzeProjectDir(
 		// Build group key — subagents and empty slugs get unique keys
 		// (matching groupConversations logic)
 		var gk groupKey
-		if isSubagent || slug == "" {
-			gk = groupKey{dirName: proj, slug: f} // unique per file
+		if file.isSubagent || slug == "" {
+			gk = groupKey{dirName: proj.dirName, slug: file.path} // unique per file
 		} else {
-			gk = groupKey{dirName: proj, slug: slug}
+			gk = groupKey{dirName: proj.dirName, slug: slug}
 		}
 
 		// Classify this file
-		rel, relErr := filepath.Rel(cfg.sourceDir, f)
+		rel, relErr := filepath.Rel(cfg.sourceDir, file.path)
 		if relErr != nil {
 			continue
 		}
 		dstPath := filepath.Join(cfg.archiveDir, rel)
 
-		info, statErr := os.Stat(f)
+		info, statErr := os.Stat(file.path)
 		if statErr != nil {
 			continue
 		}
@@ -346,7 +328,7 @@ func analyzeProjectDir(
 			}
 			state.hasStale = true
 			state.allNew = state.allNew && !state.hasUpToDate
-			*syncCandidates = append(*syncCandidates, f)
+			*syncCandidates = append(*syncCandidates, file.path)
 		} else {
 			state.hasUpToDate = true
 			state.allNew = false

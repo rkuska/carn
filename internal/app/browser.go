@@ -275,12 +275,6 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		m.syncTranscriptSelection(cmds)
 		return nil
 
-	case key.Matches(msg, browserKeys.Copy):
-		return m.copySelectedTranscript()
-
-	case key.Matches(msg, browserKeys.Export):
-		return m.exportSelectedTranscript()
-
 	case key.Matches(msg, browserKeys.Editor):
 		if conv, ok := m.selectedConversation(); ok {
 			return openInEditorCmd(conv.latestFilePath())
@@ -306,34 +300,6 @@ func (m *browserModel) selectedConversation() (conversation, bool) {
 
 	conv, ok := item.(conversation)
 	return conv, ok
-}
-
-func (m *browserModel) copySelectedTranscript() tea.Cmd {
-	conv, ok := m.selectedConversation()
-	if !ok {
-		return nil
-	}
-	if session, cached := m.currentTranscriptSession(conv.id()); cached {
-		return copyTranscriptCmd(session, m.currentTranscriptOptions(conv.id()))
-	}
-	if session, cached := m.sessionCache[conv.id()]; cached {
-		return copyTranscriptCmd(session, transcriptOptions{})
-	}
-	return copyFromConversationCmd(m.ctx, conv)
-}
-
-func (m *browserModel) exportSelectedTranscript() tea.Cmd {
-	conv, ok := m.selectedConversation()
-	if !ok {
-		return nil
-	}
-	if session, cached := m.currentTranscriptSession(conv.id()); cached {
-		return exportTranscriptCmd(session, m.currentTranscriptOptions(conv.id()))
-	}
-	if session, cached := m.sessionCache[conv.id()]; cached {
-		return exportTranscriptCmd(session, transcriptOptions{})
-	}
-	return exportFromConversationCmd(m.ctx, conv)
 }
 
 func (m *browserModel) setNotification(n notification, cmds *[]tea.Cmd) {
@@ -451,20 +417,6 @@ func (m browserModel) shouldUpdateViewer(isKey bool) bool {
 		return false
 	}
 	return m.transcriptFocused()
-}
-
-func (m browserModel) currentTranscriptSession(convID string) (sessionFull, bool) {
-	if m.openConversationID == convID && m.viewer.session.meta.id == convID {
-		return m.viewer.session, true
-	}
-	return sessionFull{}, false
-}
-
-func (m browserModel) currentTranscriptOptions(convID string) transcriptOptions {
-	if m.openConversationID == convID {
-		return m.viewer.opts
-	}
-	return transcriptOptions{}
 }
 
 func (m *browserModel) addToCache(id string) {

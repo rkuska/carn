@@ -46,8 +46,6 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "ctrl+f/b", desc: "page"},
 		{key: "/", desc: "filter"},
 		{key: "enter", desc: "open"},
-		{key: "y", desc: "copy"},
-		{key: "e", desc: "export"},
 		{key: "o", desc: "editor"},
 		{key: "r", desc: "resume"},
 		{key: "ctrl+s", desc: "deep"},
@@ -106,8 +104,6 @@ func (m browserModel) helpSections() []helpSection {
 	actions := []helpItem{
 		{key: "/", desc: "filter list"},
 		{key: "enter", desc: "open transcript"},
-		{key: "y", desc: "copy transcript"},
-		{key: "e", desc: "export markdown"},
 		{key: "o", desc: "open in editor"},
 		{key: "r", desc: "resume session"},
 		{key: "ctrl+s", desc: "toggle deep search"},

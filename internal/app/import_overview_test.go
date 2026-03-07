@@ -143,13 +143,21 @@ func TestImportOverviewSyncCompletion(t *testing.T) {
 	m.phase = phaseSyncing
 	m.files = []string{filepath.Join(dir, "source", "a.jsonl")}
 	m.total = 1
-	m.nextIndex = 1
-	m.inFlight = 1
-	m.startTime = time.Now()
 
-	// Simulate file copied
-	m, _ = m.Update(importSyncFileCopiedMsg{
-		file: filepath.Join(dir, "source", "a.jsonl"),
+	// Simulate progress and completion
+	m, _ = m.Update(importSyncProgressMsg{
+		progress: syncProgress{
+			current: 1,
+			total:   1,
+			file:    "a.jsonl",
+			copied:  1,
+		},
+	})
+	m, _ = m.Update(importSyncFinishedMsg{
+		result: syncResult{
+			copied:  1,
+			elapsed: time.Second,
+		},
 	})
 
 	if m.phase != phaseDone {
@@ -573,14 +581,21 @@ func TestImportOverviewSyncFailure(t *testing.T) {
 	m.phase = phaseSyncing
 	m.files = []string{"a.jsonl"}
 	m.total = 1
-	m.nextIndex = 1
-	m.inFlight = 1
-	m.startTime = time.Now()
 
 	// Simulate failed copy
-	m, _ = m.Update(importSyncFileCopiedMsg{
-		file: "a.jsonl",
-		err:  fmt.Errorf("copy failed"),
+	m, _ = m.Update(importSyncProgressMsg{
+		progress: syncProgress{
+			current: 1,
+			total:   1,
+			file:    "a.jsonl",
+			failed:  1,
+		},
+	})
+	m, _ = m.Update(importSyncFinishedMsg{
+		result: syncResult{
+			failed:  1,
+			elapsed: time.Second,
+		},
 	})
 
 	if m.phase != phaseDone {

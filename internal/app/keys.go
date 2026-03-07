@@ -8,8 +8,6 @@ type browserKeyMap struct {
 	FocusPane        key.Binding
 	DeepSearch       key.Binding
 	Resume           key.Binding
-	Copy             key.Binding
-	Export           key.Binding
 	Editor           key.Binding
 	Help             key.Binding
 	Close            key.Binding
@@ -36,14 +34,6 @@ var browserKeys = browserKeyMap{
 	Resume: key.NewBinding(
 		key.WithKeys("r", "ctrl+r"),
 		key.WithHelp("r", "resume session"),
-	),
-	Copy: key.NewBinding(
-		key.WithKeys("y", "ctrl+y"),
-		key.WithHelp("y", "copy transcript"),
-	),
-	Export: key.NewBinding(
-		key.WithKeys("e", "ctrl+e"),
-		key.WithHelp("e", "export markdown"),
 	),
 	Editor: key.NewBinding(
 		key.WithKeys("o", "ctrl+o"),

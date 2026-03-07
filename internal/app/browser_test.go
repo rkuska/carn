@@ -378,6 +378,103 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	}
 }
 
+func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	footer := ansi.Strip(b.footerView())
+
+	if strings.Contains(footer, " copy") {
+		t.Fatalf("footer = %q, did not expect list copy action", footer)
+	}
+	if strings.Contains(footer, " export") {
+		t.Fatalf("footer = %q, did not expect list export action", footer)
+	}
+}
+
+func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	sections := b.helpSections()
+
+	for _, section := range sections {
+		for _, item := range section.items {
+			if item.desc == "copy transcript" {
+				t.Fatalf("unexpected copy action in list help: %+v", item)
+			}
+			if item.desc == "export markdown" {
+				t.Fatalf("unexpected export action in list help: %+v", item)
+			}
+		}
+	}
+}
+
+func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	conv := testConv(testConversationIDPrimary)
+	b.list.SetItems([]list.Item{conv})
+	b.list.Select(0)
+
+	cases := []struct {
+		name string
+		msg  tea.KeyPressMsg
+	}{
+		{name: "copy", msg: tea.KeyPressMsg{Text: "y"}},
+		{name: "export", msg: tea.KeyPressMsg{Text: "e"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := b
+			after, cmd := b.Update(tc.msg)
+
+			if cmd != nil {
+				t.Fatalf("cmd != nil for %s in list focus", tc.name)
+			}
+			if after.transcriptMode != before.transcriptMode {
+				t.Fatalf("transcriptMode = %v, want %v", after.transcriptMode, before.transcriptMode)
+			}
+			if after.notification.text != "" {
+				t.Fatalf("notification = %q, want empty", after.notification.text)
+			}
+		})
+	}
+}
+
+func TestBrowserTranscriptFocusAllowsCopyAndExport(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	cases := []struct {
+		name string
+		msg  tea.KeyPressMsg
+	}{
+		{name: "copy", msg: tea.KeyPressMsg{Text: "y"}},
+		{name: "export", msg: tea.KeyPressMsg{Text: "e"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, cmd := b.Update(tc.msg)
+			if cmd == nil {
+				t.Fatalf("expected %s command in transcript focus", tc.name)
+			}
+		})
+	}
+}
+
 func TestBrowserSplitViewKeepsWindowHeightWithLongListItems(t *testing.T) {
 	t.Parallel()
 

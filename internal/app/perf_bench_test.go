@@ -33,6 +33,36 @@ func makeBenchArchive(b *testing.B, projects, sessionsPerProject int) string {
 	return base
 }
 
+func makeBenchArchiveLongConversations(
+	b *testing.B,
+	projects, sessionsPerProject, assistantTurns int,
+) string {
+	b.Helper()
+	base := b.TempDir()
+
+	for p := range projects {
+		projDir := filepath.Join(base, fmt.Sprintf("project-%d", p))
+		if err := os.MkdirAll(projDir, 0o755); err != nil {
+			b.Fatalf("MkdirAll: %v", err)
+		}
+		for s := range sessionsPerProject {
+			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
+			content := benchSessionJSONLLongConversation(
+				b,
+				sessionID,
+				assistantTurns,
+				s%9 == 0,
+			)
+			path := filepath.Join(projDir, sessionID+".jsonl")
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				b.Fatalf("WriteFile: %v", err)
+			}
+		}
+	}
+
+	return base
+}
+
 func benchSessionJSONL(tb testing.TB, sessionID string, includeNeedle bool) string {
 	tb.Helper()
 
@@ -102,6 +132,83 @@ func benchSessionJSONL(tb testing.TB, sessionID string, includeNeedle bool) stri
 	return strings.Join(encoded, "\n")
 }
 
+func benchSessionJSONLLongConversation(
+	tb testing.TB,
+	sessionID string,
+	assistantTurns int,
+	includeNeedle bool,
+) string {
+	tb.Helper()
+
+	needle := ""
+	if includeNeedle {
+		needle = " IMPORTANT_NEEDLE "
+	}
+	now := time.Now().UTC()
+
+	lines := make([]map[string]any, 0, 1+assistantTurns*2)
+	lines = append(lines, map[string]any{
+		"type":      "user",
+		"sessionId": sessionID,
+		"slug":      "bench",
+		"cwd":       "/tmp/bench",
+		"gitBranch": "main",
+		"version":   "1",
+		"timestamp": now.Format(time.RFC3339Nano),
+		"message": map[string]any{
+			"role":    "user",
+			"content": "first message " + needle,
+		},
+	})
+
+	for i := range assistantTurns {
+		ts := now.Add(time.Duration(i+1) * time.Second).Format(time.RFC3339Nano)
+		lines = append(lines, map[string]any{
+			"type":      "assistant",
+			"timestamp": ts,
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude",
+				"content": []map[string]any{
+					{"type": "text", "text": fmt.Sprintf("assistant reply %d%s", i, needle)},
+					{
+						"type":  "tool_use",
+						"id":    fmt.Sprintf("t-%d", i),
+						"name":  "Read",
+						"input": map[string]any{"file_path": "/tmp/test.go"},
+					},
+				},
+				"usage": map[string]any{
+					"input_tokens":                100,
+					"output_tokens":               50,
+					"cache_read_input_tokens":     10,
+					"cache_creation_input_tokens": 5,
+				},
+			},
+		})
+		lines = append(lines, map[string]any{
+			"type":      "user",
+			"sessionId": sessionID,
+			"timestamp": now.Add(time.Duration(i+1)*time.Second + 500*time.Millisecond).Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": fmt.Sprintf("followup %d", i),
+			},
+		})
+	}
+
+	encoded := make([]string, 0, len(lines))
+	for _, line := range lines {
+		raw, err := json.Marshal(line)
+		if err != nil {
+			tb.Fatalf("json.Marshal: %v", err)
+		}
+		encoded = append(encoded, string(raw))
+	}
+
+	return strings.Join(encoded, "\n")
+}
+
 func benchViewerSession(messages int, withNeedle bool) sessionFull {
 	msgs := make([]message, 0, messages*2)
 	for i := range messages {
@@ -126,6 +233,22 @@ func benchViewerSession(messages int, withNeedle bool) sessionFull {
 func BenchmarkScanSessions(b *testing.B) {
 	ctx := context.Background()
 	archive := makeBenchArchive(b, 6, 60)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sessions, err := scanSessions(ctx, archive)
+		if err != nil {
+			b.Fatalf("scanSessions: %v", err)
+		}
+		if len(sessions) == 0 {
+			b.Fatal("scanSessions returned no sessions")
+		}
+	}
+}
+
+func BenchmarkScanSessionsLongConversations(b *testing.B) {
+	ctx := context.Background()
+	archive := makeBenchArchiveLongConversations(b, 4, 30, 24)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
