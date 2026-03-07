@@ -9,6 +9,7 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestImportOverviewModelInit(t *testing.T) {
@@ -266,9 +267,20 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 			conversations:  10,
 		}
 
-		view := m.View()
+		view := ansi.Strip(m.View())
 		if view == "" {
 			t.Error("expected non-empty view")
+		}
+		if !strings.Contains(view, "Import Workspace") {
+			t.Fatalf("expected unified import title, got: %s", view)
+		}
+		for _, label := range []string{"Source", "Archive", "Projects", "Files", "Conversations"} {
+			if !strings.Contains(view, label) {
+				t.Fatalf("expected persistent dashboard section %q, got: %s", label, view)
+			}
+		}
+		if !strings.Contains(view, "Scanning Claude projects") {
+			t.Fatalf("expected analyzing status copy, got: %s", view)
 		}
 	})
 
@@ -290,9 +302,21 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 			filesToSync:      []string{"a.jsonl"},
 		}
 
-		view := m.View()
+		view := ansi.Strip(m.View())
 		if view == "" {
 			t.Error("expected non-empty view")
+		}
+		if !strings.Contains(view, "Ready to Import") {
+			t.Fatalf("expected ready status, got: %s", view)
+		}
+		if !strings.Contains(view, "Projects") || !strings.Contains(view, "Current") {
+			t.Fatalf("expected review summary metrics, got: %s", view)
+		}
+		if !strings.Contains(view, "Will import") {
+			t.Fatalf("expected import summary, got: %s", view)
+		}
+		if !strings.Contains(view, "Press Enter to import") {
+			t.Fatalf("expected import CTA, got: %s", view)
 		}
 	})
 
@@ -308,9 +332,15 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 			upToDate:   10,
 		}
 
-		view := m.View()
+		view := ansi.Strip(m.View())
 		if view == "" {
 			t.Error("expected non-empty view")
+		}
+		if !strings.Contains(view, "No import needed") {
+			t.Fatalf("expected no-op outcome, got: %s", view)
+		}
+		if !strings.Contains(view, "Press Enter to continue") {
+			t.Fatalf("expected continue CTA, got: %s", view)
 		}
 	})
 
@@ -322,11 +352,24 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.phase = phaseSyncing
 		m.total = 5
 		m.current = 2
+		m.result = syncResult{copied: 1, failed: 1}
 		m.currentFile = "test.jsonl"
 
-		view := m.View()
+		view := ansi.Strip(m.View())
 		if view == "" {
 			t.Error("expected non-empty view")
+		}
+		if !strings.Contains(view, "Importing") {
+			t.Fatalf("expected syncing status, got: %s", view)
+		}
+		if !strings.Contains(view, "2/5") {
+			t.Fatalf("expected progress counts, got: %s", view)
+		}
+		if !strings.Contains(view, "Copied") || !strings.Contains(view, "Failed") {
+			t.Fatalf("expected sync counters, got: %s", view)
+		}
+		if !strings.Contains(view, "test.jsonl") {
+			t.Fatalf("expected current file, got: %s", view)
 		}
 	})
 
@@ -336,11 +379,24 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.width = 120
 		m.height = 40
 		m.phase = phaseDone
+		m.total = 3
 		m.result = syncResult{copied: 3, failed: 0, elapsed: time.Second}
 
-		view := m.View()
+		view := ansi.Strip(m.View())
 		if view == "" {
 			t.Error("expected non-empty view")
+		}
+		if !strings.Contains(view, "Import Workspace") {
+			t.Fatalf("expected unified import title, got: %s", view)
+		}
+		if !strings.Contains(view, "Complete") {
+			t.Fatalf("expected completion status, got: %s", view)
+		}
+		if !strings.Contains(view, "Elapsed") {
+			t.Fatalf("expected elapsed summary, got: %s", view)
+		}
+		if !strings.Contains(view, "Press Enter to continue") {
+			t.Fatalf("expected continue CTA, got: %s", view)
 		}
 	})
 
@@ -373,12 +429,12 @@ func TestImportOverviewViewPreservesBottomContentWhenPathsWrap(t *testing.T) {
 		archiveDir: cfg.archiveDir,
 	}
 
-	view := m.View()
-	if !strings.Contains(view, "Press") {
-		t.Fatalf("expected wrapped import overview to keep bottom hint visible, got: %s", view)
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "Press Enter to continue") {
+		t.Fatalf("expected wrapped import overview to keep continue CTA visible, got: %s", view)
 	}
-	if !strings.Contains(view, "continue") {
-		t.Fatalf("expected wrapped import overview to keep continue hint visible, got: %s", view)
+	if !strings.Contains(view, "Source") || !strings.Contains(view, "Archive") {
+		t.Fatalf("expected wrapped import overview to keep path context visible, got: %s", view)
 	}
 }
 

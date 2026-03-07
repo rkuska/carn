@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -329,14 +327,8 @@ func (m importOverviewModel) View() string {
 	switch {
 	case m.helpOpen:
 		body = renderHelpOverlay(m.width, m.height, "Import Help", m.helpSections())
-	case m.phase == phaseAnalyzing:
-		body = m.viewAnalyzing()
-	case m.phase == phaseReady:
-		body = m.viewReady()
-	case m.phase == phaseSyncing:
-		body = m.viewSyncing()
-	case m.phase == phaseDone:
-		body = m.viewDone()
+	default:
+		body = m.viewDashboard()
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, body, m.footerView())
@@ -368,7 +360,7 @@ func (m importOverviewModel) footerItems() []helpItem {
 	case phaseReady:
 		action := "continue"
 		if m.analysis.needsSync() {
-			action = "sync"
+			action = "import"
 		}
 		return []helpItem{
 			{key: "enter", desc: action},
@@ -415,119 +407,6 @@ func (m importOverviewModel) phaseLabel() string {
 	}
 }
 
-func (m importOverviewModel) viewAnalyzing() string {
-	boxWidth := min(m.width/2, 50)
-
-	var lines []string
-	lines = append(lines, "")
-	lines = append(lines, m.renderPaths(boxWidth))
-	lines = append(lines, "")
-	lines = append(lines,
-		fmt.Sprintf("   %s Analyzing files...", m.spinner.View()),
-	)
-	lines = append(lines, "")
-
-	p := m.analysisProgress
-	lines = append(lines, fmt.Sprintf("   %d files inspected", p.filesInspected))
-	if p.conversations > 0 {
-		lines = append(lines, fmt.Sprintf("   %d conversations", p.conversations))
-		lines = append(lines, fmt.Sprintf("   %d new · %d to update", p.newConversations, p.toUpdate))
-	}
-	lines = append(lines, "")
-	lines = append(lines, renderKeyHint("   enter after analysis · q to quit"))
-	lines = append(lines, "")
-
-	return m.renderBox("Import Overview", boxWidth, strings.Join(lines, "\n"))
-}
-
-func (m importOverviewModel) viewReady() string {
-	boxWidth := min(m.width/2, 50)
-	a := m.analysis
-
-	var lines []string
-	lines = append(lines, "")
-	lines = append(lines, m.renderPaths(boxWidth))
-	lines = append(lines, "")
-	lines = append(lines,
-		fmt.Sprintf("   %d files · %d projects", a.filesInspected, a.projects),
-	)
-	lines = append(lines,
-		fmt.Sprintf("   %d conversations", a.conversations),
-	)
-	lines = append(lines, "")
-
-	if a.newConversations > 0 {
-		lines = append(lines, fmt.Sprintf("   %d new", a.newConversations))
-	}
-	if a.toUpdate > 0 {
-		lines = append(lines, fmt.Sprintf("   %d to update", a.toUpdate))
-	}
-	if a.upToDate > 0 {
-		lines = append(lines, fmt.Sprintf("   %d up-to-date", a.upToDate))
-	}
-
-	lines = append(lines, "")
-	if a.needsSync() {
-		lines = append(lines, renderKeyHint("   Press ", "Enter", " to sync · q to quit"))
-	} else {
-		lines = append(lines, renderKeyHint("   Press ", "Enter", " to continue · q to quit"))
-	}
-	lines = append(lines, "")
-
-	return m.renderBox("Import Overview", boxWidth, strings.Join(lines, "\n"))
-}
-
-func (m importOverviewModel) viewSyncing() string {
-	boxWidth := min(m.width/2, 50)
-
-	var lines []string
-	lines = append(lines, "")
-	lines = append(lines,
-		fmt.Sprintf("   %s Syncing files...", m.spinner.View()),
-	)
-	lines = append(lines, "")
-
-	if m.total > 0 {
-		pct := float64(m.current) / float64(m.total)
-		lines = append(lines,
-			fmt.Sprintf("   %s %d/%d", m.progress.ViewAs(pct), m.current, m.total),
-		)
-	}
-
-	lines = append(lines, fmt.Sprintf("   Copied  %d/%d", m.result.copied, m.total))
-	if m.result.failed > 0 {
-		lines = append(lines, fmt.Sprintf("   Failed  %d/%d", m.result.failed, m.total))
-	}
-
-	if m.currentFile != "" {
-		lines = append(lines, "   "+styleSubtitle.Render(m.currentFile))
-	}
-	lines = append(lines, "")
-
-	return m.renderBox("Import Overview", boxWidth, strings.Join(lines, "\n"))
-}
-
-func (m importOverviewModel) viewDone() string {
-	boxWidth := min(m.width/2, 40)
-
-	var lines []string
-	lines = append(lines, "")
-	lines = append(lines,
-		fmt.Sprintf("   Copied   %d/%d files", m.result.copied, m.total),
-	)
-	lines = append(lines,
-		fmt.Sprintf("   Failed   %d/%d files", m.result.failed, m.total),
-	)
-	lines = append(lines,
-		fmt.Sprintf("   Elapsed  %s", formatElapsed(m.result.elapsed)),
-	)
-	lines = append(lines, "")
-	lines = append(lines, renderKeyHint("   Press ", "Enter", " to continue"))
-	lines = append(lines, "")
-
-	return m.renderBox("Sync Complete", boxWidth, strings.Join(lines, "\n"))
-}
-
 // renderKeyHint renders a hint line with the key name highlighted white when
 // active, or entirely grey when disabled. The surrounding text is always grey.
 func renderKeyHint(parts ...string) string {
@@ -547,34 +426,14 @@ func renderKeyHint(parts ...string) string {
 // formatElapsed formats a duration showing milliseconds for sub-second durations.
 func formatElapsed(d time.Duration) string {
 	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
+		return (time.Duration(d.Milliseconds()) * time.Millisecond).String()
 	}
-	return fmt.Sprintf("%.1fs", d.Seconds())
-}
-
-func (m importOverviewModel) renderPaths(_ int) string {
-	srcLabel := styleMetaLabel.Render("Source")
-	dstLabel := styleMetaLabel.Render("Archive")
-	srcVal := styleMetaValue.Render(shortenPath(m.cfg.sourceDir))
-	dstVal := styleMetaValue.Render(shortenPath(m.cfg.archiveDir))
-	return fmt.Sprintf("   %s   %s\n   %s  %s", srcLabel, srcVal, dstLabel, dstVal)
+	return d.Round(100 * time.Millisecond).String()
 }
 
 func (m importOverviewModel) renderBox(title string, boxWidth int, content string) string {
 	box := renderFramedBox(title, boxWidth, colorPrimary, content)
 	return lipgloss.Place(m.width, max(m.height-framedFooterRows, 1), lipgloss.Center, lipgloss.Center, box)
-}
-
-// shortenPath replaces the home directory with ~ for display.
-func shortenPath(p string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return p
-	}
-	if rest, ok := strings.CutPrefix(p, home); ok {
-		return "~" + rest
-	}
-	return p
 }
 
 // Commands
