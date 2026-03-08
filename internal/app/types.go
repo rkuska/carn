@@ -15,9 +15,7 @@ const (
 )
 
 type project struct {
-	dirName     string
 	displayName string
-	path        string
 }
 
 type tokenUsage struct {
@@ -32,7 +30,6 @@ func (u tokenUsage) totalTokens() int {
 }
 
 type toolResult struct {
-	toolUseID       string
 	toolName        string
 	toolSummary     string
 	content         string
@@ -49,24 +46,22 @@ type diffHunk struct {
 }
 
 type sessionMeta struct {
-	id                     string
-	project                project
-	slug                   string
-	timestamp              time.Time
-	lastTimestamp          time.Time
-	cwd                    string
-	gitBranch              string
-	version                string
-	model                  string
-	firstMessage           string
-	messageCount           int
-	mainMessageCount       int
-	filePath               string
-	totalUsage             tokenUsage
-	toolCounts             map[string]int
-	hasConversationContent bool
-	isSubagent             bool
-	parentSessionID        string
+	id               string
+	project          project
+	slug             string
+	timestamp        time.Time
+	lastTimestamp    time.Time
+	cwd              string
+	gitBranch        string
+	version          string
+	model            string
+	firstMessage     string
+	messageCount     int
+	mainMessageCount int
+	filePath         string
+	totalUsage       tokenUsage
+	toolCounts       map[string]int
+	isSubagent       bool
 }
 
 const maxSlugFromMessage = 40
@@ -148,26 +143,19 @@ func (s sessionMeta) Description() string {
 type sessionFull struct {
 	meta     sessionMeta
 	messages []message
-	linked   []linkedTranscript
 }
 
 type message struct {
 	role           role
-	timestamp      time.Time
 	text           string
 	thinking       string
 	toolCalls      []toolCall
 	toolResults    []toolResult
-	usage          tokenUsage
-	stopReason     string
-	uuid           string
-	parentUUID     string
 	isSidechain    bool
 	isAgentDivider bool
 }
 
 type toolCall struct {
-	id      string
 	name    string
 	summary string
 }

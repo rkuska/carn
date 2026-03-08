@@ -68,8 +68,7 @@ func TestRenderStyledToolResult(t *testing.T) {
 		{
 			name: "fallback header for unnamed tool",
 			tr: toolResult{
-				toolUseID: "toolu_xyz",
-				content:   "output",
+				content: "output",
 			},
 			width:    80,
 			contains: []string{"Result", "output"},
@@ -263,8 +262,7 @@ func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
 	initPalette(true)
 
 	tr := toolResult{
-		toolUseID: "toolu_xyz",
-		content:   "first line of output\nsecond line",
+		content: "first line of output\nsecond line",
 	}
 	got := renderStyledToolResult(tr, 80)
 	stripped := ansi.Strip(got)

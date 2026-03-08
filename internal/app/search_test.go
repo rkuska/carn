@@ -25,7 +25,7 @@ func TestBuildSessionSearchBlob(t *testing.T) {
 					{name: "Read", summary: "README.md"},
 				},
 				toolResults: []toolResult{
-					{toolUseID: "t1", content: "Tool Output"},
+					{content: "Tool Output"},
 				},
 			},
 		},
@@ -52,7 +52,7 @@ func TestFindSessionSearchPreview(t *testing.T) {
 func testConversation(id, slug string) conversation {
 	return conversation{
 		name:    slug,
-		project: project{dirName: "test", displayName: "test"},
+		project: project{displayName: "test"},
 		sessions: []sessionMeta{
 			{id: id, slug: slug, filePath: "/nonexistent/" + id + ".jsonl", timestamp: time.Now()},
 		},
@@ -143,14 +143,14 @@ func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
 
 	conv := conversation{
 		name:    "demo",
-		project: project{dirName: "proj", displayName: "proj"},
+		project: project{displayName: "proj"},
 		sessions: []sessionMeta{
 			{
 				id:        parentID,
 				slug:      "demo",
 				filePath:  parentPath,
 				timestamp: time.Now(),
-				project:   project{dirName: "proj", displayName: "proj"},
+				project:   project{displayName: "proj"},
 			},
 		},
 	}

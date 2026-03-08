@@ -274,8 +274,12 @@ func analyzeProjectDir(
 	seen map[groupKey]*conversationState,
 	syncCandidates *[]string,
 ) (filesInspected int, err error) {
-	proj := projectFromDirName(filepath.Base(projDir))
-	files, err := discoverProjectSessionFiles(projDir, proj)
+	dirName := filepath.Base(projDir)
+	files, err := discoverProjectSessionFiles(
+		projDir,
+		project{displayName: projectFromDirName(dirName).displayName},
+		dirName,
+	)
 	if err != nil {
 		return 0, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
@@ -294,9 +298,9 @@ func analyzeProjectDir(
 		// (matching groupConversations logic)
 		var gk groupKey
 		if file.isSubagent || slug == "" {
-			gk = groupKey{dirName: proj.dirName, slug: file.path} // unique per file
+			gk = groupKey{dirName: dirName, slug: file.path} // unique per file
 		} else {
-			gk = groupKey{dirName: proj.dirName, slug: slug}
+			gk = groupKey{dirName: dirName, slug: slug}
 		}
 
 		// Classify this file

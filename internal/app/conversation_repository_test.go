@@ -71,10 +71,9 @@ func TestLoadSessionsCmdWithRepositorySortsAndFilters(t *testing.T) {
 		project: project{displayName: "proj"},
 		sessions: []sessionMeta{
 			{
-				id:                     "older",
-				project:                project{displayName: "proj"},
-				timestamp:              time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC),
-				hasConversationContent: true,
+				id:        "older",
+				project:   project{displayName: "proj"},
+				timestamp: time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC),
 			},
 		},
 	}
@@ -84,25 +83,16 @@ func TestLoadSessionsCmdWithRepositorySortsAndFilters(t *testing.T) {
 		project: project{displayName: "proj"},
 		sessions: []sessionMeta{
 			{
-				id:                     "newer",
-				project:                project{displayName: "proj"},
-				timestamp:              time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
-				hasConversationContent: true,
+				id:        "newer",
+				project:   project{displayName: "proj"},
+				timestamp: time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
 			},
-		},
-	}
-	commandOnly := conversation{
-		ref:     conversationRef{provider: provider, id: "command-only"},
-		name:    "command-only",
-		project: project{displayName: "proj"},
-		sessions: []sessionMeta{
-			{id: "command-only", project: project{displayName: "proj"}},
 		},
 	}
 
 	source := &fakeConversationSource{
 		sourceProvider: provider,
-		scanResult:     []conversation{older, commandOnly, newer},
+		scanResult:     []conversation{older, newer},
 	}
 
 	msg := loadSessionsCmdWithRepository(

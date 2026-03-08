@@ -253,41 +253,54 @@ type groupKey struct {
 	slug    string
 }
 
-// groupConversations groups sessions by (project.dirName, slug) into conversations.
-// Sessions with empty slug or subagent sessions are not grouped — each becomes
-// its own single-session conversation. Within each group, sessions are sorted
-// by timestamp ascending. The returned conversations are unsorted — caller sorts.
-func groupConversations(sessions []sessionMeta) []conversation {
-	groups := make(map[groupKey][]sessionMeta)
-	var ungrouped []sessionMeta
+// groupConversations groups scanned sessions by local grouping keys into
+// renderable conversations. Sessions with empty slug or subagent sessions are
+// not grouped. Conversations with no renderable content are dropped before
+// reaching the browser list.
+func groupConversations(sessions []scannedSession) []conversation {
+	groups := make(map[groupKey][]scannedSession)
+	var ungrouped []scannedSession
 
-	for _, s := range sessions {
-		if s.isSubagent || s.slug == "" {
-			ungrouped = append(ungrouped, s)
+	for _, session := range sessions {
+		if session.meta.isSubagent || session.meta.slug == "" {
+			ungrouped = append(ungrouped, session)
 			continue
 		}
-		key := groupKey{dirName: s.project.dirName, slug: s.slug}
-		groups[key] = append(groups[key], s)
+		groups[session.groupKey] = append(groups[session.groupKey], session)
 	}
 
 	conversations := make([]conversation, 0, len(groups)+len(ungrouped))
 
 	for key, members := range groups {
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].timestamp.Before(members[j].timestamp)
+		renderable := false
+		metaMembers := make([]sessionMeta, len(members))
+		for i, member := range members {
+			metaMembers[i] = member.meta
+			if member.hasConversationContent {
+				renderable = true
+			}
+		}
+		if !renderable {
+			continue
+		}
+		sort.Slice(metaMembers, func(i, j int) bool {
+			return metaMembers[i].timestamp.Before(metaMembers[j].timestamp)
 		})
 		conversations = append(conversations, conversation{
 			name:     key.slug,
-			project:  members[0].project,
-			sessions: members,
+			project:  metaMembers[0].project,
+			sessions: metaMembers,
 		})
 	}
 
-	for _, s := range ungrouped {
+	for _, session := range ungrouped {
+		if !session.hasConversationContent {
+			continue
+		}
 		conversations = append(conversations, conversation{
-			name:     s.slug,
-			project:  s.project,
-			sessions: []sessionMeta{s},
+			name:     session.meta.slug,
+			project:  session.meta.project,
+			sessions: []sessionMeta{session.meta},
 		})
 	}
 
