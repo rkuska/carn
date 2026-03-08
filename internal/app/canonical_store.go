@@ -10,13 +10,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -42,6 +46,12 @@ type searchUnit struct {
 
 type searchCorpus struct {
 	units []searchUnit
+}
+
+type parseResult struct {
+	key     string
+	session sessionFull
+	units   []searchUnit
 }
 
 func (c searchCorpus) Len() int {
@@ -122,17 +132,68 @@ func fullRebuild(
 	ctx context.Context,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
+	transcripts, corpus, err := parseConversationsParallel(ctx, conversations)
+	if err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallel: %w", err)
+	}
+	return transcripts, corpus, nil
+}
+
+func parseConversationsParallel(
+	ctx context.Context,
+	conversations []conversation,
+) (map[string]sessionFull, searchCorpus, error) {
 	transcripts := make(map[string]sessionFull, len(conversations))
 	corpus := searchCorpus{units: make([]searchUnit, 0)}
-	for _, conv := range conversations {
-		session, err := parseConversationWithSubagents(ctx, conv)
-		if err != nil {
-			return nil, searchCorpus{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
-		}
-		key := conv.cacheKey()
-		transcripts[key] = session
-		corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
+	if len(conversations) == 0 {
+		return transcripts, corpus, nil
 	}
+
+	results := make([]parseResult, len(conversations))
+	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for i := range conversations {
+		index := i
+		conv := conversations[i]
+
+		group.Go(func() error {
+			if err := sem.Acquire(groupCtx, 1); err != nil {
+				return fmt.Errorf("sem.Acquire_%s: %w", conv.cacheKey(), err)
+			}
+			defer sem.Release(1)
+
+			session, err := parseConversationWithSubagents(groupCtx, conv)
+			if err != nil {
+				return fmt.Errorf("parseConversationWithSubagents_%s: %w", conv.cacheKey(), err)
+			}
+
+			key := conv.cacheKey()
+			results[index] = parseResult{
+				key:     key,
+				session: session,
+				units:   buildSearchUnits(key, session),
+			}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("errgroup.Wait: %w", err)
+	}
+
+	totalUnits := 0
+	for _, result := range results {
+		totalUnits += len(result.units)
+	}
+	corpus.units = make([]searchUnit, 0, totalUnits)
+
+	// Merge results in input order to keep deep-search previews stable.
+	for _, result := range results {
+		transcripts[result.key] = result.session
+		corpus.units = append(corpus.units, result.units...)
+	}
+
 	return transcripts, corpus, nil
 }
 
@@ -187,15 +248,13 @@ func tryIncrementalRebuild(
 	toParse = append(toParse, plan.changed...)
 	toParse = append(toParse, plan.added...)
 
-	for _, conv := range toParse {
-		session, err := parseConversationWithSubagents(ctx, conv)
-		if err != nil {
-			return nil, searchCorpus{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
-		}
-		key := conv.cacheKey()
-		transcripts[key] = session
-		corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
+	parsedTranscripts, parsedCorpus, err := parseConversationsParallel(ctx, toParse)
+	if err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallel: %w", err)
 	}
+
+	maps.Copy(transcripts, parsedTranscripts)
+	corpus.units = append(corpus.units, parsedCorpus.units...)
 
 	return transcripts, corpus, nil
 }

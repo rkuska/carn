@@ -181,7 +181,13 @@ go fix ./...
 
 Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents|CanonicalStoreParseConversations|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
+```
+
+When identifying optimization candidates, always start with a benchmark for the target path and inspect a CPU profile before coding:
+```bash
+go test -run '^$' -bench '<benchmark>' -cpuprofile /tmp/carn.cpu ./internal/app
+go tool pprof -top /tmp/carn.cpu
 ```
 
 Keep benchmark scenarios in `perf_bench_test.go` and update `PERF_BASELINE.md`

@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -30,24 +33,41 @@ type sessionFile struct {
 	isSubagent   bool
 }
 
+type scannedSessionResult struct {
+	session scannedSession
+	ok      bool
+}
+
+type parsedSessionMessagesResult struct {
+	messages []parsedMessage
+	ok       bool
+}
+
 // scanSessions discovers all session JSONL files and extracts metadata.
 func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("scanSessions_ctx: %w", err)
+	}
+
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("os.ReadDir: %w", err)
 	}
 
 	log := zerolog.Ctx(ctx)
-	var sessions []scannedSession
+	var files []sessionFile
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("scanSessions_ctx: %w", err)
+		}
 		if !entry.IsDir() {
 			continue
 		}
 		projDir := filepath.Join(baseDir, entry.Name())
 		proj := projectFromDirName(entry.Name())
 
-		files, err := discoverProjectSessionFiles(
+		projectFiles, err := discoverProjectSessionFiles(
 			projDir,
 			project{displayName: proj.displayName},
 			proj.dirName,
@@ -57,13 +77,61 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error)
 			continue
 		}
 
-		for _, file := range files {
-			scanned, err := scanSessionFile(ctx, file)
-			if err != nil {
-				log.Debug().Err(err).Msgf("skipping %s", file.path)
-				continue
+		files = append(files, projectFiles...)
+	}
+
+	sessions, err := scanSessionFilesParallel(ctx, files)
+	if err != nil {
+		return nil, fmt.Errorf("scanSessionFilesParallel: %w", err)
+	}
+	return sessions, nil
+}
+
+func scanSessionFilesParallel(
+	ctx context.Context,
+	files []sessionFile,
+) ([]scannedSession, error) {
+	log := zerolog.Ctx(ctx)
+	results := make([]scannedSessionResult, len(files))
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for i := range files {
+		index := i
+		file := files[i]
+
+		group.Go(func() error {
+			if err := sem.Acquire(groupCtx, 1); err != nil {
+				return fmt.Errorf("sem.Acquire_%s: %w", file.path, err)
 			}
-			sessions = append(sessions, scanned)
+			defer sem.Release(1)
+
+			scanned, err := scanSessionFile(groupCtx, file)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("scanSessionFile_%s: %w", file.path, err)
+				}
+				log.Debug().Err(err).Msgf("skipping %s", file.path)
+				return nil
+			}
+
+			results[index] = scannedSessionResult{session: scanned, ok: true}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("errgroup.Wait: %w", err)
+	}
+
+	sessions := make([]scannedSession, 0, len(files))
+	for _, result := range results {
+		if result.ok {
+			sessions = append(sessions, result.session)
 		}
 	}
 
@@ -194,6 +262,10 @@ func scanMetadataLine(
 }
 
 func scanMetadataResult(ctx context.Context, filePath string, proj project) (scannedSession, error) {
+	if err := ctx.Err(); err != nil {
+		return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", err)
+	}
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		return scannedSession{}, fmt.Errorf("os.Open: %w", err)
@@ -211,6 +283,10 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	stats := scanStats{toolCounts: make(map[string]int)}
 
 	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", err)
+		}
+
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -720,23 +796,74 @@ func parseConversation(ctx context.Context, conv conversation) (sessionFull, err
 }
 
 func parseConversationMessagesDetailed(ctx context.Context, conv conversation) ([]parsedMessage, tokenUsage, error) {
-	var allMessages []parsedMessage
-	for _, path := range conv.filePaths() {
-		if err := ctx.Err(); err != nil {
-			return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_ctx: %w", err)
-		}
-
-		msgs, err := parseSessionMessagesDetailed(ctx, path)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_parseSessionMessagesDetailed: %w", err)
-			}
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseSessionMessagesDetailed failed for %s", path)
-			continue
-		}
-		allMessages = append(allMessages, msgs...)
+	if err := ctx.Err(); err != nil {
+		return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_ctx: %w", err)
 	}
+
+	paths := conv.filePaths()
+	if len(paths) == 0 {
+		return nil, tokenUsage{}, nil
+	}
+
+	results, err := parseConversationPathsParallel(ctx, paths)
+	if err != nil {
+		return nil, tokenUsage{}, fmt.Errorf("parseConversationPathsParallel: %w", err)
+	}
+
+	totalMessages := 0
+	for _, result := range results {
+		totalMessages += len(result.messages)
+	}
+
+	allMessages := make([]parsedMessage, 0, totalMessages)
+	for _, result := range results {
+		if result.ok {
+			allMessages = append(allMessages, result.messages...)
+		}
+	}
+
 	return allMessages, aggregateUsage(allMessages), nil
+}
+
+func parseConversationPathsParallel(
+	ctx context.Context,
+	paths []string,
+) ([]parsedSessionMessagesResult, error) {
+	results := make([]parsedSessionMessagesResult, len(paths))
+	limit := min(len(paths), 4)
+	sem := semaphore.NewWeighted(int64(limit))
+	group, groupCtx := errgroup.WithContext(ctx)
+	log := zerolog.Ctx(ctx)
+
+	for i := range paths {
+		index := i
+		path := paths[i]
+
+		group.Go(func() error {
+			if err := sem.Acquire(groupCtx, 1); err != nil {
+				return fmt.Errorf("sem.Acquire_%s: %w", path, err)
+			}
+			defer sem.Release(1)
+
+			msgs, err := parseSessionMessagesDetailed(groupCtx, path)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("parseSessionMessagesDetailed_%s: %w", path, err)
+				}
+				log.Debug().Err(err).Msgf("parseSessionMessagesDetailed failed for %s", path)
+				return nil
+			}
+
+			results[index] = parsedSessionMessagesResult{messages: msgs, ok: true}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("errgroup.Wait: %w", err)
+	}
+
+	return results, nil
 }
 
 func parseUserMessage(line []byte) (message, bool) {
