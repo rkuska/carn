@@ -201,7 +201,7 @@ func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
 	m := newTestViewer(testSession("search-ansi"), 120, 40)
 
 	// The rendered content will have ANSI escape codes around "hello" (glamour renders markdown).
-	m.searchQuery = "hello"
+	m.searchQuery = testTextHello
 	m.performSearch()
 
 	assert.NotEmpty(t, m.matchIndices)
@@ -249,7 +249,7 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 
 	m := newTestViewer(testSession("footer-match"), 120, 40)
 
-	m.searchQuery = "hello"
+	m.searchQuery = testTextHello
 	m.performSearch()
 
 	require.NotEmpty(t, m.matchIndices)
@@ -283,7 +283,7 @@ func TestViewerFooterSearchKeepsStatusRow(t *testing.T) {
 	m := newTestViewer(testSession("viewer-search-footer"), 120, 40)
 	m.searching = true
 	m.searchInput.Focus()
-	m.searchInput.SetValue("hello")
+	m.searchInput.SetValue(testTextHello)
 	m.notification = infoNotification("search ready").notification
 
 	lines := strings.Split(m.footerView(), "\n")
@@ -294,6 +294,39 @@ func TestViewerFooterSearchKeepsStatusRow(t *testing.T) {
 
 	assert.Contains(t, searchLine, "/hello")
 	assert.Contains(t, statusLine, "search ready")
+}
+
+func TestViewerFooterOrdersItemsByWorkflow(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-footer-order"), 120, 40)
+
+	assert.Equal(
+		t,
+		[]string{"/", "n/N", "t", "T", "R", "s", "y", "o", "?", "q/esc"},
+		helpItemKeys(m.footerItems()),
+	)
+}
+
+func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("viewer-search-cancel"), 120, 40)
+	m.searchQuery = testTextHello
+	m.performSearch()
+	require.NotEmpty(t, m.matchIndices)
+
+	m.searching = true
+	m.searchInput.Focus()
+	m.searchInput.SetValue(testTextHello)
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	assert.False(t, m.searching)
+	assert.Empty(t, m.searchQuery)
+	assert.Empty(t, m.matchIndices)
+	assert.Equal(t, 0, m.currentMatch)
+	assert.Empty(t, m.searchInput.Value())
 }
 
 func TestViewerViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {

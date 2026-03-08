@@ -4,11 +4,11 @@ import "fmt"
 
 func (m browserModel) footerView() string {
 	if m.searchEditing() && !m.transcriptFocused() {
-		return renderSearchFooter(m.width, m.searchInput.View(), m.notification)
+		return renderSearchFooter(m.width, m.searchInput.View(), m.searchFooterRightText(), m.notification)
 	}
 
 	if m.transcriptFocused() && m.viewer.searching {
-		return renderSearchFooter(m.width, m.viewer.searchInput.View(), m.notification)
+		return renderSearchFooter(m.width, m.viewer.searchInput.View(), "", m.notification)
 	}
 
 	if m.helpOpen {
@@ -24,7 +24,7 @@ func (m browserModel) footerView() string {
 	}
 
 	if m.transcriptFocused() {
-		items := append([]helpItem{{key: "O", desc: "layout"}}, m.viewer.footerItems()...)
+		items := m.transcriptFooterItems()
 		status := append([]string{}, m.viewer.footerStatusParts()...)
 		if m.transcriptMode == transcriptFullscreen {
 			status = append(status, "[full]")
@@ -49,17 +49,25 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "G", desc: "bottom"},
 		{key: "ctrl+f/b", desc: "page"},
 		{key: "/", desc: "search"},
+		m.deepSearchToggleItem(),
 		{key: "enter", desc: "open"},
 		{key: "o", desc: "editor"},
 		{key: "r", desc: "resume"},
-		{key: "ctrl+s", desc: "deep"},
-		{key: "?", desc: "help"},
 	}
 
 	if m.transcriptMode == transcriptSplit {
+		items = append(items,
+			m.focusActionItem(),
+			m.layoutActionItem(),
+		)
+	}
+
+	items = append(items,
+		helpItem{key: "?", desc: "help"},
+	)
+
+	if m.transcriptMode == transcriptSplit {
 		return append(items,
-			helpItem{key: "tab", desc: "transcript"},
-			helpItem{key: "O", desc: "fullscreen"},
 			helpItem{key: "q/esc", desc: "close"},
 		)
 	}
@@ -69,11 +77,7 @@ func (m browserModel) listFooterItems() []helpItem {
 
 func (m browserModel) listFooterStatusParts() []string {
 	status := make([]string, 0, 6)
-	if m.search.mode == searchModeDeep {
-		status = append(status, styleToolCall.Render("[DEEP SEARCH]"))
-	} else {
-		status = append(status, styleToolCall.Render("[METADATA]"))
-	}
+	status = append(status, styleToolCall.Render(m.searchScopeStatus()))
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		status = append(status, styleToolCall.Render("[UPDATING]"))
 	}
@@ -105,11 +109,9 @@ func (m browserModel) helpTitle() string {
 
 func (m browserModel) helpSections() []helpSection {
 	if m.transcriptFocused() {
-		extraActions := []helpItem{
-			{key: "O", desc: "toggle split/fullscreen"},
-		}
+		extraActions := []helpItem{m.layoutActionItem()}
 		if m.transcriptMode == transcriptSplit {
-			extraActions = append(extraActions, helpItem{key: "tab", desc: "focus list"})
+			extraActions = append(extraActions, m.focusActionItem())
 		}
 		return m.viewer.helpSections(extraActions)
 	}
@@ -119,12 +121,11 @@ func (m browserModel) helpSections() []helpSection {
 		{key: "enter", desc: "open transcript"},
 		{key: "o", desc: "open in editor"},
 		{key: "r", desc: "resume session"},
-		{key: "ctrl+s", desc: "toggle deep scope"},
 	}
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,
-			helpItem{key: "tab", desc: "focus transcript"},
-			helpItem{key: "O", desc: "show fullscreen transcript"},
+			m.focusActionItem(),
+			m.layoutActionItem(),
 			helpItem{key: "q/esc", desc: "close transcript"},
 		)
 	} else {
@@ -145,5 +146,80 @@ func (m browserModel) helpSections() []helpSection {
 			title: "Actions",
 			items: actions,
 		},
+		{
+			title: "Toggles",
+			items: []helpItem{m.deepSearchToggleItem()},
+		},
 	}
+}
+
+func (m browserModel) searchFooterRightText() string {
+	parts := []string{renderHelpItem(m.deepSearchToggleItem())}
+	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
+		parts = append(parts, styleToolCall.Render("[UPDATING]"))
+	}
+	return joinNonEmpty(parts, "  ")
+}
+
+func (m browserModel) deepSearchToggleItem() helpItem {
+	return helpItem{
+		key:    "ctrl+s",
+		desc:   "deep search",
+		toggle: true,
+		on:     m.search.mode == searchModeDeep,
+	}
+}
+
+func (m browserModel) searchScopeStatus() string {
+	if m.search.mode == searchModeDeep {
+		return "[DEEP SEARCH]"
+	}
+	return "[METADATA SEARCH]"
+}
+
+func (m browserModel) searchScopeLabel() string {
+	if m.search.mode == searchModeDeep {
+		return "deep search"
+	}
+	return "metadata search"
+}
+
+func (m browserModel) layoutActionItem() helpItem {
+	if m.transcriptMode == transcriptFullscreen {
+		return helpItem{key: "O", desc: "split transcript"}
+	}
+	return helpItem{key: "O", desc: "fullscreen transcript"}
+}
+
+func (m browserModel) focusActionItem() helpItem {
+	if m.focus == focusTranscript {
+		return helpItem{key: "tab", desc: "focus list"}
+	}
+	return helpItem{key: "tab", desc: "focus transcript"}
+}
+
+func (m browserModel) transcriptActionItems() []helpItem {
+	items := []helpItem{}
+	if m.transcriptMode == transcriptSplit {
+		items = append(items, m.focusActionItem())
+	}
+	items = append(items, m.layoutActionItem())
+	return items
+}
+
+func (m browserModel) transcriptFooterItems() []helpItem {
+	items := append([]helpItem{}, m.viewer.footerItems()...)
+
+	helpIndex := len(items)
+	for i, item := range items {
+		if item.key == "?" {
+			helpIndex = i
+			break
+		}
+	}
+
+	result := append([]helpItem{}, items[:helpIndex]...)
+	result = append(result, m.transcriptActionItems()...)
+	result = append(result, items[helpIndex:]...)
+	return result
 }

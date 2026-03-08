@@ -86,6 +86,54 @@ func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
 	assert.Equal(t, searchModeDeep, b.search.mode)
 }
 
+func TestBrowserToggleDeepSearchWhileEditingQuerySyncsTranscriptSelection(t *testing.T) {
+	t.Parallel()
+
+	alpha := testNamedConversation("alpha-id", "alpha")
+	beta := testNamedConversation("beta-id", "beta")
+
+	b := testBrowser(t)
+	b.search.baseConversations = []conversation{alpha, beta}
+	b.mainConversationCount = 2
+	b.transcriptMode = transcriptSplit
+	b.focus = focusList
+	b.loadingConversationID = alpha.id()
+	b, _ = b.Update(openViewerMsg{
+		conversationID: alpha.id(),
+		conversation:   alpha,
+		session:        testSession(alpha.id()),
+	})
+
+	var cmds []tea.Cmd
+	b.search.mode = searchModeDeep
+	b.search.query = "beta"
+	b.search.editing = true
+	b.searchInput.Focus()
+	b.searchInput.SetValue("beta")
+	b.setSearchItems(buildDeepSearchItems("beta", []conversation{alpha}), &cmds)
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	assert.Equal(t, searchModeMetadata, b.search.mode)
+	assert.Equal(t, beta.id(), b.loadingConversationID)
+}
+
+func TestBrowserToggleDeepSearchShowsScopeNotification(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.search.baseConversations = []conversation{testNamedConversation("one", "one")}
+	b.deepSearchAvailable = true
+	var cmds []tea.Cmd
+	b.applyFullConversationList(&cmds)
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	assert.Equal(t, "search scope: deep search", b.notification.text)
+
+	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	assert.Equal(t, "search scope: metadata search", b.notification.text)
+}
+
 func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	t.Parallel()
 

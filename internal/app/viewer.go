@@ -253,6 +253,12 @@ func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool
 	return false
 }
 
+func (m *viewerModel) clearSearch() {
+	m.searchQuery = ""
+	m.matchIndices = nil
+	m.currentMatch = 0
+}
+
 func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
 	if msg.Code == tea.KeyEnter {
 		m.searching = false
@@ -266,6 +272,7 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 		m.searching = false
 		m.searchInput.Blur()
 		m.searchInput.SetValue("")
+		m.clearSearch()
 		return m, nil
 	}
 
@@ -292,7 +299,7 @@ func (m viewerModel) paneView(borderColor color.Color) string {
 
 func (m viewerModel) footerView() string {
 	if m.searching {
-		return renderSearchFooter(m.width, m.searchInput.View(), m.notification)
+		return renderSearchFooter(m.width, m.searchInput.View(), "", m.notification)
 	}
 
 	return renderHelpFooter(m.width, m.footerItems(), m.footerStatusParts(), m.notification)
