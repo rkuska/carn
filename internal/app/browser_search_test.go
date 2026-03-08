@@ -5,6 +5,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildMetadataSearchItemsUsesFuzzyMatches(t *testing.T) {
@@ -22,15 +24,9 @@ func TestBuildMetadataSearchItemsUsesFuzzyMatches(t *testing.T) {
 	}
 
 	items := buildMetadataSearchItems("arv", convs)
-	if len(items) != 1 {
-		t.Fatalf("items len = %d, want 1", len(items))
-	}
-	if items[0].conversation.id() != "two" {
-		t.Fatalf("matched id = %q, want two", items[0].conversation.id())
-	}
-	if len(items[0].matchRanges.title) == 0 {
-		t.Fatal("expected title matches for fuzzy metadata search")
-	}
+	require.Len(t, items, 1)
+	assert.Equal(t, "two", items[0].conversation.id())
+	assert.NotEmpty(t, items[0].matchRanges.title)
 }
 
 func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
@@ -40,9 +36,7 @@ func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
 	conv.searchPreview = "needle only in preview"
 
 	items := buildMetadataSearchItems("needle", []conversation{conv})
-	if len(items) != 0 {
-		t.Fatalf("items len = %d, want 0", len(items))
-	}
+	assert.Empty(t, items)
 }
 
 func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
@@ -52,24 +46,16 @@ func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
 	conv.searchPreview = archiveMatchesSourceSubtitle
 
 	items := buildDeepSearchItems("archive", []conversation{conv})
-	if len(items) != 1 {
-		t.Fatalf("items len = %d, want 1", len(items))
-	}
-	if len(items[0].matchRanges.title) != 0 {
-		t.Fatalf("title matches = %v, want none", items[0].matchRanges.title)
-	}
-	if len(items[0].matchRanges.desc) == 0 {
-		t.Fatal("expected description matches for deep search preview")
-	}
+	require.Len(t, items, 1)
+	assert.Empty(t, items[0].matchRanges.title)
+	assert.NotEmpty(t, items[0].matchRanges.desc)
 }
 
 func TestSubstringMatchIndicesFindsAllCaseInsensitiveMatches(t *testing.T) {
 	t.Parallel()
 
 	matches := substringMatchIndices("Archive archive", "ARCH")
-	if len(matches) != 8 {
-		t.Fatalf("matches len = %d, want 8", len(matches))
-	}
+	assert.Len(t, matches, 8)
 }
 
 func TestBrowserSearchBindingUsesSlash(t *testing.T) {
@@ -77,15 +63,9 @@ func TestBrowserSearchBindingUsesSlash(t *testing.T) {
 
 	b := testBrowser(t)
 	b, cmd := b.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
-	if cmd == nil {
-		t.Fatal("expected search blink command")
-	}
-	if !b.search.editing {
-		t.Fatal("expected browser search editing to be active")
-	}
-	if !b.searchInput.Focused() {
-		t.Fatal("expected browser search input to be focused")
-	}
+	require.NotNil(t, cmd)
+	assert.True(t, b.search.editing)
+	assert.True(t, b.searchInput.Focused())
 }
 
 func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
@@ -99,9 +79,7 @@ func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
 	b.searchInput.Focus()
 
 	b, _ = b.handleSearchKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, &cmds)
-	if b.search.mode != searchModeDeep {
-		t.Fatalf("search mode = %v, want deep", b.search.mode)
-	}
+	assert.Equal(t, searchModeDeep, b.search.mode)
 }
 
 func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
@@ -122,37 +100,23 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 
 	cmds = nil
 	b.setSearchQuery("alpha", &cmds)
-	if b.search.status != searchStatusDebouncing {
-		t.Fatalf("search status = %v, want debouncing", b.search.status)
-	}
+	assert.Equal(t, searchStatusDebouncing, b.search.status)
 
 	b, cmd := b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
-	if cmd == nil {
-		t.Fatal("expected deep search command")
-	}
-	b, _ = b.Update(cmd().(deepSearchResultMsg))
+	require.NotNil(t, cmd)
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
 
-	if len(b.search.visibleConversations) != 1 {
-		t.Fatalf("visible conversations = %d, want 1", len(b.search.visibleConversations))
-	}
-	if b.search.visibleConversations[0].id() != alpha.id() {
-		t.Fatalf("first visible id = %q, want %q", b.search.visibleConversations[0].id(), alpha.id())
-	}
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, alpha.id(), b.search.visibleConversations[0].id())
 
 	cmds = nil
 	b.setSearchQuery("beta", &cmds)
 	b, cmd = b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
-	if cmd == nil {
-		t.Fatal("expected deep search command for updated query")
-	}
-	b, _ = b.Update(cmd().(deepSearchResultMsg))
+	require.NotNil(t, cmd)
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
 
-	if len(b.search.visibleConversations) != 1 {
-		t.Fatalf("visible conversations = %d, want 1 after query change", len(b.search.visibleConversations))
-	}
-	if b.search.visibleConversations[0].id() != beta.id() {
-		t.Fatalf("first visible id = %q, want %q after query change", b.search.visibleConversations[0].id(), beta.id())
-	}
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.id(), b.search.visibleConversations[0].id())
 }
 
 func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
@@ -179,12 +143,8 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 		conversations: []conversation{alpha},
 	})
 
-	if len(b.search.visibleConversations) != 1 {
-		t.Fatalf("visible conversations = %d, want 1", len(b.search.visibleConversations))
-	}
-	if b.search.visibleConversations[0].id() != beta.id() {
-		t.Fatalf("first visible id = %q, want %q", b.search.visibleConversations[0].id(), beta.id())
-	}
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.id(), b.search.visibleConversations[0].id())
 }
 
 func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
@@ -201,28 +161,20 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 
 	var cmds []tea.Cmd
 	b.setSearchQuery("beta-browser", &cmds)
-	if len(b.search.visibleConversations) != 1 || b.search.visibleConversations[0].id() != beta.id() {
-		t.Fatalf("metadata visible = %#v, want only beta", b.search.visibleConversations)
-	}
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.id(), b.search.visibleConversations[0].id())
 
 	b.toggleSearchMode(&cmds)
-	if len(cmds) == 0 {
-		t.Fatal("expected deep search command when toggling search mode with active query")
-	}
+	require.NotEmpty(t, cmds)
 	deepCmd := cmds[len(cmds)-1]
-	b, _ = b.Update(deepCmd().(deepSearchResultMsg))
-	if len(b.search.visibleConversations) != 0 {
-		t.Fatalf("deep visible conversations = %d, want 0", len(b.search.visibleConversations))
-	}
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, deepCmd()))
+	assert.Empty(t, b.search.visibleConversations)
 
 	cmds = nil
 	b.toggleSearchMode(&cmds)
-	if b.search.mode != searchModeMetadata {
-		t.Fatalf("search mode = %v, want metadata", b.search.mode)
-	}
-	if len(b.search.visibleConversations) != 1 || b.search.visibleConversations[0].id() != beta.id() {
-		t.Fatalf("metadata visible after toggle = %#v, want only beta", b.search.visibleConversations)
-	}
+	assert.Equal(t, searchModeMetadata, b.search.mode)
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.id(), b.search.visibleConversations[0].id())
 }
 
 func testNamedConversation(id, slug string) conversation {

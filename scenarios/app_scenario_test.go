@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/rkuska/cldsrch/internal/app"
 	"github.com/rkuska/cldsrch/scenarios/helpers"
+	"github.com/stretchr/testify/require"
 )
 
 func newScenarioHarness(
@@ -20,9 +21,7 @@ func newScenarioHarness(
 		ArchiveDir:   workspace.ArchiveDir,
 		GlamourStyle: "dark",
 	})
-	if err != nil {
-		t.Fatalf("app.NewModel: %v", err)
-	}
+	require.NoError(t, err)
 
 	return newProgramHarness(t, model, width, height)
 }

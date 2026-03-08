@@ -7,6 +7,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
@@ -56,7 +58,7 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 
 	got := ansi.Strip(renderConversationHeader(conv, 90))
 
-	for _, want := range []string{
+	assertContainsAll(t, got,
 		"2 parts",
 		"claude-sonnet-4",
 		"1.1.0",
@@ -70,19 +72,11 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 		"Bash:2",
 		"Read:3",
 		"cwd claude-search/subdir",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("header missing %q\nheader:\n%s", want, got)
-		}
-	}
-	for _, unwanted := range []string{
+	)
+	assertNotContainsAll(t, got,
 		"Conversation",
 		"work/claude-search / cheerful-ocean",
-	} {
-		if strings.Contains(got, unwanted) {
-			t.Errorf("header should omit repeated %q\nheader:\n%s", unwanted, got)
-		}
-	}
+	)
 }
 
 func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
@@ -103,9 +97,7 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 
 	got := ansi.Strip(renderConversationHeader(conv, 80))
 
-	if got == "" {
-		t.Fatalf("header should not be empty")
-	}
+	require.NotEmpty(t, got)
 	gotLower := strings.ToLower(got)
 	unwanted := []string{
 		"version",
@@ -118,9 +110,7 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 		"work/app / untitled",
 	}
 	for _, unwanted := range unwanted {
-		if strings.Contains(gotLower, unwanted) {
-			t.Errorf("header should omit %q when empty\nheader:\n%s", unwanted, got)
-		}
+		assert.NotContains(t, gotLower, unwanted)
 	}
 }
 
@@ -154,9 +144,7 @@ func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	got := ansi.Strip(renderConversationHeader(conv, width))
 
 	for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
-		if lipgloss.Width(line) > width {
-			t.Fatalf("line width = %d, want <= %d\nline: %q\nheader:\n%s", lipgloss.Width(line), width, line, got)
-		}
+		assert.LessOrEqual(t, lipgloss.Width(line), width)
 	}
 }
 
@@ -191,13 +179,10 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 
 	m := newViewerModel(session, conv, "dark", 120, 40)
 
-	if got := m.editorFilePath(); got != "/tmp/second.jsonl" {
-		t.Fatalf("editorFilePath() = %q, want %q", got, "/tmp/second.jsonl")
-	}
+	assert.Equal(t, "/tmp/second.jsonl", m.editorFilePath())
 	id, cwd := m.resumeTarget()
-	if id != "second-id" || cwd != "/tmp/second" {
-		t.Fatalf("resumeTarget() = (%q, %q), want (%q, %q)", id, cwd, "second-id", "/tmp/second")
-	}
+	assert.Equal(t, "second-id", id)
+	assert.Equal(t, "/tmp/second", cwd)
 }
 
 func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
@@ -232,13 +217,7 @@ func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 
 	headerIdx := strings.Index(got, "model")
 	userIdx := strings.Index(got, "User")
-	if headerIdx == -1 {
-		t.Fatalf("viewer content missing conversation header:\n%s", got)
-	}
-	if userIdx == -1 {
-		t.Fatalf("viewer content missing transcript body:\n%s", got)
-	}
-	if headerIdx > userIdx {
-		t.Fatalf("expected header before transcript body:\n%s", got)
-	}
+	require.NotEqual(t, -1, headerIdx)
+	require.NotEqual(t, -1, userIdx)
+	assert.Less(t, headerIdx, userIdx)
 }

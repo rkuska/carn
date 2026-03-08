@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileNeedsSync(t *testing.T) {
@@ -40,9 +43,7 @@ func TestFileNeedsSync(t *testing.T) {
 				writeTestFile(t, srcPath, "content")
 				writeTestFile(t, dstPath, "content")
 				past := time.Now().Add(-1 * time.Hour)
-				if err := os.Chtimes(dstPath, past, past); err != nil {
-					t.Fatalf("os.Chtimes: %v", err)
-				}
+				require.NoError(t, os.Chtimes(dstPath, past, past))
 			},
 			want: true,
 		},
@@ -54,12 +55,8 @@ func TestFileNeedsSync(t *testing.T) {
 				writeTestFile(t, dstPath, "content")
 				// Set same mod time
 				now := time.Now()
-				if err := os.Chtimes(srcPath, now, now); err != nil {
-					t.Fatalf("os.Chtimes src: %v", err)
-				}
-				if err := os.Chtimes(dstPath, now, now); err != nil {
-					t.Fatalf("os.Chtimes dst: %v", err)
-				}
+				require.NoError(t, os.Chtimes(srcPath, now, now))
+				require.NoError(t, os.Chtimes(dstPath, now, now))
 			},
 			want: false,
 		},
@@ -70,9 +67,7 @@ func TestFileNeedsSync(t *testing.T) {
 				writeTestFile(t, srcPath, "content")
 				writeTestFile(t, dstPath, "content")
 				past := time.Now().Add(-1 * time.Hour)
-				if err := os.Chtimes(srcPath, past, past); err != nil {
-					t.Fatalf("os.Chtimes: %v", err)
-				}
+				require.NoError(t, os.Chtimes(srcPath, past, past))
 			},
 			want: false,
 		},
@@ -88,14 +83,10 @@ func TestFileNeedsSync(t *testing.T) {
 			tt.setup(t, srcPath, dstPath)
 
 			srcInfo, err := os.Stat(srcPath)
-			if err != nil {
-				t.Fatalf("os.Stat src: %v", err)
-			}
+			require.NoError(t, err)
 
 			got := fileNeedsSync(srcInfo, dstPath)
-			if got != tt.want {
-				t.Errorf("fileNeedsSync() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -114,40 +105,26 @@ func TestCopyFile(t *testing.T) {
 
 		// Set a specific mod time
 		modTime := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
-		if err := os.Chtimes(srcPath, modTime, modTime); err != nil {
-			t.Fatalf("os.Chtimes: %v", err)
-		}
+		require.NoError(t, os.Chtimes(srcPath, modTime, modTime))
 
-		if err := copyFile(srcPath, dstPath); err != nil {
-			t.Fatalf("copyFile: %v", err)
-		}
+		require.NoError(t, copyFile(srcPath, dstPath))
 
 		// Verify content
 		got, err := os.ReadFile(dstPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile: %v", err)
-		}
-		if string(got) != content {
-			t.Errorf("content = %q, want %q", string(got), content)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, content, string(got))
 
 		// Verify mod time preserved
 		dstInfo, err := os.Stat(dstPath)
-		if err != nil {
-			t.Fatalf("os.Stat: %v", err)
-		}
-		if !dstInfo.ModTime().Equal(modTime) {
-			t.Errorf("mod time = %v, want %v", dstInfo.ModTime(), modTime)
-		}
+		require.NoError(t, err)
+		assert.True(t, dstInfo.ModTime().Equal(modTime))
 	})
 
 	t.Run("non-existent source error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		err := copyFile(filepath.Join(dir, "nonexistent"), filepath.Join(dir, "dst"))
-		if err == nil {
-			t.Error("expected error for non-existent source")
-		}
+		require.Error(t, err)
 	})
 }
 
@@ -156,20 +133,14 @@ func TestDefaultArchiveConfigDefaults(t *testing.T) {
 	t.Setenv("CLDSRCH_ARCHIVE_DIR", "")
 
 	cfg, err := defaultArchiveConfig()
-	if err != nil {
-		t.Fatalf("defaultArchiveConfig: %v", err)
-	}
+	require.NoError(t, err)
 
 	home, _ := os.UserHomeDir()
 	wantSource := filepath.Join(home, ".claude", "projects")
 	wantArchive := filepath.Join(home, ".local", "share", "cldrsrch")
 
-	if cfg.sourceDir != wantSource {
-		t.Errorf("sourceDir = %q, want %q", cfg.sourceDir, wantSource)
-	}
-	if cfg.archiveDir != wantArchive {
-		t.Errorf("archiveDir = %q, want %q", cfg.archiveDir, wantArchive)
-	}
+	assert.Equal(t, wantSource, cfg.sourceDir)
+	assert.Equal(t, wantArchive, cfg.archiveDir)
 }
 
 func TestDefaultArchiveConfigEnvOverrides(t *testing.T) {
@@ -177,16 +148,9 @@ func TestDefaultArchiveConfigEnvOverrides(t *testing.T) {
 	t.Setenv("CLDSRCH_ARCHIVE_DIR", "/custom/archive")
 
 	cfg, err := defaultArchiveConfig()
-	if err != nil {
-		t.Fatalf("defaultArchiveConfig: %v", err)
-	}
-
-	if cfg.sourceDir != "/custom/source" {
-		t.Errorf("sourceDir = %q, want %q", cfg.sourceDir, "/custom/source")
-	}
-	if cfg.archiveDir != "/custom/archive" {
-		t.Errorf("archiveDir = %q, want %q", cfg.archiveDir, "/custom/archive")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "/custom/source", cfg.sourceDir)
+	assert.Equal(t, "/custom/archive", cfg.archiveDir)
 }
 
 // Scenario tests — sequential, use t.TempDir()
@@ -204,16 +168,9 @@ func TestSyncArchiveFreshCopy(t *testing.T) {
 
 	cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
 	result, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("syncArchive: %v", err)
-	}
-
-	if result.copied != 4 {
-		t.Errorf("copied = %d, want 4", result.copied)
-	}
-	if result.failed != 0 {
-		t.Errorf("failed = %d, want 0", result.failed)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 4, result.copied)
+	assert.Zero(t, result.failed)
 
 	// Verify files exist in archive
 	for _, rel := range []string{
@@ -223,9 +180,8 @@ func TestSyncArchiveFreshCopy(t *testing.T) {
 		"proj1/uuid1/subagents/agent-1.jsonl",
 	} {
 		path := filepath.Join(archDir, rel)
-		if _, err := os.Stat(path); err != nil {
-			t.Errorf("expected archived file at %s: %v", path, err)
-		}
+		_, err := os.Stat(path)
+		assert.NoError(t, err)
 	}
 }
 
@@ -241,12 +197,8 @@ func TestSyncArchiveIncremental(t *testing.T) {
 
 	// First sync — copies both
 	result1, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("first syncArchive: %v", err)
-	}
-	if result1.copied != 2 {
-		t.Errorf("first sync copied = %d, want 2", result1.copied)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, result1.copied)
 
 	// Modify one file
 	time.Sleep(10 * time.Millisecond) // ensure mod time differs
@@ -254,21 +206,13 @@ func TestSyncArchiveIncremental(t *testing.T) {
 
 	// Second sync — only re-copies the modified file
 	result2, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("second syncArchive: %v", err)
-	}
-	if result2.copied != 1 {
-		t.Errorf("second sync copied = %d, want 1", result2.copied)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, result2.copied)
 
 	// Verify modified content was copied
 	got, err := os.ReadFile(filepath.Join(archDir, "proj", "a.jsonl"))
-	if err != nil {
-		t.Fatalf("os.ReadFile: %v", err)
-	}
-	if string(got) != "modified content" {
-		t.Errorf("content = %q, want %q", string(got), "modified content")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "modified content", string(got))
 }
 
 func TestSyncArchiveSkipsNonJSONL(t *testing.T) {
@@ -282,26 +226,18 @@ func TestSyncArchiveSkipsNonJSONL(t *testing.T) {
 
 	cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
 	result, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("syncArchive: %v", err)
-	}
-
-	if result.copied != 1 {
-		t.Errorf("copied = %d, want 1", result.copied)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.copied)
 
 	// .jsonl should exist
-	if _, err := os.Stat(filepath.Join(archDir, "proj", "session.jsonl")); err != nil {
-		t.Errorf("expected .jsonl archived: %v", err)
-	}
+	_, err = os.Stat(filepath.Join(archDir, "proj", "session.jsonl"))
+	assert.NoError(t, err)
 	// .json should NOT exist
-	if _, err := os.Stat(filepath.Join(archDir, "proj", "data.json")); !os.IsNotExist(err) {
-		t.Error("expected .json NOT to be archived")
-	}
+	_, err = os.Stat(filepath.Join(archDir, "proj", "data.json"))
+	assert.True(t, os.IsNotExist(err))
 	// .txt should NOT exist
-	if _, err := os.Stat(filepath.Join(archDir, "proj", "notes.txt")); !os.IsNotExist(err) {
-		t.Error("expected .txt NOT to be archived")
-	}
+	_, err = os.Stat(filepath.Join(archDir, "proj", "notes.txt"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 func TestSyncArchiveMissingSource(t *testing.T) {
@@ -312,12 +248,8 @@ func TestSyncArchiveMissingSource(t *testing.T) {
 	}
 
 	result, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("syncArchive should not error for missing source: %v", err)
-	}
-	if result.copied != 0 {
-		t.Errorf("copied = %d, want 0", result.copied)
-	}
+	require.NoError(t, err)
+	assert.Zero(t, result.copied)
 }
 
 func TestSyncArchivePartialFailure(t *testing.T) {
@@ -330,27 +262,15 @@ func TestSyncArchivePartialFailure(t *testing.T) {
 
 	// Create archive dir for "bad" with read-only permissions to cause copy failure
 	badDir := filepath.Join(archDir, "proj")
-	if err := os.MkdirAll(badDir, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(badDir, 0o755))
 	// Create a directory where the file should go to prevent file creation
-	if err := os.MkdirAll(filepath.Join(badDir, "bad.jsonl"), 0o000); err != nil {
-		t.Fatalf("os.MkdirAll: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(badDir, "bad.jsonl"), 0o000))
 
 	cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
 	result, err := syncArchive(context.Background(), cfg, nil)
-	if err != nil {
-		t.Fatalf("syncArchive: %v", err)
-	}
-
-	// One should succeed, one should fail
-	if result.copied != 1 {
-		t.Errorf("copied = %d, want 1", result.copied)
-	}
-	if result.failed != 1 {
-		t.Errorf("failed = %d, want 1", result.failed)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.copied)
+	assert.Equal(t, 1, result.failed)
 }
 
 func TestSyncArchiveProgressCallback(t *testing.T) {
@@ -367,30 +287,17 @@ func TestSyncArchiveProgressCallback(t *testing.T) {
 	result, err := syncArchive(context.Background(), cfg, func(p syncProgress) {
 		progressCalls = append(progressCalls, p)
 	})
-	if err != nil {
-		t.Fatalf("syncArchive: %v", err)
-	}
-
-	if result.copied != 2 {
-		t.Errorf("copied = %d, want 2", result.copied)
-	}
-	if len(progressCalls) != 2 {
-		t.Errorf("progress callbacks = %d, want 2", len(progressCalls))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.copied)
+	assert.Len(t, progressCalls, 2)
 	for _, p := range progressCalls {
-		if p.total != 2 {
-			t.Errorf("progress total = %d, want 2", p.total)
-		}
+		assert.Equal(t, 2, p.total)
 	}
 }
 
 // writeTestFile creates a file with content, creating parent dirs as needed.
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("os.WriteFile: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }

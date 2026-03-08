@@ -1,6 +1,10 @@
 package app
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestIsSystemInterrupt(t *testing.T) {
 	t.Parallel()
@@ -62,9 +66,7 @@ func TestIsSystemInterrupt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := isSystemInterrupt(tt.text)
-			if got != tt.want {
-				t.Errorf("isSystemInterrupt(%q) = %v, want %v", tt.text, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

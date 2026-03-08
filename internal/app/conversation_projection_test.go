@@ -3,6 +3,9 @@ package app
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
@@ -29,19 +32,9 @@ func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
 	}
 
 	got := projectConversationTranscript(session)
-	if len(got.messages) != 5 {
-		t.Fatalf("len(messages) = %d, want 5", len(got.messages))
-	}
-	if got.messages[1].isAgentDivider != true {
-		t.Fatalf("messages[1].isAgentDivider = %v, want true", got.messages[1].isAgentDivider)
-	}
-	if got.messages[1].text != "sub task" {
-		t.Fatalf("messages[1].text = %q, want %q", got.messages[1].text, "sub task")
-	}
-	if got.messages[2].text != "subagent prompt" {
-		t.Fatalf("messages[2].text = %q, want %q", got.messages[2].text, "subagent prompt")
-	}
-	if got.messages[4].text != "parent two" {
-		t.Fatalf("messages[4].text = %q, want %q", got.messages[4].text, "parent two")
-	}
+	require.Len(t, got.messages, 5)
+	assert.True(t, got.messages[1].isAgentDivider)
+	assert.Equal(t, "sub task", got.messages[1].text)
+	assert.Equal(t, "subagent prompt", got.messages[2].text)
+	assert.Equal(t, "parent two", got.messages[4].text)
 }

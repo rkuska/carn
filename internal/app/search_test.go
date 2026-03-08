@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildSessionSearchBlob(t *testing.T) {
@@ -29,11 +32,7 @@ func TestBuildSessionSearchBlob(t *testing.T) {
 	}
 
 	got := buildSessionSearchBlob(session)
-	for _, want := range []string{"hello user", "internal thought", "readme.md", "tool output"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("buildSessionSearchBlob() missing %q in %q", want, got)
-		}
-	}
+	assertContainsAll(t, got, "hello user", "internal thought", "readme.md", "tool output")
 }
 
 func TestFindSessionSearchPreview(t *testing.T) {
@@ -47,10 +46,7 @@ func TestFindSessionSearchPreview(t *testing.T) {
 	}
 
 	got := findSessionSearchPreview(session, "archive")
-	want := archiveMatchesSourceSubtitle
-	if got != want {
-		t.Fatalf("findSessionSearchPreview() = %q, want %q", got, want)
-	}
+	assert.Equal(t, archiveMatchesSourceSubtitle, got)
 }
 
 func testConversation(id, slug string) conversation {
@@ -76,22 +72,11 @@ func TestDeepSearchCmd_UsesSessionCache(t *testing.T) {
 	}
 
 	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, nil, nil, sessionCache)()
-	result, ok := msg.(deepSearchResultMsg)
-	if !ok {
-		t.Fatalf("unexpected msg type: %T", msg)
-	}
-	if len(result.conversations) != 1 {
-		t.Fatalf("matches = %d, want 1", len(result.conversations))
-	}
-	if result.conversations[0].id() != "s2" {
-		t.Fatalf("matched id = %q, want s2", result.conversations[0].id())
-	}
-	if len(result.indexed) != 2 {
-		t.Fatalf("indexed len = %d, want 2", len(result.indexed))
-	}
-	if result.conversations[0].searchPreview != "contains needle" {
-		t.Fatalf("searchPreview = %q, want %q", result.conversations[0].searchPreview, "contains needle")
-	}
+	result := requireMsgType[deepSearchResultMsg](t, msg)
+	require.Len(t, result.conversations, 1)
+	assert.Equal(t, "s2", result.conversations[0].id())
+	assert.Len(t, result.indexed, 2)
+	assert.Equal(t, "contains needle", result.conversations[0].searchPreview)
 }
 
 func TestDeepSearchCmd_UsesExistingIndexCache(t *testing.T) {
@@ -103,16 +88,9 @@ func TestDeepSearchCmd_UsesExistingIndexCache(t *testing.T) {
 	indexCache := map[string]string{"s1": "cached needle content"}
 
 	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, indexCache, nil, nil)()
-	result, ok := msg.(deepSearchResultMsg)
-	if !ok {
-		t.Fatalf("unexpected msg type: %T", msg)
-	}
-	if len(result.conversations) != 1 {
-		t.Fatalf("matches = %d, want 1", len(result.conversations))
-	}
-	if len(result.indexed) != 0 {
-		t.Fatalf("indexed len = %d, want 0", len(result.indexed))
-	}
+	result := requireMsgType[deepSearchResultMsg](t, msg)
+	assert.Len(t, result.conversations, 1)
+	assert.Empty(t, result.indexed)
 }
 
 func TestDeepSearchCmd_EmptyQueryReturnsMainConversations(t *testing.T) {
@@ -123,13 +101,8 @@ func TestDeepSearchCmd_EmptyQueryReturnsMainConversations(t *testing.T) {
 		testConversation("s2", "slug-2"),
 	}
 	msg := deepSearchCmd(context.Background(), "", 1, mainConvs, nil, nil, nil)()
-	result, ok := msg.(deepSearchResultMsg)
-	if !ok {
-		t.Fatalf("unexpected msg type: %T", msg)
-	}
-	if len(result.conversations) != 2 {
-		t.Fatalf("conversations len = %d, want 2", len(result.conversations))
-	}
+	result := requireMsgType[deepSearchResultMsg](t, msg)
+	assert.Len(t, result.conversations, 2)
 }
 
 func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
@@ -150,14 +123,10 @@ func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
 			`{"type":"text","text":"parent response"}]}}`,
 		}, ""),
 	}, "\n")
-	if err := os.WriteFile(parentPath, []byte(parentContent), 0o644); err != nil {
-		t.Fatalf("os.WriteFile parent: %v", err)
-	}
+	require.NoError(t, os.WriteFile(parentPath, []byte(parentContent), 0o644))
 
 	subDir := filepath.Join(dir, parentID, "subagents")
-	if err := os.MkdirAll(subDir, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll: %v", err)
-	}
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
 	subContent := strings.Join([]string{
 		strings.Join([]string{
 			`{"type":"user","sessionId":"sub-session","slug":"demo",`,
@@ -170,9 +139,7 @@ func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
 			`{"type":"text","text":"done"}]}}`,
 		}, ""),
 	}, "\n")
-	if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
-		t.Fatalf("os.WriteFile subagent: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644))
 
 	conv := conversation{
 		name:    "demo",
@@ -189,14 +156,7 @@ func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
 	}
 
 	msg := deepSearchCmd(context.Background(), "needle", 1, []conversation{conv}, nil, nil, nil)()
-	result, ok := msg.(deepSearchResultMsg)
-	if !ok {
-		t.Fatalf("unexpected msg type: %T", msg)
-	}
-	if len(result.conversations) != 1 {
-		t.Fatalf("matches = %d, want 1", len(result.conversations))
-	}
-	if result.conversations[0].id() != parentID {
-		t.Fatalf("matched id = %q, want %q", result.conversations[0].id(), parentID)
-	}
+	result := requireMsgType[deepSearchResultMsg](t, msg)
+	require.Len(t, result.conversations, 1)
+	assert.Equal(t, parentID, result.conversations[0].id())
 }
