@@ -28,41 +28,23 @@ func deepSearchCmd(
 	}
 }
 
-func runDeepSearch(
+type groupedMatch struct {
+	conv     conversation
+	score    int
+	previews []string
+}
+
+func groupSearchMatches(
 	ctx context.Context,
 	query string,
-	revision int,
-	mainConversations []conversation,
 	corpus searchCorpus,
-) tea.Msg {
-	if query == "" {
-		return deepSearchResultMsg{
-			revision:      revision,
-			query:         query,
-			conversations: mainConversations,
-		}
-	}
-
-	if err := ctx.Err(); err != nil {
-		return deepSearchResultMsg{revision: revision, query: query}
-	}
-
-	byID := make(map[string]conversation, len(mainConversations))
-	for _, conv := range mainConversations {
-		byID[conv.cacheKey()] = conv
-	}
-
-	type groupedMatch struct {
-		conv     conversation
-		score    int
-		previews []string
-	}
-
-	grouped := make(map[string]groupedMatch, len(mainConversations))
+	byID map[string]conversation,
+) (map[string]groupedMatch, bool) {
+	grouped := make(map[string]groupedMatch, len(byID))
 	queryLower := strings.ToLower(query)
 	for _, match := range fuzzy.FindFrom(query, corpus) {
 		if err := ctx.Err(); err != nil {
-			return deepSearchResultMsg{revision: revision, query: query}
+			return nil, false
 		}
 
 		unit := corpus.units[match.Index]
@@ -89,6 +71,37 @@ func runDeepSearch(
 		}
 
 		grouped[unit.conversationID] = group
+	}
+	return grouped, true
+}
+
+func runDeepSearch(
+	ctx context.Context,
+	query string,
+	revision int,
+	mainConversations []conversation,
+	corpus searchCorpus,
+) tea.Msg {
+	if query == "" {
+		return deepSearchResultMsg{
+			revision:      revision,
+			query:         query,
+			conversations: mainConversations,
+		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return deepSearchResultMsg{revision: revision, query: query}
+	}
+
+	byID := make(map[string]conversation, len(mainConversations))
+	for _, conv := range mainConversations {
+		byID[conv.cacheKey()] = conv
+	}
+
+	grouped, ok := groupSearchMatches(ctx, query, corpus, byID)
+	if !ok {
+		return deepSearchResultMsg{revision: revision, query: query}
 	}
 
 	matches := make([]groupedMatch, 0, len(grouped))

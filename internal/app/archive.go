@@ -283,6 +283,54 @@ func extractSessionSlug(filePath string) (string, error) {
 	return "", nil
 }
 
+type classifiedFile struct {
+	gk        groupKey
+	needsSync bool
+	dstExists bool
+	srcPath   string
+}
+
+func classifyProjectFile(file sessionFile, cfg archiveConfig, dirName string) (classifiedFile, bool) {
+	slug, slugErr := extractSessionSlug(file.path)
+	if slugErr != nil {
+		return classifiedFile{}, false
+	}
+
+	var gk groupKey
+	if file.isSubagent || slug == "" {
+		gk = groupKey{dirName: dirName, slug: file.path}
+	} else {
+		gk = groupKey{dirName: dirName, slug: slug}
+	}
+
+	rel, relErr := filepath.Rel(cfg.sourceDir, file.path)
+	if relErr != nil {
+		return classifiedFile{}, false
+	}
+	dstPath := filepath.Join(
+		providerRawDir(cfg.archiveDir, conversationProviderClaude),
+		rel,
+	)
+
+	info, statErr := os.Stat(file.path)
+	if statErr != nil {
+		return classifiedFile{}, false
+	}
+
+	needsSync := fileNeedsSync(info, dstPath)
+	dstExists := true
+	if _, dstErr := os.Stat(dstPath); os.IsNotExist(dstErr) {
+		dstExists = false
+	}
+
+	return classifiedFile{
+		gk:        gk,
+		needsSync: needsSync,
+		dstExists: dstExists,
+		srcPath:   file.path,
+	}, true
+}
+
 // analyzeProjectDir processes a single project directory during streaming analysis.
 // It globs .jsonl files, classifies each one, and updates the running state.
 func analyzeProjectDir(
@@ -304,55 +352,24 @@ func analyzeProjectDir(
 	for _, file := range files {
 		filesInspected++
 
-		// Extract slug
-		slug, slugErr := extractSessionSlug(file.path)
-		if slugErr != nil {
-			// Skip files we can't read
+		classified, ok := classifyProjectFile(file, cfg, dirName)
+		if !ok {
 			continue
 		}
 
-		// Build group key — subagents and empty slugs get unique keys
-		// (matching groupConversations logic)
-		var gk groupKey
-		if file.isSubagent || slug == "" {
-			gk = groupKey{dirName: dirName, slug: file.path} // unique per file
-		} else {
-			gk = groupKey{dirName: dirName, slug: slug}
-		}
-
-		// Classify this file
-		rel, relErr := filepath.Rel(cfg.sourceDir, file.path)
-		if relErr != nil {
-			continue
-		}
-		dstPath := filepath.Join(
-			providerRawDir(cfg.archiveDir, conversationProviderClaude),
-			rel,
-		)
-
-		info, statErr := os.Stat(file.path)
-		if statErr != nil {
-			continue
-		}
-
-		needsSync := fileNeedsSync(info, dstPath)
-
-		state, exists := seen[gk]
+		state, exists := seen[classified.gk]
 		if !exists {
 			state = &conversationState{}
-			seen[gk] = state
+			seen[classified.gk] = state
 		}
 
-		if needsSync {
-			// Check if dst exists at all
-			if _, dstErr := os.Stat(dstPath); os.IsNotExist(dstErr) {
-				if !state.hasUpToDate && !state.hasStale {
-					state.allNew = true
-				}
+		if classified.needsSync {
+			if !classified.dstExists && !state.hasUpToDate && !state.hasStale {
+				state.allNew = true
 			}
 			state.hasStale = true
 			state.allNew = state.allNew && !state.hasUpToDate
-			*syncCandidates = append(*syncCandidates, file.path)
+			*syncCandidates = append(*syncCandidates, classified.srcPath)
 		} else {
 			state.hasUpToDate = true
 			state.allNew = false

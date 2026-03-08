@@ -166,22 +166,70 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	}
 	m.pendingGotoTopKey = false
 
+	if m.handleToggleKey(msg, cmds) {
+		return nil
+	}
+
+	return m.handleViewerAction(msg)
+}
+
+func (m *viewerModel) handleViewerAction(msg tea.KeyPressMsg) tea.Cmd {
+	if m.handleViewerNav(msg) {
+		return nil
+	}
+	return m.handleViewerCmd(msg)
+}
+
+func (m *viewerModel) handleViewerNav(msg tea.KeyPressMsg) bool {
 	switch {
 	case msg.Code == tea.KeyHome:
 		m.viewport.GotoTop()
-
+		return true
 	case msg.Code == tea.KeyEnd || msg.Text == "G":
 		m.viewport.GotoBottom()
+		return true
+	case key.Matches(msg, viewerKeys.NextMatch):
+		m.jumpToMatch(1)
+		return true
+	case key.Matches(msg, viewerKeys.PrevMatch):
+		m.jumpToMatch(-1)
+		return true
+	}
+	return false
+}
 
+func (m *viewerModel) handleViewerCmd(msg tea.KeyPressMsg) tea.Cmd {
+	switch {
+	case key.Matches(msg, viewerKeys.Search):
+		m.searching = true
+		m.searchInput.Focus()
+		return textinput.Blink
+	case key.Matches(msg, viewerKeys.Copy):
+		return copyTranscriptCmd(m.session, m.opts)
+	case key.Matches(msg, viewerKeys.Export):
+		return exportTranscriptCmd(m.session, m.opts)
+	case key.Matches(msg, viewerKeys.Editor):
+		return openInEditorCmd(m.editorFilePath())
+	case key.Matches(msg, viewerKeys.Resume):
+		id, cwd := m.resumeTarget()
+		return resumeSessionCmd(id, cwd)
+	}
+	return nil
+}
+
+func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool {
+	switch {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
 		m.renderContent()
 		m.setNotification(infoNotification(fmt.Sprintf("thinking: %s", toggleLabel(m.opts.showThinking))).notification, cmds)
+		return true
 
 	case key.Matches(msg, viewerKeys.ToggleTools):
 		m.opts.showTools = !m.opts.showTools
 		m.renderContent()
 		m.setNotification(infoNotification(fmt.Sprintf("tools: %s", toggleLabel(m.opts.showTools))).notification, cmds)
+		return true
 
 	case key.Matches(msg, viewerKeys.ToggleToolResults):
 		m.opts.showToolResults = !m.opts.showToolResults
@@ -190,6 +238,7 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 			infoNotification(fmt.Sprintf("tool results: %s", toggleLabel(m.opts.showToolResults))).notification,
 			cmds,
 		)
+		return true
 
 	case key.Matches(msg, viewerKeys.ToggleSidechain):
 		m.opts.hideSidechain = !m.opts.hideSidechain
@@ -199,34 +248,9 @@ func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 			label = "hidden"
 		}
 		m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
-
-	case key.Matches(msg, viewerKeys.Search):
-		m.searching = true
-		m.searchInput.Focus()
-		return textinput.Blink
-
-	case key.Matches(msg, viewerKeys.NextMatch):
-		m.jumpToMatch(1)
-
-	case key.Matches(msg, viewerKeys.PrevMatch):
-		m.jumpToMatch(-1)
-
-	case key.Matches(msg, viewerKeys.Copy):
-		return copyTranscriptCmd(m.session, m.opts)
-
-	case key.Matches(msg, viewerKeys.Export):
-		return exportTranscriptCmd(m.session, m.opts)
-
-	case key.Matches(msg, viewerKeys.Editor):
-		return openInEditorCmd(m.editorFilePath())
-
-	case key.Matches(msg, viewerKeys.Resume):
-		id, cwd := m.resumeTarget()
-		return resumeSessionCmd(id, cwd)
-
+		return true
 	}
-
-	return nil
+	return false
 }
 
 func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
@@ -284,28 +308,35 @@ func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
 
 func (m viewerModel) footerStatusParts() []string {
 	rightParts := []string{fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100)}
-
-	if m.opts.showThinking && m.content.hasThinking {
-		rightParts = append(rightParts, styleToolCall.Render("[thinking]"))
-	}
-	if m.opts.showTools && m.content.hasToolCalls {
-		rightParts = append(rightParts, styleToolCall.Render("[tools]"))
-	}
-	if m.opts.showToolResults && m.content.hasToolResults {
-		rightParts = append(rightParts, styleToolCall.Render("[results]"))
-	}
-	if m.opts.hideSidechain && m.content.hasSidechain {
-		rightParts = append(rightParts, styleToolCall.Render("[no-sidechain]"))
-	}
-	if m.searchQuery != "" {
-		if len(m.matchIndices) == 0 {
-			rightParts = append(rightParts, fmt.Sprintf("/%s (no matches)", m.searchQuery))
-		} else {
-			rightParts = append(rightParts, fmt.Sprintf("/%s (%d/%d)",
-				m.searchQuery, m.currentMatch+1, len(m.matchIndices)))
-		}
-	}
+	rightParts = appendToggleStatusParts(rightParts, m.opts, m.content)
+	rightParts = appendSearchStatusPart(rightParts, m.searchQuery, m.matchIndices, m.currentMatch)
 	return rightParts
+}
+
+func appendToggleStatusParts(parts []string, opts transcriptOptions, content contentFlags) []string {
+	if opts.showThinking && content.hasThinking {
+		parts = append(parts, styleToolCall.Render("[thinking]"))
+	}
+	if opts.showTools && content.hasToolCalls {
+		parts = append(parts, styleToolCall.Render("[tools]"))
+	}
+	if opts.showToolResults && content.hasToolResults {
+		parts = append(parts, styleToolCall.Render("[results]"))
+	}
+	if opts.hideSidechain && content.hasSidechain {
+		parts = append(parts, styleToolCall.Render("[no-sidechain]"))
+	}
+	return parts
+}
+
+func appendSearchStatusPart(parts []string, query string, matchIndices []int, currentMatch int) []string {
+	if query == "" {
+		return parts
+	}
+	if len(matchIndices) == 0 {
+		return append(parts, fmt.Sprintf("/%s (no matches)", query))
+	}
+	return append(parts, fmt.Sprintf("/%s (%d/%d)", query, currentMatch+1, len(matchIndices)))
 }
 
 func (m *viewerModel) setNotification(n notification, cmds *[]tea.Cmd) {
@@ -318,31 +349,14 @@ func (m *viewerModel) renderContent() {
 	m.rawContent = flattenSegments(segments)
 
 	renderer, rendererErr := m.ensureRenderer()
+	contentWidth := m.contentWidth()
 
 	var sb strings.Builder
-	if header := renderConversationHeader(m.conversation, m.contentWidth()); header != "" {
+	if header := renderConversationHeader(m.conversation, contentWidth); header != "" {
 		sb.WriteString(header)
 	}
 	for _, seg := range segments {
-		switch seg.kind {
-		case segmentMarkdown:
-			if rendererErr == nil {
-				if rendered, err := renderer.Render(seg.text); err == nil {
-					sb.WriteString(strings.TrimRight(rendered, "\n"))
-					sb.WriteString("\n")
-					continue
-				}
-			}
-			sb.WriteString(seg.text)
-		case segmentToolResult:
-			sb.WriteString(renderStyledToolResult(seg.result, m.contentWidth()))
-		case segmentRoleHeader:
-			sb.WriteString(renderRoleHeader(seg.role, m.contentWidth()))
-		case segmentThinking:
-			sb.WriteString(renderThinkingBlock(seg.text))
-		case segmentToolCall:
-			sb.WriteString(renderStyledToolCall(seg.text))
-		}
+		renderSegment(&sb, seg, renderer, rendererErr, contentWidth)
 	}
 
 	content := sb.String()
@@ -351,6 +365,34 @@ func (m *viewerModel) renderContent() {
 
 	if m.searchQuery != "" {
 		m.performSearch()
+	}
+}
+
+func renderSegment(
+	sb *strings.Builder,
+	seg transcriptSegment,
+	renderer *glamour.TermRenderer,
+	rendererErr error,
+	contentWidth int,
+) {
+	switch seg.kind {
+	case segmentMarkdown:
+		if rendererErr == nil {
+			if rendered, err := renderer.Render(seg.text); err == nil {
+				sb.WriteString(strings.TrimRight(rendered, "\n"))
+				sb.WriteString("\n")
+				return
+			}
+		}
+		sb.WriteString(seg.text)
+	case segmentToolResult:
+		sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
+	case segmentRoleHeader:
+		sb.WriteString(renderRoleHeader(seg.role, contentWidth))
+	case segmentThinking:
+		sb.WriteString(renderThinkingBlock(seg.text))
+	case segmentToolCall:
+		sb.WriteString(renderStyledToolCall(seg.text))
 	}
 }
 

@@ -315,21 +315,14 @@ func BenchmarkCollectFilesToSync(b *testing.B) {
 	}
 }
 
-func BenchmarkStreamImportAnalysis(b *testing.B) {
-	dir := b.TempDir()
-	source := filepath.Join(dir, "source")
-	archive := filepath.Join(dir, "archive")
-	if err := os.MkdirAll(archive, 0o755); err != nil {
-		b.Fatalf("MkdirAll: %v", err)
-	}
-
-	// Create 6 projects × 60 sessions
-	for p := range 6 {
+func setupBenchProjectDirs(b *testing.B, source string, projects, sessions int) {
+	b.Helper()
+	for p := range projects {
 		projDir := filepath.Join(source, fmt.Sprintf("project-%d", p))
 		if err := os.MkdirAll(projDir, 0o755); err != nil {
 			b.Fatalf("MkdirAll: %v", err)
 		}
-		for s := range 60 {
+		for s := range sessions {
 			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
 			content := benchSessionJSONL(b, sessionID, false)
 			path := filepath.Join(projDir, sessionID+".jsonl")
@@ -338,6 +331,17 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 			}
 		}
 	}
+}
+
+func BenchmarkStreamImportAnalysis(b *testing.B) {
+	dir := b.TempDir()
+	source := filepath.Join(dir, "source")
+	archive := filepath.Join(dir, "archive")
+	if err := os.MkdirAll(archive, 0o755); err != nil {
+		b.Fatalf("MkdirAll: %v", err)
+	}
+
+	setupBenchProjectDirs(b, source, 6, 60)
 
 	cfg := archiveConfig{sourceDir: source, archiveDir: archive}
 

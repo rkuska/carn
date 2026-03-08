@@ -6,6 +6,19 @@ import (
 	"time"
 )
 
+func shouldRebuildStore(
+	archiveDir string,
+	rawDirExists bool,
+	sourceSyncCandidates, legacyFilesToSync []string,
+) (bool, error) {
+	hasFiles := rawDirExists || len(sourceSyncCandidates) > 0 || len(legacyFilesToSync) > 0
+	needsBuild, err := storeNeedsRebuild(archiveDir, conversationProviderClaude)
+	if err != nil {
+		return hasFiles, fmt.Errorf("storeNeedsRebuild: %w", err)
+	}
+	return needsBuild && hasFiles, nil
+}
+
 func buildFinalImportAnalysis(
 	cfg archiveConfig,
 	filesInspected, projects int,
@@ -29,21 +42,16 @@ func buildFinalImportAnalysis(
 		rawDirExists = true
 	}
 
-	storeNeedsBuild := false
 	var analysisErr error
 	if legacyErr != nil {
 		analysisErr = fmt.Errorf("collectSyncCandidates_legacy: %w", legacyErr)
 	}
-	if needsBuild, err := storeNeedsRebuild(cfg.archiveDir, conversationProviderClaude); err == nil {
-		storeNeedsBuild = needsBuild &&
-			(rawDirExists || len(sourceSyncCandidates) > 0 || len(legacyFilesToSync) > 0)
-	} else {
-		if analysisErr == nil {
-			analysisErr = fmt.Errorf("storeNeedsRebuild: %w", err)
-		}
-		storeNeedsBuild = rawDirExists ||
-			len(sourceSyncCandidates) > 0 ||
-			len(legacyFilesToSync) > 0
+
+	storeNeedsBuild, storeErr := shouldRebuildStore(
+		cfg.archiveDir, rawDirExists, sourceSyncCandidates, legacyFilesToSync,
+	)
+	if storeErr != nil && analysisErr == nil {
+		analysisErr = storeErr
 	}
 
 	return importAnalysis{
@@ -134,7 +142,7 @@ func runImportPipeline(
 			})
 		}
 		if err := rebuildCanonicalStore(ctx, cfg.archiveDir, conversationProviderClaude, changedPaths); err != nil {
-			return syncResult{}, fmt.Errorf("rebuildCanonicalStore: %w", err)
+			return result, fmt.Errorf("rebuildCanonicalStore: %w", err)
 		}
 		result.storeBuilt = true
 	}

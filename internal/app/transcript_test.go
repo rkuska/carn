@@ -437,6 +437,14 @@ func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
 	assert.Contains(t, got, "```\nfile updated successfully\n```")
 }
 
+func countSegmentKinds(segments []transcriptSegment) map[segmentKind]int {
+	counts := make(map[segmentKind]int)
+	for _, seg := range segments {
+		counts[seg.kind]++
+	}
+	return counts
+}
+
 func TestRenderTranscriptSegmented(t *testing.T) {
 	t.Parallel()
 
@@ -449,20 +457,10 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{})
+		counts := countSegmentKinds(segments)
 
-		roleCount := 0
-		mdCount := 0
-		for _, seg := range segments {
-			switch seg.kind {
-			case segmentRoleHeader:
-				roleCount++
-			case segmentMarkdown:
-				mdCount++
-			case segmentToolResult, segmentThinking, segmentToolCall:
-			}
-		}
-		assert.Equal(t, 2, roleCount)
-		assert.Equal(t, 2, mdCount)
+		assert.Equal(t, 2, counts[segmentRoleHeader])
+		assert.Equal(t, 2, counts[segmentMarkdown])
 		require.GreaterOrEqual(t, len(segments), 3)
 		assert.Equal(t, segmentRoleHeader, segments[0].kind)
 		assert.Equal(t, roleUser, segments[0].role)
@@ -481,21 +479,10 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: true})
+		counts := countSegmentKinds(segments)
 
-		// Expected: markdown("## You\n\nCheck this\n\n"), toolResult, markdown("\n## Assistant..."),
-		mdCount := 0
-		trCount := 0
-		for _, seg := range segments {
-			switch seg.kind {
-			case segmentMarkdown:
-				mdCount++
-			case segmentToolResult:
-				trCount++
-			case segmentRoleHeader, segmentThinking, segmentToolCall:
-			}
-		}
-		assert.Equal(t, 1, trCount)
-		assert.GreaterOrEqual(t, mdCount, 2)
+		assert.Equal(t, 1, counts[segmentToolResult])
+		assert.GreaterOrEqual(t, counts[segmentMarkdown], 2)
 	})
 
 	t.Run("tool results hidden when showToolResults false", func(t *testing.T) {
@@ -509,10 +496,9 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: false})
+		counts := countSegmentKinds(segments)
 
-		for _, seg := range segments {
-			assert.NotEqual(t, segmentToolResult, seg.kind)
-		}
+		assert.Zero(t, counts[segmentToolResult])
 	})
 
 	t.Run("thinking produces segmentThinking", func(t *testing.T) {
@@ -523,15 +509,14 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showThinking: true})
+		counts := countSegmentKinds(segments)
 
-		thinkCount := 0
+		assert.Equal(t, 1, counts[segmentThinking])
 		for _, seg := range segments {
 			if seg.kind == segmentThinking {
-				thinkCount++
 				assert.Equal(t, "deep thought", seg.text)
 			}
 		}
-		assert.Equal(t, 1, thinkCount)
 	})
 
 	t.Run("tool calls produce segmentToolCall", func(t *testing.T) {
@@ -545,14 +530,9 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showTools: true})
+		counts := countSegmentKinds(segments)
 
-		tcCount := 0
-		for _, seg := range segments {
-			if seg.kind == segmentToolCall {
-				tcCount++
-			}
-		}
-		assert.Equal(t, 2, tcCount)
+		assert.Equal(t, 2, counts[segmentToolCall])
 	})
 
 	t.Run("flattenSegments matches renderTranscript output", func(t *testing.T) {

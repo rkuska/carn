@@ -50,6 +50,57 @@ func providerStoreDir(archiveDir string, provider conversationProvider) string {
 	return filepath.Join(archiveDir, string(provider), "store", "v1")
 }
 
+func buildSyncCandidate(path string, d os.DirEntry, cfg syncRootsConfig) (syncCandidate, bool) {
+	info, err := d.Info()
+	if err != nil {
+		return syncCandidate{}, false
+	}
+
+	rel, err := filepath.Rel(cfg.sourceDir, path)
+	if err != nil {
+		return syncCandidate{}, false
+	}
+
+	destPath := filepath.Join(cfg.destDir, rel)
+	if !fileNeedsSync(info, destPath) {
+		return syncCandidate{}, false
+	}
+
+	status := syncStatusUpdated
+	if _, err := os.Stat(destPath); os.IsNotExist(err) {
+		status = syncStatusNew
+	}
+
+	return syncCandidate{
+		sourcePath: path,
+		destPath:   destPath,
+		status:     status,
+	}, true
+}
+
+func syncWalkEntry(path string, d os.DirEntry, cfg syncRootsConfig, candidates *[]syncCandidate) error {
+	rel, err := filepath.Rel(cfg.sourceDir, path)
+	if err != nil || rel == "." {
+		return nil
+	}
+
+	if shouldExcludeRelPath(rel, cfg.excludeRelPrefixes) {
+		if d.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	}
+
+	if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+		return nil
+	}
+
+	if candidate, ok := buildSyncCandidate(path, d, cfg); ok {
+		*candidates = append(*candidates, candidate)
+	}
+	return nil
+}
+
 func collectSyncCandidates(cfg syncRootsConfig) ([]syncCandidate, error) {
 	if _, err := statDir(cfg.sourceDir); err != nil {
 		return nil, nil
@@ -60,47 +111,7 @@ func collectSyncCandidates(cfg syncRootsConfig) ([]syncCandidate, error) {
 		if walkErr != nil {
 			return nil
 		}
-
-		rel, err := filepath.Rel(cfg.sourceDir, path)
-		if err != nil {
-			return nil
-		}
-		if rel == "." {
-			return nil
-		}
-
-		if shouldExcludeRelPath(rel, cfg.excludeRelPrefixes) {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
-			return nil
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-
-		destPath := filepath.Join(cfg.destDir, rel)
-		if !fileNeedsSync(info, destPath) {
-			return nil
-		}
-
-		status := syncStatusUpdated
-		if _, err := os.Stat(destPath); os.IsNotExist(err) {
-			status = syncStatusNew
-		}
-
-		candidates = append(candidates, syncCandidate{
-			sourcePath: path,
-			destPath:   destPath,
-			status:     status,
-		})
-		return nil
+		return syncWalkEntry(path, d, cfg, &candidates)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("filepath.WalkDir: %w", err)
