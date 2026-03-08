@@ -21,7 +21,7 @@ import (
 
 type archiveConfig struct {
 	sourceDir  string // ~/.claude/projects
-	archiveDir string // ~/.local/share/cldrsrch
+	archiveDir string // ~/.local/share/carn
 }
 
 type syncResult struct {
@@ -50,14 +50,14 @@ func defaultArchiveConfig() (archiveConfig, error) {
 		return archiveConfig{}, fmt.Errorf("os.UserHomeDir: %w", err)
 	}
 
-	sourceDir := os.Getenv("CLDSRCH_SOURCE_DIR")
+	sourceDir := os.Getenv("CARN_SOURCE_DIR")
 	if sourceDir == "" {
 		sourceDir = filepath.Join(home, claudeProjectsDir)
 	}
 
-	archiveDir := os.Getenv("CLDSRCH_ARCHIVE_DIR")
+	archiveDir := os.Getenv("CARN_ARCHIVE_DIR")
 	if archiveDir == "" {
-		archiveDir = filepath.Join(home, ".local", "share", "cldrsrch")
+		archiveDir = filepath.Join(home, ".local", "share", "carn")
 	}
 
 	return archiveConfig{

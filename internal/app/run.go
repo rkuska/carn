@@ -20,7 +20,7 @@ type Config struct {
 
 // Run starts the CLI application with environment-derived configuration.
 func Run() error {
-	logFile, err := os.OpenFile("/tmp/claude-search.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := os.OpenFile("/tmp/carn.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}

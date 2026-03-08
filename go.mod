@@ -1,4 +1,4 @@
-module github.com/rkuska/cldsrch
+module github.com/rkuska/carn
 
 go 1.25.0
 

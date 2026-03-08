@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rkuska/cldsrch/internal/app"
+	"github.com/rkuska/carn/internal/app"
 )
 
 func main() {
