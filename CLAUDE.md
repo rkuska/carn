@@ -174,6 +174,11 @@ Run tests with the Go test command:
 go test ./...
 ```
 
+Run tests with the race detector:
+```bash
+go test -race ./...
+```
+
 Make sure the code conforms the latest go code guidelines:
 ```bash
 go fix ./...

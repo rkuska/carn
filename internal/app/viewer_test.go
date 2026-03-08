@@ -319,8 +319,6 @@ func TestViewerUpdateShowsAndClearsNotifications(t *testing.T) {
 
 func TestRenderRoleHeader(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
-
 	tests := []struct {
 		name      string
 		role      role
