@@ -331,7 +331,7 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	conv := testConv(testConversationIDPrimary)
 	conv.searchPreview = archiveMatchesSourceSubtitle
 
-	items := buildDeepSearchItems([]conversation{conv})
+	items := buildDeepSearchItems("archive", []conversation{conv})
 	listItems := make([]list.Item, 0, len(items))
 	for _, item := range items {
 		listItems = append(listItems, item)
@@ -339,8 +339,10 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	b.list.SetItems(listItems)
 
 	view := b.list.View()
-	assert.Contains(t, ansi.Strip(view), archiveMatchesSourceSubtitle)
-	assert.Contains(t, view, archiveMatchesSourceSubtitle)
+	stripped := ansi.Strip(view)
+	assert.Contains(t, stripped, archiveMatchesSourceSubtitle)
+	// With highlighting, the raw view should contain ANSI escape codes around "archive"
+	assert.NotEqual(t, stripped, view, "expected ANSI highlighting in deep search preview")
 }
 
 func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {

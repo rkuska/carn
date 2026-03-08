@@ -35,6 +35,7 @@ type browserModel struct {
 	repo                  conversationRepository
 	glamourStyle          string
 	list                  list.Model
+	delegate              conversationDelegate
 	focus                 focusArea
 	transcriptMode        transcriptMode
 	allConversations      []conversation
@@ -96,6 +97,7 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 		repo:           newDefaultConversationRepository(),
 		glamourStyle:   glamourStyle,
 		list:           l,
+		delegate:       delegate,
 		focus:          focusList,
 		transcriptMode: transcriptClosed,
 		searchInput:    newBrowserSearchInput(),
@@ -236,7 +238,8 @@ func (m *browserModel) applyDeepSearchResult(msg deepSearchResultMsg, cmds *[]te
 		m.search.appliedRevision = msg.revision
 		m.search.status = searchStatusIdle
 		m.searchCancel = nil
-		m.setSearchItems(buildDeepSearchItems(msg.conversations), cmds)
+		m.setDelegateHeight(delegateHeightDeepSearch)
+		m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), cmds)
 		m.syncTranscriptSelection(cmds)
 	}
 }

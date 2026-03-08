@@ -39,15 +39,25 @@ func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
 	assert.Empty(t, items)
 }
 
-func TestBuildDeepSearchItemsDoesNotHighlightPreviewMatches(t *testing.T) {
+func TestBuildDeepSearchItemsHighlightsDescriptionMatches(t *testing.T) {
+	t.Parallel()
+
+	conv := testConv("one")
+	conv.searchPreview = "found the archive needle here"
+
+	items := buildDeepSearchItems("archive", []conversation{conv})
+	require.Len(t, items, 1)
+	assert.NotEmpty(t, items[0].matchRanges.desc, "desc matches should be populated")
+}
+
+func TestBuildDeepSearchItemsNoMatchWhenQueryAbsent(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv("one")
 	conv.searchPreview = archiveMatchesSourceSubtitle
 
-	items := buildDeepSearchItems([]conversation{conv})
+	items := buildDeepSearchItems("", []conversation{conv})
 	require.Len(t, items, 1)
-	assert.Empty(t, items[0].matchRanges.title)
 	assert.Empty(t, items[0].matchRanges.desc)
 }
 
@@ -136,7 +146,7 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	b.search.query = "beta"
 	b.search.revision = 3
 	b.search.visibleConversations = []conversation{beta}
-	b.setSearchItems(buildDeepSearchItems([]conversation{beta}), &cmds)
+	b.setSearchItems(buildDeepSearchItems("beta", []conversation{beta}), &cmds)
 
 	b, _ = b.Update(deepSearchResultMsg{
 		revision:      2,
