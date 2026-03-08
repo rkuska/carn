@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -193,9 +194,23 @@ func (m *browserModel) toggleSearchMode(cmds *[]tea.Cmd) {
 	m.startDeepSearch(cmds)
 }
 
+func (m *browserModel) handleDeepSearchToggle(cmds *[]tea.Cmd) {
+	previousMode := m.search.mode
+	m.toggleSearchMode(cmds)
+	if m.search.mode == previousMode {
+		return
+	}
+
+	m.setNotification(
+		infoNotification(fmt.Sprintf("search scope: %s", m.searchScopeLabel())).notification,
+		cmds,
+	)
+	m.syncTranscriptSelection(cmds)
+}
+
 func (m browserModel) handleSearchKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
 	if key.Matches(msg, browserKeys.DeepSearch) {
-		m.toggleSearchMode(cmds)
+		m.handleDeepSearchToggle(cmds)
 		return m, nil
 	}
 

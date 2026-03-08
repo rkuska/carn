@@ -340,8 +340,7 @@ func (m *browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.C
 		}
 
 	case key.Matches(msg, browserKeys.DeepSearch):
-		m.toggleSearchMode(cmds)
-		m.syncTranscriptSelection(cmds)
+		m.handleDeepSearchToggle(cmds)
 		return nil
 
 	case key.Matches(msg, browserKeys.Editor):

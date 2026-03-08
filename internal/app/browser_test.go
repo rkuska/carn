@@ -94,6 +94,14 @@ func testLongConv(id string) conversation {
 	}
 }
 
+func helpItemKeys(items []helpItem) []string {
+	keys := make([]string, 0, len(items))
+	for _, item := range items {
+		keys = append(keys, item.key)
+	}
+	return keys
+}
+
 func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 	t.Parallel()
 
@@ -292,11 +300,137 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 		session:        testSession(testConversationIDPrimary),
 	})
 
+	helpLine := ansi.Strip(renderHelpItems(b.viewer.footerItems()))
+	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "editor")
+}
+
+func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	items := b.listFooterItems()
+
+	var found bool
+	for _, item := range items {
+		if item.key != "ctrl+s" {
+			continue
+		}
+		found = true
+		assert.Equal(t, "deep search", item.desc)
+		assert.True(t, item.toggle)
+		assert.False(t, item.on)
+	}
+
+	assert.True(t, found)
+}
+
+func TestRenderHelpItemHighlightsActiveToggle(t *testing.T) {
+	t.Parallel()
+
+	initPalette(true)
+
+	active := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true, on: true})
+	inactive := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true})
+
+	assert.Contains(
+		t,
+		active,
+		lipgloss.NewStyle().Foreground(colorPrimary).Render("+ctrl+s"),
+	)
+	assert.Contains(
+		t,
+		inactive,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("-ctrl+s"),
+	)
+}
+
+func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+
+	assert.Equal(
+		t,
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "?", "q"},
+		helpItemKeys(b.listFooterItems()),
+	)
+}
+
+func TestBrowserSearchFooterShowsDeepSearchStateWhileEditing(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.search.editing = true
+	b.search.mode = searchModeDeep
+	b.search.status = searchStatusSearching
+	b.searchInput.Focus()
+	b.searchInput.SetValue("hello")
+	b.notification = infoNotification("search ready").notification
+
 	lines := strings.Split(b.footerView(), "\n")
 	require.Len(t, lines, 2)
 
-	helpLine := ansi.Strip(lines[0])
-	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "editor")
+	searchLine := ansi.Strip(lines[0])
+	statusLine := ansi.Strip(lines[1])
+
+	assert.Contains(t, searchLine, "/hello")
+	assert.Contains(t, searchLine, "+ctrl+s")
+	assert.Contains(t, searchLine, "deep search")
+	assert.Contains(t, searchLine, "[UPDATING]")
+	assert.Contains(t, statusLine, "search ready")
+}
+
+func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	items := b.listFooterItems()
+
+	assert.Equal(
+		t,
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "tab", "O", "?", "q/esc"},
+		helpItemKeys(items),
+	)
+
+	var sawFocus bool
+	var sawLayout bool
+	for _, item := range items {
+		if item.key == "tab" && item.desc == "focus transcript" {
+			sawFocus = true
+		}
+		if item.key == "O" && item.desc == "fullscreen transcript" {
+			sawLayout = true
+		}
+	}
+
+	assert.True(t, sawFocus)
+	assert.True(t, sawLayout)
+}
+
+func TestBrowserSplitTranscriptFooterUsesConsistentActionLabels(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	assert.Equal(
+		t,
+		[]string{"/", "n/N", "t", "T", "R", "s", "y", "o", "tab", "O", "?", "q/esc"},
+		helpItemKeys(b.transcriptFooterItems()),
+	)
+
+	items := b.transcriptActionItems()
+	require.Len(t, items, 2)
+	assert.Equal(t, helpItem{key: "tab", desc: "focus list"}, items[0])
+	assert.Equal(t, helpItem{key: "O", desc: "fullscreen transcript"}, items[1])
 }
 
 func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
@@ -355,6 +489,31 @@ func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
 			assert.NotEqual(t, "export markdown", item.desc)
 		}
 	}
+}
+
+func TestBrowserListHelpShowsDeepSearchInTogglesSection(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	sections := b.helpSections()
+
+	var sawToggles bool
+	for _, section := range sections {
+		if section.title != "Toggles" {
+			for _, item := range section.items {
+				assert.NotEqual(t, "toggle deep scope", item.desc)
+			}
+			continue
+		}
+
+		sawToggles = true
+		require.Len(t, section.items, 1)
+		assert.Equal(t, "ctrl+s", section.items[0].key)
+		assert.Equal(t, "deep search", section.items[0].desc)
+		assert.True(t, section.items[0].toggle)
+	}
+
+	assert.True(t, sawToggles)
 }
 
 func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {

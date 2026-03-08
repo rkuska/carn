@@ -27,24 +27,21 @@ func renderHelpFooter(width int, items []helpItem, rightParts []string, n notifi
 	)
 }
 
-func renderSearchFooter(width int, prompt string, n notification) string {
-	return renderFramedFooter(width, prompt, renderNotification(n))
+func renderSearchFooter(width int, prompt, right string, n notification) string {
+	return renderFramedFooter(
+		width,
+		composeFooterRow(width, prompt, right),
+		renderNotification(n),
+	)
 }
 
 func renderHelpItems(items []helpItem) string {
 	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	keyNormal := lipgloss.NewStyle().Foreground(colorAccent)
-	keyGlow := lipgloss.NewStyle().Foreground(colorPrimary)
 
 	parts := make([]string, 0, len(items))
 	for _, item := range items {
 		if item.key == "" || item.desc == "" {
 			continue
-		}
-
-		keyStyle := keyNormal
-		if item.glow {
-			keyStyle = keyGlow
 		}
 
 		keyText := item.key
@@ -56,10 +53,17 @@ func renderHelpItems(items []helpItem) string {
 			}
 		}
 
-		parts = append(parts, keyStyle.Render(keyText)+helpStyle.Render(" "+item.desc))
+		parts = append(parts, helpItemKeyStyle(item).Render(keyText)+helpStyle.Render(" "+item.desc))
 	}
 
 	return strings.Join(parts, "  ")
+}
+
+func helpItemKeyStyle(item helpItem) lipgloss.Style {
+	if item.glow || (item.toggle && item.on) {
+		return lipgloss.NewStyle().Foreground(colorPrimary)
+	}
+	return lipgloss.NewStyle().Foreground(colorAccent)
 }
 
 func renderHelpItem(item helpItem) string {

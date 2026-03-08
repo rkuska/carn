@@ -35,14 +35,14 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 
 func transcriptFooterItems(opts transcriptOptions, content contentFlags) []helpItem {
 	items := []helpItem{
-		{key: "?", desc: "help"},
-		{key: "o", desc: "editor"},
 		{key: "/", desc: "search"},
 		{key: "n/N", desc: "match"},
 	}
 	items = append(items, transcriptToggleItems(opts, content)...)
 	items = append(items,
 		helpItem{key: "y", desc: "copy"},
+		helpItem{key: "o", desc: "editor"},
+		helpItem{key: "?", desc: "help"},
 		helpItem{key: "q/esc", desc: "back"},
 	)
 	return items
