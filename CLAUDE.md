@@ -1,11 +1,11 @@
-# Claude search
+# càrn
 
-Claude search is tool that provides additional functionality over ~/.claude/projects files that hold sessions from claude locally.
+càrn is a tool that provides additional functionality over ~/.claude/projects files that hold sessions from claude locally.
 
 
 ## Architecture
 
-All code lives in `internal/app/` (single flat package). Source: `~/.claude/projects/`, archive: `~/.local/share/cldrsrch/`.
+All code lives in `internal/app/` (single flat package). Source: `~/.claude/projects/`, archive: `~/.local/share/carn/`.
 
 ### Data pipeline
 

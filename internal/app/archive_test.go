@@ -129,23 +129,23 @@ func TestCopyFile(t *testing.T) {
 }
 
 func TestDefaultArchiveConfigDefaults(t *testing.T) {
-	t.Setenv("CLDSRCH_SOURCE_DIR", "")
-	t.Setenv("CLDSRCH_ARCHIVE_DIR", "")
+	t.Setenv("CARN_SOURCE_DIR", "")
+	t.Setenv("CARN_ARCHIVE_DIR", "")
 
 	cfg, err := defaultArchiveConfig()
 	require.NoError(t, err)
 
 	home, _ := os.UserHomeDir()
 	wantSource := filepath.Join(home, ".claude", "projects")
-	wantArchive := filepath.Join(home, ".local", "share", "cldrsrch")
+	wantArchive := filepath.Join(home, ".local", "share", "carn")
 
 	assert.Equal(t, wantSource, cfg.sourceDir)
 	assert.Equal(t, wantArchive, cfg.archiveDir)
 }
 
 func TestDefaultArchiveConfigEnvOverrides(t *testing.T) {
-	t.Setenv("CLDSRCH_SOURCE_DIR", "/custom/source")
-	t.Setenv("CLDSRCH_ARCHIVE_DIR", "/custom/archive")
+	t.Setenv("CARN_SOURCE_DIR", "/custom/source")
+	t.Setenv("CARN_ARCHIVE_DIR", "/custom/archive")
 
 	cfg, err := defaultArchiveConfig()
 	require.NoError(t, err)

@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/exp/golden"
-	"github.com/rkuska/cldsrch/internal/app"
-	"github.com/rkuska/cldsrch/scenarios/helpers"
+	"github.com/rkuska/carn/internal/app"
+	"github.com/rkuska/carn/scenarios/helpers"
 	"github.com/stretchr/testify/require"
 )
 

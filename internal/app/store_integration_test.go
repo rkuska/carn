@@ -23,8 +23,8 @@ func TestProviderArchivePaths(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		filepath.Join(archiveDir, "claude", "store", "v1"),
-		providerStoreDir(archiveDir, conversationProviderClaude),
+		filepath.Join(archiveDir, "store", "v1"),
+		canonicalStoreDir(archiveDir),
 	)
 }
 
@@ -146,7 +146,7 @@ func TestRebuildCanonicalStoreBuildsStoreFromRawArchive(t *testing.T) {
 
 	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 
-	storeDir := providerStoreDir(archiveDir, conversationProviderClaude)
+	storeDir := canonicalStoreDir(archiveDir)
 	_, err := os.Stat(filepath.Join(storeDir, "manifest.json"))
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(storeDir, "catalog.bin"))
@@ -228,7 +228,7 @@ func TestLoadSessionsCmdUsesCatalogWhenSearchIndexIsMissing(t *testing.T) {
 	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 	require.NoError(
 		t,
-		os.Remove(filepath.Join(providerStoreDir(archiveDir, conversationProviderClaude), "search.bin")),
+		os.Remove(filepath.Join(canonicalStoreDir(archiveDir), "search.bin")),
 	)
 
 	msg := loadSessionsCmd(context.Background(), archiveDir)()
@@ -258,7 +258,7 @@ func TestLoadSessionsCmdUsesCatalogWhenSearchIndexIsCorrupt(t *testing.T) {
 	}, "\n"))
 
 	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
-	searchPath := filepath.Join(providerStoreDir(archiveDir, conversationProviderClaude), "search.bin")
+	searchPath := filepath.Join(canonicalStoreDir(archiveDir), "search.bin")
 	require.NoError(t, os.WriteFile(searchPath, []byte("not-a-valid-search-index"), 0o644))
 
 	msg := loadSessionsCmd(context.Background(), archiveDir)()
@@ -396,7 +396,7 @@ func TestRebuildCanonicalStoreIncrementalFallsBackOnCorruptStore(t *testing.T) {
 	))
 
 	catalogPath := filepath.Join(
-		providerStoreDir(archiveDir, conversationProviderClaude), "catalog.bin",
+		canonicalStoreDir(archiveDir), "catalog.bin",
 	)
 	require.NoError(t, os.WriteFile(catalogPath, []byte("corrupt"), 0o644))
 

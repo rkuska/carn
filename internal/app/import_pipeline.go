@@ -12,7 +12,7 @@ func shouldRebuildStore(
 	sourceSyncCandidates, legacyFilesToSync []string,
 ) (bool, error) {
 	hasFiles := rawDirExists || len(sourceSyncCandidates) > 0 || len(legacyFilesToSync) > 0
-	needsBuild, err := storeNeedsRebuild(archiveDir, conversationProviderClaude)
+	needsBuild, err := storeNeedsRebuild(archiveDir)
 	if err != nil {
 		return hasFiles, fmt.Errorf("storeNeedsRebuild: %w", err)
 	}
@@ -124,7 +124,7 @@ func runImportPipeline(
 	}
 	mergeSyncResult(&result, sourceResult)
 
-	storeNeedsBuild, err := storeNeedsRebuild(cfg.archiveDir, conversationProviderClaude)
+	storeNeedsBuild, err := storeNeedsRebuild(cfg.archiveDir)
 	if err != nil {
 		return syncResult{}, fmt.Errorf("storeNeedsRebuild: %w", err)
 	}

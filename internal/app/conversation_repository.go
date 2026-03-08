@@ -102,7 +102,7 @@ func (claudeSource) provider() conversationProvider {
 
 func (claudeSource) scan(ctx context.Context, archiveDir string) ([]conversation, error) {
 	catalogPath := filepath.Join(
-		providerStoreDir(archiveDir, conversationProviderClaude),
+		canonicalStoreDir(archiveDir),
 		"catalog.bin",
 	)
 	conversations, err := readCatalogFile(catalogPath)
@@ -121,7 +121,7 @@ func (claudeSource) load(_ context.Context, archiveDir string, conv conversation
 		return sessionFull{}, fmt.Errorf("readTranscriptFile: %w", errors.New("conversation key is required"))
 	}
 	transcriptPath := storeTranscriptPath(
-		providerStoreDir(archiveDir, conversationProviderClaude),
+		canonicalStoreDir(archiveDir),
 		conv.cacheKey(),
 	)
 	session, err := readTranscriptFile(transcriptPath)
@@ -133,7 +133,7 @@ func (claudeSource) load(_ context.Context, archiveDir string, conv conversation
 
 func (claudeSource) searchCorpus(ctx context.Context, archiveDir string) (searchCorpus, error) {
 	searchPath := filepath.Join(
-		providerStoreDir(archiveDir, conversationProviderClaude),
+		canonicalStoreDir(archiveDir),
 		"search.bin",
 	)
 	corpus, err := readSearchFile(searchPath)

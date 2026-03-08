@@ -46,8 +46,8 @@ func providerRawDir(archiveDir string, provider conversationProvider) string {
 	return filepath.Join(archiveDir, string(provider), "raw")
 }
 
-func providerStoreDir(archiveDir string, provider conversationProvider) string {
-	return filepath.Join(archiveDir, string(provider), "store", "v1")
+func canonicalStoreDir(archiveDir string) string {
+	return filepath.Join(archiveDir, "store", "v1")
 }
 
 func buildSyncCandidate(path string, d os.DirEntry, cfg syncRootsConfig) (syncCandidate, bool) {

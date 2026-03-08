@@ -30,10 +30,9 @@ const (
 )
 
 type storeManifest struct {
-	SchemaVersion       int                  `json:"schema_version"`
-	ProjectionVersion   int                  `json:"projection_version"`
-	SearchCorpusVersion int                  `json:"search_corpus_version"`
-	Provider            conversationProvider `json:"provider"`
+	SchemaVersion       int `json:"schema_version"`
+	ProjectionVersion   int `json:"projection_version"`
+	SearchCorpusVersion int `json:"search_corpus_version"`
 }
 
 type searchUnit struct {
@@ -94,10 +93,10 @@ func rebuildCanonicalStore(
 
 	if len(changedRawPaths) > 0 {
 		transcripts, corpus, err := tryIncrementalRebuild(
-			ctx, archiveDir, provider, conversations, changedRawPaths,
+			ctx, archiveDir, conversations, changedRawPaths,
 		)
 		if err == nil {
-			return writeCanonicalStoreAtomically(archiveDir, provider, conversations, transcripts, corpus)
+			return writeCanonicalStoreAtomically(archiveDir, conversations, transcripts, corpus)
 		}
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
@@ -109,7 +108,6 @@ func rebuildCanonicalStore(
 
 	if err := writeCanonicalStoreAtomically(
 		archiveDir,
-		provider,
 		conversations,
 		transcripts,
 		corpus,
@@ -141,12 +139,11 @@ func fullRebuild(
 func tryIncrementalRebuild(
 	ctx context.Context,
 	archiveDir string,
-	provider conversationProvider,
 	conversations []conversation,
 	changedRawPaths []string,
 ) (map[string]sessionFull, searchCorpus, error) {
 	log := zerolog.Ctx(ctx)
-	storeDir := providerStoreDir(archiveDir, provider)
+	storeDir := canonicalStoreDir(archiveDir)
 
 	oldCatalog, err := readCatalogFile(filepath.Join(storeDir, "catalog.bin"))
 	if err != nil {
@@ -205,12 +202,11 @@ func tryIncrementalRebuild(
 
 func writeCanonicalStoreAtomically(
 	archiveDir string,
-	provider conversationProvider,
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
 ) error {
-	storeDir := providerStoreDir(archiveDir, provider)
+	storeDir := canonicalStoreDir(archiveDir)
 	storeParent := filepath.Dir(storeDir)
 	if err := os.MkdirAll(storeParent, 0o755); err != nil {
 		return fmt.Errorf("os.MkdirAll: %w", err)
@@ -226,7 +222,7 @@ func writeCanonicalStoreAtomically(
 		}
 	}()
 
-	if err := writeCanonicalStoreDir(tempDir, provider, conversations, transcripts, corpus); err != nil {
+	if err := writeCanonicalStoreDir(tempDir, conversations, transcripts, corpus); err != nil {
 		return fmt.Errorf("writeCanonicalStoreDir: %w", err)
 	}
 	if err := swapCanonicalStoreDir(storeDir, tempDir); err != nil {
@@ -238,7 +234,6 @@ func writeCanonicalStoreAtomically(
 
 func writeCanonicalStoreDir(
 	storeDir string,
-	provider conversationProvider,
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
@@ -262,7 +257,7 @@ func writeCanonicalStoreDir(
 	if err := writeSearchFile(filepath.Join(storeDir, "search.bin"), corpus); err != nil {
 		return fmt.Errorf("writeSearchFile: %w", err)
 	}
-	if err := writeManifest(filepath.Join(storeDir, "manifest.json"), provider); err != nil {
+	if err := writeManifest(filepath.Join(storeDir, "manifest.json")); err != nil {
 		return fmt.Errorf("writeManifest: %w", err)
 	}
 
@@ -422,12 +417,11 @@ func storeTranscriptPath(storeDir, conversationID string) string {
 	return filepath.Join(storeDir, "transcripts", conversationID+".bin")
 }
 
-func writeManifest(path string, provider conversationProvider) error {
+func writeManifest(path string) error {
 	manifest := storeManifest{
 		SchemaVersion:       storeSchemaVersion,
 		ProjectionVersion:   storeProjectionVersion,
 		SearchCorpusVersion: storeSearchCorpusVersion,
-		Provider:            provider,
 	}
 	return writeJSONFile(path, manifest)
 }
@@ -457,9 +451,8 @@ func readManifest(path string) (storeManifest, error) {
 
 func storeNeedsRebuild(
 	archiveDir string,
-	provider conversationProvider,
 ) (bool, error) {
-	storeDir := providerStoreDir(archiveDir, provider)
+	storeDir := canonicalStoreDir(archiveDir)
 	manifest, err := readManifest(filepath.Join(storeDir, "manifest.json"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -469,8 +462,7 @@ func storeNeedsRebuild(
 	}
 	if manifest.SchemaVersion != storeSchemaVersion ||
 		manifest.ProjectionVersion != storeProjectionVersion ||
-		manifest.SearchCorpusVersion != storeSearchCorpusVersion ||
-		manifest.Provider != provider {
+		manifest.SearchCorpusVersion != storeSearchCorpusVersion {
 		return true, nil
 	}
 	for _, path := range []string{
