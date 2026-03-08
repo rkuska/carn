@@ -586,7 +586,6 @@ func TestFormatToolResultMultipleHunks(t *testing.T) {
 
 func TestRenderPreviewHeader(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	tests := []struct {
 		name     string
@@ -709,7 +708,6 @@ func TestFirstUserMessage(t *testing.T) {
 
 func TestRenderPreviewWithHeader(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	session := sessionFull{
 		meta: sessionMeta{

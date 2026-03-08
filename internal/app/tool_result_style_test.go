@@ -152,8 +152,6 @@ func TestFitToWidth(t *testing.T) {
 func TestRenderContentAreaConsistentWidth(t *testing.T) {
 	t.Parallel()
 
-	initPalette(true)
-
 	tests := []struct {
 		name  string
 		lines []string
@@ -194,8 +192,6 @@ func TestRenderContentAreaConsistentWidth(t *testing.T) {
 func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 	t.Parallel()
 
-	initPalette(true)
-
 	width := 30
 	longLine := strings.Repeat("a", 50)
 	var sb strings.Builder
@@ -218,8 +214,6 @@ func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 
 func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 	t.Parallel()
-
-	initPalette(true)
 
 	t.Run("error result uses different ANSI styling than success", func(t *testing.T) {
 		t.Parallel()
@@ -245,8 +239,6 @@ func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 func TestRenderStyledToolResultLineCount(t *testing.T) {
 	t.Parallel()
 
-	initPalette(true)
-
 	tr := toolResult{
 		toolName: "Read",
 		content:  "line1\nline2\nline3",
@@ -258,8 +250,6 @@ func TestRenderStyledToolResultLineCount(t *testing.T) {
 
 func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
 	t.Parallel()
-
-	initPalette(true)
 
 	tr := toolResult{
 		content: "first line of output\nsecond line",

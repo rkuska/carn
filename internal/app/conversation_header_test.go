@@ -13,7 +13,6 @@ import (
 
 func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	conv := conversation{
 		name:    "cheerful-ocean",
@@ -81,7 +80,6 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 
 func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	conv := conversation{
 		name:    "untitled",
@@ -116,7 +114,6 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 
 func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	conv := conversation{
 		name:    "very-long-conversation-name-for-wrapping",
@@ -150,7 +147,6 @@ func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 
 func TestViewerUsesConversationTargets(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	conv := conversation{
 		name:    "test-slug",
@@ -187,7 +183,6 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 
 func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 	t.Parallel()
-	initPalette(true)
 
 	conv := conversation{
 		name:    "test-slug",

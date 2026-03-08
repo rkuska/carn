@@ -21,8 +21,6 @@ const (
 
 func testBrowser(t *testing.T) browserModel {
 	t.Helper()
-	initPalette(true)
-
 	b := newBrowserModel(context.Background(), t.TempDir(), "dark")
 	b.width = 120
 	b.height = 40
