@@ -12,40 +12,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilterRenderableConversations(t *testing.T) {
+func TestGroupConversationsDropsCommandOnlyConversations(t *testing.T) {
 	t.Parallel()
 
-	proj := project{dirName: "proj", displayName: "proj"}
+	proj := project{displayName: "proj"}
 	ts := time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC)
 
 	tests := []struct {
-		name  string
-		convs []conversation
-		want  int
+		name     string
+		sessions []scannedSession
+		want     int
 	}{
 		{
 			name: "drops command-only conversation",
-			convs: []conversation{
+			sessions: []scannedSession{
 				{
-					name:    "",
-					project: proj,
-					sessions: []sessionMeta{
-						{project: proj, timestamp: ts},
-					},
+					meta:     sessionMeta{id: "command-only", project: proj, timestamp: ts},
+					groupKey: groupKey{dirName: "proj", slug: "command-only"},
 				},
 			},
 			want: 0,
 		},
 		{
 			name: "keeps conversation when any part has content",
-			convs: []conversation{
+			sessions: []scannedSession{
 				{
-					name:    "resume-me",
-					project: proj,
-					sessions: []sessionMeta{
-						{project: proj, timestamp: ts},
-						{project: proj, timestamp: ts.Add(time.Minute), hasConversationContent: true},
+					meta:     sessionMeta{id: "resume-1", slug: "resume-me", project: proj, timestamp: ts},
+					groupKey: groupKey{dirName: "proj", slug: "resume-me"},
+				},
+				{
+					meta: sessionMeta{
+						id:        "resume-2",
+						slug:      "resume-me",
+						project:   proj,
+						timestamp: ts.Add(time.Minute),
 					},
+					groupKey:               groupKey{dirName: "proj", slug: "resume-me"},
+					hasConversationContent: true,
 				},
 			},
 			want: 1,
@@ -56,7 +59,7 @@ func TestFilterRenderableConversations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := filterRenderableConversations(tt.convs)
+			got := groupConversations(tt.sessions)
 			assert.Len(t, got, tt.want)
 		})
 	}

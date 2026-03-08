@@ -16,7 +16,7 @@ func TestBuildMetadataSearchItemsUsesFuzzyMatches(t *testing.T) {
 		testConv("one"),
 		{
 			name:    "archiver",
-			project: project{dirName: "test", displayName: "test"},
+			project: project{displayName: "test"},
 			sessions: []sessionMeta{
 				{id: "two", slug: "archiver", timestamp: testConv("two").sessions[0].timestamp},
 			},
@@ -180,7 +180,7 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 func testNamedConversation(id, slug string) conversation {
 	return conversation{
 		name:    slug,
-		project: project{dirName: "test", displayName: "test"},
+		project: project{displayName: "test"},
 		sessions: []sessionMeta{
 			{id: id, slug: slug, timestamp: time.Now(), project: project{displayName: "test"}},
 		},

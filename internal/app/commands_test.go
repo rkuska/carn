@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,4 +39,27 @@ func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
 	notification := requireMsgType[notificationMsg](t, msg)
 	assert.Equal(t, notificationError, notification.notification.kind)
 	assert.Equal(t, "resume failed: session working directory is unavailable", notification.notification.text)
+}
+
+func TestOpenConversationCmdCachedWithRepositoryUsesCachedSession(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeConversationSource{
+		sourceProvider: conversationProviderClaude,
+		loadResult:     testSession("loaded"),
+	}
+	repo := newConversationRepository(source)
+	cached := testSession("cached")
+	conv := singleSessionConversation(cached.meta)
+
+	msg := openConversationCmdCachedWithRepository(
+		context.Background(),
+		conv,
+		cached,
+		repo,
+	)()
+
+	open := requireMsgType[openViewerMsg](t, msg)
+	assert.Equal(t, cached.meta.id, open.session.meta.id)
+	assert.Zero(t, source.loadCalls)
 }

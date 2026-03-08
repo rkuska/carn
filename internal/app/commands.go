@@ -46,8 +46,6 @@ func loadSessionsCmdWithRepository(
 			return sessionsLoadErrorMsg{err: err}
 		}
 
-		conversations = filterRenderableConversations(conversations)
-
 		// Sort by timestamp descending (newest first)
 		sort.Slice(conversations, func(i, j int) bool {
 			return conversations[i].timestamp().After(conversations[j].timestamp())
@@ -79,16 +77,11 @@ func openConversationCmdCachedWithRepository(
 	repo conversationRepository,
 ) tea.Cmd {
 	return func() tea.Msg {
-		session := parent
-		if len(parent.linked) == 0 {
-			loaded, err := repo.load(ctx, conv)
-			if err != nil {
-				zerolog.Ctx(ctx).Error().Err(err).Msgf("conversationRepository.load cached failed for %s", conv.id())
-				return errorNotification(fmt.Sprintf("load session failed: %v", err))
-			}
-			session = loaded
+		return openViewerMsg{
+			conversationID: conv.cacheKey(),
+			conversation:   conv,
+			session:        parent,
 		}
-		return openViewerMsg{conversationID: conv.cacheKey(), conversation: conv, session: session}
 	}
 }
 

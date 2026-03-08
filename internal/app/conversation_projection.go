@@ -1,57 +1,47 @@
 package app
 
-import "time"
-
 type linkedTranscriptKind string
 
 const linkedTranscriptKindSubagent linkedTranscriptKind = "subagent"
 
-type linkedTranscript struct {
-	kind     linkedTranscriptKind
-	title    string
-	anchor   time.Time
-	messages []message
-}
-
-func projectConversationTranscript(session sessionFull) sessionFull {
-	if len(session.linked) == 0 {
-		return session
+func projectConversationTranscript(messages []parsedMessage, linked []parsedLinkedTranscript) []message {
+	if len(linked) == 0 {
+		return projectParsedMessages(messages)
 	}
 
-	projected := append(make([]message, 0, len(session.messages)+len(session.linked)*2), session.messages...)
-	for _, linked := range session.linked {
-		if len(linked.messages) == 0 {
+	projected := append(make([]parsedMessage, 0, len(messages)+len(linked)*2), messages...)
+	for _, transcript := range linked {
+		if len(transcript.messages) == 0 {
 			continue
 		}
 
-		divider := message{
+		divider := parsedMessage{
 			role:           roleUser,
-			isAgentDivider: linked.kind == linkedTranscriptKindSubagent,
-			text:           linked.title,
+			isAgentDivider: transcript.kind == linkedTranscriptKindSubagent,
+			text:           transcript.title,
 		}
-		pos := findInsertPosition(projected, linked.anchor)
+		pos := findInsertPosition(projected, transcript.anchor)
 		projected = slicesInsert(projected, pos, divider)
-		projected = slicesInsertSlice(projected, pos+1, linked.messages)
+		projected = slicesInsertSlice(projected, pos+1, transcript.messages)
 	}
 
-	session.messages = projected
-	return session
+	return projectParsedMessages(projected)
 }
 
-func slicesInsert(items []message, index int, item message) []message {
-	items = append(items, message{})
+func slicesInsert(items []parsedMessage, index int, item parsedMessage) []parsedMessage {
+	items = append(items, parsedMessage{})
 	copy(items[index+1:], items[index:])
 	items[index] = item
 	return items
 }
 
-func slicesInsertSlice(items []message, index int, inserted []message) []message {
+func slicesInsertSlice(items []parsedMessage, index int, inserted []parsedMessage) []parsedMessage {
 	if len(inserted) == 0 {
 		return items
 	}
 
 	oldLen := len(items)
-	items = append(items, make([]message, len(inserted))...)
+	items = append(items, make([]parsedMessage, len(inserted))...)
 	copy(items[index+len(inserted):], items[index:oldLen])
 	copy(items[index:], inserted)
 	return items

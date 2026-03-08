@@ -68,7 +68,7 @@ func testBrowserSessionLong(id string, keyword string) sessionFull {
 func testConv(id string) conversation {
 	return conversation{
 		name:    "test-slug",
-		project: project{dirName: "test", displayName: "test"},
+		project: project{displayName: "test"},
 		sessions: []sessionMeta{
 			{id: id, slug: "test-slug", timestamp: time.Now(), project: project{displayName: "test"}},
 		},
@@ -79,7 +79,6 @@ func testLongConv(id string) conversation {
 	return conversation{
 		name: "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
 		project: project{
-			dirName:     "test",
 			displayName: "Projects/claude-search/with-a-very-long-project-name",
 		},
 		sessions: []sessionMeta{

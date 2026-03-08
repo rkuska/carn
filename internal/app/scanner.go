@@ -24,21 +24,21 @@ const (
 )
 
 type sessionFile struct {
-	path            string
-	project         project
-	isSubagent      bool
-	parentSessionID string
+	path         string
+	project      project
+	groupDirName string
+	isSubagent   bool
 }
 
 // scanSessions discovers all session JSONL files and extracts metadata.
-func scanSessions(ctx context.Context, baseDir string) ([]sessionMeta, error) {
+func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error) {
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
 		return nil, fmt.Errorf("os.ReadDir: %w", err)
 	}
 
 	log := zerolog.Ctx(ctx)
-	var sessions []sessionMeta
+	var sessions []scannedSession
 
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -47,21 +47,23 @@ func scanSessions(ctx context.Context, baseDir string) ([]sessionMeta, error) {
 		projDir := filepath.Join(baseDir, entry.Name())
 		proj := projectFromDirName(entry.Name())
 
-		files, err := discoverProjectSessionFiles(projDir, proj)
+		files, err := discoverProjectSessionFiles(
+			projDir,
+			project{displayName: proj.displayName},
+			proj.dirName,
+		)
 		if err != nil {
 			log.Warn().Err(err).Msgf("discoverProjectSessionFiles failed for %s", projDir)
 			continue
 		}
 
 		for _, file := range files {
-			meta, err := scanMetadata(ctx, file.path, file.project)
+			scanned, err := scanSessionFile(ctx, file)
 			if err != nil {
 				log.Debug().Err(err).Msgf("skipping %s", file.path)
 				continue
 			}
-			meta.isSubagent = file.isSubagent
-			meta.parentSessionID = file.parentSessionID
-			sessions = append(sessions, meta)
+			sessions = append(sessions, scanned)
 		}
 	}
 
@@ -73,7 +75,7 @@ func scanSessions(ctx context.Context, baseDir string) ([]sessionMeta, error) {
 // (dashes replace both '/' and appear in real names), we strip known prefixes
 // (Users/<name>, home/<name>) and preserve the rest with original dashes.
 // displayNameFromCWD overwrites this with the correct name when cwd is available.
-func projectFromDirName(dirName string) project {
+func projectFromDirName(dirName string) scannedProject {
 	trimmed := strings.TrimPrefix(dirName, "-")
 	display := dirName
 
@@ -90,27 +92,53 @@ func projectFromDirName(dirName string) project {
 		}
 	}
 
-	return project{
+	return scannedProject{
 		dirName:     dirName,
 		displayName: display,
-		path:        dirName,
 	}
 }
 
 // scanMetadata scans a JSONL file once to extract metadata and message counts.
 func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMeta, error) {
+	result, err := scanMetadataResult(ctx, filePath, proj)
+	if err != nil {
+		return sessionMeta{}, fmt.Errorf("scanMetadataResult: %w", err)
+	}
+	return result.meta, nil
+}
+
+func scanSessionFile(ctx context.Context, file sessionFile) (scannedSession, error) {
+	result, err := scanMetadataResult(ctx, file.path, file.project)
+	if err != nil {
+		return scannedSession{}, fmt.Errorf("scanMetadataResult: %w", err)
+	}
+	result.meta.isSubagent = file.isSubagent
+	result.groupKey = buildConversationGroupKey(file, result.meta)
+	return result, nil
+}
+
+func buildConversationGroupKey(file sessionFile, meta sessionMeta) groupKey {
+	if file.isSubagent || meta.slug == "" {
+		return groupKey{dirName: file.groupDirName, slug: file.path}
+	}
+	return groupKey{dirName: file.groupDirName, slug: meta.slug}
+}
+
+func scanMetadataResult(ctx context.Context, filePath string, proj project) (scannedSession, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return sessionMeta{}, fmt.Errorf("os.Open: %w", err)
+		return scannedSession{}, fmt.Errorf("os.Open: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
 
-	meta := sessionMeta{
-		filePath: filePath,
-		project:  proj,
+	result := scannedSession{
+		meta: sessionMeta{
+			filePath: filePath,
+			project:  proj,
+		},
 	}
 
 	var foundUser, foundAssistant bool
@@ -140,22 +168,27 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 
 		switch recRole {
 		case roleUser:
-			hasContent, err := parseUserRecord(line, &meta, &foundUser)
+			hasContent, err := parseUserRecord(line, &result.meta, &foundUser)
 			if err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", filePath)
 				continue
 			}
-			if !meta.hasConversationContent && hasContent {
-				meta.hasConversationContent = true
+			if !result.hasConversationContent && hasContent {
+				result.hasConversationContent = true
 			}
 		case roleAssistant:
-			hasContent, err := parseAssistantRecord(line, &meta, &foundAssistant)
+			hasContent, err := parseAssistantRecord(
+				line,
+				&result.meta,
+				&foundAssistant,
+				result.hasConversationContent,
+			)
 			if err != nil {
 				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", filePath)
 				continue
 			}
-			if !meta.hasConversationContent && hasContent {
-				meta.hasConversationContent = true
+			if !result.hasConversationContent && hasContent {
+				result.hasConversationContent = true
 			}
 			u := extractUsage(line)
 			totalUsage.inputTokens += u.inputTokens
@@ -169,22 +202,22 @@ func scanMetadata(ctx context.Context, filePath string, proj project) (sessionMe
 	}
 
 	if err := scanner.Err(); err != nil {
-		return sessionMeta{}, fmt.Errorf("scanner.Err: %w", err)
+		return scannedSession{}, fmt.Errorf("scanner.Err: %w", err)
 	}
 
-	if meta.id == "" {
-		return sessionMeta{}, fmt.Errorf("no session metadata found in %s", filePath)
+	if result.meta.id == "" {
+		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
 	}
 
-	meta.messageCount = total
-	meta.mainMessageCount = mainOnly
-	meta.totalUsage = totalUsage
-	meta.lastTimestamp = lastTS
+	result.meta.messageCount = total
+	result.meta.mainMessageCount = mainOnly
+	result.meta.totalUsage = totalUsage
+	result.meta.lastTimestamp = lastTS
 	if len(toolCounts) > 0 {
-		meta.toolCounts = toolCounts
+		result.meta.toolCounts = toolCounts
 	}
 
-	return meta, nil
+	return result, nil
 }
 
 // jsonRecord is used for partial unmarshaling of JSONL records.
@@ -197,19 +230,16 @@ type jsonRecord struct {
 	Version       string          `json:"version"`
 	Timestamp     string          `json:"timestamp"`
 	Message       json.RawMessage `json:"message"`
-	UUID          string          `json:"uuid"`
-	ParentUUID    string          `json:"parentUuid"`
 	IsSidechain   bool            `json:"isSidechain"`
 	IsMeta        bool            `json:"isMeta"`
 	ToolUseResult json.RawMessage `json:"toolUseResult"`
 }
 
 type jsonMessage struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content"`
-	Model      string          `json:"model"`
-	StopReason string          `json:"stop_reason"`
-	Usage      *jsonUsage      `json:"usage"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+	Model   string          `json:"model"`
+	Usage   *jsonUsage      `json:"usage"`
 }
 
 type jsonUsage struct {
@@ -236,7 +266,7 @@ func extractType(line []byte) string {
 
 // extractUserContent parses user message content that may be a plain string
 // or an array of content blocks. Returns the text content and any tool results.
-func extractUserContent(raw json.RawMessage) (string, []toolResult) {
+func extractUserContent(raw json.RawMessage) (string, []parsedToolResult) {
 	// Fast path: try as plain string
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
@@ -256,7 +286,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 	}
 
 	var texts []string
-	var results []toolResult
+	var results []parsedToolResult
 	for _, b := range blocks {
 		switch b.Type {
 		case blockTypeText:
@@ -266,7 +296,7 @@ func extractUserContent(raw json.RawMessage) (string, []toolResult) {
 		case contentTypeToolResult:
 			content := extractToolResultContent(b.Content)
 			if content != "" {
-				results = append(results, toolResult{
+				results = append(results, parsedToolResult{
 					toolUseID: b.ToolUseID,
 					content:   truncatePreserveNewlines(content, maxToolResultChars),
 					isError:   b.IsError,
@@ -439,8 +469,8 @@ func extractIsSidechain(line []byte) bool {
 		bytes.Contains(line, []byte(`"isSidechain": true`))
 }
 
-// aggregateUsage sums token usage across all messages.
-func aggregateUsage(messages []message) tokenUsage {
+// aggregateUsage sums token usage across parsed messages.
+func aggregateUsage(messages []parsedMessage) tokenUsage {
 	var total tokenUsage
 	for i := range messages {
 		total.inputTokens += messages[i].usage.inputTokens
@@ -449,19 +479,6 @@ func aggregateUsage(messages []message) tokenUsage {
 		total.outputTokens += messages[i].usage.outputTokens
 	}
 	return total
-}
-
-// parseSubagentPath extracts the parent session UUID from a subagent file path.
-// Expected path: .../<parent-session-uuid>/subagents/agent-<id>.jsonl
-func parseSubagentPath(filePath string) (string, bool) {
-	dir := filepath.Dir(filePath) // .../subagents
-	parent := filepath.Dir(dir)   // .../<parent-session-uuid>
-	parentID := filepath.Base(parent)
-	// Validate it looks like a UUID (36 chars with dashes)
-	if len(parentID) == 36 && strings.Count(parentID, "-") == 4 {
-		return parentID, true
-	}
-	return "", false
 }
 
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) {
@@ -518,8 +535,13 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 	return hasContent, nil
 }
 
-func parseAssistantRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) {
-	if *found && meta.hasConversationContent {
+func parseAssistantRecord(
+	line []byte,
+	meta *sessionMeta,
+	found *bool,
+	hasConversationContent bool,
+) (bool, error) {
+	if *found && hasConversationContent {
 		return false, nil
 	}
 
@@ -571,25 +593,20 @@ func countMessages(filePath string) (int, int, error) {
 
 // parseSession reads a full JSONL file and returns a complete session.
 func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
-	messages, err := parseSessionMessages(ctx, meta.filePath)
+	messages, err := parseSessionMessagesDetailed(ctx, meta.filePath)
 	if err != nil {
-		return sessionFull{}, fmt.Errorf("parseSessionMessages: %w", err)
+		return sessionFull{}, fmt.Errorf("parseSessionMessagesDetailed: %w", err)
 	}
 
 	meta.totalUsage = aggregateUsage(messages)
 
 	return sessionFull{
 		meta:     meta,
-		messages: messages,
+		messages: projectParsedMessages(messages),
 	}, nil
 }
 
-// parseSessionFile reads a single JSONL file and returns its messages.
-func parseSessionFile(ctx context.Context, filePath string) ([]message, error) {
-	return parseSessionMessages(ctx, filePath)
-}
-
-func parseSessionMessages(ctx context.Context, filePath string) ([]message, error) {
+func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parsedMessage, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("os.Open: %w", err)
@@ -599,12 +616,12 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
 
-	var messages []message
-	toolCallIndex := make(map[string]toolCall)
+	var messages []parsedMessage
+	toolCallIndex := make(map[string]parsedToolCall)
 
 	for scanner.Scan() {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("parseSessionMessages_ctx: %w", err)
+			return nil, fmt.Errorf("parseSessionMessagesDetailed_ctx: %w", err)
 		}
 
 		line := scanner.Bytes()
@@ -615,7 +632,7 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 		recType := role(extractType(line))
 		switch recType {
 		case roleUser:
-			msg, ok := parseUserMessage(line)
+			msg, ok := parseParsedUserMessage(line)
 			if ok {
 				for i, tr := range msg.toolResults {
 					if tc, found := toolCallIndex[tr.toolUseID]; found {
@@ -626,7 +643,7 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 				messages = append(messages, msg)
 			}
 		case roleAssistant:
-			msg, ok := parseAssistantMessage(ctx, line)
+			msg, ok := parseParsedAssistantMessage(ctx, line)
 			if ok {
 				for _, tc := range msg.toolCalls {
 					if tc.id != "" {
@@ -648,46 +665,65 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 // parseConversation reads all JSONL files in a conversation and returns
 // a combined session. The meta is taken from the first session.
 func parseConversation(ctx context.Context, conv conversation) (sessionFull, error) {
-	var allMessages []message
-	for _, path := range conv.filePaths() {
-		if err := ctx.Err(); err != nil {
+	allMessages, totalUsage, err := parseConversationMessagesDetailed(ctx, conv)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return sessionFull{}, fmt.Errorf("parseConversation_ctx: %w", err)
 		}
+		return sessionFull{}, fmt.Errorf("parseConversationMessagesDetailed: %w", err)
+	}
 
-		msgs, err := parseSessionFile(ctx, path)
+	meta := conv.sessions[0]
+	meta.totalUsage = totalUsage
+
+	return sessionFull{
+		meta:     meta,
+		messages: projectParsedMessages(allMessages),
+	}, nil
+}
+
+func parseConversationMessagesDetailed(ctx context.Context, conv conversation) ([]parsedMessage, tokenUsage, error) {
+	var allMessages []parsedMessage
+	for _, path := range conv.filePaths() {
+		if err := ctx.Err(); err != nil {
+			return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_ctx: %w", err)
+		}
+
+		msgs, err := parseSessionMessagesDetailed(ctx, path)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return sessionFull{}, fmt.Errorf("parseConversation_parseSessionFile: %w", err)
+				return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_parseSessionMessagesDetailed: %w", err)
 			}
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseSessionFile failed for %s", path)
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseSessionMessagesDetailed failed for %s", path)
 			continue
 		}
 		allMessages = append(allMessages, msgs...)
 	}
-
-	meta := conv.sessions[0]
-	meta.totalUsage = aggregateUsage(allMessages)
-
-	return sessionFull{
-		meta:     meta,
-		messages: allMessages,
-	}, nil
+	return allMessages, aggregateUsage(allMessages), nil
 }
 
 func parseUserMessage(line []byte) (message, bool) {
+	msg, ok := parseParsedUserMessage(line)
+	if !ok {
+		return message{}, false
+	}
+	return projectParsedMessage(msg), true
+}
+
+func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 	var rec jsonRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	var msg jsonMessage
 	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	content, toolResults := extractUserContent(msg.Content)
 	if content == "" && len(toolResults) == 0 {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	if len(rec.ToolUseResult) > 0 && len(toolResults) == 1 {
@@ -701,13 +737,11 @@ func parseUserMessage(line []byte) (message, bool) {
 		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
 	}
 
-	return message{
+	return parsedMessage{
 		role:        roleUser,
 		timestamp:   ts,
 		text:        content,
 		toolResults: toolResults,
-		uuid:        rec.UUID,
-		parentUUID:  rec.ParentUUID,
 		isSidechain: rec.IsSidechain,
 	}, true
 }
@@ -722,25 +756,25 @@ type contentBlock struct {
 	Input    json.RawMessage `json:"input"`
 }
 
-func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
+func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessage, bool) {
 	var rec jsonRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	var msg jsonMessage
 	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	var blocks []contentBlock
 	if err := json.Unmarshal(msg.Content, &blocks); err != nil {
 		zerolog.Ctx(ctx).Debug().Err(err).Msg("failed to unmarshal assistant content blocks")
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	var text, thinking string
-	var toolCalls []toolCall
+	var toolCalls []parsedToolCall
 
 	for _, b := range blocks {
 		switch b.Type {
@@ -755,7 +789,7 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 			}
 			thinking += b.Thinking
 		case "tool_use":
-			tc := toolCall{
+			tc := parsedToolCall{
 				id:      b.ID,
 				name:    b.Name,
 				summary: summarizeToolCall(b.Name, b.Input),
@@ -765,7 +799,7 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 	}
 
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
-		return message{}, false
+		return parsedMessage{}, false
 	}
 
 	var ts time.Time
@@ -783,16 +817,13 @@ func parseAssistantMessage(ctx context.Context, line []byte) (message, bool) {
 		}
 	}
 
-	return message{
+	return parsedMessage{
 		role:        roleAssistant,
 		timestamp:   ts,
 		text:        text,
 		thinking:    thinking,
 		toolCalls:   toolCalls,
 		usage:       usage,
-		stopReason:  msg.StopReason,
-		uuid:        rec.UUID,
-		parentUUID:  rec.ParentUUID,
 		isSidechain: rec.IsSidechain,
 	}, true
 }
@@ -899,40 +930,42 @@ func findSubagentFiles(parentFilePath string) []string {
 // parseSessionWithSubagents reads a parent session, loads linked subagent
 // transcripts, and projects them into the final message stream.
 func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFull, error) {
-	session, err := parseSession(ctx, meta)
+	messages, err := parseSessionMessagesDetailed(ctx, meta.filePath)
 	if err != nil {
-		return sessionFull{}, fmt.Errorf("parseSession: %w", err)
+		return sessionFull{}, fmt.Errorf("parseSessionMessagesDetailed: %w", err)
 	}
 
-	session.linked = loadLinkedTranscripts(ctx, meta)
-	return projectConversationTranscript(session), nil
+	meta.totalUsage = aggregateUsage(messages)
+	return sessionFull{
+		meta:     meta,
+		messages: projectConversationTranscript(messages, loadLinkedTranscripts(ctx, meta)),
+	}, nil
 }
 
-func loadLinkedTranscripts(ctx context.Context, meta sessionMeta) []linkedTranscript {
+func loadLinkedTranscripts(ctx context.Context, meta sessionMeta) []parsedLinkedTranscript {
 	subFiles := findSubagentFiles(meta.filePath)
 	if len(subFiles) == 0 {
 		return nil
 	}
 
 	log := zerolog.Ctx(ctx)
-	linked := make([]linkedTranscript, 0, len(subFiles))
+	linked := make([]parsedLinkedTranscript, 0, len(subFiles))
 
 	for _, sf := range subFiles {
-		subMeta := sessionMeta{filePath: sf, project: meta.project}
-		subSession, err := parseSession(ctx, subMeta)
+		subMessages, err := parseSessionMessagesDetailed(ctx, sf)
 		if err != nil {
 			log.Debug().Err(err).Msgf("skipping subagent file %s", sf)
 			continue
 		}
-		if len(subSession.messages) == 0 {
+		if len(subMessages) == 0 {
 			continue
 		}
 
-		linked = append(linked, linkedTranscript{
+		linked = append(linked, parsedLinkedTranscript{
 			kind:     linkedTranscriptKindSubagent,
-			title:    linkedTranscriptTitle(subSession),
-			anchor:   firstTimestamp(subSession.messages),
-			messages: subSession.messages,
+			title:    linkedTranscriptTitle(subMessages),
+			anchor:   firstTimestamp(subMessages),
+			messages: subMessages,
 		})
 	}
 
@@ -949,9 +982,9 @@ func loadLinkedTranscripts(ctx context.Context, meta sessionMeta) []linkedTransc
 	return linked
 }
 
-func linkedTranscriptTitle(session sessionFull) string {
+func linkedTranscriptTitle(messages []parsedMessage) string {
 	title := "Subagent"
-	for _, msg := range session.messages {
+	for _, msg := range messages {
 		if msg.role == roleUser && msg.text != "" && !isSystemInterrupt(msg.text) {
 			return truncate(msg.text, maxFirstMessage)
 		}
@@ -960,7 +993,7 @@ func linkedTranscriptTitle(session sessionFull) string {
 }
 
 // firstTimestamp returns the first non-zero timestamp from a message slice.
-func firstTimestamp(messages []message) time.Time {
+func firstTimestamp(messages []parsedMessage) time.Time {
 	for _, msg := range messages {
 		if !msg.timestamp.IsZero() {
 			return msg.timestamp
@@ -972,7 +1005,7 @@ func firstTimestamp(messages []message) time.Time {
 // findInsertPosition returns the index at which to insert subagent messages.
 // It finds the last message with a non-zero timestamp <= anchor, and returns
 // the index after it. Falls back to len(messages) when anchor is zero.
-func findInsertPosition(messages []message, anchor time.Time) int {
+func findInsertPosition(messages []parsedMessage, anchor time.Time) int {
 	if anchor.IsZero() {
 		return len(messages)
 	}
@@ -988,19 +1021,26 @@ func findInsertPosition(messages []message, anchor time.Time) int {
 // parseConversationWithSubagents reads all files in a conversation, loads
 // linked subagent transcripts, and projects them into the final message stream.
 func parseConversationWithSubagents(ctx context.Context, conv conversation) (sessionFull, error) {
-	session, err := parseConversation(ctx, conv)
+	baseMessages, totalUsage, err := parseConversationMessagesDetailed(ctx, conv)
 	if err != nil {
-		return sessionFull{}, fmt.Errorf("parseConversation: %w", err)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return sessionFull{}, fmt.Errorf("parseConversation_ctx: %w", err)
+		}
+		return sessionFull{}, fmt.Errorf("parseConversationMessagesDetailed: %w", err)
 	}
 
-	linked := make([]linkedTranscript, 0, len(conv.sessions))
+	linked := make([]parsedLinkedTranscript, 0, len(conv.sessions))
 	for _, path := range conv.filePaths() {
 		meta := sessionMeta{filePath: path, project: conv.project}
 		linked = append(linked, loadLinkedTranscripts(ctx, meta)...)
 	}
-	session.linked = linked
 
-	return projectConversationTranscript(session), nil
+	meta := conv.sessions[0]
+	meta.totalUsage = totalUsage
+	return sessionFull{
+		meta:     meta,
+		messages: projectConversationTranscript(baseMessages, linked),
+	}, nil
 }
 
 func loadConversationSession(ctx context.Context, conv conversation) (sessionFull, error) {
@@ -1011,7 +1051,7 @@ func loadConversationSession(ctx context.Context, conv conversation) (sessionFul
 	return session, nil
 }
 
-func discoverProjectSessionFiles(projDir string, proj project) ([]sessionFile, error) {
+func discoverProjectSessionFiles(projDir string, proj project, groupDirName string) ([]sessionFile, error) {
 	mainFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("filepath.Glob_main: %w", err)
@@ -1025,20 +1065,18 @@ func discoverProjectSessionFiles(projDir string, proj project) ([]sessionFile, e
 	files := make([]sessionFile, 0, len(mainFiles)+len(subagentFiles))
 	for _, path := range mainFiles {
 		files = append(files, sessionFile{
-			path:    path,
-			project: proj,
+			path:         path,
+			project:      proj,
+			groupDirName: groupDirName,
 		})
 	}
 	for _, path := range subagentFiles {
-		file := sessionFile{
-			path:       path,
-			project:    proj,
-			isSubagent: true,
-		}
-		if parentID, ok := parseSubagentPath(path); ok {
-			file.parentSessionID = parentID
-		}
-		files = append(files, file)
+		files = append(files, sessionFile{
+			path:         path,
+			project:      proj,
+			groupDirName: groupDirName,
+			isSubagent:   true,
+		})
 	}
 
 	return files, nil

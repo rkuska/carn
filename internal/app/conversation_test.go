@@ -11,88 +11,133 @@ import (
 func TestGroupConversations(t *testing.T) {
 	t.Parallel()
 
-	proj := project{dirName: "proj-a", displayName: "a"}
+	proj := project{displayName: "a"}
 	ts1 := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 	ts2 := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 	ts3 := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
+	session := func(meta sessionMeta, slug string) scannedSession {
+		return scannedSession{
+			meta:                   meta,
+			groupKey:               groupKey{dirName: "proj-a", slug: slug},
+			hasConversationContent: true,
+		}
+	}
+
 	t.Run("same slug merges into one conversation", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s2", slug: "cheerful-ocean", project: proj, timestamp: ts2, filePath: "/f2", messageCount: 5},
-			{id: "s1", slug: "cheerful-ocean", project: proj, timestamp: ts1, filePath: "/f1", messageCount: 10},
+
+		sessions := []scannedSession{
+			session(
+				sessionMeta{
+					id: "s2", slug: "cheerful-ocean", project: proj,
+					timestamp: ts2, filePath: "/f2", messageCount: 5,
+				},
+				"cheerful-ocean",
+			),
+			session(
+				sessionMeta{
+					id: "s1", slug: "cheerful-ocean", project: proj,
+					timestamp: ts1, filePath: "/f1", messageCount: 10,
+				},
+				"cheerful-ocean",
+			),
 		}
 		convs := groupConversations(sessions)
 		require.Len(t, convs, 1)
+
 		c := convs[0]
 		require.Len(t, c.sessions, 2)
-		// Should be sorted chronologically (s1 before s2)
 		assert.Equal(t, "s1", c.sessions[0].id)
 		assert.Equal(t, "s2", c.sessions[1].id)
 	})
 
 	t.Run("different slugs stay separate", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s1", slug: "slug-a", project: proj, timestamp: ts1},
-			{id: "s2", slug: "slug-b", project: proj, timestamp: ts2},
+
+		sessions := []scannedSession{
+			session(sessionMeta{id: "s1", slug: "slug-a", project: proj, timestamp: ts1}, "slug-a"),
+			session(sessionMeta{id: "s2", slug: "slug-b", project: proj, timestamp: ts2}, "slug-b"),
 		}
-		convs := groupConversations(sessions)
-		assert.Len(t, convs, 2)
+		assert.Len(t, groupConversations(sessions), 2)
 	})
 
 	t.Run("subagents not grouped", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s1", slug: "same-slug", project: proj, timestamp: ts1, isSubagent: true},
-			{id: "s2", slug: "same-slug", project: proj, timestamp: ts2, isSubagent: true},
+
+		sessions := []scannedSession{
+			session(
+				sessionMeta{
+					id: "s1", slug: "same-slug", project: proj,
+					timestamp: ts1, isSubagent: true,
+				},
+				"/f1",
+			),
+			session(
+				sessionMeta{
+					id: "s2", slug: "same-slug", project: proj,
+					timestamp: ts2, isSubagent: true,
+				},
+				"/f2",
+			),
 		}
-		convs := groupConversations(sessions)
-		assert.Len(t, convs, 2)
+		assert.Len(t, groupConversations(sessions), 2)
 	})
 
 	t.Run("empty slug not grouped", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s1", slug: "", project: proj, timestamp: ts1},
-			{id: "s2", slug: "", project: proj, timestamp: ts2},
+
+		sessions := []scannedSession{
+			session(sessionMeta{id: "s1", project: proj, timestamp: ts1}, "/f1"),
+			session(sessionMeta{id: "s2", project: proj, timestamp: ts2}, "/f2"),
 		}
-		convs := groupConversations(sessions)
-		assert.Len(t, convs, 2)
+		assert.Len(t, groupConversations(sessions), 2)
 	})
 
 	t.Run("single session group works", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s1", slug: "unique-slug", project: proj, timestamp: ts1},
-		}
-		convs := groupConversations(sessions)
+
+		convs := groupConversations([]scannedSession{
+			session(sessionMeta{id: "s1", slug: "unique-slug", project: proj, timestamp: ts1}, "unique-slug"),
+		})
 		require.Len(t, convs, 1)
 		assert.Len(t, convs[0].sessions, 1)
 	})
 
 	t.Run("different projects with same slug stay separate", func(t *testing.T) {
 		t.Parallel()
-		projB := project{dirName: "proj-b", displayName: "b"}
-		sessions := []sessionMeta{
-			{id: "s1", slug: "same-slug", project: proj, timestamp: ts1},
-			{id: "s2", slug: "same-slug", project: projB, timestamp: ts2},
+
+		projB := project{displayName: "b"}
+		sessions := []scannedSession{
+			session(sessionMeta{id: "s1", slug: "same-slug", project: proj, timestamp: ts1}, "same-slug"),
+			{
+				meta: sessionMeta{id: "s2", slug: "same-slug", project: projB, timestamp: ts2},
+				groupKey: groupKey{
+					dirName: "proj-b",
+					slug:    "same-slug",
+				},
+				hasConversationContent: true,
+			},
 		}
-		convs := groupConversations(sessions)
-		assert.Len(t, convs, 2)
+		assert.Len(t, groupConversations(sessions), 2)
 	})
 
 	t.Run("mixed grouped and ungrouped", func(t *testing.T) {
 		t.Parallel()
-		sessions := []sessionMeta{
-			{id: "s1", slug: "grouped", project: proj, timestamp: ts1},
-			{id: "s2", slug: "grouped", project: proj, timestamp: ts2},
-			{id: "s3", slug: "", project: proj, timestamp: ts3},
-			{id: "s4", slug: "grouped", project: proj, timestamp: ts3, isSubagent: true},
+
+		sessions := []scannedSession{
+			session(sessionMeta{id: "s1", slug: "grouped", project: proj, timestamp: ts1}, "grouped"),
+			session(sessionMeta{id: "s2", slug: "grouped", project: proj, timestamp: ts2}, "grouped"),
+			session(sessionMeta{id: "s3", project: proj, timestamp: ts3}, "/f3"),
+			session(
+				sessionMeta{
+					id: "s4", slug: "grouped", project: proj,
+					timestamp: ts3, isSubagent: true,
+				},
+				"/f4",
+			),
 		}
-		convs := groupConversations(sessions)
-		// 1 grouped conversation + 1 empty slug + 1 subagent = 3
-		assert.Len(t, convs, 3)
+		assert.Len(t, groupConversations(sessions), 3)
 	})
 }
 
@@ -104,7 +149,7 @@ func TestConversationAccessors(t *testing.T) {
 
 	conv := conversation{
 		name:    "test-slug",
-		project: project{dirName: "proj", displayName: "proj"},
+		project: project{displayName: "proj"},
 		sessions: []sessionMeta{
 			{
 				id: "first-id", slug: "test-slug", timestamp: ts1,
@@ -221,7 +266,7 @@ func TestConversationListItem(t *testing.T) {
 	ts := time.Date(2024, 6, 15, 14, 30, 0, 0, time.UTC)
 	conv := conversation{
 		name:    "cheerful-ocean",
-		project: project{dirName: "proj", displayName: "my/project"},
+		project: project{displayName: "my/project"},
 		sessions: []sessionMeta{
 			{
 				id: "s1", slug: "cheerful-ocean", timestamp: ts,

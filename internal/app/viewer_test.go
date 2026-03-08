@@ -38,7 +38,7 @@ func TestScanContentFlags(t *testing.T) {
 		},
 		{
 			name:     "has tool results only",
-			messages: []message{{role: roleUser, toolResults: []toolResult{{toolUseID: "t1", content: "x"}}}},
+			messages: []message{{role: roleUser, toolResults: []toolResult{{content: "x"}}}},
 			want:     contentFlags{hasToolResults: true},
 		},
 		{
@@ -50,7 +50,7 @@ func TestScanContentFlags(t *testing.T) {
 			name: "has all",
 			messages: []message{
 				{role: roleAssistant, thinking: "t", toolCalls: []toolCall{{name: "W"}}},
-				{role: roleUser, toolResults: []toolResult{{toolUseID: "t1", content: "x"}}},
+				{role: roleUser, toolResults: []toolResult{{content: "x"}}},
 				{role: roleAssistant, text: "side", isSidechain: true},
 			},
 			want: contentFlags{hasThinking: true, hasToolCalls: true, hasToolResults: true, hasSidechain: true},

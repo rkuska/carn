@@ -197,7 +197,7 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	session := sessionFull{
 		messages: []message{
 			{role: roleUser, text: "Check this", toolResults: []toolResult{
-				{toolUseID: "toolu_123", toolName: "Read", toolSummary: "/path/file.go", content: "file contents here"},
+				{toolName: "Read", toolSummary: "/path/file.go", content: "file contents here"},
 			}},
 			{role: roleAssistant, text: "Done!"},
 		},
@@ -292,7 +292,7 @@ func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
 				{name: "Read", summary: "/path/file.go"},
 			}},
 			{role: roleUser, toolResults: []toolResult{
-				{toolUseID: "toolu_abc", toolName: "Read", toolSummary: "/path/file.go", content: "file contents"},
+				{toolName: "Read", toolSummary: "/path/file.go", content: "file contents"},
 			}},
 			{role: roleAssistant, text: "Done!"},
 		},
@@ -322,7 +322,7 @@ func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 			{role: roleUser, text: "Question"},
 			{role: roleAssistant, text: "Answer"},
 			{role: roleUser, text: "", toolResults: []toolResult{
-				{toolUseID: "toolu_abc", content: "result"},
+				{content: "result"},
 			}},
 			{role: roleAssistant, text: "Final"},
 		},
@@ -338,7 +338,7 @@ func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 
 	session := sessionFull{
 		messages: []message{
-			{role: roleUser, text: "Do something", timestamp: time.Now()},
+			{role: roleUser, text: "Do something"},
 			{role: roleAssistant, text: "", toolCalls: []toolCall{
 				{name: "Bash", summary: "ls -la"},
 			}},
@@ -376,8 +376,7 @@ func TestFormatToolResult(t *testing.T) {
 	t.Run("unresolved fallback", func(t *testing.T) {
 		t.Parallel()
 		tr := toolResult{
-			toolUseID: "toolu_xyz",
-			content:   "some output",
+			content: "some output",
 		}
 		got := formatToolResult(tr)
 		assert.Contains(t, got, "**Result**\n")

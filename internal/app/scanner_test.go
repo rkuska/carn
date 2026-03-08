@@ -147,7 +147,6 @@ func TestProjectFromDirName(t *testing.T) {
 			t.Parallel()
 			got := projectFromDirName(tt.dirName)
 			assert.Equal(t, tt.wantDisplay, got.displayName)
-			assert.Equal(t, tt.dirName, got.dirName)
 		})
 	}
 }
@@ -409,49 +408,10 @@ func TestExtractIsSidechain(t *testing.T) {
 	}
 }
 
-func TestParseSubagentPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		path   string
-		wantID string
-		wantOK bool
-	}{
-		{
-			name:   "valid subagent path",
-			path:   "/home/user/.claude/projects/proj/a1b2c3d4-e5f6-7890-abcd-ef1234567890/subagents/agent-123.jsonl",
-			wantID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-			wantOK: true,
-		},
-		{
-			name:   "invalid parent dir name",
-			path:   "/home/user/.claude/projects/proj/not-a-uuid/subagents/agent-123.jsonl",
-			wantID: "",
-			wantOK: false,
-		},
-		{
-			name:   "regular session file",
-			path:   "/home/user/.claude/projects/proj/session.jsonl",
-			wantID: "",
-			wantOK: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			gotID, gotOK := parseSubagentPath(tt.path)
-			assert.Equal(t, tt.wantOK, gotOK)
-			assert.Equal(t, tt.wantID, gotID)
-		})
-	}
-}
-
 func TestAggregateUsage(t *testing.T) {
 	t.Parallel()
 
-	messages := []message{
+	messages := []parsedMessage{
 		{usage: tokenUsage{inputTokens: 100, outputTokens: 50, cacheReadInputTokens: 10}},
 		{usage: tokenUsage{inputTokens: 200, outputTokens: 100, cacheCreationInputTokens: 20}},
 		{usage: tokenUsage{}}, // zero usage
@@ -528,7 +488,7 @@ func TestScanMetadataToolCounts(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, 2, meta.toolCounts["Read"])
@@ -696,7 +656,7 @@ func TestScanMetadataLastTimestamp(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 
@@ -779,7 +739,7 @@ func TestScanMetadataAggregatesUsage(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, 300, meta.totalUsage.inputTokens)
@@ -836,7 +796,7 @@ func TestParseUserMessageArrayContent(t *testing.T) {
 	})
 }
 
-func TestParseAssistantMessageUsage(t *testing.T) {
+func TestParseParsedAssistantMessageUsage(t *testing.T) {
 	t.Parallel()
 
 	line := `{"type":"assistant",` +
@@ -847,18 +807,17 @@ func TestParseAssistantMessageUsage(t *testing.T) {
 		`"usage":{"input_tokens":100,"output_tokens":50,` +
 		`"cache_read_input_tokens":10,` +
 		`"cache_creation_input_tokens":5}}}`
-	msg, ok := parseAssistantMessage(
+	msg, ok := parseParsedAssistantMessage(
 		context.Background(), []byte(line),
 	)
 	require.True(t, ok)
-	assert.Equal(t, "end_turn", msg.stopReason)
 	assert.Equal(t, 100, msg.usage.inputTokens)
 	assert.Equal(t, 50, msg.usage.outputTokens)
 	assert.Equal(t, 10, msg.usage.cacheReadInputTokens)
 	assert.Equal(t, 5, msg.usage.cacheCreationInputTokens)
 }
 
-func TestParseAssistantMessageSidechain(t *testing.T) {
+func TestParseParsedAssistantMessageSidechain(t *testing.T) {
 	t.Parallel()
 
 	line := `{"type":"assistant","isSidechain":true,` +
@@ -866,13 +825,11 @@ func TestParseAssistantMessageSidechain(t *testing.T) {
 		`"timestamp":"2024-01-01T00:00:00Z",` +
 		`"message":{"role":"assistant",` +
 		`"content":[{"type":"text","text":"sidechain reply"}]}}`
-	msg, ok := parseAssistantMessage(
+	msg, ok := parseParsedAssistantMessage(
 		context.Background(), []byte(line),
 	)
 	require.True(t, ok)
 	assert.True(t, msg.isSidechain)
-	assert.Equal(t, "abc", msg.uuid)
-	assert.Equal(t, "def", msg.parentUUID)
 }
 
 func TestScanMetadataArrayFirstMessage(t *testing.T) {
@@ -895,7 +852,7 @@ func TestScanMetadataArrayFirstMessage(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, "array first message", meta.firstMessage)
@@ -905,7 +862,7 @@ func TestScanMetadataRealFile(t *testing.T) {
 	t.Parallel()
 
 	filePath := findTestJSONL(t)
-	proj := project{dirName: "test", displayName: "test/project", path: "test"}
+	proj := project{displayName: "test/project"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
@@ -924,7 +881,7 @@ func TestParseSessionRealFile(t *testing.T) {
 	t.Parallel()
 
 	filePath := findTestJSONL(t)
-	proj := project{dirName: "test", displayName: "test/project", path: "test"}
+	proj := project{displayName: "test/project"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
@@ -964,8 +921,8 @@ func TestScanSessions(t *testing.T) {
 
 	// Verify all sessions have required fields
 	for i, s := range sessions {
-		assert.NotEmpty(t, s.id, "session[%d] has empty id", i)
-		assert.NotEmpty(t, s.filePath, "session[%d] has empty filePath", i)
+		assert.NotEmpty(t, s.meta.id, "session[%d] has empty id", i)
+		assert.NotEmpty(t, s.meta.filePath, "session[%d] has empty filePath", i)
 	}
 }
 
@@ -1131,7 +1088,7 @@ func TestFirstTimestamp(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		messages []message
+		messages []parsedMessage
 		want     time.Time
 	}{
 		{
@@ -1141,17 +1098,17 @@ func TestFirstTimestamp(t *testing.T) {
 		},
 		{
 			name:     "all zero timestamps",
-			messages: []message{{role: roleUser}, {role: roleAssistant}},
+			messages: []parsedMessage{{role: roleUser}, {role: roleAssistant}},
 			want:     time.Time{},
 		},
 		{
 			name:     "first has timestamp",
-			messages: []message{{role: roleUser, timestamp: t1}, {role: roleAssistant}},
+			messages: []parsedMessage{{role: roleUser, timestamp: t1}, {role: roleAssistant}},
 			want:     t1,
 		},
 		{
 			name: "second has timestamp",
-			messages: []message{
+			messages: []parsedMessage{
 				{role: roleAssistant},
 				{role: roleUser, timestamp: t2},
 			},
@@ -1159,7 +1116,7 @@ func TestFirstTimestamp(t *testing.T) {
 		},
 		{
 			name: "returns first non-zero",
-			messages: []message{
+			messages: []parsedMessage{
 				{role: roleAssistant},
 				{role: roleUser, timestamp: t1},
 				{role: roleUser, timestamp: t2},
@@ -1185,7 +1142,7 @@ func TestFindInsertPosition(t *testing.T) {
 	t2 := time.Date(2024, 1, 1, 0, 2, 0, 0, time.UTC)
 	t3 := time.Date(2024, 1, 1, 0, 3, 0, 0, time.UTC)
 
-	messages := []message{
+	messages := []parsedMessage{
 		{role: roleUser, timestamp: t0},
 		{role: roleAssistant, timestamp: t1},
 		{role: roleUser, timestamp: t2},
@@ -1194,7 +1151,7 @@ func TestFindInsertPosition(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		messages []message
+		messages []parsedMessage
 		anchor   time.Time
 		want     int
 	}{
@@ -1236,7 +1193,7 @@ func TestFindInsertPosition(t *testing.T) {
 		},
 		{
 			name: "skips messages without timestamps",
-			messages: []message{
+			messages: []parsedMessage{
 				{role: roleUser, timestamp: t0},
 				{role: roleAssistant}, // no timestamp
 				{role: roleUser, timestamp: t2},
@@ -1288,7 +1245,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		meta := sessionMeta{
 			id:       "session-id",
 			filePath: parentFile,
-			project:  project{dirName: "test", displayName: "test"},
+			project:  project{displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
 		require.NoError(t, err)
@@ -1317,7 +1274,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 			filePath: parentFile,
-			project:  project{dirName: "test", displayName: "test"},
+			project:  project{displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
 		require.NoError(t, err)
@@ -1358,7 +1315,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 			filePath: parentFile,
-			project:  project{dirName: "test", displayName: "test"},
+			project:  project{displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
 		require.NoError(t, err)
@@ -1406,7 +1363,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 			filePath: parentFile,
-			project:  project{dirName: "test", displayName: "test"},
+			project:  project{displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
 		require.NoError(t, err)
@@ -1449,7 +1406,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 			filePath: parentFile,
-			project:  project{dirName: "test", displayName: "test"},
+			project:  project{displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
 		require.NoError(t, err)
@@ -1508,7 +1465,7 @@ func TestTruncatePreserveNewlines(t *testing.T) {
 	}
 }
 
-func TestParseAssistantMessageToolUseID(t *testing.T) {
+func TestParseParsedAssistantMessageToolUseID(t *testing.T) {
 	t.Parallel()
 
 	line := `{"type":"assistant","timestamp":"2024-01-01T00:00:00Z",` +
@@ -1516,7 +1473,7 @@ func TestParseAssistantMessageToolUseID(t *testing.T) {
 		`{"type":"tool_use","id":"toolu_abc123","name":"Read",` +
 		`"input":{"file_path":"/tmp/file.go"}}]}}`
 
-	msg, ok := parseAssistantMessage(context.Background(), []byte(line))
+	msg, ok := parseParsedAssistantMessage(context.Background(), []byte(line))
 	require.True(t, ok)
 	require.Len(t, msg.toolCalls, 1)
 	assert.Equal(t, "toolu_abc123", msg.toolCalls[0].id)
@@ -1568,7 +1525,7 @@ func TestParseSessionResolvesToolResultNames(t *testing.T) {
 	meta := sessionMeta{
 		id:       "s1",
 		filePath: filePath,
-		project:  project{dirName: "test", displayName: "test"},
+		project:  project{displayName: "test"},
 	}
 	session, err := parseSession(context.Background(), meta)
 	require.NoError(t, err)
@@ -1702,7 +1659,7 @@ func TestScanMetadataSkipsInterruptFirstMessage(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, "actual user question", meta.firstMessage)
@@ -1740,7 +1697,7 @@ func TestParseConversation(t *testing.T) {
 	content2 := strings.Join([]string{userLine2, userLine3, assistLine2}, "\n")
 	require.NoError(t, os.WriteFile(file2, []byte(content2), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	conv := conversation{
 		name:    "test",
 		project: proj,
@@ -1786,7 +1743,7 @@ func TestScanMetadataSlugFromLaterRecord(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, "cheerful-ocean", meta.slug)
@@ -1812,7 +1769,7 @@ func TestScanMetadataSlugMissingEntirely(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Empty(t, meta.slug)
@@ -1910,7 +1867,7 @@ func TestScanMetadataSkipsIsMetaFirstMessage(t *testing.T) {
 	filePath := filepath.Join(dir, "test.jsonl")
 	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
-	proj := project{dirName: "test", displayName: "test", path: "test"}
+	proj := project{displayName: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
 	assert.Equal(t, "actual question", meta.firstMessage)

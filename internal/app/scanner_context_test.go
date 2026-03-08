@@ -21,14 +21,14 @@ func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
 
 	conv := conversation{
 		name:    "demo",
-		project: project{dirName: "test", displayName: "test"},
+		project: project{displayName: "test"},
 		sessions: []sessionMeta{
 			{
 				id:        "s1",
 				slug:      "demo",
 				timestamp: time.Now(),
 				filePath:  path,
-				project:   project{dirName: "test", displayName: "test"},
+				project:   project{displayName: "test"},
 			},
 		},
 	}
