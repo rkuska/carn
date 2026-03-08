@@ -33,6 +33,7 @@ const (
 type browserModel struct {
 	ctx                   context.Context
 	archiveDir            string
+	repo                  conversationRepository
 	glamourStyle          string
 	list                  list.Model
 	focus                 focusArea
@@ -93,6 +94,7 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 	return browserModel{
 		ctx:            ctx,
 		archiveDir:     archiveDir,
+		repo:           newDefaultConversationRepository(),
 		glamourStyle:   glamourStyle,
 		list:           l,
 		focus:          focusList,
@@ -109,7 +111,7 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 }
 
 func (m browserModel) Init() tea.Cmd {
-	return loadSessionsCmd(m.ctx, m.archiveDir)
+	return loadSessionsCmdWithRepository(m.ctx, m.archiveDir, m.repo)
 }
 
 func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
@@ -149,7 +151,16 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 			m.refreshSearchResults(&cmds)
 		}
 		if m.indexWarmup {
-			cmds = append(cmds, warmSearchIndexCmd(m.ctx, mainConvs, m.searchIndex.cloneBlobs(), m.cloneSessionCache()))
+			cmds = append(
+				cmds,
+				warmSearchIndexCmdWithRepository(
+					m.ctx,
+					m.repo,
+					mainConvs,
+					m.searchIndex.cloneBlobs(),
+					m.cloneSessionCache(),
+				),
+			)
 		}
 		m.syncTranscriptSelection(&cmds)
 
@@ -347,26 +358,30 @@ func (m browserModel) cloneSessionCache() map[string]sessionFull {
 }
 
 func (m *browserModel) openTranscript(conv conversation) tea.Cmd {
-	if session, ok := m.transcriptCache[conv.id()]; ok {
+	if session, ok := m.transcriptCache[conv.cacheKey()]; ok {
 		m.installViewer(session, conv)
 		return nil
 	}
 
 	m.openConversationID = ""
-	m.loadingConversationID = conv.id()
-	if session, ok := m.sessionCache[conv.id()]; ok {
-		return openConversationCmdCached(m.ctx, conv, session)
+	m.loadingConversationID = conv.cacheKey()
+	if session, ok := m.sessionCache[conv.cacheKey()]; ok {
+		return openConversationCmdCachedWithRepository(m.ctx, conv, session, m.repo)
 	}
-	return openConversationCmd(m.ctx, conv)
+	return openConversationCmdWithRepository(m.ctx, conv, m.repo)
 }
 
 func (m *browserModel) installViewer(session sessionFull, conv conversation) {
-	m.openConversationID = session.meta.id
+	key := conv.cacheKey()
+	if key == "" {
+		key = session.meta.id
+	}
+	m.openConversationID = key
 	m.loadingConversationID = ""
-	m.transcriptCache[session.meta.id] = session
-	m.sessionCache[session.meta.id] = session
-	m.searchIndex.blobs[session.meta.id] = buildSessionSearchBlob(session)
-	m.addToCache(session.meta.id)
+	m.transcriptCache[key] = session
+	m.sessionCache[key] = session
+	m.searchIndex.blobs[key] = buildSessionSearchBlob(session)
+	m.addToCache(key)
 
 	m.viewer = newViewerModel(session, conv, m.glamourStyle, m.viewerWidth(), m.height)
 	if m.transcriptMode == transcriptClosed {
@@ -383,7 +398,7 @@ func (m *browserModel) syncTranscriptSelection(cmds *[]tea.Cmd) {
 	}
 
 	conv, ok := m.selectedConversation()
-	if !ok || conv.id() == m.openConversationID || conv.id() == m.loadingConversationID {
+	if !ok || conv.cacheKey() == m.openConversationID || conv.cacheKey() == m.loadingConversationID {
 		return
 	}
 

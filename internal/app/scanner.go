@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
-
-	"slices"
 
 	"github.com/rs/zerolog"
 )
@@ -897,24 +896,26 @@ func findSubagentFiles(parentFilePath string) []string {
 	return matches
 }
 
-// parseSessionWithSubagents reads a parent session and merges subagent
-// conversations into its message list, separated by divider messages.
+// parseSessionWithSubagents reads a parent session, loads linked subagent
+// transcripts, and projects them into the final message stream.
 func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 	session, err := parseSession(ctx, meta)
 	if err != nil {
 		return sessionFull{}, fmt.Errorf("parseSession: %w", err)
 	}
 
-	return mergeSubagentSessions(ctx, meta, session), nil
+	session.linked = loadLinkedTranscripts(ctx, meta)
+	return projectConversationTranscript(session), nil
 }
 
-func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessionFull) sessionFull {
+func loadLinkedTranscripts(ctx context.Context, meta sessionMeta) []linkedTranscript {
 	subFiles := findSubagentFiles(meta.filePath)
 	if len(subFiles) == 0 {
-		return session
+		return nil
 	}
 
 	log := zerolog.Ctx(ctx)
+	linked := make([]linkedTranscript, 0, len(subFiles))
 
 	for _, sf := range subFiles {
 		subMeta := sessionMeta{filePath: sf, project: meta.project}
@@ -927,29 +928,35 @@ func mergeSubagentSessions(ctx context.Context, meta sessionMeta, session sessio
 			continue
 		}
 
-		// Build divider text from the first user message
-		dividerText := "Subagent"
-		for _, msg := range subSession.messages {
-			if msg.role == roleUser && msg.text != "" && !isSystemInterrupt(msg.text) {
-				dividerText = truncate(msg.text, maxFirstMessage)
-				break
-			}
-		}
-
-		divider := message{
-			role:           roleUser,
-			isAgentDivider: true,
-			text:           dividerText,
-		}
-		// Find chronologically correct insertion position
-		anchor := firstTimestamp(subSession.messages)
-		pos := findInsertPosition(session.messages, anchor)
-
-		session.messages = slices.Insert(session.messages, pos, divider)
-		session.messages = slices.Insert(session.messages, pos+1, subSession.messages...)
+		linked = append(linked, linkedTranscript{
+			kind:     linkedTranscriptKindSubagent,
+			title:    linkedTranscriptTitle(subSession),
+			anchor:   firstTimestamp(subSession.messages),
+			messages: subSession.messages,
+		})
 	}
 
-	return session
+	sort.SliceStable(linked, func(i, j int) bool {
+		if linked[i].anchor.IsZero() {
+			return false
+		}
+		if linked[j].anchor.IsZero() {
+			return true
+		}
+		return linked[i].anchor.Before(linked[j].anchor)
+	})
+
+	return linked
+}
+
+func linkedTranscriptTitle(session sessionFull) string {
+	title := "Subagent"
+	for _, msg := range session.messages {
+		if msg.role == roleUser && msg.text != "" && !isSystemInterrupt(msg.text) {
+			return truncate(msg.text, maxFirstMessage)
+		}
+	}
+	return title
 }
 
 // firstTimestamp returns the first non-zero timestamp from a message slice.
@@ -978,30 +985,22 @@ func findInsertPosition(messages []message, anchor time.Time) int {
 	return pos
 }
 
-// parseConversationWithSubagents reads all files in a conversation and merges
-// subagent sessions from all file paths.
+// parseConversationWithSubagents reads all files in a conversation, loads
+// linked subagent transcripts, and projects them into the final message stream.
 func parseConversationWithSubagents(ctx context.Context, conv conversation) (sessionFull, error) {
 	session, err := parseConversation(ctx, conv)
 	if err != nil {
 		return sessionFull{}, fmt.Errorf("parseConversation: %w", err)
 	}
 
+	linked := make([]linkedTranscript, 0, len(conv.sessions))
 	for _, path := range conv.filePaths() {
 		meta := sessionMeta{filePath: path, project: conv.project}
-		session = mergeSubagentSessions(ctx, meta, session)
+		linked = append(linked, loadLinkedTranscripts(ctx, meta)...)
 	}
+	session.linked = linked
 
-	return session, nil
-}
-
-// parseConversationWithSubagentsCached merges subagents into a cached conversation session.
-func parseConversationWithSubagentsCached(ctx context.Context, conv conversation, parent sessionFull) sessionFull {
-	parent.messages = append([]message(nil), parent.messages...)
-	for _, path := range conv.filePaths() {
-		meta := sessionMeta{filePath: path, project: conv.project}
-		parent = mergeSubagentSessions(ctx, meta, parent)
-	}
-	return parent
+	return projectConversationTranscript(session), nil
 }
 
 func loadConversationSession(ctx context.Context, conv conversation) (sessionFull, error) {
@@ -1010,10 +1009,6 @@ func loadConversationSession(ctx context.Context, conv conversation) (sessionFul
 		return sessionFull{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
 	}
 	return session, nil
-}
-
-func loadConversationSessionCached(ctx context.Context, conv conversation, parent sessionFull) sessionFull {
-	return parseConversationWithSubagentsCached(ctx, conv, parent)
 }
 
 func discoverProjectSessionFiles(projDir string, proj project) ([]sessionFile, error) {

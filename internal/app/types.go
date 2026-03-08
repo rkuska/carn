@@ -148,6 +148,7 @@ func (s sessionMeta) Description() string {
 type sessionFull struct {
 	meta     sessionMeta
 	messages []message
+	linked   []linkedTranscript
 }
 
 type message struct {

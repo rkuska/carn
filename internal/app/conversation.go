@@ -10,6 +10,7 @@ import (
 // conversation groups one or more sessionMeta entries that share
 // the same slug and project into a single logical unit.
 type conversation struct {
+	ref           conversationRef
 	name          string // session slug (session name)
 	project       project
 	sessions      []sessionMeta // chronologically ordered, len >= 1
@@ -77,7 +78,17 @@ func (c conversation) Description() string {
 
 // id returns the primary (first) session's ID — used as a stable cache key.
 func (c conversation) id() string {
+	if c.ref.id != "" {
+		return c.ref.id
+	}
 	return c.sessions[0].id
+}
+
+func (c conversation) cacheKey() string {
+	if key := c.ref.cacheKey(); key != "" {
+		return key
+	}
+	return c.id()
 }
 
 // resumeID returns the latest session's ID — for `claude --resume`.
