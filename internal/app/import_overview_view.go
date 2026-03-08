@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+const archiveMatchesSourceSubtitle = "analysis complete; archive already matches the source"
+
 func (m importOverviewModel) viewDashboard() string {
 	boxWidth := min(max(m.width-6, 36), 88)
 	innerWidth := max(boxWidth-4, 1)
@@ -46,7 +48,7 @@ func (m importOverviewModel) dashboardSubtitle() string {
 		if m.analysis.needsSync() {
 			return "review complete; import is ready"
 		}
-		return "analysis complete; archive already matches the source"
+		return archiveMatchesSourceSubtitle
 	case phaseSyncing:
 		return "copying selected files into the local archive"
 	case phaseDone:

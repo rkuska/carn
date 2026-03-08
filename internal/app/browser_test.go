@@ -392,6 +392,47 @@ func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
 	}
 }
 
+func TestBrowserListHighlightsSearchPreview(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	conv := testConv(testConversationIDPrimary)
+	conv.searchPreview = archiveMatchesSourceSubtitle
+	b.list.SetItems([]list.Item{conv})
+	b.list.SetFilterText("archive")
+
+	view := b.list.View()
+	if !strings.Contains(ansi.Strip(view), archiveMatchesSourceSubtitle) {
+		t.Fatalf("list view missing stripped search preview:\n%s", view)
+	}
+	if strings.Contains(view, archiveMatchesSourceSubtitle) {
+		t.Fatalf("expected highlighted preview to be split by ANSI escapes:\n%s", view)
+	}
+}
+
+func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	conv := testConv(testConversationIDPrimary)
+	conv.searchPreview = archiveMatchesSourceSubtitle
+
+	items := buildDeepSearchItems("archive", []conversation{conv})
+	listItems := make([]list.Item, 0, len(items))
+	for _, item := range items {
+		listItems = append(listItems, item)
+	}
+	b.list.SetItems(listItems)
+
+	view := b.list.View()
+	if !strings.Contains(ansi.Strip(view), archiveMatchesSourceSubtitle) {
+		t.Fatalf("list view missing stripped deep-search preview:\n%s", view)
+	}
+	if strings.Contains(view, archiveMatchesSourceSubtitle) {
+		t.Fatalf("expected deep-search preview to be split by ANSI escapes:\n%s", view)
+	}
+}
+
 func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
 	t.Parallel()
 

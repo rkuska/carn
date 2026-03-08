@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -603,6 +604,10 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 	toolCallIndex := make(map[string]toolCall)
 
 	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("parseSessionMessages_ctx: %w", err)
+		}
+
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -646,8 +651,15 @@ func parseSessionMessages(ctx context.Context, filePath string) ([]message, erro
 func parseConversation(ctx context.Context, conv conversation) (sessionFull, error) {
 	var allMessages []message
 	for _, path := range conv.filePaths() {
+		if err := ctx.Err(); err != nil {
+			return sessionFull{}, fmt.Errorf("parseConversation_ctx: %w", err)
+		}
+
 		msgs, err := parseSessionFile(ctx, path)
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return sessionFull{}, fmt.Errorf("parseConversation_parseSessionFile: %w", err)
+			}
 			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseSessionFile failed for %s", path)
 			continue
 		}

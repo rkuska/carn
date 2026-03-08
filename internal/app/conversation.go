@@ -10,9 +10,10 @@ import (
 // conversation groups one or more sessionMeta entries that share
 // the same slug and project into a single logical unit.
 type conversation struct {
-	name     string // session slug (session name)
-	project  project
-	sessions []sessionMeta // chronologically ordered, len >= 1
+	name          string // session slug (session name)
+	project       project
+	sessions      []sessionMeta // chronologically ordered, len >= 1
+	searchPreview string
 }
 
 func (c conversation) displayName() string {
@@ -27,7 +28,7 @@ func (c conversation) displayName() string {
 
 // FilterValue implements list.Item for fuzzy filtering.
 func (c conversation) FilterValue() string {
-	return fmt.Sprintf("%s %s %s %s", c.project.displayName, c.displayName(), c.firstMessage(), c.gitBranch())
+	return c.Title() + "\n" + c.Description()
 }
 
 // Title implements list.DefaultItem.
@@ -66,7 +67,9 @@ func (c conversation) Description() string {
 	if counts := c.totalToolCounts(); len(counts) > 0 {
 		desc += "  " + formatToolCounts(counts)
 	}
-	if fm := c.firstMessage(); fm != "" {
+	if preview := c.searchPreview; preview != "" {
+		desc += "\n" + preview
+	} else if fm := c.firstMessage(); fm != "" {
 		desc += "\n" + fm
 	}
 	return desc
