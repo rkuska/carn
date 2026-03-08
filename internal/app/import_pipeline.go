@@ -9,9 +9,9 @@ import (
 func shouldRebuildStore(
 	archiveDir string,
 	rawDirExists bool,
-	sourceSyncCandidates, legacyFilesToSync []string,
+	sourceSyncCandidates []string,
 ) (bool, error) {
-	hasFiles := rawDirExists || len(sourceSyncCandidates) > 0 || len(legacyFilesToSync) > 0
+	hasFiles := rawDirExists || len(sourceSyncCandidates) > 0
 	needsBuild, err := storeNeedsRebuild(archiveDir)
 	if err != nil {
 		return hasFiles, fmt.Errorf("storeNeedsRebuild: %w", err)
@@ -26,47 +26,28 @@ func buildFinalImportAnalysis(
 	sourceSyncCandidates []string,
 ) importAnalysis {
 	newConversations, toUpdate, upToDate := classifyConversations(seen)
-	legacyCandidates, legacyErr := collectSyncCandidates(syncRootsConfig{
-		sourceDir:          cfg.archiveDir,
-		destDir:            providerRawDir(cfg.archiveDir, conversationProviderClaude),
-		excludeRelPrefixes: []string{string(conversationProviderClaude)},
-	})
-
-	legacyFilesToSync := make([]string, 0, len(legacyCandidates))
-	for _, candidate := range legacyCandidates {
-		legacyFilesToSync = append(legacyFilesToSync, candidate.sourcePath)
-	}
 
 	rawDirExists := false
 	if _, err := statDir(providerRawDir(cfg.archiveDir, conversationProviderClaude)); err == nil {
 		rawDirExists = true
 	}
 
-	var analysisErr error
-	if legacyErr != nil {
-		analysisErr = fmt.Errorf("collectSyncCandidates_legacy: %w", legacyErr)
-	}
-
 	storeNeedsBuild, storeErr := shouldRebuildStore(
-		cfg.archiveDir, rawDirExists, sourceSyncCandidates, legacyFilesToSync,
+		cfg.archiveDir, rawDirExists, sourceSyncCandidates,
 	)
-	if storeErr != nil && analysisErr == nil {
-		analysisErr = storeErr
-	}
 
 	return importAnalysis{
-		sourceDir:         cfg.sourceDir,
-		archiveDir:        cfg.archiveDir,
-		filesInspected:    filesInspected,
-		projects:          projects,
-		conversations:     len(seen),
-		newConversations:  newConversations,
-		toUpdate:          toUpdate,
-		upToDate:          upToDate,
-		filesToSync:       sourceSyncCandidates,
-		legacyFilesToSync: legacyFilesToSync,
-		storeNeedsBuild:   storeNeedsBuild,
-		err:               analysisErr,
+		sourceDir:        cfg.sourceDir,
+		archiveDir:       cfg.archiveDir,
+		filesInspected:   filesInspected,
+		projects:         projects,
+		conversations:    len(seen),
+		newConversations: newConversations,
+		toUpdate:         toUpdate,
+		upToDate:         upToDate,
+		filesToSync:      sourceSyncCandidates,
+		storeNeedsBuild:  storeNeedsBuild,
+		err:              storeErr,
 	}
 }
 
@@ -77,52 +58,27 @@ func runImportPipeline(
 ) (syncResult, error) {
 	start := time.Now()
 
-	legacyCandidates, err := collectSyncCandidates(syncRootsConfig{
-		sourceDir:          cfg.archiveDir,
-		destDir:            providerRawDir(cfg.archiveDir, conversationProviderClaude),
-		excludeRelPrefixes: []string{string(conversationProviderClaude)},
-	})
-	if err != nil {
-		return syncResult{}, fmt.Errorf("collectSyncCandidates_legacy: %w", err)
-	}
-
-	result := syncResult{}
-
-	legacyResult, err := syncImportStage(
-		ctx,
-		"migrating archive",
-		legacyCandidates,
-		0,
-		len(legacyCandidates),
-		onProgress,
-	)
-	if err != nil {
-		return syncResult{}, fmt.Errorf("syncImportStage_legacy: %w", err)
-	}
-	mergeSyncResult(&result, legacyResult)
-
 	sourceCandidates, err := collectSyncCandidates(syncRootsConfig{
 		sourceDir: cfg.sourceDir,
 		destDir:   providerRawDir(cfg.archiveDir, conversationProviderClaude),
 	})
 	if err != nil {
-		return syncResult{}, fmt.Errorf("collectSyncCandidates_source: %w", err)
+		return syncResult{}, fmt.Errorf("collectSyncCandidates: %w", err)
 	}
 
-	totalRaw := len(legacyCandidates) + len(sourceCandidates)
+	totalRaw := len(sourceCandidates)
 
-	sourceResult, err := syncImportStage(
+	result, err := syncImportStage(
 		ctx,
 		"syncing provider files",
 		sourceCandidates,
-		len(legacyCandidates),
+		0,
 		totalRaw,
 		onProgress,
 	)
 	if err != nil {
-		return syncResult{}, fmt.Errorf("syncImportStage_source: %w", err)
+		return syncResult{}, fmt.Errorf("syncImportStage: %w", err)
 	}
-	mergeSyncResult(&result, sourceResult)
 
 	storeNeedsBuild, err := storeNeedsRebuild(cfg.archiveDir)
 	if err != nil {
@@ -167,13 +123,6 @@ func syncImportStage(
 		progress.stage = stage
 		onProgress(progress)
 	})
-}
-
-func mergeSyncResult(target *syncResult, source syncResult) {
-	target.copied += source.copied
-	target.skipped += source.skipped
-	target.failed += source.failed
-	target.files = append(target.files, source.files...)
 }
 
 func (r syncResult) changedRawPaths() []string {

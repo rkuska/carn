@@ -37,9 +37,8 @@ type syncCandidate struct {
 }
 
 type syncRootsConfig struct {
-	sourceDir          string
-	destDir            string
-	excludeRelPrefixes []string
+	sourceDir string
+	destDir   string
 }
 
 func providerRawDir(archiveDir string, provider conversationProvider) string {
@@ -84,13 +83,6 @@ func syncWalkEntry(path string, d os.DirEntry, cfg syncRootsConfig, candidates *
 		return nil
 	}
 
-	if shouldExcludeRelPath(rel, cfg.excludeRelPrefixes) {
-		if d.IsDir() {
-			return filepath.SkipDir
-		}
-		return nil
-	}
-
 	if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
 		return nil
 	}
@@ -118,20 +110,6 @@ func collectSyncCandidates(cfg syncRootsConfig) ([]syncCandidate, error) {
 	}
 
 	return candidates, nil
-}
-
-func shouldExcludeRelPath(rel string, prefixes []string) bool {
-	rel = filepath.ToSlash(rel)
-	for _, prefix := range prefixes {
-		normalized := strings.Trim(filepath.ToSlash(prefix), "/")
-		if normalized == "" {
-			continue
-		}
-		if rel == normalized || strings.HasPrefix(rel, normalized+"/") {
-			return true
-		}
-	}
-	return false
 }
 
 func syncCandidates(

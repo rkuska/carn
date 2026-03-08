@@ -165,7 +165,6 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.newConversations)),
 			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.toUpdate)),
 			renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.upToDate)),
-			renderSingleChip("Legacy", fmt.Sprintf("%d", len(m.analysis.legacyFilesToSync))),
 		}
 	case phaseSyncing:
 		return []string{

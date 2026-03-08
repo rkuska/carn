@@ -28,54 +28,13 @@ func TestProviderArchivePaths(t *testing.T) {
 	)
 }
 
-func TestCollectSyncCandidatesSkipsProviderNamespaceForLegacyMigration(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	archiveDir := filepath.Join(dir, "archive")
-
-	writeTestFile(t, filepath.Join(archiveDir, "project-a", "session-1.jsonl"), "legacy")
-	writeTestFile(
-		t,
-		filepath.Join(providerRawDir(archiveDir, conversationProviderClaude), "project-b", "session-2.jsonl"),
-		"raw",
-	)
-
-	candidates, err := collectSyncCandidates(syncRootsConfig{
-		sourceDir:          archiveDir,
-		destDir:            providerRawDir(archiveDir, conversationProviderClaude),
-		excludeRelPrefixes: []string{"claude"},
-	})
-	require.NoError(t, err)
-	require.Len(t, candidates, 1)
-	assert.Equal(
-		t,
-		filepath.Join(archiveDir, "project-a", "session-1.jsonl"),
-		candidates[0].sourcePath,
-	)
-	assert.Equal(
-		t,
-		filepath.Join(providerRawDir(archiveDir, conversationProviderClaude), "project-a", "session-1.jsonl"),
-		candidates[0].destPath,
-	)
-	assert.Equal(t, syncStatusNew, candidates[0].status)
-}
-
-func TestRunImportPipelineMigratesLegacyThenOverridesWithSourceAndBuildsStore(t *testing.T) {
+func TestRunImportPipelineSyncsSourceAndBuildsStore(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	sourceDir := filepath.Join(dir, "source")
 	archiveDir := filepath.Join(dir, "archive")
 
-	legacyContent := strings.Join([]string{
-		makeJSONLRecord("user", "shared-session", "session-1"),
-		strings.Join([]string{
-			`{"type":"assistant","timestamp":"2026-03-08T10:00:00Z",`,
-			`"message":{"role":"assistant","model":"claude","content":[`,
-			`{"type":"text","text":"legacy reply"}]}}`,
-		}, ""),
-	}, "\n")
 	sourceContent := strings.Join([]string{
 		makeJSONLRecord("user", "shared-session", "session-1"),
 		strings.Join([]string{
@@ -85,7 +44,6 @@ func TestRunImportPipelineMigratesLegacyThenOverridesWithSourceAndBuildsStore(t 
 		}, ""),
 	}, "\n")
 
-	writeTestFile(t, filepath.Join(archiveDir, "project-a", "session-1.jsonl"), legacyContent)
 	writeTestFile(t, filepath.Join(sourceDir, "project-a", "session-1.jsonl"), sourceContent)
 
 	cfg := archiveConfig{
@@ -102,20 +60,10 @@ func TestRunImportPipelineMigratesLegacyThenOverridesWithSourceAndBuildsStore(t 
 	require.NoError(t, err)
 	assert.Equal(t, sourceContent, string(rawBytes))
 
-	var statuses []syncFileStatus
-	for _, file := range result.files {
-		if file.destPath == rawPath {
-			statuses = append(statuses, file.status)
-		}
-	}
-	assert.Contains(t, statuses, syncStatusNew)
-	assert.Contains(t, statuses, syncStatusUpdated)
-
 	repo := newDefaultConversationRepository()
 	conversations, err := repo.scan(context.Background(), archiveDir)
 	require.NoError(t, err)
 	require.Len(t, conversations, 1)
-	assert.NotEqual(t, "session-1", conversations[0].id())
 
 	session, err := repo.load(context.Background(), archiveDir, conversations[0])
 	require.NoError(t, err)
