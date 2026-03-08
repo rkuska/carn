@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/require"
 )
 
 type runResult struct {
@@ -136,13 +137,14 @@ func (h *programHarness) waitForText(tb testing.TB, text string) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if strings.Contains(h.currentView(), text) {
+		lastView := h.currentView()
+		if strings.Contains(lastView, text) {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	tb.Fatalf("waitForText(%q): last view:\n%s", text, h.currentView())
+	require.FailNowf(tb, "waitForText", "waitForText(%q): last view:\n%s", text, h.currentView())
 }
 
 func (h *programHarness) pressEnter() {
@@ -160,12 +162,8 @@ func (h *programHarness) finalView(tb testing.TB) string {
 	tb.Helper()
 	h.wait(tb, 2*time.Second)
 
-	if h.result.err != nil {
-		tb.Fatalf("program.Run: %v", h.result.err)
-	}
-	if h.result.model == nil {
-		tb.Fatal("program.Run returned a nil model")
-	}
+	require.NoError(tb, h.result.err)
+	require.NotNil(tb, h.result.model)
 
 	return h.currentView()
 }
@@ -180,7 +178,7 @@ func (h *programHarness) wait(tb testing.TB, timeout time.Duration) {
 			h.finished = true
 			h.mu.Unlock()
 		case <-time.After(timeout):
-			tb.Fatalf("wait: timeout after %s", timeout)
+			require.FailNowf(tb, "wait", "timeout after %s", timeout)
 		}
 	})
 }

@@ -9,6 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestScanContentFlags(t *testing.T) {
@@ -59,9 +61,7 @@ func TestScanContentFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := scanContentFlags(tt.messages)
-			if got != tt.want {
-				t.Errorf("scanContentFlags() = %+v, want %+v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -72,9 +72,7 @@ func TestHelpBarAlwaysVisibleInFooter(t *testing.T) {
 	m := newTestViewer(testSession("help-always"), 120, 40)
 	footer := m.footerView()
 
-	if !strings.Contains(footer, "thinking") {
-		t.Fatalf("expected help bar to be visible by default, got: %s", footer)
-	}
+	assert.Contains(t, footer, "thinking")
 }
 
 func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
@@ -100,9 +98,7 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	m.opts.showThinking = true
 	helpOn := m.footerView()
 
-	if helpOff == helpOn {
-		t.Fatal("expected footer to differ when thinking is toggled (purple glow indicator)")
-	}
+	assert.NotEqual(t, helpOff, helpOn)
 }
 
 func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
@@ -129,9 +125,7 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	helpOn := m.footerView()
 
 	// With thinking data, toggling changes both glow and prefix.
-	if helpOff == helpOn {
-		t.Fatal("expected footer to differ when thinking is toggled")
-	}
+	assert.NotEqual(t, helpOff, helpOn)
 
 	// Session with NO thinking data — glow should not activate.
 	noThinkSession := testSession("no-glow-plain")
@@ -139,9 +133,7 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	footer := m2.footerView()
 
 	// The key should show -t (off) but not glow since there's no thinking content.
-	if !strings.Contains(footer, "-t") {
-		t.Fatal("expected -t prefix when thinking is off")
-	}
+	assert.Contains(t, footer, "-t")
 }
 
 func newTestViewer(session sessionFull, width, height int) viewerModel {
@@ -153,12 +145,8 @@ func TestNewViewerModelStartsWithSearchInactive(t *testing.T) {
 
 	m := newTestViewer(testSession("viewer-init"), 120, 40)
 
-	if m.searching {
-		t.Fatal("expected searching to be false on init")
-	}
-	if m.searchInput.Focused() {
-		t.Fatal("expected search input to be blurred on init")
-	}
+	assert.False(t, m.searching)
+	assert.False(t, m.searchInput.Focused())
 }
 
 func TestViewerSearchBindingUsesSlash(t *testing.T) {
@@ -168,12 +156,8 @@ func TestViewerSearchBindingUsesSlash(t *testing.T) {
 
 	// Slash should enter search mode.
 	m, _ = m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
-	if !m.searching {
-		t.Fatal("expected slash key to activate search mode")
-	}
-	if !m.searchInput.Focused() {
-		t.Fatal("expected search input to be focused after slash")
-	}
+	assert.True(t, m.searching)
+	assert.True(t, m.searchInput.Focused())
 }
 
 // testSessionLong creates a session with many messages so content exceeds a small viewport.
@@ -206,9 +190,7 @@ func TestPerformSearchFindsMatchesBeyondViewport(t *testing.T) {
 	m.searchQuery = "UNIQUEWORD"
 	m.performSearch()
 
-	if len(m.matchIndices) == 0 {
-		t.Fatal("expected at least one match for UNIQUEWORD in full content")
-	}
+	assert.NotEmpty(t, m.matchIndices)
 }
 
 func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
@@ -222,9 +204,7 @@ func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
 	m.searchQuery = "hello"
 	m.performSearch()
 
-	if len(m.matchIndices) == 0 {
-		t.Fatal("expected search to find 'hello' even when content has ANSI codes")
-	}
+	assert.NotEmpty(t, m.matchIndices)
 }
 
 func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
@@ -247,10 +227,7 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 	m.opts.showThinking = true
 	m.renderContent()
 
-	if len(m.matchIndices) <= matchesBefore {
-		t.Fatalf("expected more matches after toggling thinking on, got %d (was %d)",
-			len(m.matchIndices), matchesBefore)
-	}
+	assert.Greater(t, len(m.matchIndices), matchesBefore)
 }
 
 func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
@@ -263,12 +240,8 @@ func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
 
 	footer := m.footerView()
 
-	if strings.Contains(footer, "1/0") {
-		t.Fatal("footer should not show '1/0' when there are no matches")
-	}
-	if !strings.Contains(footer, "no matches") {
-		t.Fatalf("footer should show 'no matches', got: %s", footer)
-	}
+	assert.NotContains(t, footer, "1/0")
+	assert.Contains(t, footer, "no matches")
 }
 
 func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
@@ -279,16 +252,12 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	m.searchQuery = "hello"
 	m.performSearch()
 
-	if len(m.matchIndices) == 0 {
-		t.Fatal("expected at least one match for 'hello'")
-	}
+	require.NotEmpty(t, m.matchIndices)
 
 	footer := m.footerView()
 
 	expected := fmt.Sprintf("1/%d", len(m.matchIndices))
-	if !strings.Contains(footer, expected) {
-		t.Fatalf("footer should contain '%s', got: %s", expected, footer)
-	}
+	assert.Contains(t, footer, expected)
 }
 
 func TestViewerFooterUsesSeparateStatusRow(t *testing.T) {
@@ -298,22 +267,14 @@ func TestViewerFooterUsesSeparateStatusRow(t *testing.T) {
 	m.notification = errorNotification("resume failed: directory not found: /tmp/project").notification
 
 	lines := strings.Split(m.footerView(), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("footer line count = %d, want 2", len(lines))
-	}
+	require.Len(t, lines, 2)
 
 	helpLine := ansi.Strip(lines[0])
 	statusLine := ansi.Strip(lines[1])
 
-	if !strings.Contains(helpLine, "thinking") {
-		t.Fatalf("help line = %q, want help text", helpLine)
-	}
-	if strings.Contains(helpLine, "resume failed") {
-		t.Fatalf("help line should not contain notification text: %q", helpLine)
-	}
-	if !strings.Contains(statusLine, "resume failed: directory not found") {
-		t.Fatalf("status line = %q, want notification text", statusLine)
-	}
+	assert.Contains(t, helpLine, "thinking")
+	assert.NotContains(t, helpLine, "resume failed")
+	assert.Contains(t, statusLine, "resume failed: directory not found")
 }
 
 func TestViewerFooterSearchKeepsStatusRow(t *testing.T) {
@@ -326,19 +287,13 @@ func TestViewerFooterSearchKeepsStatusRow(t *testing.T) {
 	m.notification = infoNotification("search ready").notification
 
 	lines := strings.Split(m.footerView(), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("footer line count = %d, want 2", len(lines))
-	}
+	require.Len(t, lines, 2)
 
 	searchLine := ansi.Strip(lines[0])
 	statusLine := ansi.Strip(lines[1])
 
-	if !strings.Contains(searchLine, "/hello") {
-		t.Fatalf("search line = %q, want search input", searchLine)
-	}
-	if !strings.Contains(statusLine, "search ready") {
-		t.Fatalf("status line = %q, want notification text", statusLine)
-	}
+	assert.Contains(t, searchLine, "/hello")
+	assert.Contains(t, statusLine, "search ready")
 }
 
 func TestViewerViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {
@@ -346,9 +301,7 @@ func TestViewerViewKeepsWindowHeightWithTwoLineFooter(t *testing.T) {
 
 	m := newTestViewer(testSession("viewer-height"), 120, 40)
 
-	if got := lipgloss.Height(m.View()); got != m.height {
-		t.Fatalf("view height = %d, want %d", got, m.height)
-	}
+	assert.Equal(t, m.height, lipgloss.Height(m.View()))
 }
 
 func TestViewerUpdateShowsAndClearsNotifications(t *testing.T) {
@@ -357,17 +310,11 @@ func TestViewerUpdateShowsAndClearsNotifications(t *testing.T) {
 	m := newTestViewer(testSession("viewer-notification"), 120, 40)
 
 	m, _ = m.Update(errorNotification("resume failed: directory not found: /tmp/missing"))
-	if m.notification.text != "resume failed: directory not found: /tmp/missing" {
-		t.Fatalf("notification text = %q", m.notification.text)
-	}
-	if m.notification.kind != notificationError {
-		t.Fatalf("notification kind = %q, want %q", m.notification.kind, notificationError)
-	}
+	assert.Equal(t, "resume failed: directory not found: /tmp/missing", m.notification.text)
+	assert.Equal(t, notificationError, m.notification.kind)
 
 	m, _ = m.Update(clearNotificationMsg{})
-	if m.notification.text != "" {
-		t.Fatalf("notification text = %q, want empty", m.notification.text)
-	}
+	assert.Empty(t, m.notification.text)
 }
 
 func TestRenderRoleHeader(t *testing.T) {
@@ -397,12 +344,8 @@ func TestRenderRoleHeader(t *testing.T) {
 			got := renderRoleHeader(tt.role, 80)
 			stripped := ansi.Strip(got)
 
-			if !strings.Contains(stripped, tt.wantLabel) {
-				t.Errorf("renderRoleHeader(%v) = %q, want label %q", tt.role, stripped, tt.wantLabel)
-			}
-			if !strings.Contains(stripped, "─") {
-				t.Error("expected horizontal rule in header")
-			}
+			assert.Contains(t, stripped, tt.wantLabel)
+			assert.Contains(t, stripped, "─")
 		})
 	}
 }

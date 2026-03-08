@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
@@ -15,9 +17,7 @@ func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "session.jsonl")
 	content := `{"type":"user","sessionId":"s1","slug":"demo","message":{"role":"user","content":"hello"}}`
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("os.WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 	conv := conversation{
 		name:    "demo",
@@ -37,10 +37,6 @@ func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
 	cancel()
 
 	_, err := parseConversation(ctx, conv)
-	if err == nil {
-		t.Fatal("expected parseConversation to return an error")
-	}
-	if !strings.Contains(err.Error(), "parseConversation_ctx") {
-		t.Fatalf("err = %v, want parseConversation_ctx wrapper", err)
-	}
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "parseConversation_ctx")
 }

@@ -6,6 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderStyledToolResult(t *testing.T) {
@@ -80,11 +82,7 @@ func TestRenderStyledToolResult(t *testing.T) {
 			got := renderStyledToolResult(tt.tr, tt.width)
 			stripped := ansi.Strip(got)
 
-			for _, want := range tt.contains {
-				if !strings.Contains(stripped, want) {
-					t.Errorf("output missing %q\nstripped:\n%s\nraw:\n%s", want, stripped, got)
-				}
-			}
+			assertContainsAll(t, stripped, tt.contains...)
 		})
 	}
 }
@@ -104,9 +102,7 @@ func TestRenderStyledToolResultMultipleHunksCount(t *testing.T) {
 
 	count := strings.Count(stripped, "@@")
 	// 2 hunks × 2 @@ each = 4
-	if count != 4 {
-		t.Errorf("expected 4 @@ markers, got %d\n%s", count, stripped)
-	}
+	assert.Equal(t, 4, count)
 }
 
 func TestFitToWidth(t *testing.T) {
@@ -149,10 +145,7 @@ func TestFitToWidth(t *testing.T) {
 			t.Parallel()
 			got := fitToWidth(tt.input, tt.width)
 			gotWidth := lipgloss.Width(got)
-			if gotWidth != tt.wantWidth {
-				t.Errorf("fitToWidth(%q, %d): visual width = %d, want %d\ngot: %q",
-					tt.input, tt.width, gotWidth, tt.wantWidth, got)
-			}
+			assert.Equal(t, tt.wantWidth, gotWidth)
 		})
 	}
 }
@@ -193,11 +186,7 @@ func TestRenderContentAreaConsistentWidth(t *testing.T) {
 			}
 
 			for i := 1; i < len(widths); i++ {
-				if widths[i] != widths[0] {
-					t.Errorf("line %d width %d != line 0 width %d\nwidths: %v",
-						i, widths[i], widths[0], widths)
-					break
-				}
+				assert.Equal(t, widths[0], widths[i])
 			}
 		})
 	}
@@ -216,19 +205,15 @@ func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 	output := sb.String()
 	rendered := strings.Split(strings.TrimRight(output, "\n"), "\n")
 
-	if len(rendered) < 2 {
-		t.Errorf("expected long line to wrap into multiple lines, got %d line(s)", len(rendered))
-	}
+	require.GreaterOrEqual(t, len(rendered), 2)
 
 	contentWidth := width - 2 // border (1) + space (1)
-	for i, line := range rendered {
+	for _, line := range rendered {
 		stripped := ansi.Strip(line)
 		w := lipgloss.Width(stripped)
 		// Each line should be border(1) + space(1) + contentWidth
 		expected := contentWidth + 2
-		if w != expected {
-			t.Errorf("wrapped line %d: width %d, want %d\nline: %q", i, w, expected, stripped)
-		}
+		assert.Equal(t, expected, w)
 	}
 }
 
@@ -252,13 +237,9 @@ func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 		errOutput := renderStyledToolResult(errTR, 80)
 		okOutput := renderStyledToolResult(okTR, 80)
 		// Both should contain the tool name
-		if !strings.Contains(ansi.Strip(errOutput), "Bash") {
-			t.Error("error output missing tool name")
-		}
+		assert.Contains(t, ansi.Strip(errOutput), "Bash")
 		// The raw ANSI output should differ (different colors)
-		if errOutput == okOutput {
-			t.Error("error and success output should have different ANSI styling")
-		}
+		assert.NotEqual(t, errOutput, okOutput)
 	})
 }
 
@@ -273,9 +254,7 @@ func TestRenderStyledToolResultLineCount(t *testing.T) {
 	}
 	got := renderStyledToolResult(tr, 80)
 	stripped := ansi.Strip(got)
-	if !strings.Contains(stripped, "3 lines") {
-		t.Errorf("expected line count in output, got:\n%s", stripped)
-	}
+	assert.Contains(t, stripped, "3 lines")
 }
 
 func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
@@ -289,9 +268,7 @@ func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
 	}
 	got := renderStyledToolResult(tr, 80)
 	stripped := ansi.Strip(got)
-	if !strings.Contains(stripped, "first line of output") {
-		t.Errorf("expected content fallback summary, got:\n%s", stripped)
-	}
+	assert.Contains(t, stripped, "first line of output")
 }
 
 func TestContentFallbackSummary(t *testing.T) {
@@ -328,9 +305,7 @@ func TestContentFallbackSummary(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := contentFallbackSummary(tt.content)
-			if got != tt.want {
-				t.Errorf("contentFallbackSummary() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

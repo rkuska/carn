@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNotificationDuration(t *testing.T) {
@@ -38,9 +41,7 @@ func TestNotificationDuration(t *testing.T) {
 			t.Parallel()
 
 			got := notificationDuration(tt.kind)
-			if got != tt.want {
-				t.Errorf("notificationDuration(%q) = %v, want %v", tt.kind, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -83,12 +84,8 @@ func TestResumeErrorNotification(t *testing.T) {
 			t.Parallel()
 
 			msg := resumeErrorNotification(tt.err, tt.cwd)
-			if msg.notification.kind != notificationError {
-				t.Fatalf("notification kind = %q, want %q", msg.notification.kind, notificationError)
-			}
-			if msg.notification.text != tt.want {
-				t.Errorf("notification text = %q, want %q", msg.notification.text, tt.want)
-			}
+			assert.Equal(t, notificationError, msg.notification.kind)
+			assert.Equal(t, tt.want, msg.notification.text)
 		})
 	}
 }
@@ -102,32 +99,20 @@ func TestNewResumeExecCmd(t *testing.T) {
 		dir := t.TempDir()
 
 		cmd, err := newResumeExecCmd("session-123", dir)
-		if err != nil {
-			t.Fatalf("newResumeExecCmd() error = %v", err)
-		}
-
-		if cmd.Dir != dir {
-			t.Errorf("cmd.Dir = %q, want %q", cmd.Dir, dir)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, dir, cmd.Dir)
 
 		wantArgs := []string{"claude", "--resume", "session-123"}
-		if len(cmd.Args) != len(wantArgs) {
-			t.Fatalf("len(cmd.Args) = %d, want %d", len(cmd.Args), len(wantArgs))
-		}
-		for i := range wantArgs {
-			if cmd.Args[i] != wantArgs[i] {
-				t.Errorf("cmd.Args[%d] = %q, want %q", i, cmd.Args[i], wantArgs[i])
-			}
-		}
+		require.Len(t, cmd.Args, len(wantArgs))
+		assert.Equal(t, wantArgs, cmd.Args)
 	})
 
 	t.Run("empty cwd fails", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := newResumeExecCmd("session-123", "")
-		if !errors.Is(err, errResumeDirEmpty) {
-			t.Fatalf("newResumeExecCmd() error = %v, want %v", err, errResumeDirEmpty)
-		}
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errResumeDirEmpty)
 	})
 
 	t.Run("missing directory fails", func(t *testing.T) {
@@ -136,9 +121,8 @@ func TestNewResumeExecCmd(t *testing.T) {
 		missingDir := filepath.Join(t.TempDir(), "missing")
 
 		_, err := newResumeExecCmd("session-123", missingDir)
-		if !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("newResumeExecCmd() error = %v, want %v", err, os.ErrNotExist)
-		}
+		require.Error(t, err)
+		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("file path fails", func(t *testing.T) {
@@ -146,13 +130,10 @@ func TestNewResumeExecCmd(t *testing.T) {
 
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "session.txt")
-		if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
-			t.Fatalf("os.WriteFile() error = %v", err)
-		}
+		require.NoError(t, os.WriteFile(filePath, []byte("x"), 0o644))
 
 		_, err := newResumeExecCmd("session-123", filePath)
-		if !errors.Is(err, errResumeDirNotDirectory) {
-			t.Fatalf("newResumeExecCmd() error = %v, want %v", err, errResumeDirNotDirectory)
-		}
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errResumeDirNotDirectory)
 	})
 }

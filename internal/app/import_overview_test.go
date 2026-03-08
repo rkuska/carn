@@ -10,6 +10,8 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestImportOverviewModelInit(t *testing.T) {
@@ -23,12 +25,8 @@ func TestImportOverviewModelInit(t *testing.T) {
 	m := newImportOverviewModel(cfg)
 
 	cmd := m.Init()
-	if cmd == nil {
-		t.Fatal("Init() should return a batch command")
-	}
-	if m.phase != phaseAnalyzing {
-		t.Errorf("initial phase = %d, want phaseAnalyzing", m.phase)
-	}
+	require.NotNil(t, cmd)
+	assert.Equal(t, phaseAnalyzing, m.phase)
 }
 
 func TestImportOverviewAnalyzingDisablesEnter(t *testing.T) {
@@ -46,12 +44,8 @@ func TestImportOverviewAnalyzingDisablesEnter(t *testing.T) {
 	// Pressing Enter during analysis should not change phase
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if m.phase != phaseAnalyzing {
-		t.Errorf("phase = %d, want phaseAnalyzing (Enter should be disabled)", m.phase)
-	}
-	if m.done {
-		t.Error("should not be done during analysis")
-	}
+	assert.Equal(t, phaseAnalyzing, m.phase)
+	assert.False(t, m.done)
 }
 
 func TestImportOverviewAnalysisCompletionEnablesEnter(t *testing.T) {
@@ -74,16 +68,12 @@ func TestImportOverviewAnalysisCompletionEnablesEnter(t *testing.T) {
 		},
 	})
 
-	if m.phase != phaseReady {
-		t.Errorf("phase = %d, want phaseReady", m.phase)
-	}
+	assert.Equal(t, phaseReady, m.phase)
 
 	// Now Enter should set done (nothing to sync → skip to browser)
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if !m.done {
-		t.Error("expected done = true after Enter on empty analysis")
-	}
+	assert.True(t, m.done)
 }
 
 func TestImportOverviewEnterStartsSync(t *testing.T) {
@@ -109,22 +99,14 @@ func TestImportOverviewEnterStartsSync(t *testing.T) {
 		},
 	})
 
-	if m.phase != phaseReady {
-		t.Fatalf("phase = %d, want phaseReady", m.phase)
-	}
+	assert.Equal(t, phaseReady, m.phase)
 
 	// Enter should start sync
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if m.phase != phaseSyncing {
-		t.Errorf("phase = %d, want phaseSyncing", m.phase)
-	}
-	if cmd == nil {
-		t.Error("expected copy batch command")
-	}
-	if m.total != 1 {
-		t.Errorf("total = %d, want 1", m.total)
-	}
+	assert.Equal(t, phaseSyncing, m.phase)
+	require.NotNil(t, cmd)
+	assert.Equal(t, 1, m.total)
 }
 
 func TestImportOverviewSyncCompletion(t *testing.T) {
@@ -160,19 +142,13 @@ func TestImportOverviewSyncCompletion(t *testing.T) {
 		},
 	})
 
-	if m.phase != phaseDone {
-		t.Errorf("phase = %d, want phaseDone", m.phase)
-	}
-	if m.result.copied != 1 {
-		t.Errorf("copied = %d, want 1", m.result.copied)
-	}
+	assert.Equal(t, phaseDone, m.phase)
+	assert.Equal(t, 1, m.result.copied)
 
 	// Enter in done phase should set done
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if !m.done {
-		t.Error("expected done = true after Enter on sync complete")
-	}
+	assert.True(t, m.done)
 }
 
 func TestImportOverviewEmptyProjectDirs(t *testing.T) {
@@ -190,12 +166,8 @@ func TestImportOverviewEmptyProjectDirs(t *testing.T) {
 	// No project dirs
 	m, _ = m.Update(listProjectDirsMsg{dirs: nil})
 
-	if m.phase != phaseReady {
-		t.Errorf("phase = %d, want phaseReady", m.phase)
-	}
-	if m.analysis.needsSync() {
-		t.Error("expected no sync needed for empty source")
-	}
+	assert.Equal(t, phaseReady, m.phase)
+	assert.False(t, m.analysis.needsSync())
 }
 
 func TestImportOverviewListProjectDirsError(t *testing.T) {
@@ -213,9 +185,7 @@ func TestImportOverviewListProjectDirsError(t *testing.T) {
 	// Error listing dirs
 	m, _ = m.Update(listProjectDirsMsg{err: fmt.Errorf("permission denied")})
 
-	if m.phase != phaseReady {
-		t.Errorf("phase = %d, want phaseReady (should recover from error)", m.phase)
-	}
+	assert.Equal(t, phaseReady, m.phase)
 }
 
 func TestImportOverviewWindowResize(t *testing.T) {
@@ -230,12 +200,8 @@ func TestImportOverviewWindowResize(t *testing.T) {
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 200, Height: 50})
 
-	if m.width != 200 {
-		t.Errorf("width = %d, want 200", m.width)
-	}
-	if m.height != 50 {
-		t.Errorf("height = %d, want 50", m.height)
-	}
+	assert.Equal(t, 200, m.width)
+	assert.Equal(t, 50, m.height)
 }
 
 func TestImportOverviewSpinnerTick(t *testing.T) {
@@ -276,20 +242,16 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		}
 
 		view := ansi.Strip(m.View())
-		if view == "" {
-			t.Error("expected non-empty view")
-		}
-		if !strings.Contains(view, "Import Workspace") {
-			t.Fatalf("expected unified import title, got: %s", view)
-		}
-		for _, label := range []string{"Source", "Archive", "Projects", "Files", "Conversations"} {
-			if !strings.Contains(view, label) {
-				t.Fatalf("expected persistent dashboard section %q, got: %s", label, view)
-			}
-		}
-		if !strings.Contains(view, "Scanning Claude projects") {
-			t.Fatalf("expected analyzing status copy, got: %s", view)
-		}
+		require.NotEmpty(t, view)
+		assertContainsAll(t, view,
+			"Import Workspace",
+			"Source",
+			"Archive",
+			"Projects",
+			"Files",
+			"Conversations",
+			"Scanning Claude projects",
+		)
 	})
 
 	t.Run("ready with sync needed", func(t *testing.T) {
@@ -311,21 +273,8 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		}
 
 		view := ansi.Strip(m.View())
-		if view == "" {
-			t.Error("expected non-empty view")
-		}
-		if !strings.Contains(view, "Ready to Import") {
-			t.Fatalf("expected ready status, got: %s", view)
-		}
-		if !strings.Contains(view, "Projects") || !strings.Contains(view, "Current") {
-			t.Fatalf("expected review summary metrics, got: %s", view)
-		}
-		if !strings.Contains(view, "Will import") {
-			t.Fatalf("expected import summary, got: %s", view)
-		}
-		if !strings.Contains(view, "Press Enter to import") {
-			t.Fatalf("expected import CTA, got: %s", view)
-		}
+		require.NotEmpty(t, view)
+		assertContainsAll(t, view, "Ready to Import", "Projects", "Current", "Will import", "Press Enter to import")
 	})
 
 	t.Run("ready without sync", func(t *testing.T) {
@@ -341,15 +290,8 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		}
 
 		view := ansi.Strip(m.View())
-		if view == "" {
-			t.Error("expected non-empty view")
-		}
-		if !strings.Contains(view, "No import needed") {
-			t.Fatalf("expected no-op outcome, got: %s", view)
-		}
-		if !strings.Contains(view, "Press Enter to continue") {
-			t.Fatalf("expected continue CTA, got: %s", view)
-		}
+		require.NotEmpty(t, view)
+		assertContainsAll(t, view, "No import needed", "Press Enter to continue")
 	})
 
 	t.Run("syncing", func(t *testing.T) {
@@ -364,21 +306,8 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.currentFile = "test.jsonl"
 
 		view := ansi.Strip(m.View())
-		if view == "" {
-			t.Error("expected non-empty view")
-		}
-		if !strings.Contains(view, "Importing") {
-			t.Fatalf("expected syncing status, got: %s", view)
-		}
-		if !strings.Contains(view, "2/5") {
-			t.Fatalf("expected progress counts, got: %s", view)
-		}
-		if !strings.Contains(view, "Copied") || !strings.Contains(view, "Failed") {
-			t.Fatalf("expected sync counters, got: %s", view)
-		}
-		if !strings.Contains(view, "test.jsonl") {
-			t.Fatalf("expected current file, got: %s", view)
-		}
+		require.NotEmpty(t, view)
+		assertContainsAll(t, view, "Importing", "2/5", "Copied", "Failed", "test.jsonl")
 	})
 
 	t.Run("done", func(t *testing.T) {
@@ -391,21 +320,8 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.result = syncResult{copied: 3, failed: 0, elapsed: time.Second}
 
 		view := ansi.Strip(m.View())
-		if view == "" {
-			t.Error("expected non-empty view")
-		}
-		if !strings.Contains(view, "Import Workspace") {
-			t.Fatalf("expected unified import title, got: %s", view)
-		}
-		if !strings.Contains(view, "Complete") {
-			t.Fatalf("expected completion status, got: %s", view)
-		}
-		if !strings.Contains(view, "Elapsed") {
-			t.Fatalf("expected elapsed summary, got: %s", view)
-		}
-		if !strings.Contains(view, "Press Enter to continue") {
-			t.Fatalf("expected continue CTA, got: %s", view)
-		}
+		require.NotEmpty(t, view)
+		assertContainsAll(t, view, "Import Workspace", "Complete", "Elapsed", "Press Enter to continue")
 	})
 
 	t.Run("zero width returns empty", func(t *testing.T) {
@@ -413,9 +329,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m := newImportOverviewModel(cfg)
 
 		view := m.View()
-		if view != "" {
-			t.Error("expected empty view for zero width")
-		}
+		assert.Empty(t, view)
 	})
 }
 
@@ -438,12 +352,7 @@ func TestImportOverviewViewPreservesBottomContentWhenPathsWrap(t *testing.T) {
 	}
 
 	view := ansi.Strip(m.View())
-	if !strings.Contains(view, "Press Enter to continue") {
-		t.Fatalf("expected wrapped import overview to keep continue CTA visible, got: %s", view)
-	}
-	if !strings.Contains(view, "Source") || !strings.Contains(view, "Archive") {
-		t.Fatalf("expected wrapped import overview to keep path context visible, got: %s", view)
-	}
+	assertContainsAll(t, view, "Press Enter to continue", "Source", "Archive")
 }
 
 func TestImportOverviewAnalysisPipeline(t *testing.T) {
@@ -472,12 +381,8 @@ func TestImportOverviewAnalysisPipeline(t *testing.T) {
 		},
 	})
 
-	if m.projIndex != 0 {
-		t.Errorf("projIndex = %d, want 0", m.projIndex)
-	}
-	if len(m.projectDirs) != 2 {
-		t.Errorf("projectDirs = %d, want 2", len(m.projectDirs))
-	}
+	assert.Zero(t, m.projIndex)
+	assert.Len(t, m.projectDirs, 2)
 
 	// Step 2: First project analyzed
 	m, cmd := m.Update(analysisProgressMsg{
@@ -491,15 +396,9 @@ func TestImportOverviewAnalysisPipeline(t *testing.T) {
 		syncCandidates: []string{filepath.Join(srcDir, "proj1", "s1.jsonl")},
 	})
 
-	if m.projIndex != 1 {
-		t.Errorf("projIndex = %d, want 1", m.projIndex)
-	}
-	if m.totalInspected != 1 {
-		t.Errorf("totalInspected = %d, want 1", m.totalInspected)
-	}
-	if cmd == nil {
-		t.Error("expected command to analyze next project")
-	}
+	assert.Equal(t, 1, m.projIndex)
+	assert.Equal(t, 1, m.totalInspected)
+	require.NotNil(t, cmd)
 
 	// Step 3: Second project analyzed
 	m, cmd = m.Update(analysisProgressMsg{
@@ -513,15 +412,9 @@ func TestImportOverviewAnalysisPipeline(t *testing.T) {
 		syncCandidates: []string{filepath.Join(srcDir, "proj2", "s2.jsonl")},
 	})
 
-	if m.totalInspected != 2 {
-		t.Errorf("totalInspected = %d, want 2", m.totalInspected)
-	}
-	if len(m.syncCandidates) != 2 {
-		t.Errorf("syncCandidates = %d, want 2", len(m.syncCandidates))
-	}
-	if cmd == nil {
-		t.Error("expected command to finish analysis")
-	}
+	assert.Equal(t, 2, m.totalInspected)
+	assert.Len(t, m.syncCandidates, 2)
+	require.NotNil(t, cmd)
 
 	// Step 4: Analysis finished message
 	m, _ = m.Update(analysisFinishedMsg{
@@ -536,12 +429,8 @@ func TestImportOverviewAnalysisPipeline(t *testing.T) {
 		},
 	})
 
-	if m.phase != phaseReady {
-		t.Errorf("phase = %d, want phaseReady", m.phase)
-	}
-	if !m.analysis.needsSync() {
-		t.Error("expected needsSync() = true")
-	}
+	assert.Equal(t, phaseReady, m.phase)
+	assert.True(t, m.analysis.needsSync())
 }
 
 func TestImportOverviewSyncingDisablesEnter(t *testing.T) {
@@ -559,12 +448,8 @@ func TestImportOverviewSyncingDisablesEnter(t *testing.T) {
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if m.done {
-		t.Error("Enter should be disabled during syncing")
-	}
-	if m.phase != phaseSyncing {
-		t.Errorf("phase should remain phaseSyncing, got %d", m.phase)
-	}
+	assert.False(t, m.done)
+	assert.Equal(t, phaseSyncing, m.phase)
 }
 
 func TestImportOverviewSyncFailure(t *testing.T) {
@@ -598,13 +483,7 @@ func TestImportOverviewSyncFailure(t *testing.T) {
 		},
 	})
 
-	if m.phase != phaseDone {
-		t.Errorf("phase = %d, want phaseDone", m.phase)
-	}
-	if m.result.failed != 1 {
-		t.Errorf("failed = %d, want 1", m.result.failed)
-	}
-	if m.result.copied != 0 {
-		t.Errorf("copied = %d, want 0", m.result.copied)
-	}
+	assert.Equal(t, phaseDone, m.phase)
+	assert.Equal(t, 1, m.result.failed)
+	assert.Zero(t, m.result.copied)
 }

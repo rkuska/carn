@@ -3,16 +3,16 @@ package app
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExportTextReturnsSuccessNotification(t *testing.T) {
 	homeDir := t.TempDir()
 	desktopDir := filepath.Join(homeDir, "Desktop")
-	if err := os.Mkdir(desktopDir, 0o755); err != nil {
-		t.Fatalf("os.Mkdir() error = %v", err)
-	}
+	require.NoError(t, os.Mkdir(desktopDir, 0o755))
 	t.Setenv("HOME", homeDir)
 
 	msg := exportText("hello export", sessionMeta{
@@ -20,21 +20,13 @@ func TestExportTextReturnsSuccessNotification(t *testing.T) {
 		slug: "demo-session",
 	})
 
-	if msg.notification.kind != notificationSuccess {
-		t.Fatalf("notification kind = %q, want %q", msg.notification.kind, notificationSuccess)
-	}
-	if !strings.Contains(msg.notification.text, "exported to ") {
-		t.Fatalf("notification text = %q, want success message", msg.notification.text)
-	}
+	assert.Equal(t, notificationSuccess, msg.notification.kind)
+	assert.Contains(t, msg.notification.text, "exported to ")
 
 	outPath := filepath.Join(desktopDir, "claude-session-demo-session.md")
 	content, err := os.ReadFile(outPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile() error = %v", err)
-	}
-	if string(content) != "hello export" {
-		t.Fatalf("file content = %q, want %q", string(content), "hello export")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "hello export", string(content))
 }
 
 func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
@@ -43,14 +35,7 @@ func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
 	cmd := resumeSessionCmd("session-123", "")
 	msg := cmd()
 
-	notification, ok := msg.(notificationMsg)
-	if !ok {
-		t.Fatalf("message type = %T, want notificationMsg", msg)
-	}
-	if notification.notification.kind != notificationError {
-		t.Fatalf("notification kind = %q, want %q", notification.notification.kind, notificationError)
-	}
-	if notification.notification.text != "resume failed: session working directory is unavailable" {
-		t.Fatalf("notification text = %q", notification.notification.text)
-	}
+	notification := requireMsgType[notificationMsg](t, msg)
+	assert.Equal(t, notificationError, notification.notification.kind)
+	assert.Equal(t, "resume failed: session working directory is unavailable", notification.notification.text)
 }

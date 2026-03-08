@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testTextHello = "hello"
@@ -15,9 +18,7 @@ const testToolRead = "Read"
 func findTestJSONL(t *testing.T) string {
 	t.Helper()
 	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("UserHomeDir: %v", err)
-	}
+	require.NoError(t, err)
 	baseDir := filepath.Join(home, claudeProjectsDir)
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
@@ -101,9 +102,7 @@ func TestExtractType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := extractType([]byte(tt.line))
-			if got != tt.want {
-				t.Errorf("extractType() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -147,12 +146,8 @@ func TestProjectFromDirName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := projectFromDirName(tt.dirName)
-			if got.displayName != tt.wantDisplay {
-				t.Errorf("displayName = %q, want %q", got.displayName, tt.wantDisplay)
-			}
-			if got.dirName != tt.dirName {
-				t.Errorf("dirName = %q, want %q", got.dirName, tt.dirName)
-			}
+			assert.Equal(t, tt.wantDisplay, got.displayName)
+			assert.Equal(t, tt.dirName, got.dirName)
 		})
 	}
 }
@@ -186,9 +181,7 @@ func TestDisplayNameFromCWD(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := displayNameFromCWD(tt.cwd)
-			if got != tt.want {
-				t.Errorf("displayNameFromCWD(%q) = %q, want %q", tt.cwd, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -232,9 +225,7 @@ func TestTruncate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := truncate(tt.input, tt.maxLen)
-			if got != tt.want {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -254,23 +245,15 @@ func TestCountMessages(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	total, mainOnly, err := countMessages(filePath)
-	if err != nil {
-		t.Fatalf("countMessages: %v", err)
-	}
+	require.NoError(t, err)
 
 	// 2 user + 2 assistant = 4 (progress and file-history-snapshot should not count)
-	if total != 4 {
-		t.Errorf("total = %d, want 4", total)
-	}
+	assert.Equal(t, 4, total)
 	// No sidechain markers, so mainOnly == total
-	if mainOnly != 4 {
-		t.Errorf("mainOnly = %d, want 4", mainOnly)
-	}
+	assert.Equal(t, 4, mainOnly)
 }
 
 func TestCountMessagesWithSidechain(t *testing.T) {
@@ -294,21 +277,12 @@ func TestCountMessagesWithSidechain(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	total, mainOnly, err := countMessages(filePath)
-	if err != nil {
-		t.Fatalf("countMessages: %v", err)
-	}
-
-	if total != 5 {
-		t.Errorf("total = %d, want 5", total)
-	}
-	if mainOnly != 3 {
-		t.Errorf("mainOnly = %d, want 3", mainOnly)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 5, total)
+	assert.Equal(t, 3, mainOnly)
 }
 
 func TestExtractUserContent(t *testing.T) {
@@ -317,24 +291,16 @@ func TestExtractUserContent(t *testing.T) {
 	t.Run("plain string", func(t *testing.T) {
 		t.Parallel()
 		text, results := extractUserContent([]byte(`"hello world"`))
-		if text != "hello world" {
-			t.Errorf("text = %q, want %q", text, "hello world")
-		}
-		if len(results) != 0 {
-			t.Errorf("expected no tool results, got %d", len(results))
-		}
+		assert.Equal(t, "hello world", text)
+		assert.Empty(t, results)
 	})
 
 	t.Run("array with text block", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"text","text":"implement this feature"}]`
 		text, results := extractUserContent([]byte(raw))
-		if text != "implement this feature" {
-			t.Errorf("text = %q, want %q", text, "implement this feature")
-		}
-		if len(results) != 0 {
-			t.Errorf("expected no tool results, got %d", len(results))
-		}
+		assert.Equal(t, "implement this feature", text)
+		assert.Empty(t, results)
 	})
 
 	t.Run("array with text and tool_result", func(t *testing.T) {
@@ -343,100 +309,64 @@ func TestExtractUserContent(t *testing.T) {
 			`"content":"file contents here"},` +
 			`{"type":"text","text":"now fix this"}]`
 		text, results := extractUserContent([]byte(raw))
-		if text != "now fix this" {
-			t.Errorf("text = %q, want %q", text, "now fix this")
-		}
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
-		if results[0].toolUseID != "toolu_123" {
-			t.Errorf("toolUseID = %q, want %q", results[0].toolUseID, "toolu_123")
-		}
-		if results[0].content != "file contents here" {
-			t.Errorf("content = %q, want %q", results[0].content, "file contents here")
-		}
+		assert.Equal(t, "now fix this", text)
+		require.Len(t, results, 1)
+		assert.Equal(t, "toolu_123", results[0].toolUseID)
+		assert.Equal(t, "file contents here", results[0].content)
 	})
 
 	t.Run("array with only tool_result", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"tool_result","tool_use_id":"toolu_456","content":"result data"}]`
 		text, results := extractUserContent([]byte(raw))
-		if text != "" {
-			t.Errorf("text = %q, want empty", text)
-		}
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
+		assert.Empty(t, text)
+		assert.Len(t, results, 1)
 	})
 
 	t.Run("tool_result with array content", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"tool_result","tool_use_id":"toolu_789","content":[{"type":"text","text":"nested content"}]}]`
 		_, results := extractUserContent([]byte(raw))
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
-		if results[0].content != "nested content" {
-			t.Errorf("content = %q, want %q", results[0].content, "nested content")
-		}
+		require.Len(t, results, 1)
+		assert.Equal(t, "nested content", results[0].content)
 	})
 
 	t.Run("is_error true", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"tool_result","tool_use_id":"toolu_err","is_error":true,"content":"command failed"}]`
 		_, results := extractUserContent([]byte(raw))
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
-		if !results[0].isError {
-			t.Error("expected isError=true")
-		}
+		require.Len(t, results, 1)
+		assert.True(t, results[0].isError)
 	})
 
 	t.Run("is_error false", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"tool_result","tool_use_id":"toolu_ok","is_error":false,"content":"success"}]`
 		_, results := extractUserContent([]byte(raw))
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
-		if results[0].isError {
-			t.Error("expected isError=false")
-		}
+		require.Len(t, results, 1)
+		assert.False(t, results[0].isError)
 	})
 
 	t.Run("is_error missing defaults to false", func(t *testing.T) {
 		t.Parallel()
 		raw := `[{"type":"tool_result","tool_use_id":"toolu_def","content":"output"}]`
 		_, results := extractUserContent([]byte(raw))
-		if len(results) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(results))
-		}
-		if results[0].isError {
-			t.Error("expected isError=false when field missing")
-		}
+		require.Len(t, results, 1)
+		assert.False(t, results[0].isError)
 	})
 
 	t.Run("empty content", func(t *testing.T) {
 		t.Parallel()
 		text, results := extractUserContent([]byte(`""`))
-		if text != "" {
-			t.Errorf("text = %q, want empty", text)
-		}
-		if len(results) != 0 {
-			t.Errorf("expected no tool results, got %d", len(results))
-		}
+		assert.Empty(t, text)
+		assert.Empty(t, results)
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
 		t.Parallel()
 		text, results := extractUserContent([]byte(`{invalid`))
-		if text != "" {
-			t.Errorf("text = %q, want empty", text)
-		}
-		if len(results) != 0 {
-			t.Errorf("expected no tool results, got %d", len(results))
-		}
+		assert.Empty(t, text)
+		assert.Empty(t, results)
 	})
 }
 
@@ -474,9 +404,7 @@ func TestExtractIsSidechain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := extractIsSidechain([]byte(tt.line))
-			if got != tt.want {
-				t.Errorf("extractIsSidechain() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -514,12 +442,8 @@ func TestParseSubagentPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			gotID, gotOK := parseSubagentPath(tt.path)
-			if gotOK != tt.wantOK {
-				t.Errorf("ok = %v, want %v", gotOK, tt.wantOK)
-			}
-			if gotID != tt.wantID {
-				t.Errorf("id = %q, want %q", gotID, tt.wantID)
-			}
+			assert.Equal(t, tt.wantOK, gotOK)
+			assert.Equal(t, tt.wantID, gotID)
 		})
 	}
 }
@@ -535,18 +459,10 @@ func TestAggregateUsage(t *testing.T) {
 
 	got := aggregateUsage(messages)
 
-	if got.inputTokens != 300 {
-		t.Errorf("inputTokens = %d, want 300", got.inputTokens)
-	}
-	if got.outputTokens != 150 {
-		t.Errorf("outputTokens = %d, want 150", got.outputTokens)
-	}
-	if got.cacheReadInputTokens != 10 {
-		t.Errorf("cacheReadInputTokens = %d, want 10", got.cacheReadInputTokens)
-	}
-	if got.cacheCreationInputTokens != 20 {
-		t.Errorf("cacheCreationInputTokens = %d, want 20", got.cacheCreationInputTokens)
-	}
+	assert.Equal(t, 300, got.inputTokens)
+	assert.Equal(t, 150, got.outputTokens)
+	assert.Equal(t, 10, got.cacheReadInputTokens)
+	assert.Equal(t, 20, got.cacheCreationInputTokens)
 }
 
 func TestExtractToolNames(t *testing.T) {
@@ -586,14 +502,7 @@ func TestExtractToolNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := extractToolNames([]byte(tt.line))
-			if len(got) != len(tt.want) {
-				t.Fatalf("extractToolNames() returned %d names, want %d: got %v", len(got), len(tt.want), got)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("name[%d] = %q, want %q", i, got[i], tt.want[i])
-				}
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -617,22 +526,13 @@ func TestScanMetadataToolCounts(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.toolCounts["Read"] != 2 {
-		t.Errorf("Read count = %d, want 2", meta.toolCounts["Read"])
-	}
-	if meta.toolCounts["Edit"] != 1 {
-		t.Errorf("Edit count = %d, want 1", meta.toolCounts["Edit"])
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 2, meta.toolCounts["Read"])
+	assert.Equal(t, 1, meta.toolCounts["Edit"])
 }
 
 func TestFormatToolCounts(t *testing.T) {
@@ -664,9 +564,7 @@ func TestFormatToolCounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := formatToolCounts(tt.counts)
-			if got != tt.want {
-				t.Errorf("formatToolCounts() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -700,9 +598,7 @@ func TestExtractTimestamp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := extractTimestamp([]byte(tt.line))
-			if got != tt.want {
-				t.Errorf("extractTimestamp() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -748,9 +644,7 @@ func TestSessionDuration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := tt.meta.duration()
-			if got != tt.want {
-				t.Errorf("duration() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -774,9 +668,7 @@ func TestFormatDuration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := formatDuration(tt.d)
-			if got != tt.want {
-				t.Errorf("formatDuration(%v) = %q, want %q", tt.d, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -802,25 +694,17 @@ func TestScanMetadataLastTimestamp(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
+	require.NoError(t, err)
 
 	wantLast := time.Date(2024, 1, 1, 10, 15, 0, 0, time.UTC)
-	if !meta.lastTimestamp.Equal(wantLast) {
-		t.Errorf("lastTimestamp = %v, want %v", meta.lastTimestamp, wantLast)
-	}
+	assert.True(t, meta.lastTimestamp.Equal(wantLast))
 
 	wantDuration := 15 * time.Minute
-	if meta.duration() != wantDuration {
-		t.Errorf("duration() = %v, want %v", meta.duration(), wantDuration)
-	}
+	assert.Equal(t, wantDuration, meta.duration())
 }
 
 func TestExtractUsage(t *testing.T) {
@@ -870,9 +754,7 @@ func TestExtractUsage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := extractUsage([]byte(tt.line))
-			if got != tt.want {
-				t.Errorf("extractUsage() = %+v, want %+v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -895,31 +777,16 @@ func TestScanMetadataAggregatesUsage(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.totalUsage.inputTokens != 300 {
-		t.Errorf("inputTokens = %d, want 300", meta.totalUsage.inputTokens)
-	}
-	if meta.totalUsage.outputTokens != 130 {
-		t.Errorf("outputTokens = %d, want 130", meta.totalUsage.outputTokens)
-	}
-	if meta.totalUsage.cacheReadInputTokens != 10 {
-		t.Errorf("cacheReadInputTokens = %d, want 10", meta.totalUsage.cacheReadInputTokens)
-	}
-	if meta.totalUsage.cacheCreationInputTokens != 15 {
-		t.Errorf("cacheCreationInputTokens = %d, want 15", meta.totalUsage.cacheCreationInputTokens)
-	}
-	if total := meta.totalUsage.totalTokens(); total != 455 {
-		t.Errorf("totalTokens() = %d, want 455", total)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 300, meta.totalUsage.inputTokens)
+	assert.Equal(t, 130, meta.totalUsage.outputTokens)
+	assert.Equal(t, 10, meta.totalUsage.cacheReadInputTokens)
+	assert.Equal(t, 15, meta.totalUsage.cacheCreationInputTokens)
+	assert.Equal(t, 455, meta.totalUsage.totalTokens())
 }
 
 func TestTotalTokensIncludesCacheTokens(t *testing.T) {
@@ -933,9 +800,7 @@ func TestTotalTokensIncludesCacheTokens(t *testing.T) {
 	}
 	got := usage.totalTokens()
 	want := 200
-	if got != want {
-		t.Errorf("totalTokens() = %d, want %d", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestParseUserMessageArrayContent(t *testing.T) {
@@ -945,12 +810,8 @@ func TestParseUserMessageArrayContent(t *testing.T) {
 		t.Parallel()
 		line := `{"type":"user","timestamp":"2024-01-01T00:00:00Z","message":{"role":"user","content":"hello"}}`
 		msg, ok := parseUserMessage([]byte(line))
-		if !ok {
-			t.Fatal("expected ok=true")
-		}
-		if msg.text != testTextHello {
-			t.Errorf("text = %q, want %q", msg.text, testTextHello)
-		}
+		require.True(t, ok)
+		assert.Equal(t, testTextHello, msg.text)
 	})
 
 	t.Run("array content with text", func(t *testing.T) {
@@ -959,12 +820,8 @@ func TestParseUserMessageArrayContent(t *testing.T) {
 			`"message":{"role":"user",` +
 			`"content":[{"type":"text","text":"implement feature"}]}}`
 		msg, ok := parseUserMessage([]byte(line))
-		if !ok {
-			t.Fatal("expected ok=true")
-		}
-		if msg.text != "implement feature" {
-			t.Errorf("text = %q, want %q", msg.text, "implement feature")
-		}
+		require.True(t, ok)
+		assert.Equal(t, "implement feature", msg.text)
 	})
 
 	t.Run("array content with tool_result only", func(t *testing.T) {
@@ -974,12 +831,8 @@ func TestParseUserMessageArrayContent(t *testing.T) {
 			`"content":[{"type":"tool_result",` +
 			`"tool_use_id":"t1","content":"result"}]}}`
 		msg, ok := parseUserMessage([]byte(line))
-		if !ok {
-			t.Fatal("expected ok=true for tool results")
-		}
-		if len(msg.toolResults) != 1 {
-			t.Fatalf("expected 1 tool result, got %d", len(msg.toolResults))
-		}
+		require.True(t, ok)
+		assert.Len(t, msg.toolResults, 1)
 	})
 }
 
@@ -997,24 +850,12 @@ func TestParseAssistantMessageUsage(t *testing.T) {
 	msg, ok := parseAssistantMessage(
 		context.Background(), []byte(line),
 	)
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if msg.stopReason != "end_turn" {
-		t.Errorf("stopReason = %q, want %q", msg.stopReason, "end_turn")
-	}
-	if msg.usage.inputTokens != 100 {
-		t.Errorf("inputTokens = %d, want 100", msg.usage.inputTokens)
-	}
-	if msg.usage.outputTokens != 50 {
-		t.Errorf("outputTokens = %d, want 50", msg.usage.outputTokens)
-	}
-	if msg.usage.cacheReadInputTokens != 10 {
-		t.Errorf("cacheReadInputTokens = %d, want 10", msg.usage.cacheReadInputTokens)
-	}
-	if msg.usage.cacheCreationInputTokens != 5 {
-		t.Errorf("cacheCreationInputTokens = %d, want 5", msg.usage.cacheCreationInputTokens)
-	}
+	require.True(t, ok)
+	assert.Equal(t, "end_turn", msg.stopReason)
+	assert.Equal(t, 100, msg.usage.inputTokens)
+	assert.Equal(t, 50, msg.usage.outputTokens)
+	assert.Equal(t, 10, msg.usage.cacheReadInputTokens)
+	assert.Equal(t, 5, msg.usage.cacheCreationInputTokens)
 }
 
 func TestParseAssistantMessageSidechain(t *testing.T) {
@@ -1028,18 +869,10 @@ func TestParseAssistantMessageSidechain(t *testing.T) {
 	msg, ok := parseAssistantMessage(
 		context.Background(), []byte(line),
 	)
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if !msg.isSidechain {
-		t.Error("expected isSidechain=true")
-	}
-	if msg.uuid != "abc" {
-		t.Errorf("uuid = %q, want %q", msg.uuid, "abc")
-	}
-	if msg.parentUUID != "def" {
-		t.Errorf("parentUUID = %q, want %q", msg.parentUUID, "def")
-	}
+	require.True(t, ok)
+	assert.True(t, msg.isSidechain)
+	assert.Equal(t, "abc", msg.uuid)
+	assert.Equal(t, "def", msg.parentUUID)
 }
 
 func TestScanMetadataArrayFirstMessage(t *testing.T) {
@@ -1060,18 +893,12 @@ func TestScanMetadataArrayFirstMessage(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-	if meta.firstMessage != "array first message" {
-		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, "array first message")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "array first message", meta.firstMessage)
 }
 
 func TestScanMetadataRealFile(t *testing.T) {
@@ -1081,26 +908,13 @@ func TestScanMetadataRealFile(t *testing.T) {
 	proj := project{dirName: "test", displayName: "test/project", path: "test"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.id == "" {
-		t.Error("expected non-empty session ID")
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, meta.id)
 	// slug may be empty in older sessions, so don't require it
-	if meta.timestamp.IsZero() {
-		t.Error("expected non-zero timestamp")
-	}
-	if meta.firstMessage == "" {
-		t.Error("expected non-empty first message")
-	}
-	if meta.messageCount == 0 {
-		t.Error("expected non-zero message count")
-	}
-	if meta.filePath != filePath {
-		t.Errorf("filePath = %q, want %q", meta.filePath, filePath)
-	}
+	assert.False(t, meta.timestamp.IsZero())
+	assert.NotEmpty(t, meta.firstMessage)
+	assert.NotZero(t, meta.messageCount)
+	assert.Equal(t, filePath, meta.filePath)
 	if total := meta.totalUsage.totalTokens(); total == 0 {
 		t.Logf("totalTokens() = 0 for %s (file may use a format where extractType misses assistant records)", filePath)
 	}
@@ -1113,23 +927,14 @@ func TestParseSessionRealFile(t *testing.T) {
 	proj := project{dirName: "test", displayName: "test/project", path: "test"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
+	require.NoError(t, err)
 
 	session, err := parseSession(context.Background(), meta)
-	if err != nil {
-		t.Fatalf("parseSession: %v", err)
-	}
-
-	if len(session.messages) == 0 {
-		t.Error("expected non-empty messages")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, session.messages)
 
 	// First message should be from user
-	if session.messages[0].role != roleUser {
-		t.Errorf("first message role = %q, want %q", session.messages[0].role, roleUser)
-	}
+	assert.Equal(t, roleUser, session.messages[0].role)
 
 	// Should have at least one assistant message with text
 	hasAssistant := false
@@ -1148,14 +953,10 @@ func TestScanSessions(t *testing.T) {
 	t.Parallel()
 
 	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("UserHomeDir: %v", err)
-	}
+	require.NoError(t, err)
 	baseDir := filepath.Join(home, claudeProjectsDir)
 	sessions, err := scanSessions(context.Background(), baseDir)
-	if err != nil {
-		t.Fatalf("scanSessions: %v", err)
-	}
+	require.NoError(t, err)
 
 	if len(sessions) == 0 {
 		t.Skip("no sessions found")
@@ -1163,12 +964,8 @@ func TestScanSessions(t *testing.T) {
 
 	// Verify all sessions have required fields
 	for i, s := range sessions {
-		if s.id == "" {
-			t.Errorf("session[%d] has empty id", i)
-		}
-		if s.filePath == "" {
-			t.Errorf("session[%d] has empty filePath", i)
-		}
+		assert.NotEmpty(t, s.id, "session[%d] has empty id", i)
+		assert.NotEmpty(t, s.filePath, "session[%d] has empty filePath", i)
 	}
 }
 
@@ -1289,8 +1086,8 @@ func TestSummarizeToolCall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := summarizeToolCall(tt.toolName, []byte(tt.input))
-			if tt.wantContains != "" && !contains(got, tt.wantContains) {
-				t.Errorf("summarizeToolCall(%q) = %q, want containing %q", tt.toolName, got, tt.wantContains)
+			if tt.wantContains != "" {
+				assert.Contains(t, got, tt.wantContains)
 			}
 		})
 	}
@@ -1303,38 +1100,26 @@ func TestFindSubagentFiles(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		parentFile := filepath.Join(dir, "abc-def-123.jsonl")
-		if err := os.WriteFile(parentFile, []byte("{}"), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte("{}"), 0o644))
 
 		got := findSubagentFiles(parentFile)
-		if len(got) != 0 {
-			t.Errorf("expected no subagent files, got %d", len(got))
-		}
+		assert.Empty(t, got)
 	})
 
 	t.Run("with subagents", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
-		if err := os.WriteFile(parentFile, []byte("{}"), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte("{}"), 0o644))
 
 		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
-		if err := os.MkdirAll(subDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(subDir, 0o755))
 		for _, name := range []string{"agent-1.jsonl", "agent-2.jsonl"} {
-			if err := os.WriteFile(filepath.Join(subDir, name), []byte("{}"), 0o644); err != nil {
-				t.Fatalf("WriteFile: %v", err)
-			}
+			require.NoError(t, os.WriteFile(filepath.Join(subDir, name), []byte("{}"), 0o644))
 		}
 
 		got := findSubagentFiles(parentFile)
-		if len(got) != 2 {
-			t.Errorf("expected 2 subagent files, got %d", len(got))
-		}
+		assert.Len(t, got, 2)
 	})
 }
 
@@ -1387,9 +1172,7 @@ func TestFirstTimestamp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := firstTimestamp(tt.messages)
-			if !got.Equal(tt.want) {
-				t.Errorf("firstTimestamp() = %v, want %v", got, tt.want)
-			}
+			assert.True(t, got.Equal(tt.want))
 		})
 	}
 }
@@ -1467,9 +1250,7 @@ func TestFindInsertPosition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := findInsertPosition(tt.messages, tt.anchor)
-			if got != tt.want {
-				t.Errorf("findInsertPosition() = %d, want %d", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -1502,9 +1283,7 @@ func TestParseSessionWithSubagents(t *testing.T) {
 		dir := t.TempDir()
 		parentContent := strings.Join([]string{userLine("hello"), assistLine("hi")}, "\n")
 		parentFile := filepath.Join(dir, "session-id.jsonl")
-		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte(parentContent), 0o644))
 
 		meta := sessionMeta{
 			id:       "session-id",
@@ -1512,12 +1291,8 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			project:  project{dirName: "test", displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
-		if err != nil {
-			t.Fatalf("parseSessionWithSubagents: %v", err)
-		}
-		if len(session.messages) != 2 {
-			t.Errorf("expected 2 messages, got %d", len(session.messages))
-		}
+		require.NoError(t, err)
+		assert.Len(t, session.messages, 2)
 	})
 
 	t.Run("with subagents merges messages", func(t *testing.T) {
@@ -1529,21 +1304,15 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			assistLineAt("parent answer", "2024-01-01T00:01:00Z"),
 		}, "\n")
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
-		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte(parentContent), 0o644))
 
 		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
-		if err := os.MkdirAll(subDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(subDir, 0o755))
 		subContent := strings.Join([]string{
 			userLineAt("sub question", "2024-01-01T00:02:00Z"),
 			assistLineAt("sub answer", "2024-01-01T00:03:00Z"),
 		}, "\n")
-		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644))
 
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -1551,28 +1320,18 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			project:  project{dirName: "test", displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
-		if err != nil {
-			t.Fatalf("parseSessionWithSubagents: %v", err)
-		}
+		require.NoError(t, err)
 
 		// 2 parent + 1 divider + 2 subagent = 5
-		if len(session.messages) != 5 {
-			t.Fatalf("expected 5 messages, got %d", len(session.messages))
-		}
+		require.Len(t, session.messages, 5)
 
 		// Third message should be the divider (after parent at T=00:01)
 		divider := session.messages[2]
-		if !divider.isAgentDivider {
-			t.Error("expected divider message to have isAgentDivider=true")
-		}
-		if divider.text != "sub question" {
-			t.Errorf("divider text = %q, want %q", divider.text, "sub question")
-		}
+		assert.True(t, divider.isAgentDivider)
+		assert.Equal(t, "sub question", divider.text)
 
 		// Fourth message should be the subagent's user message
-		if session.messages[3].text != "sub question" {
-			t.Errorf("expected subagent user message, got %q", session.messages[3].text)
-		}
+		assert.Equal(t, "sub question", session.messages[3].text)
 	})
 
 	t.Run("subagent ordered between parent messages", func(t *testing.T) {
@@ -1586,21 +1345,15 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			assistLineAt("reply2", "2024-01-01T00:06:00Z"),
 		}, "\n")
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
-		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte(parentContent), 0o644))
 
 		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
-		if err := os.MkdirAll(subDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(subDir, 0o755))
 		subContent := strings.Join([]string{
 			userLineAt("explore code", "2024-01-01T00:02:00Z"),
 			assistLineAt("found it", "2024-01-01T00:03:00Z"),
 		}, "\n")
-		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644))
 
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -1608,28 +1361,16 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			project:  project{dirName: "test", displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
-		if err != nil {
-			t.Fatalf("parseSessionWithSubagents: %v", err)
-		}
+		require.NoError(t, err)
 
 		// 4 parent + 1 divider + 2 subagent = 7
-		if len(session.messages) != 7 {
-			t.Fatalf("expected 7 messages, got %d", len(session.messages))
-		}
+		require.Len(t, session.messages, 7)
 
 		// Order: start(0), reply1(1), divider(2), explore(3), found(4), followup(5), reply2(6)
-		if !session.messages[2].isAgentDivider {
-			t.Errorf("messages[2] should be divider, got role=%s text=%q", session.messages[2].role, session.messages[2].text)
-		}
-		if session.messages[3].text != "explore code" {
-			t.Errorf("messages[3] = %q, want %q", session.messages[3].text, "explore code")
-		}
-		if session.messages[5].text != "followup" {
-			t.Errorf("messages[5] = %q, want %q", session.messages[5].text, "followup")
-		}
-		if session.messages[6].text != "reply2" {
-			t.Errorf("messages[6] = %q, want %q", session.messages[6].text, "reply2")
-		}
+		assert.True(t, session.messages[2].isAgentDivider)
+		assert.Equal(t, "explore code", session.messages[3].text)
+		assert.Equal(t, "followup", session.messages[5].text)
+		assert.Equal(t, "reply2", session.messages[6].text)
 	})
 
 	t.Run("multiple subagents ordered correctly", func(t *testing.T) {
@@ -1645,30 +1386,22 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			assistLineAt("reply3", "2024-01-01T00:11:00Z"),
 		}, "\n")
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
-		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte(parentContent), 0o644))
 
 		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
-		if err := os.MkdirAll(subDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(subDir, 0o755))
 		// First subagent at T=00:02 (between reply1 and middle)
 		sub1 := strings.Join([]string{
 			userLineAt("sub1 task", "2024-01-01T00:02:00Z"),
 			assistLineAt("sub1 done", "2024-01-01T00:03:00Z"),
 		}, "\n")
-		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(sub1), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(sub1), 0o644))
 		// Second subagent at T=00:07 (between reply2 and end)
 		sub2 := strings.Join([]string{
 			userLineAt("sub2 task", "2024-01-01T00:07:00Z"),
 			assistLineAt("sub2 done", "2024-01-01T00:08:00Z"),
 		}, "\n")
-		if err := os.WriteFile(filepath.Join(subDir, "agent-2.jsonl"), []byte(sub2), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-2.jsonl"), []byte(sub2), 0o644))
 
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -1676,37 +1409,21 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			project:  project{dirName: "test", displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
-		if err != nil {
-			t.Fatalf("parseSessionWithSubagents: %v", err)
-		}
+		require.NoError(t, err)
 
 		// 6 parent + 2 dividers + 4 subagent = 12
-		if len(session.messages) != 12 {
-			t.Fatalf("expected 12 messages, got %d", len(session.messages))
-		}
+		require.Len(t, session.messages, 12)
 
 		// Expected order:
 		// 0: start, 1: reply1, 2: div1, 3: sub1 task, 4: sub1 done,
 		// 5: middle, 6: reply2, 7: div2, 8: sub2 task, 9: sub2 done,
 		// 10: end, 11: reply3
-		if !session.messages[2].isAgentDivider {
-			t.Errorf("messages[2] should be divider")
-		}
-		if session.messages[3].text != "sub1 task" {
-			t.Errorf("messages[3] = %q, want %q", session.messages[3].text, "sub1 task")
-		}
-		if session.messages[5].text != "middle" {
-			t.Errorf("messages[5] = %q, want %q", session.messages[5].text, "middle")
-		}
-		if !session.messages[7].isAgentDivider {
-			t.Errorf("messages[7] should be divider")
-		}
-		if session.messages[8].text != "sub2 task" {
-			t.Errorf("messages[8] = %q, want %q", session.messages[8].text, "sub2 task")
-		}
-		if session.messages[10].text != "end" {
-			t.Errorf("messages[10] = %q, want %q", session.messages[10].text, "end")
-		}
+		assert.True(t, session.messages[2].isAgentDivider)
+		assert.Equal(t, "sub1 task", session.messages[3].text)
+		assert.Equal(t, "middle", session.messages[5].text)
+		assert.True(t, session.messages[7].isAgentDivider)
+		assert.Equal(t, "sub2 task", session.messages[8].text)
+		assert.Equal(t, "end", session.messages[10].text)
 	})
 
 	t.Run("subagent without timestamps appended at end", func(t *testing.T) {
@@ -1718,22 +1435,16 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			assistLineAt("parent a", "2024-01-01T00:01:00Z"),
 		}, "\n")
 		parentFile := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890.jsonl")
-		if err := os.WriteFile(parentFile, []byte(parentContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(parentFile, []byte(parentContent), 0o644))
 
 		subDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
-		if err := os.MkdirAll(subDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(subDir, 0o755))
 		// Subagent messages without timestamps
 		subContent := strings.Join([]string{
 			`{"type":"user","sessionId":"s2","slug":"test","cwd":"/tmp","message":{"role":"user","content":"no ts task"}}`,
 			assistLine("no ts done"),
 		}, "\n")
-		if err := os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644))
 
 		meta := sessionMeta{
 			id:       "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -1741,23 +1452,15 @@ func TestParseSessionWithSubagents(t *testing.T) {
 			project:  project{dirName: "test", displayName: "test"},
 		}
 		session, err := parseSessionWithSubagents(context.Background(), meta)
-		if err != nil {
-			t.Fatalf("parseSessionWithSubagents: %v", err)
-		}
+		require.NoError(t, err)
 
 		// 2 parent + 1 divider + 2 subagent = 5
-		if len(session.messages) != 5 {
-			t.Fatalf("expected 5 messages, got %d", len(session.messages))
-		}
+		require.Len(t, session.messages, 5)
 
 		// Divider should be at end (index 2) since no timestamp to anchor
-		if !session.messages[2].isAgentDivider {
-			t.Errorf("messages[2] should be divider, got text=%q", session.messages[2].text)
-		}
+		assert.True(t, session.messages[2].isAgentDivider)
 		// Last message is subagent assistant
-		if session.messages[4].text != "no ts done" {
-			t.Errorf("messages[4] = %q, want %q", session.messages[4].text, "no ts done")
-		}
+		assert.Equal(t, "no ts done", session.messages[4].text)
 	})
 }
 
@@ -1800,9 +1503,7 @@ func TestTruncatePreserveNewlines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := truncatePreserveNewlines(tt.input, tt.maxLen)
-			if got != tt.want {
-				t.Errorf("truncatePreserveNewlines(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -1816,21 +1517,11 @@ func TestParseAssistantMessageToolUseID(t *testing.T) {
 		`"input":{"file_path":"/tmp/file.go"}}]}}`
 
 	msg, ok := parseAssistantMessage(context.Background(), []byte(line))
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if len(msg.toolCalls) != 1 {
-		t.Fatalf("expected 1 tool call, got %d", len(msg.toolCalls))
-	}
-	if msg.toolCalls[0].id != "toolu_abc123" {
-		t.Errorf("id = %q, want %q", msg.toolCalls[0].id, "toolu_abc123")
-	}
-	if msg.toolCalls[0].name != testToolRead {
-		t.Errorf("name = %q, want %q", msg.toolCalls[0].name, testToolRead)
-	}
-	if msg.toolCalls[0].summary != "/tmp/file.go" {
-		t.Errorf("summary = %q, want %q", msg.toolCalls[0].summary, "/tmp/file.go")
-	}
+	require.True(t, ok)
+	require.Len(t, msg.toolCalls, 1)
+	assert.Equal(t, "toolu_abc123", msg.toolCalls[0].id)
+	assert.Equal(t, testToolRead, msg.toolCalls[0].name)
+	assert.Equal(t, "/tmp/file.go", msg.toolCalls[0].summary)
 }
 
 func TestParseSessionResolvesToolResultNames(t *testing.T) {
@@ -1872,9 +1563,7 @@ func TestParseSessionResolvesToolResultNames(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	meta := sessionMeta{
 		id:       "s1",
@@ -1882,35 +1571,21 @@ func TestParseSessionResolvesToolResultNames(t *testing.T) {
 		project:  project{dirName: "test", displayName: "test"},
 	}
 	session, err := parseSession(context.Background(), meta)
-	if err != nil {
-		t.Fatalf("parseSession: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Find the user message with tool results (index 2)
-	if len(session.messages) < 3 {
-		t.Fatalf("expected at least 3 messages, got %d", len(session.messages))
-	}
+	require.GreaterOrEqual(t, len(session.messages), 3)
 
 	userMsg := session.messages[2]
-	if len(userMsg.toolResults) != 2 {
-		t.Fatalf("expected 2 tool results, got %d", len(userMsg.toolResults))
-	}
+	require.Len(t, userMsg.toolResults, 2)
 
 	readResult := userMsg.toolResults[0]
-	if readResult.toolName != testToolRead {
-		t.Errorf("toolName = %q, want %q", readResult.toolName, testToolRead)
-	}
-	if readResult.toolSummary != "/tmp/main.go" {
-		t.Errorf("toolSummary = %q, want %q", readResult.toolSummary, "/tmp/main.go")
-	}
+	assert.Equal(t, testToolRead, readResult.toolName)
+	assert.Equal(t, "/tmp/main.go", readResult.toolSummary)
 
 	bashResult := userMsg.toolResults[1]
-	if bashResult.toolName != "Bash" {
-		t.Errorf("toolName = %q, want %q", bashResult.toolName, "Bash")
-	}
-	if bashResult.toolSummary != "go test ./..." {
-		t.Errorf("toolSummary = %q, want %q", bashResult.toolSummary, "go test ./...")
-	}
+	assert.Equal(t, "Bash", bashResult.toolName)
+	assert.Equal(t, "go test ./...", bashResult.toolSummary)
 }
 
 func TestExtractStructuredPatch(t *testing.T) {
@@ -1931,59 +1606,39 @@ func TestExtractStructuredPatch(t *testing.T) {
 			]
 		}`)
 		hunks := extractStructuredPatch(raw)
-		if len(hunks) != 1 {
-			t.Fatalf("expected 1 hunk, got %d", len(hunks))
-		}
-		if hunks[0].oldStart != 10 {
-			t.Errorf("oldStart = %d, want 10", hunks[0].oldStart)
-		}
-		if hunks[0].oldLines != 3 {
-			t.Errorf("oldLines = %d, want 3", hunks[0].oldLines)
-		}
-		if hunks[0].newStart != 10 {
-			t.Errorf("newStart = %d, want 10", hunks[0].newStart)
-		}
-		if hunks[0].newLines != 5 {
-			t.Errorf("newLines = %d, want 5", hunks[0].newLines)
-		}
-		if len(hunks[0].lines) != 5 {
-			t.Errorf("lines count = %d, want 5", len(hunks[0].lines))
-		}
+		require.Len(t, hunks, 1)
+		assert.Equal(t, 10, hunks[0].oldStart)
+		assert.Equal(t, 3, hunks[0].oldLines)
+		assert.Equal(t, 10, hunks[0].newStart)
+		assert.Equal(t, 5, hunks[0].newLines)
+		assert.Len(t, hunks[0].lines, 5)
 	})
 
 	t.Run("string input returns nil", func(t *testing.T) {
 		t.Parallel()
 		raw := []byte(`"file updated successfully"`)
 		hunks := extractStructuredPatch(raw)
-		if hunks != nil {
-			t.Errorf("expected nil for string input, got %v", hunks)
-		}
+		assert.Nil(t, hunks)
 	})
 
 	t.Run("object without patch returns nil", func(t *testing.T) {
 		t.Parallel()
 		raw := []byte(`{"filePath": "/tmp/file.go"}`)
 		hunks := extractStructuredPatch(raw)
-		if hunks != nil {
-			t.Errorf("expected nil for object without patch, got %v", hunks)
-		}
+		assert.Nil(t, hunks)
 	})
 
 	t.Run("empty patch returns nil", func(t *testing.T) {
 		t.Parallel()
 		raw := []byte(`{"structuredPatch": []}`)
 		hunks := extractStructuredPatch(raw)
-		if hunks != nil {
-			t.Errorf("expected nil for empty patch, got %v", hunks)
-		}
+		assert.Nil(t, hunks)
 	})
 
 	t.Run("empty input returns nil", func(t *testing.T) {
 		t.Parallel()
 		hunks := extractStructuredPatch(nil)
-		if hunks != nil {
-			t.Errorf("expected nil for empty input, got %v", hunks)
-		}
+		assert.Nil(t, hunks)
 	})
 }
 
@@ -2000,19 +1655,12 @@ func TestParseUserMessageAttachesStructuredPatch(t *testing.T) {
 		`"lines":[" line1","-old","+new1","+new2"]}]}}`
 
 	msg, ok := parseUserMessage([]byte(line))
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if len(msg.toolResults) != 1 {
-		t.Fatalf("expected 1 tool result, got %d", len(msg.toolResults))
-	}
-	if len(msg.toolResults[0].structuredPatch) != 1 {
-		t.Fatalf("expected 1 hunk, got %d", len(msg.toolResults[0].structuredPatch))
-	}
+	require.True(t, ok)
+	require.Len(t, msg.toolResults, 1)
+	require.Len(t, msg.toolResults[0].structuredPatch, 1)
 	hunk := msg.toolResults[0].structuredPatch[0]
-	if hunk.oldStart != 1 || hunk.newLines != 3 {
-		t.Errorf("hunk = %+v, want oldStart=1 newLines=3", hunk)
-	}
+	assert.Equal(t, 1, hunk.oldStart)
+	assert.Equal(t, 3, hunk.newLines)
 }
 
 func TestParseUserMessageSkipsPatchForMultipleResults(t *testing.T) {
@@ -2026,30 +1674,11 @@ func TestParseUserMessageSkipsPatchForMultipleResults(t *testing.T) {
 		`"toolUseResult":{"structuredPatch":[{"oldStart":1,"oldLines":1,"newStart":1,"newLines":1,"lines":["+x"]}]}}`
 
 	msg, ok := parseUserMessage([]byte(line))
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if len(msg.toolResults) != 2 {
-		t.Fatalf("expected 2 tool results, got %d", len(msg.toolResults))
-	}
+	require.True(t, ok)
+	require.Len(t, msg.toolResults, 2)
 	for i, tr := range msg.toolResults {
-		if tr.structuredPatch != nil {
-			t.Errorf("toolResults[%d] should not have patch when multiple results", i)
-		}
+		assert.Nil(t, tr.structuredPatch, "toolResults[%d] should not have patch when multiple results", i)
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (substr == "" || findSubstring(s, substr))
-}
-
-func findSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 func TestScanMetadataSkipsInterruptFirstMessage(t *testing.T) {
@@ -2071,19 +1700,12 @@ func TestScanMetadataSkipsInterruptFirstMessage(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.firstMessage != "actual user question" {
-		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, "actual user question")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "actual user question", meta.firstMessage)
 }
 
 func TestParseConversation(t *testing.T) {
@@ -2100,9 +1722,7 @@ func TestParseConversation(t *testing.T) {
 		`"content":[{"type":"text","text":"hi there"}]}}`
 
 	file1 := filepath.Join(dir, "first.jsonl")
-	if err := os.WriteFile(file1, []byte(strings.Join([]string{userLine1, assistLine1}, "\n")), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(file1, []byte(strings.Join([]string{userLine1, assistLine1}, "\n")), 0o644))
 
 	// Second session file (resumed)
 	userLine2 := `{"type":"user","sessionId":"s2",` +
@@ -2118,9 +1738,7 @@ func TestParseConversation(t *testing.T) {
 
 	file2 := filepath.Join(dir, "second.jsonl")
 	content2 := strings.Join([]string{userLine2, userLine3, assistLine2}, "\n")
-	if err := os.WriteFile(file2, []byte(content2), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(file2, []byte(content2), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	conv := conversation{
@@ -2133,29 +1751,19 @@ func TestParseConversation(t *testing.T) {
 	}
 
 	session, err := parseConversation(context.Background(), conv)
-	if err != nil {
-		t.Fatalf("parseConversation: %v", err)
-	}
+	require.NoError(t, err)
 
 	// 2 from first file + 3 from second file = 5
-	if len(session.messages) != 5 {
-		t.Fatalf("expected 5 messages, got %d", len(session.messages))
-	}
+	require.Len(t, session.messages, 5)
 
 	// First message should be "hello"
-	if session.messages[0].text != testTextHello {
-		t.Errorf("first message text = %q, want %q", session.messages[0].text, testTextHello)
-	}
+	assert.Equal(t, testTextHello, session.messages[0].text)
 
 	// Third message (first from second file) should be the interrupt
-	if session.messages[2].text != "[Request interrupted by user for tool use]" {
-		t.Errorf("third message text = %q, want interrupt text", session.messages[2].text)
-	}
+	assert.Equal(t, "[Request interrupted by user for tool use]", session.messages[2].text)
 
 	// Fourth message should be real content
-	if session.messages[3].text != "continue please" {
-		t.Errorf("fourth message text = %q, want %q", session.messages[3].text, "continue please")
-	}
+	assert.Equal(t, "continue please", session.messages[3].text)
 }
 
 func TestScanMetadataSlugFromLaterRecord(t *testing.T) {
@@ -2176,22 +1784,13 @@ func TestScanMetadataSlugFromLaterRecord(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.slug != "cheerful-ocean" {
-		t.Errorf("slug = %q, want %q", meta.slug, "cheerful-ocean")
-	}
-	if meta.firstMessage != testTextHello {
-		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, testTextHello)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "cheerful-ocean", meta.slug)
+	assert.Equal(t, testTextHello, meta.firstMessage)
 }
 
 func TestScanMetadataSlugMissingEntirely(t *testing.T) {
@@ -2211,19 +1810,12 @@ func TestScanMetadataSlugMissingEntirely(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.slug != "" {
-		t.Errorf("slug = %q, want empty", meta.slug)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, meta.slug)
 }
 
 func TestSessionMetaDisplaySlug(t *testing.T) {
@@ -2264,9 +1856,7 @@ func TestSessionMetaDisplaySlug(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			meta := sessionMeta{slug: tt.slug, firstMessage: tt.firstMessage}
-			if got := meta.displaySlug(); got != tt.want {
-				t.Errorf("displaySlug() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, meta.displaySlug())
 		})
 	}
 }
@@ -2285,12 +1875,8 @@ func TestSessionMetaTitleNoGap(t *testing.T) {
 			timestamp:    ts,
 		}
 		title := meta.Title()
-		if strings.Contains(title, "/ ") && !strings.Contains(title, "/ help me") {
-			t.Errorf("Title() has gap: %q", title)
-		}
-		if !strings.Contains(title, "help me") {
-			t.Errorf("Title() = %q, should contain firstMessage fallback", title)
-		}
+		assert.False(t, strings.Contains(title, "/ ") && !strings.Contains(title, "/ help me"))
+		assert.Contains(t, title, "help me")
 	})
 
 	t.Run("empty slug and firstMessage shows untitled", func(t *testing.T) {
@@ -2301,9 +1887,7 @@ func TestSessionMetaTitleNoGap(t *testing.T) {
 			timestamp: ts,
 		}
 		title := meta.Title()
-		if !strings.Contains(title, "untitled") {
-			t.Errorf("Title() = %q, should contain 'untitled'", title)
-		}
+		assert.Contains(t, title, "untitled")
 	})
 }
 
@@ -2324,17 +1908,10 @@ func TestScanMetadataSkipsIsMetaFirstMessage(t *testing.T) {
 
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jsonl")
-	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte(content), 0o644))
 
 	proj := project{dirName: "test", displayName: "test", path: "test"}
 	meta, err := scanMetadata(context.Background(), filePath, proj)
-	if err != nil {
-		t.Fatalf("scanMetadata: %v", err)
-	}
-
-	if meta.firstMessage != "actual question" {
-		t.Errorf("firstMessage = %q, want %q", meta.firstMessage, "actual question")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "actual question", meta.firstMessage)
 }

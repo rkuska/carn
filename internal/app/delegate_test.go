@@ -3,6 +3,9 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSplitItemMatches(t *testing.T) {
@@ -12,9 +15,7 @@ func TestSplitItemMatches(t *testing.T) {
 	desc := "claude-3  25 msgs\n" + archiveMatchesSourceSubtitle
 	full := title + "\n" + desc
 	matchAt := strings.Index(full, "archive")
-	if matchAt < 0 {
-		t.Fatal("expected test fixture to contain archive")
-	}
+	require.GreaterOrEqual(t, matchAt, 0)
 
 	matches := make([]int, len("archive"))
 	for i := range matches {
@@ -22,9 +23,7 @@ func TestSplitItemMatches(t *testing.T) {
 	}
 
 	got := splitItemMatches(title, desc, matches)
-	if len(got.title) != 0 {
-		t.Fatalf("title matches = %v, want none", got.title)
-	}
+	assert.Empty(t, got.title)
 
 	descRunes := []rune(desc)
 	var highlighted strings.Builder
@@ -32,7 +31,5 @@ func TestSplitItemMatches(t *testing.T) {
 		highlighted.WriteRune(descRunes[idx])
 	}
 
-	if gotWord := highlighted.String(); gotWord != "archive" {
-		t.Fatalf("desc highlighted = %q, want archive", gotWord)
-	}
+	assert.Equal(t, "archive", highlighted.String())
 }

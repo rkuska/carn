@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFilterRenderableConversations(t *testing.T) {
@@ -54,9 +57,7 @@ func TestFilterRenderableConversations(t *testing.T) {
 			t.Parallel()
 
 			got := filterRenderableConversations(tt.convs)
-			if len(got) != tt.want {
-				t.Fatalf("len(filterRenderableConversations()) = %d, want %d", len(got), tt.want)
-			}
+			assert.Len(t, got, tt.want)
 		})
 	}
 }
@@ -66,9 +67,7 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 
 	baseDir := t.TempDir()
 	projectDir := filepath.Join(baseDir, "proj")
-	if err := os.Mkdir(projectDir, 0o755); err != nil {
-		t.Fatalf("os.Mkdir: %v", err)
-	}
+	require.NoError(t, os.Mkdir(projectDir, 0o755))
 
 	realSession := strings.Join([]string{
 		`{"type":"user","sessionId":"real-session","slug":"real-session",` +
@@ -92,24 +91,12 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 			`"content":"<local-command-stdout>Catch you later!</local-command-stdout>"}}`,
 	}, "\n")
 
-	if err := os.WriteFile(filepath.Join(projectDir, "real.jsonl"), []byte(realSession), 0o644); err != nil {
-		t.Fatalf("os.WriteFile real session: %v", err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "real.jsonl"), []byte(realSession), 0o644))
 	commandOnlyPath := filepath.Join(projectDir, "command-only.jsonl")
-	if err := os.WriteFile(commandOnlyPath, []byte(commandOnlySession), 0o644); err != nil {
-		t.Fatalf("os.WriteFile command-only session: %v", err)
-	}
+	require.NoError(t, os.WriteFile(commandOnlyPath, []byte(commandOnlySession), 0o644))
 
 	msg := loadSessionsCmd(context.Background(), baseDir)()
-	loaded, ok := msg.(conversationsLoadedMsg)
-	if !ok {
-		t.Fatalf("message type = %T, want conversationsLoadedMsg", msg)
-	}
-
-	if len(loaded.conversations) != 1 {
-		t.Fatalf("len(loaded.conversations) = %d, want 1", len(loaded.conversations))
-	}
-	if loaded.conversations[0].id() != "real-session" {
-		t.Fatalf("loaded.conversations[0].id() = %q, want %q", loaded.conversations[0].id(), "real-session")
-	}
+	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
+	require.Len(t, loaded.conversations, 1)
+	assert.Equal(t, "real-session", loaded.conversations[0].id())
 }

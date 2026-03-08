@@ -10,6 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -105,18 +107,10 @@ func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 
 	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if b.transcriptMode != transcriptSplit {
-		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptSplit)
-	}
-	if b.loadingConversationID != conv.id() {
-		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv.id())
-	}
-	if cmd == nil {
-		t.Fatal("expected open transcript command")
-	}
-	if got, want := b.list.Width(), b.listPaneWidth()-2; got != want {
-		t.Fatalf("list width = %d, want %d after entering split mode", got, want)
-	}
+	assert.Equal(t, transcriptSplit, b.transcriptMode)
+	assert.Equal(t, conv.id(), b.loadingConversationID)
+	require.NotNil(t, cmd)
+	assert.Equal(t, b.listPaneWidth()-2, b.list.Width())
 }
 
 func TestBrowserSplitModeUsesHalfWidthPanes(t *testing.T) {
@@ -132,12 +126,8 @@ func TestBrowserSplitModeUsesHalfWidthPanes(t *testing.T) {
 		diff = -diff
 	}
 
-	if got, want := listWidth+viewerWidth+1, b.width; got != want {
-		t.Fatalf("combined split width = %d, want %d", got, want)
-	}
-	if diff > 1 {
-		t.Fatalf("pane width difference = %d, want <= 1 (list=%d viewer=%d)", diff, listWidth, viewerWidth)
-	}
+	assert.Equal(t, b.width, listWidth+viewerWidth+1)
+	assert.LessOrEqual(t, diff, 1)
 }
 
 func TestBrowserSplitModeKeepsMinimumListWidthOnNarrowTerminal(t *testing.T) {
@@ -148,15 +138,9 @@ func TestBrowserSplitModeKeepsMinimumListWidthOnNarrowTerminal(t *testing.T) {
 	b.transcriptMode = transcriptSplit
 	b.updateLayout()
 
-	if got, want := b.listPaneWidth(), 32; got != want {
-		t.Fatalf("listPaneWidth = %d, want %d", got, want)
-	}
-	if got, want := b.viewerWidth(), 17; got != want {
-		t.Fatalf("viewerWidth = %d, want %d", got, want)
-	}
-	if got, want := b.list.Width(), 30; got != want {
-		t.Fatalf("list width = %d, want %d after applying split guardrail", got, want)
-	}
+	assert.Equal(t, 32, b.listPaneWidth())
+	assert.Equal(t, 17, b.viewerWidth())
+	assert.Equal(t, 30, b.list.Width())
 }
 
 func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
@@ -173,18 +157,11 @@ func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 		session:        session,
 	})
 
-	if b.openConversationID != session.meta.id {
-		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
-	}
-	if b.loadingConversationID != "" {
-		t.Fatalf("loadingConversationID = %q, want empty", b.loadingConversationID)
-	}
-	if b.viewer.session.meta.id != session.meta.id {
-		t.Fatalf("viewer session id = %q, want %q", b.viewer.session.meta.id, session.meta.id)
-	}
-	if _, ok := b.transcriptCache[session.meta.id]; !ok {
-		t.Fatal("expected transcript cache to contain opened session")
-	}
+	assert.Equal(t, session.meta.id, b.openConversationID)
+	assert.Empty(t, b.loadingConversationID)
+	assert.Equal(t, session.meta.id, b.viewer.session.meta.id)
+	_, ok := b.transcriptCache[session.meta.id]
+	assert.True(t, ok)
 }
 
 func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
@@ -204,15 +181,9 @@ func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
 		session:        testSession(conv1.id()),
 	})
 
-	if b.openConversationID != "" {
-		t.Fatalf("openConversationID = %q, want empty", b.openConversationID)
-	}
-	if b.loadingConversationID != conv2.id() {
-		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv2.id())
-	}
-	if b.viewer.session.meta.id != "" {
-		t.Fatalf("viewer session id = %q, want empty", b.viewer.session.meta.id)
-	}
+	assert.Empty(t, b.openConversationID)
+	assert.Equal(t, conv2.id(), b.loadingConversationID)
+	assert.Empty(t, b.viewer.session.meta.id)
 }
 
 func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
@@ -230,20 +201,12 @@ func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
 	})
 
 	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
-	if b.transcriptMode != transcriptFullscreen {
-		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptFullscreen)
-	}
-	if b.openConversationID != session.meta.id {
-		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
-	}
+	assert.Equal(t, transcriptFullscreen, b.transcriptMode)
+	assert.Equal(t, session.meta.id, b.openConversationID)
 
 	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
-	if b.transcriptMode != transcriptSplit {
-		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptSplit)
-	}
-	if b.openConversationID != session.meta.id {
-		t.Fatalf("openConversationID = %q, want %q", b.openConversationID, session.meta.id)
-	}
+	assert.Equal(t, transcriptSplit, b.transcriptMode)
+	assert.Equal(t, session.meta.id, b.openConversationID)
 }
 
 func TestBrowserQClosesTranscriptBeforeQuit(t *testing.T) {
@@ -259,22 +222,15 @@ func TestBrowserQClosesTranscriptBeforeQuit(t *testing.T) {
 	})
 
 	b, cmd := b.Update(tea.KeyPressMsg{Text: "q"})
-	if b.transcriptMode != transcriptClosed {
-		t.Fatalf("transcriptMode = %v, want %v", b.transcriptMode, transcriptClosed)
-	}
+	assert.Equal(t, transcriptClosed, b.transcriptMode)
 	if cmd != nil {
-		if _, ok := cmd().(tea.QuitMsg); ok {
-			t.Fatal("expected close transcript, not quit")
-		}
+		_, ok := cmd().(tea.QuitMsg)
+		assert.False(t, ok)
 	}
 
 	_, cmd = b.Update(tea.KeyPressMsg{Text: "q"})
-	if cmd == nil {
-		t.Fatal("expected quit command from list-only view")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatalf("cmd() = %T, want tea.QuitMsg", cmd())
-	}
+	require.NotNil(t, cmd)
+	requireMsgType[tea.QuitMsg](t, cmd())
 }
 
 func TestBrowserSplitListFocusUpdatesTranscriptSelection(t *testing.T) {
@@ -296,15 +252,9 @@ func TestBrowserSplitListFocusUpdatesTranscriptSelection(t *testing.T) {
 
 	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 
-	if b.list.Index() != 1 {
-		t.Fatalf("list index = %d, want 1", b.list.Index())
-	}
-	if b.loadingConversationID != conv2.id() {
-		t.Fatalf("loadingConversationID = %q, want %q", b.loadingConversationID, conv2.id())
-	}
-	if cmd == nil {
-		t.Fatal("expected transcript reload command after selection change")
-	}
+	assert.Equal(t, 1, b.list.Index())
+	assert.Equal(t, conv2.id(), b.loadingConversationID)
+	require.NotNil(t, cmd)
 }
 
 func TestBrowserTranscriptFocusDoesNotMoveList(t *testing.T) {
@@ -328,12 +278,8 @@ func TestBrowserTranscriptFocusDoesNotMoveList(t *testing.T) {
 
 	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 
-	if b.list.Index() != indexBefore {
-		t.Fatalf("list index = %d, want %d", b.list.Index(), indexBefore)
-	}
-	if b.viewer.viewport.YOffset() <= yBefore {
-		t.Fatalf("viewer Y offset = %d, want > %d", b.viewer.viewport.YOffset(), yBefore)
-	}
+	assert.Equal(t, indexBefore, b.list.Index())
+	assert.Greater(t, b.viewer.viewport.YOffset(), yBefore)
 }
 
 func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
@@ -350,32 +296,10 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	})
 
 	lines := strings.Split(b.footerView(), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("footer line count = %d, want 2", len(lines))
-	}
+	require.Len(t, lines, 2)
 
 	helpLine := ansi.Strip(lines[0])
-	if !strings.Contains(helpLine, "-t") {
-		t.Fatalf("help line = %q, want -t", helpLine)
-	}
-	if !strings.Contains(helpLine, "-T") {
-		t.Fatalf("help line = %q, want -T", helpLine)
-	}
-	if !strings.Contains(helpLine, "-R") {
-		t.Fatalf("help line = %q, want -R", helpLine)
-	}
-	if !strings.Contains(helpLine, "+s") {
-		t.Fatalf("help line = %q, want +s", helpLine)
-	}
-	if !strings.Contains(helpLine, "? help") {
-		t.Fatalf("help line = %q, want help binding", helpLine)
-	}
-	if !strings.Contains(helpLine, "thinking") {
-		t.Fatalf("help line = %q, want shared transcript terminology", helpLine)
-	}
-	if !strings.Contains(helpLine, "editor") {
-		t.Fatalf("help line = %q, want shared editor terminology", helpLine)
-	}
+	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "editor")
 }
 
 func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
@@ -384,12 +308,7 @@ func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
 	b := testBrowser(t)
 	footer := ansi.Strip(b.footerView())
 
-	if strings.Contains(footer, " copy") {
-		t.Fatalf("footer = %q, did not expect list copy action", footer)
-	}
-	if strings.Contains(footer, " export") {
-		t.Fatalf("footer = %q, did not expect list export action", footer)
-	}
+	assertNotContainsAll(t, footer, " copy", " export")
 }
 
 func TestBrowserListHighlightsSearchPreview(t *testing.T) {
@@ -402,12 +321,8 @@ func TestBrowserListHighlightsSearchPreview(t *testing.T) {
 	b.list.SetFilterText("archive")
 
 	view := b.list.View()
-	if !strings.Contains(ansi.Strip(view), archiveMatchesSourceSubtitle) {
-		t.Fatalf("list view missing stripped search preview:\n%s", view)
-	}
-	if strings.Contains(view, archiveMatchesSourceSubtitle) {
-		t.Fatalf("expected highlighted preview to be split by ANSI escapes:\n%s", view)
-	}
+	assert.Contains(t, ansi.Strip(view), archiveMatchesSourceSubtitle)
+	assert.NotContains(t, view, archiveMatchesSourceSubtitle)
 }
 
 func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T) {
@@ -425,12 +340,8 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	b.list.SetItems(listItems)
 
 	view := b.list.View()
-	if !strings.Contains(ansi.Strip(view), archiveMatchesSourceSubtitle) {
-		t.Fatalf("list view missing stripped deep-search preview:\n%s", view)
-	}
-	if strings.Contains(view, archiveMatchesSourceSubtitle) {
-		t.Fatalf("expected deep-search preview to be split by ANSI escapes:\n%s", view)
-	}
+	assert.Contains(t, ansi.Strip(view), archiveMatchesSourceSubtitle)
+	assert.NotContains(t, view, archiveMatchesSourceSubtitle)
 }
 
 func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
@@ -441,12 +352,8 @@ func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
 
 	for _, section := range sections {
 		for _, item := range section.items {
-			if item.desc == "copy transcript" {
-				t.Fatalf("unexpected copy action in list help: %+v", item)
-			}
-			if item.desc == "export markdown" {
-				t.Fatalf("unexpected export action in list help: %+v", item)
-			}
+			assert.NotEqual(t, "copy transcript", item.desc)
+			assert.NotEqual(t, "export markdown", item.desc)
 		}
 	}
 }
@@ -472,15 +379,9 @@ func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {
 			before := b
 			after, cmd := b.Update(tc.msg)
 
-			if cmd != nil {
-				t.Fatalf("cmd != nil for %s in list focus", tc.name)
-			}
-			if after.transcriptMode != before.transcriptMode {
-				t.Fatalf("transcriptMode = %v, want %v", after.transcriptMode, before.transcriptMode)
-			}
-			if after.notification.text != "" {
-				t.Fatalf("notification = %q, want empty", after.notification.text)
-			}
+			assert.Nil(t, cmd)
+			assert.Equal(t, before.transcriptMode, after.transcriptMode)
+			assert.Empty(t, after.notification.text)
 		})
 	}
 }
@@ -509,9 +410,7 @@ func TestBrowserTranscriptFocusAllowsCopyAndExport(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, cmd := b.Update(tc.msg)
-			if cmd == nil {
-				t.Fatalf("expected %s command in transcript focus", tc.name)
-			}
+			require.NotNil(t, cmd)
 		})
 	}
 }
@@ -538,12 +437,8 @@ func TestBrowserSplitViewKeepsWindowHeightWithLongListItems(t *testing.T) {
 	b.updateLayout()
 
 	view := b.View()
-	if got := lipgloss.Height(view); got != b.height {
-		t.Fatalf("view height = %d, want %d", got, b.height)
-	}
-	if !strings.Contains(view, "╰") {
-		t.Fatalf("expected split view to keep bottom frame visible, got: %s", view)
-	}
+	assert.Equal(t, b.height, lipgloss.Height(view))
+	assert.Contains(t, view, "╰")
 }
 
 func TestBrowserCloseTranscriptRestoresFullWidthList(t *testing.T) {
@@ -563,7 +458,5 @@ func TestBrowserCloseTranscriptRestoresFullWidthList(t *testing.T) {
 	})
 	b, _ = b.Update(tea.KeyPressMsg{Text: "q"})
 
-	if got, want := b.list.Width(), b.width-2; got != want {
-		t.Fatalf("list width = %d, want %d after closing transcript", got, want)
-	}
+	assert.Equal(t, b.width-2, b.list.Width())
 }

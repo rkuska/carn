@@ -1,9 +1,11 @@
 package app
 
 import (
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupConversations(t *testing.T) {
@@ -21,20 +23,12 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s1", slug: "cheerful-ocean", project: proj, timestamp: ts1, filePath: "/f1", messageCount: 10},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 1 {
-			t.Fatalf("expected 1 conversation, got %d", len(convs))
-		}
+		require.Len(t, convs, 1)
 		c := convs[0]
-		if len(c.sessions) != 2 {
-			t.Fatalf("expected 2 sessions, got %d", len(c.sessions))
-		}
+		require.Len(t, c.sessions, 2)
 		// Should be sorted chronologically (s1 before s2)
-		if c.sessions[0].id != "s1" {
-			t.Errorf("first session id = %q, want s1", c.sessions[0].id)
-		}
-		if c.sessions[1].id != "s2" {
-			t.Errorf("second session id = %q, want s2", c.sessions[1].id)
-		}
+		assert.Equal(t, "s1", c.sessions[0].id)
+		assert.Equal(t, "s2", c.sessions[1].id)
 	})
 
 	t.Run("different slugs stay separate", func(t *testing.T) {
@@ -44,9 +38,7 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s2", slug: "slug-b", project: proj, timestamp: ts2},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 2 {
-			t.Fatalf("expected 2 conversations, got %d", len(convs))
-		}
+		assert.Len(t, convs, 2)
 	})
 
 	t.Run("subagents not grouped", func(t *testing.T) {
@@ -56,9 +48,7 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s2", slug: "same-slug", project: proj, timestamp: ts2, isSubagent: true},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 2 {
-			t.Fatalf("expected 2 separate conversations for subagents, got %d", len(convs))
-		}
+		assert.Len(t, convs, 2)
 	})
 
 	t.Run("empty slug not grouped", func(t *testing.T) {
@@ -68,9 +58,7 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s2", slug: "", project: proj, timestamp: ts2},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 2 {
-			t.Fatalf("expected 2 separate conversations for empty slugs, got %d", len(convs))
-		}
+		assert.Len(t, convs, 2)
 	})
 
 	t.Run("single session group works", func(t *testing.T) {
@@ -79,12 +67,8 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s1", slug: "unique-slug", project: proj, timestamp: ts1},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 1 {
-			t.Fatalf("expected 1 conversation, got %d", len(convs))
-		}
-		if len(convs[0].sessions) != 1 {
-			t.Errorf("expected 1 session, got %d", len(convs[0].sessions))
-		}
+		require.Len(t, convs, 1)
+		assert.Len(t, convs[0].sessions, 1)
 	})
 
 	t.Run("different projects with same slug stay separate", func(t *testing.T) {
@@ -95,9 +79,7 @@ func TestGroupConversations(t *testing.T) {
 			{id: "s2", slug: "same-slug", project: projB, timestamp: ts2},
 		}
 		convs := groupConversations(sessions)
-		if len(convs) != 2 {
-			t.Fatalf("expected 2 conversations for different projects, got %d", len(convs))
-		}
+		assert.Len(t, convs, 2)
 	})
 
 	t.Run("mixed grouped and ungrouped", func(t *testing.T) {
@@ -110,9 +92,7 @@ func TestGroupConversations(t *testing.T) {
 		}
 		convs := groupConversations(sessions)
 		// 1 grouped conversation + 1 empty slug + 1 subagent = 3
-		if len(convs) != 3 {
-			t.Fatalf("expected 3 conversations, got %d", len(convs))
-		}
+		assert.Len(t, convs, 3)
 	})
 }
 
@@ -145,16 +125,12 @@ func TestConversationAccessors(t *testing.T) {
 
 	t.Run("id returns first session id", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.id(); got != "first-id" {
-			t.Errorf("id() = %q, want %q", got, "first-id")
-		}
+		assert.Equal(t, "first-id", conv.id())
 	})
 
 	t.Run("resumeID returns last session id", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.resumeID(); got != "second-id" {
-			t.Errorf("resumeID() = %q, want %q", got, "second-id")
-		}
+		assert.Equal(t, "second-id", conv.resumeID())
 	})
 
 	t.Run("resumeCWD returns last session cwd", func(t *testing.T) {
@@ -165,73 +141,51 @@ func TestConversationAccessors(t *testing.T) {
 				{cwd: "/tmp/second"},
 			},
 		}
-		if got := c.resumeCWD(); got != "/tmp/second" {
-			t.Errorf("resumeCWD() = %q, want %q", got, "/tmp/second")
-		}
+		assert.Equal(t, "/tmp/second", c.resumeCWD())
 	})
 
 	t.Run("timestamp returns earliest", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.timestamp(); !got.Equal(ts1) {
-			t.Errorf("timestamp() = %v, want %v", got, ts1)
-		}
+		assert.True(t, conv.timestamp().Equal(ts1))
 	})
 
 	t.Run("filePaths returns all in order", func(t *testing.T) {
 		t.Parallel()
 		got := conv.filePaths()
-		if len(got) != 2 {
-			t.Fatalf("filePaths() len = %d, want 2", len(got))
-		}
-		if got[0] != "/path/first.jsonl" || got[1] != "/path/second.jsonl" {
-			t.Errorf("filePaths() = %v", got)
-		}
+		require.Len(t, got, 2)
+		assert.Equal(t, []string{"/path/first.jsonl", "/path/second.jsonl"}, got)
 	})
 
 	t.Run("latestFilePath returns last", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.latestFilePath(); got != "/path/second.jsonl" {
-			t.Errorf("latestFilePath() = %q, want %q", got, "/path/second.jsonl")
-		}
+		assert.Equal(t, "/path/second.jsonl", conv.latestFilePath())
 	})
 
 	t.Run("firstMessage from primary session", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.firstMessage(); got != "hello world" {
-			t.Errorf("firstMessage() = %q, want %q", got, "hello world")
-		}
+		assert.Equal(t, "hello world", conv.firstMessage())
 	})
 
 	t.Run("totalMessageCount sums all", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.totalMessageCount(); got != 15 {
-			t.Errorf("totalMessageCount() = %d, want 15", got)
-		}
+		assert.Equal(t, 15, conv.totalMessageCount())
 	})
 
 	t.Run("mainMessageCount sums all", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.mainMessageCount(); got != 12 {
-			t.Errorf("mainMessageCount() = %d, want 12", got)
-		}
+		assert.Equal(t, 12, conv.mainMessageCount())
 	})
 
 	t.Run("totalTokenUsage sums all", func(t *testing.T) {
 		t.Parallel()
 		usage := conv.totalTokenUsage()
-		if usage.inputTokens != 300 {
-			t.Errorf("inputTokens = %d, want 300", usage.inputTokens)
-		}
-		if usage.outputTokens != 150 {
-			t.Errorf("outputTokens = %d, want 150", usage.outputTokens)
-		}
+		assert.Equal(t, 300, usage.inputTokens)
+		assert.Equal(t, 150, usage.outputTokens)
 	})
 
 	t.Run("model from primary", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.model(); got != "claude-3" {
-			t.Errorf("model() = %q, want %q", got, "claude-3")
-		}
+		assert.Equal(t, "claude-3", conv.model())
 	})
 
 	t.Run("model falls back to latest", func(t *testing.T) {
@@ -242,30 +196,22 @@ func TestConversationAccessors(t *testing.T) {
 				{model: "claude-4"},
 			},
 		}
-		if got := c.model(); got != "claude-4" {
-			t.Errorf("model() = %q, want %q", got, "claude-4")
-		}
+		assert.Equal(t, "claude-4", c.model())
 	})
 
 	t.Run("version from latest", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.version(); got != "1.1.0" {
-			t.Errorf("version() = %q, want %q", got, "1.1.0")
-		}
+		assert.Equal(t, "1.1.0", conv.version())
 	})
 
 	t.Run("gitBranch from primary", func(t *testing.T) {
 		t.Parallel()
-		if got := conv.gitBranch(); got != "main" {
-			t.Errorf("gitBranch() = %q, want %q", got, "main")
-		}
+		assert.Equal(t, "main", conv.gitBranch())
 	})
 
 	t.Run("isSubagent false", func(t *testing.T) {
 		t.Parallel()
-		if conv.isSubagent() {
-			t.Error("expected isSubagent() = false")
-		}
+		assert.False(t, conv.isSubagent())
 	})
 }
 
@@ -295,11 +241,7 @@ func TestConversationListItem(t *testing.T) {
 	t.Run("FilterValue contains key fields", func(t *testing.T) {
 		t.Parallel()
 		fv := conv.FilterValue()
-		for _, want := range []string{"my/project", "cheerful-ocean", "help me with Go", "feature"} {
-			if !strings.Contains(fv, want) {
-				t.Errorf("FilterValue() = %q, missing %q", fv, want)
-			}
-		}
+		assertContainsAll(t, fv, "my/project", "cheerful-ocean", "help me with Go", "feature")
 	})
 
 	t.Run("FilterValue contains search preview", func(t *testing.T) {
@@ -308,26 +250,13 @@ func TestConversationListItem(t *testing.T) {
 		withPreview := conv
 		withPreview.searchPreview = archiveMatchesSourceSubtitle
 		fv := withPreview.FilterValue()
-		if !strings.Contains(fv, withPreview.searchPreview) {
-			t.Fatalf("FilterValue() = %q, missing search preview %q", fv, withPreview.searchPreview)
-		}
+		assert.Contains(t, fv, withPreview.searchPreview)
 	})
 
 	t.Run("Title contains parts indicator", func(t *testing.T) {
 		t.Parallel()
 		title := conv.Title()
-		if !strings.Contains(title, "(2 parts)") {
-			t.Errorf("Title() = %q, missing parts indicator", title)
-		}
-		if !strings.Contains(title, "my/project") {
-			t.Errorf("Title() = %q, missing project name", title)
-		}
-		if !strings.Contains(title, "cheerful-ocean") {
-			t.Errorf("Title() = %q, missing slug", title)
-		}
-		if !strings.Contains(title, "feature") {
-			t.Errorf("Title() = %q, missing git branch", title)
-		}
+		assertContainsAll(t, title, "(2 parts)", "my/project", "cheerful-ocean", "feature")
 	})
 
 	t.Run("Title without parts for single session", func(t *testing.T) {
@@ -340,20 +269,13 @@ func TestConversationListItem(t *testing.T) {
 			},
 		}
 		title := single.Title()
-		if strings.Contains(title, "parts") {
-			t.Errorf("single session Title() should not have parts: %q", title)
-		}
+		assert.NotContains(t, title, "parts")
 	})
 
 	t.Run("Description contains summed counts", func(t *testing.T) {
 		t.Parallel()
 		desc := conv.Description()
-		if !strings.Contains(desc, "25 msgs") {
-			t.Errorf("Description() = %q, missing total message count", desc)
-		}
-		if !strings.Contains(desc, "help me with Go") {
-			t.Errorf("Description() = %q, missing first message", desc)
-		}
+		assertContainsAll(t, desc, "25 msgs", "help me with Go")
 	})
 
 	t.Run("Description prefers search preview", func(t *testing.T) {
@@ -362,12 +284,8 @@ func TestConversationListItem(t *testing.T) {
 		withPreview := conv
 		withPreview.searchPreview = archiveMatchesSourceSubtitle
 		desc := withPreview.Description()
-		if !strings.Contains(desc, withPreview.searchPreview) {
-			t.Fatalf("Description() = %q, missing search preview", desc)
-		}
-		if strings.Contains(desc, "help me with Go") {
-			t.Fatalf("Description() = %q, should prefer search preview over first message", desc)
-		}
+		assert.Contains(t, desc, withPreview.searchPreview)
+		assert.NotContains(t, desc, "help me with Go")
 	})
 }
 
@@ -408,9 +326,7 @@ func TestConversationDisplayName(t *testing.T) {
 					{firstMessage: tt.firstMessage, timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
 				},
 			}
-			if got := conv.displayName(); got != tt.want {
-				t.Errorf("displayName() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, conv.displayName())
 		})
 	}
 }
@@ -430,9 +346,7 @@ func TestConversationTitleNoGap(t *testing.T) {
 			},
 		}
 		title := conv.Title()
-		if !strings.Contains(title, "help me") {
-			t.Errorf("Title() = %q, should contain firstMessage fallback", title)
-		}
+		assert.Contains(t, title, "help me")
 	})
 
 	t.Run("empty name and firstMessage shows untitled", func(t *testing.T) {
@@ -445,8 +359,6 @@ func TestConversationTitleNoGap(t *testing.T) {
 			},
 		}
 		title := conv.Title()
-		if !strings.Contains(title, "untitled") {
-			t.Errorf("Title() = %q, should contain 'untitled'", title)
-		}
+		assert.Contains(t, title, "untitled")
 	})
 }

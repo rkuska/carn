@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeConversationSource struct {
@@ -51,21 +54,11 @@ func TestConversationRepositoryLoadUsesMatchingProvider(t *testing.T) {
 	}
 
 	got, err := repo.load(context.Background(), conv)
-	if err != nil {
-		t.Fatalf("repo.load() error = %v", err)
-	}
-	if got.meta.id != "beta-session" {
-		t.Fatalf("loaded session id = %q, want %q", got.meta.id, "beta-session")
-	}
-	if alpha.loadCalls != 0 {
-		t.Fatalf("alpha.loadCalls = %d, want 0", alpha.loadCalls)
-	}
-	if beta.loadCalls != 1 {
-		t.Fatalf("beta.loadCalls = %d, want 1", beta.loadCalls)
-	}
-	if beta.lastLoaded.ref.provider != beta.sourceProvider {
-		t.Fatalf("loaded provider = %q, want %q", beta.lastLoaded.ref.provider, beta.sourceProvider)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "beta-session", got.meta.id)
+	assert.Zero(t, alpha.loadCalls)
+	assert.Equal(t, 1, beta.loadCalls)
+	assert.Equal(t, beta.sourceProvider, beta.lastLoaded.ref.provider)
 }
 
 func TestLoadSessionsCmdWithRepositorySortsAndFilters(t *testing.T) {
@@ -117,18 +110,8 @@ func TestLoadSessionsCmdWithRepositorySortsAndFilters(t *testing.T) {
 		t.TempDir(),
 		newConversationRepository(source),
 	)()
-	loaded, ok := msg.(conversationsLoadedMsg)
-	if !ok {
-		t.Fatalf("message type = %T, want conversationsLoadedMsg", msg)
-	}
-
-	if len(loaded.conversations) != 2 {
-		t.Fatalf("len(loaded.conversations) = %d, want 2", len(loaded.conversations))
-	}
-	if loaded.conversations[0].id() != "newer" {
-		t.Fatalf("first conversation id = %q, want %q", loaded.conversations[0].id(), "newer")
-	}
-	if loaded.conversations[1].id() != "older" {
-		t.Fatalf("second conversation id = %q, want %q", loaded.conversations[1].id(), "older")
-	}
+	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
+	require.Len(t, loaded.conversations, 2)
+	assert.Equal(t, "newer", loaded.conversations[0].id())
+	assert.Equal(t, "older", loaded.conversations[1].id())
 }

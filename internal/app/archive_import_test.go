@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtractSessionSlug(t *testing.T) {
@@ -65,12 +68,12 @@ func TestExtractSessionSlug(t *testing.T) {
 			writeTestFile(t, path, tt.content)
 
 			slug, err := extractSessionSlug(path)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("extractSessionSlug() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
-			if slug != tt.wantSlug {
-				t.Errorf("extractSessionSlug() = %q, want %q", slug, tt.wantSlug)
-			}
+			assert.Equal(t, tt.wantSlug, slug)
 		})
 	}
 }
@@ -79,9 +82,7 @@ func TestExtractSessionSlugNonExistent(t *testing.T) {
 	t.Parallel()
 
 	_, err := extractSessionSlug("/nonexistent/file.jsonl")
-	if err == nil {
-		t.Error("expected error for non-existent file")
-	}
+	require.Error(t, err)
 }
 
 func TestAnalyzeProjectDir(t *testing.T) {
@@ -104,30 +105,15 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		inspected, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if inspected != 2 {
-			t.Errorf("inspected = %d, want 2", inspected)
-		}
-		if len(seen) != 2 {
-			t.Errorf("conversations = %d, want 2", len(seen))
-		}
-		if len(syncCandidates) != 2 {
-			t.Errorf("syncCandidates = %d, want 2", len(syncCandidates))
-		}
+		require.NoError(t, err)
+		assert.Equal(t, 2, inspected)
+		assert.Len(t, seen, 2)
+		assert.Len(t, syncCandidates, 2)
 
 		newConvs, toUpdate, upToDate := classifyConversations(seen)
-		if newConvs != 2 {
-			t.Errorf("new = %d, want 2", newConvs)
-		}
-		if toUpdate != 0 {
-			t.Errorf("toUpdate = %d, want 0", toUpdate)
-		}
-		if upToDate != 0 {
-			t.Errorf("upToDate = %d, want 0", upToDate)
-		}
+		assert.Equal(t, 2, newConvs)
+		assert.Zero(t, toUpdate)
+		assert.Zero(t, upToDate)
 	})
 
 	t.Run("up-to-date conversations have matching archive", func(t *testing.T) {
@@ -151,18 +137,11 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if len(syncCandidates) != 0 {
-			t.Errorf("syncCandidates = %d, want 0", len(syncCandidates))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, syncCandidates)
 
 		_, _, upToDate := classifyConversations(seen)
-		if upToDate != 1 {
-			t.Errorf("upToDate = %d, want 1", upToDate)
-		}
+		assert.Equal(t, 1, upToDate)
 	})
 
 	t.Run("stale archive classifies as to-update", func(t *testing.T) {
@@ -186,18 +165,11 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if len(syncCandidates) != 1 {
-			t.Errorf("syncCandidates = %d, want 1", len(syncCandidates))
-		}
+		require.NoError(t, err)
+		assert.Len(t, syncCandidates, 1)
 
 		_, toUpdate, _ := classifyConversations(seen)
-		if toUpdate != 1 {
-			t.Errorf("toUpdate = %d, want 1", toUpdate)
-		}
+		assert.Equal(t, 1, toUpdate)
 	})
 
 	t.Run("same slug groups into one conversation", func(t *testing.T) {
@@ -217,13 +189,8 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if len(seen) != 1 {
-			t.Errorf("conversations = %d, want 1 (same slug should group)", len(seen))
-		}
+		require.NoError(t, err)
+		assert.Len(t, seen, 1)
 	})
 
 	t.Run("later slug matches browser grouping", func(t *testing.T) {
@@ -246,13 +213,8 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if len(seen) != 1 {
-			t.Errorf("conversations = %d, want 1 (late slug should group)", len(seen))
-		}
+		require.NoError(t, err)
+		assert.Len(t, seen, 1)
 	})
 
 	t.Run("subagent files get unique keys", func(t *testing.T) {
@@ -272,14 +234,10 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		var syncCandidates []string
 
 		_, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Subagent should be separate even with same slug
-		if len(seen) != 2 {
-			t.Errorf("conversations = %d, want 2 (subagent should be separate)", len(seen))
-		}
+		assert.Len(t, seen, 2)
 	})
 
 	t.Run("empty source directory returns zero", func(t *testing.T) {
@@ -288,25 +246,16 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		srcDir := filepath.Join(dir, "source")
 		archDir := filepath.Join(dir, "archive")
 		projDir := filepath.Join(srcDir, "proj1")
-		if err := os.MkdirAll(projDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(projDir, 0o755))
 
 		cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
 		seen := make(map[groupKey]*conversationState)
 		var syncCandidates []string
 
 		inspected, err := analyzeProjectDir(projDir, cfg, seen, &syncCandidates)
-		if err != nil {
-			t.Fatalf("analyzeProjectDir: %v", err)
-		}
-
-		if inspected != 0 {
-			t.Errorf("inspected = %d, want 0", inspected)
-		}
-		if len(seen) != 0 {
-			t.Errorf("conversations = %d, want 0", len(seen))
-		}
+		require.NoError(t, err)
+		assert.Zero(t, inspected)
+		assert.Empty(t, seen)
 	})
 }
 
@@ -316,32 +265,20 @@ func TestListProjectDirs(t *testing.T) {
 	t.Run("returns directories only", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(dir, "proj1"), 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
-		if err := os.MkdirAll(filepath.Join(dir, "proj2"), 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "proj1"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "proj2"), 0o755))
 		writeTestFile(t, filepath.Join(dir, "file.txt"), "not a dir")
 
 		dirs, err := listProjectDirs(dir)
-		if err != nil {
-			t.Fatalf("listProjectDirs: %v", err)
-		}
-		if len(dirs) != 2 {
-			t.Errorf("dirs = %d, want 2", len(dirs))
-		}
+		require.NoError(t, err)
+		assert.Len(t, dirs, 2)
 	})
 
 	t.Run("missing source returns nil", func(t *testing.T) {
 		t.Parallel()
 		dirs, err := listProjectDirs("/nonexistent/path")
-		if err != nil {
-			t.Fatalf("listProjectDirs: %v", err)
-		}
-		if dirs != nil {
-			t.Errorf("dirs = %v, want nil", dirs)
-		}
+		require.NoError(t, err)
+		assert.Nil(t, dirs)
 	})
 }
 
@@ -356,15 +293,9 @@ func TestClassifyConversations(t *testing.T) {
 	}
 
 	newConvs, toUpdate, upToDate := classifyConversations(seen)
-	if newConvs != 2 {
-		t.Errorf("new = %d, want 2", newConvs)
-	}
-	if toUpdate != 1 {
-		t.Errorf("toUpdate = %d, want 1", toUpdate)
-	}
-	if upToDate != 1 {
-		t.Errorf("upToDate = %d, want 1", upToDate)
-	}
+	assert.Equal(t, 2, newConvs)
+	assert.Equal(t, 1, toUpdate)
+	assert.Equal(t, 1, upToDate)
 }
 
 func TestImportAnalysisNeedsSync(t *testing.T) {
@@ -373,17 +304,13 @@ func TestImportAnalysisNeedsSync(t *testing.T) {
 	t.Run("needs sync with files", func(t *testing.T) {
 		t.Parallel()
 		a := importAnalysis{filesToSync: []string{"/a.jsonl"}}
-		if !a.needsSync() {
-			t.Error("expected needsSync() = true")
-		}
+		assert.True(t, a.needsSync())
 	})
 
 	t.Run("no sync needed when empty", func(t *testing.T) {
 		t.Parallel()
 		a := importAnalysis{}
-		if a.needsSync() {
-			t.Error("expected needsSync() = false")
-		}
+		assert.False(t, a.needsSync())
 	})
 }
 

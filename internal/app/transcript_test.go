@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderTranscript(t *testing.T) {
@@ -67,16 +70,8 @@ func TestRenderTranscript(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := renderTranscript(session, tt.opts)
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("result missing %q\nresult:\n%s", want, result)
-				}
-			}
-			for _, exclude := range tt.excludes {
-				if strings.Contains(result, exclude) {
-					t.Errorf("result should not contain %q\nresult:\n%s", exclude, result)
-				}
-			}
+			assertContainsAll(t, result, tt.contains...)
+			assertNotContainsAll(t, result, tt.excludes...)
 		})
 	}
 }
@@ -119,16 +114,8 @@ func TestRenderPreview(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := renderPreview(session, tt.maxMessages, 80)
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("result missing %q\nresult:\n%s", want, result)
-				}
-			}
-			for _, exclude := range tt.excludes {
-				if strings.Contains(result, exclude) {
-					t.Errorf("result should not contain %q\nresult:\n%s", exclude, result)
-				}
-			}
+			assertContainsAll(t, result, tt.contains...)
+			assertNotContainsAll(t, result, tt.excludes...)
 		})
 	}
 }
@@ -157,9 +144,7 @@ func TestFormatToolCall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := formatToolCall(tt.tc)
-			if got != tt.want {
-				t.Errorf("formatToolCall() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -167,9 +152,7 @@ func TestFormatToolCall(t *testing.T) {
 func TestRenderTranscriptEmpty(t *testing.T) {
 	t.Parallel()
 	result := renderTranscript(sessionFull{}, transcriptOptions{})
-	if result != "" {
-		t.Errorf("expected empty string for empty session, got %q", result)
-	}
+	assert.Empty(t, result)
 }
 
 func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
@@ -195,24 +178,16 @@ func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
 		result := renderTranscript(session, transcriptOptions{showTools: false})
 		// Should have exactly 2 "## Assistant" (one for tool-only skipped, one for text)
 		count := strings.Count(result, "## Assistant")
-		if count != 1 {
-			t.Errorf("expected 1 assistant heading, got %d\nresult:\n%s", count, result)
-		}
-		if strings.Contains(result, "[Read:") {
-			t.Errorf("tool call should be hidden\nresult:\n%s", result)
-		}
+		assert.Equal(t, 1, count)
+		assert.NotContains(t, result, "[Read:")
 	})
 
 	t.Run("shown when showTools true", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showTools: true})
 		count := strings.Count(result, "## Assistant")
-		if count != 2 {
-			t.Errorf("expected 2 assistant headings, got %d\nresult:\n%s", count, result)
-		}
-		if !strings.Contains(result, "[Read: /path/file.go]") {
-			t.Errorf("tool call should be visible\nresult:\n%s", result)
-		}
+		assert.Equal(t, 2, count)
+		assert.Contains(t, result, "[Read: /path/file.go]")
 	})
 }
 
@@ -231,20 +206,13 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	t.Run("hidden by default", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{})
-		if strings.Contains(result, "**Read**") {
-			t.Errorf("tool results should be hidden by default\nresult:\n%s", result)
-		}
+		assert.NotContains(t, result, "**Read**")
 	})
 
 	t.Run("shown when enabled", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showToolResults: true})
-		if !strings.Contains(result, "**Read**: `/path/file.go`") {
-			t.Errorf("tool result should show resolved name and summary\nresult:\n%s", result)
-		}
-		if !strings.Contains(result, "```\nfile contents here\n```") {
-			t.Errorf("tool result content should be in code block\nresult:\n%s", result)
-		}
+		assertContainsAll(t, result, "**Read**: `/path/file.go`", "```\nfile contents here\n```")
 	})
 }
 
@@ -264,26 +232,14 @@ func TestRenderTranscriptHideSidechain(t *testing.T) {
 	t.Run("sidechain shown by default", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{})
-		if !strings.Contains(result, "Sidechain message") {
-			t.Errorf("sidechain should be visible by default\nresult:\n%s", result)
-		}
+		assert.Contains(t, result, "Sidechain message")
 	})
 
 	t.Run("sidechain hidden when enabled", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{hideSidechain: true})
-		if strings.Contains(result, "Sidechain message") {
-			t.Errorf("sidechain should be hidden\nresult:\n%s", result)
-		}
-		if strings.Contains(result, "Sidechain reply") {
-			t.Errorf("sidechain reply should be hidden\nresult:\n%s", result)
-		}
-		if !strings.Contains(result, "Main message") {
-			t.Errorf("main messages should still be visible\nresult:\n%s", result)
-		}
-		if !strings.Contains(result, "Back to main") {
-			t.Errorf("non-sidechain messages should be visible\nresult:\n%s", result)
-		}
+		assertNotContainsAll(t, result, "Sidechain message", "Sidechain reply")
+		assertContainsAll(t, result, "Main message", "Back to main")
 	})
 }
 
@@ -302,20 +258,10 @@ func TestRenderTranscriptAgentDivider(t *testing.T) {
 
 	result := renderTranscript(session, transcriptOptions{})
 
-	if !strings.Contains(result, "### Subagent") {
-		t.Errorf("expected subagent heading in result:\n%s", result)
-	}
-	if !strings.Contains(result, "Search the codebase") {
-		t.Errorf("expected divider text in result:\n%s", result)
-	}
-	if !strings.Contains(result, "---") {
-		t.Errorf("expected divider markers in result:\n%s", result)
-	}
+	assertContainsAll(t, result, "### Subagent", "Search the codebase", "---")
 	// Divider should not produce a "## You" heading
 	youCount := strings.Count(result, "## You")
-	if youCount != 2 {
-		t.Errorf("expected 2 '## You' headings (main + sub), got %d\nresult:\n%s", youCount, result)
-	}
+	assert.Equal(t, 2, youCount)
 }
 
 func TestRenderPreviewAgentDivider(t *testing.T) {
@@ -331,16 +277,9 @@ func TestRenderPreviewAgentDivider(t *testing.T) {
 	}
 
 	result := renderPreview(session, 10, 80)
-	if !strings.Contains(result, "--- Subagent ---") {
-		t.Errorf("expected subagent divider in preview:\n%s", result)
-	}
-	if !strings.Contains(result, "Explore files") {
-		t.Errorf("expected divider text in preview:\n%s", result)
-	}
+	assertContainsAll(t, result, "--- Subagent ---", "Explore files")
 	// Main question goes to prompt section, not as ▶ You
-	if !strings.Contains(result, "▎") {
-		t.Errorf("expected Main question in prompt section with ▎:\n%s", result)
-	}
+	assert.Contains(t, result, "▎")
 }
 
 func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
@@ -363,21 +302,15 @@ func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{})
 		youCount := strings.Count(result, "## You")
-		if youCount != 1 {
-			t.Errorf("expected 1 You heading, got %d\nresult:\n%s", youCount, result)
-		}
+		assert.Equal(t, 1, youCount)
 	})
 
 	t.Run("shown when showToolResults true", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showToolResults: true})
 		youCount := strings.Count(result, "## You")
-		if youCount != 2 {
-			t.Errorf("expected 2 You headings, got %d\nresult:\n%s", youCount, result)
-		}
-		if !strings.Contains(result, "file contents") {
-			t.Errorf("tool result content should be visible\nresult:\n%s", result)
-		}
+		assert.Equal(t, 2, youCount)
+		assert.Contains(t, result, "file contents")
 	})
 }
 
@@ -397,9 +330,7 @@ func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 
 	result := renderPreview(session, 10, 80)
 	youCount := strings.Count(result, "▶ You")
-	if youCount != 0 {
-		t.Errorf("expected 0 You in preview (only user msg goes to prompt), got %d\nresult:\n%s", youCount, result)
-	}
+	assert.Zero(t, youCount)
 }
 
 func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
@@ -415,9 +346,7 @@ func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 	}
 
 	result := renderPreview(session, 10, 80)
-	if !strings.Contains(result, "[Bash: ls -la]") {
-		t.Errorf("expected tool call in preview when no text, got:\n%s", result)
-	}
+	assert.Contains(t, result, "[Bash: ls -la]")
 }
 
 func TestFormatToolResult(t *testing.T) {
@@ -431,12 +360,7 @@ func TestFormatToolResult(t *testing.T) {
 			content:     "package main",
 		}
 		got := formatToolResult(tr)
-		if !strings.Contains(got, "**Read**: `/path/to/file.go`") {
-			t.Errorf("expected header with name and summary, got:\n%s", got)
-		}
-		if !strings.Contains(got, "```\npackage main\n```") {
-			t.Errorf("expected content in code block, got:\n%s", got)
-		}
+		assertContainsAll(t, got, "**Read**: `/path/to/file.go`", "```\npackage main\n```")
 	})
 
 	t.Run("resolved without summary", func(t *testing.T) {
@@ -446,9 +370,7 @@ func TestFormatToolResult(t *testing.T) {
 			content:  "no tasks",
 		}
 		got := formatToolResult(tr)
-		if !strings.Contains(got, "**TaskList**\n") {
-			t.Errorf("expected header without summary, got:\n%s", got)
-		}
+		assert.Contains(t, got, "**TaskList**\n")
 	})
 
 	t.Run("unresolved fallback", func(t *testing.T) {
@@ -458,9 +380,7 @@ func TestFormatToolResult(t *testing.T) {
 			content:   "some output",
 		}
 		got := formatToolResult(tr)
-		if !strings.Contains(got, "**Result**\n") {
-			t.Errorf("expected fallback header, got:\n%s", got)
-		}
+		assert.Contains(t, got, "**Result**\n")
 	})
 }
 
@@ -473,9 +393,7 @@ func TestFormatToolResultPreservesNewlines(t *testing.T) {
 		content:     "line1\nline2\nline3",
 	}
 	got := formatToolResult(tr)
-	if !strings.Contains(got, "line1\nline2\nline3") {
-		t.Errorf("expected newlines preserved in content, got:\n%s", got)
-	}
+	assert.Contains(t, got, "line1\nline2\nline3")
 }
 
 func TestFormatToolResultDiff(t *testing.T) {
@@ -497,21 +415,13 @@ func TestFormatToolResultDiff(t *testing.T) {
 	}
 	got := formatToolResult(tr)
 
-	if !strings.Contains(got, "**Edit**: `/path/to/file.go`") {
-		t.Errorf("expected header with name and summary, got:\n%s", got)
-	}
-	if !strings.Contains(got, "```diff\n") {
-		t.Errorf("expected diff code block, got:\n%s", got)
-	}
-	if !strings.Contains(got, "@@ -10,3 +10,5 @@") {
-		t.Errorf("expected hunk header, got:\n%s", got)
-	}
-	if !strings.Contains(got, "-old line\n") {
-		t.Errorf("expected removed line, got:\n%s", got)
-	}
-	if !strings.Contains(got, "+new line1\n") {
-		t.Errorf("expected added line, got:\n%s", got)
-	}
+	assertContainsAll(t, got,
+		"**Edit**: `/path/to/file.go`",
+		"```diff\n",
+		"@@ -10,3 +10,5 @@",
+		"-old line\n",
+		"+new line1\n",
+	)
 }
 
 func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
@@ -524,12 +434,8 @@ func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
 	}
 	got := formatToolResult(tr)
 
-	if strings.Contains(got, "```diff") {
-		t.Errorf("should not use diff block without patch, got:\n%s", got)
-	}
-	if !strings.Contains(got, "```\nfile updated successfully\n```") {
-		t.Errorf("expected plain code block fallback, got:\n%s", got)
-	}
+	assert.NotContains(t, got, "```diff")
+	assert.Contains(t, got, "```\nfile updated successfully\n```")
 }
 
 func TestRenderTranscriptSegmented(t *testing.T) {
@@ -556,18 +462,13 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			case segmentToolResult, segmentThinking, segmentToolCall:
 			}
 		}
-		if roleCount != 2 {
-			t.Errorf("expected 2 role header segments, got %d", roleCount)
-		}
-		if mdCount != 2 {
-			t.Errorf("expected 2 markdown segments, got %d", mdCount)
-		}
-		if segments[0].kind != segmentRoleHeader || segments[0].role != roleUser {
-			t.Errorf("first segment should be user role header")
-		}
-		if segments[2].kind != segmentRoleHeader || segments[2].role != roleAssistant {
-			t.Errorf("third segment should be assistant role header")
-		}
+		assert.Equal(t, 2, roleCount)
+		assert.Equal(t, 2, mdCount)
+		require.GreaterOrEqual(t, len(segments), 3)
+		assert.Equal(t, segmentRoleHeader, segments[0].kind)
+		assert.Equal(t, roleUser, segments[0].role)
+		assert.Equal(t, segmentRoleHeader, segments[2].kind)
+		assert.Equal(t, roleAssistant, segments[2].role)
 	})
 
 	t.Run("tool results produce separate segments", func(t *testing.T) {
@@ -594,12 +495,8 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 			case segmentRoleHeader, segmentThinking, segmentToolCall:
 			}
 		}
-		if trCount != 1 {
-			t.Errorf("expected 1 tool result segment, got %d", trCount)
-		}
-		if mdCount < 2 {
-			t.Errorf("expected at least 2 markdown segments, got %d", mdCount)
-		}
+		assert.Equal(t, 1, trCount)
+		assert.GreaterOrEqual(t, mdCount, 2)
 	})
 
 	t.Run("tool results hidden when showToolResults false", func(t *testing.T) {
@@ -615,9 +512,7 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: false})
 
 		for _, seg := range segments {
-			if seg.kind == segmentToolResult {
-				t.Error("tool result segment should not appear when showToolResults is false")
-			}
+			assert.NotEqual(t, segmentToolResult, seg.kind)
 		}
 	})
 
@@ -634,14 +529,10 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		for _, seg := range segments {
 			if seg.kind == segmentThinking {
 				thinkCount++
-				if seg.text != "deep thought" {
-					t.Errorf("thinking text = %q, want %q", seg.text, "deep thought")
-				}
+				assert.Equal(t, "deep thought", seg.text)
 			}
 		}
-		if thinkCount != 1 {
-			t.Errorf("expected 1 thinking segment, got %d", thinkCount)
-		}
+		assert.Equal(t, 1, thinkCount)
 	})
 
 	t.Run("tool calls produce segmentToolCall", func(t *testing.T) {
@@ -662,9 +553,7 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 				tcCount++
 			}
 		}
-		if tcCount != 2 {
-			t.Errorf("expected 2 tool call segments, got %d", tcCount)
-		}
+		assert.Equal(t, 2, tcCount)
 	})
 
 	t.Run("flattenSegments matches renderTranscript output", func(t *testing.T) {
@@ -682,9 +571,7 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		opts := transcriptOptions{showToolResults: true, showTools: true, showThinking: true}
 		transcript := renderTranscript(session, opts)
 		flattened := flattenSegments(renderTranscriptSegmented(session, opts))
-		if transcript != flattened {
-			t.Errorf("renderTranscript and flattenSegments differ:\ntranscript:\n%s\nflattened:\n%s", transcript, flattened)
-		}
+		assert.Equal(t, transcript, flattened)
 	})
 }
 
@@ -713,16 +600,9 @@ func TestFormatToolResultMultipleHunks(t *testing.T) {
 	}
 	got := formatToolResult(tr)
 
-	if !strings.Contains(got, "@@ -5,2 +5,3 @@") {
-		t.Errorf("expected first hunk header, got:\n%s", got)
-	}
-	if !strings.Contains(got, "@@ -20,1 +21,2 @@") {
-		t.Errorf("expected second hunk header, got:\n%s", got)
-	}
+	assertContainsAll(t, got, "@@ -5,2 +5,3 @@", "@@ -20,1 +21,2 @@")
 	count := strings.Count(got, "@@")
-	if count != 4 { // 2 hunk headers × 2 @@ each
-		t.Errorf("expected 4 @@ markers, got %d\n%s", count, got)
-	}
+	assert.Equal(t, 4, count) // 2 hunk headers × 2 @@ each
 }
 
 func TestRenderPreviewHeader(t *testing.T) {
@@ -779,16 +659,8 @@ func TestRenderPreviewHeader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := renderPreviewHeader(tt.meta)
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("result missing %q\nresult:\n%s", want, result)
-				}
-			}
-			for _, exclude := range tt.excludes {
-				if strings.Contains(result, exclude) {
-					t.Errorf("result should not contain %q\nresult:\n%s", exclude, result)
-				}
-			}
+			assertContainsAll(t, result, tt.contains...)
+			assertNotContainsAll(t, result, tt.excludes...)
 		})
 	}
 }
@@ -851,9 +723,7 @@ func TestFirstUserMessage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := firstUserMessage(tt.messages)
-			if got != tt.want {
-				t.Errorf("firstUserMessage() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -879,28 +749,17 @@ func TestRenderPreviewWithHeader(t *testing.T) {
 	result := renderPreview(session, 10, 80)
 
 	// First user message appears in prompt section with ▎, not as ▶ You
-	if !strings.Contains(result, "▎") {
-		t.Errorf("expected prompt section with ▎:\n%s", result)
-	}
-	if !strings.Contains(result, "Help me with auth") {
-		t.Errorf("expected first user message in prompt section:\n%s", result)
-	}
+	assertContainsAll(t, result, "▎", "Help me with auth")
 
 	// Metadata header present
-	if !strings.Contains(result, "claude-sonnet-4") {
-		t.Errorf("expected model in header:\n%s", result)
-	}
+	assert.Contains(t, result, "claude-sonnet-4")
 
 	// First user message should NOT appear as ▶ You
 	youCount := strings.Count(result, "▶ You")
-	if youCount != 1 {
-		t.Errorf("expected 1 ▶ You (follow-up only), got %d\nresult:\n%s", youCount, result)
-	}
+	assert.Equal(t, 1, youCount)
 
 	// Follow-up appears as regular message
-	if !strings.Contains(result, "Follow-up question") {
-		t.Errorf("expected follow-up question:\n%s", result)
-	}
+	assert.Contains(t, result, "Follow-up question")
 }
 
 func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
@@ -918,19 +777,10 @@ func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
 
 	result := renderTranscript(session, transcriptOptions{})
 
-	if strings.Contains(result, "[Request interrupted") {
-		t.Errorf("interrupt message should be filtered:\n%s", result)
-	}
-	if !strings.Contains(result, "Hello") {
-		t.Errorf("normal message should be present:\n%s", result)
-	}
-	if !strings.Contains(result, "Continue please") {
-		t.Errorf("post-interrupt message should be present:\n%s", result)
-	}
+	assertNotContainsAll(t, result, "[Request interrupted")
+	assertContainsAll(t, result, "Hello", "Continue please")
 	youCount := strings.Count(result, "## You")
-	if youCount != 2 {
-		t.Errorf("expected 2 You headings, got %d\nresult:\n%s", youCount, result)
-	}
+	assert.Equal(t, 2, youCount)
 }
 
 func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
@@ -948,15 +798,8 @@ func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
 
 	result := renderPreview(session, 10, 80)
 
-	if strings.Contains(result, "[Request interrupted") {
-		t.Errorf("interrupt message should be filtered:\n%s", result)
-	}
-	if !strings.Contains(result, "Hello") {
-		t.Errorf("normal message should be present:\n%s", result)
-	}
-	if !strings.Contains(result, "Continue") {
-		t.Errorf("post-interrupt message should be present:\n%s", result)
-	}
+	assertNotContainsAll(t, result, "[Request interrupted")
+	assertContainsAll(t, result, "Hello", "Continue")
 }
 
 func TestRenderTranscriptInterruptWithToolResults(t *testing.T) {
@@ -975,23 +818,15 @@ func TestRenderTranscriptInterruptWithToolResults(t *testing.T) {
 	t.Run("interrupt text hidden but tool results shown when enabled", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showToolResults: true})
-		if strings.Contains(result, "[Request interrupted") {
-			t.Errorf("interrupt text should be filtered:\n%s", result)
-		}
-		if !strings.Contains(result, "**Read**") {
-			t.Errorf("tool result should be visible:\n%s", result)
-		}
+		assert.NotContains(t, result, "[Request interrupted")
+		assert.Contains(t, result, "**Read**")
 	})
 
 	t.Run("entire message hidden when tool results disabled", func(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showToolResults: false})
-		if strings.Contains(result, "[Request interrupted") {
-			t.Errorf("interrupt text should be filtered:\n%s", result)
-		}
+		assert.NotContains(t, result, "[Request interrupted")
 		youCount := strings.Count(result, "## You")
-		if youCount != 0 {
-			t.Errorf("expected 0 You headings (only interrupt message), got %d\nresult:\n%s", youCount, result)
-		}
+		assert.Zero(t, youCount)
 	})
 }
