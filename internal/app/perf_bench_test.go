@@ -369,6 +369,25 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 	}
 }
 
+func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
+	archiveDir := makeBenchCanonicalStore(b, 6, 60, 12)
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	changedPaths := []string{
+		filepath.Join(rawDir, "project-0", "session-00-0000.jsonl"),
+		filepath.Join(rawDir, "project-1", "session-01-0001.jsonl"),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := rebuildCanonicalStore(
+			context.Background(), archiveDir, conversationProviderClaude, changedPaths,
+		); err != nil {
+			b.Fatalf("rebuildCanonicalStore: %v", err)
+		}
+	}
+}
+
 func makeBenchCanonicalStore(
 	b *testing.B,
 	projects, sessionsPerProject, assistantTurns int,
@@ -398,7 +417,7 @@ func makeBenchCanonicalStore(
 		}
 	}
 
-	if err := rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude); err != nil {
+	if err := rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil); err != nil {
 		b.Fatalf("rebuildCanonicalStore: %v", err)
 	}
 

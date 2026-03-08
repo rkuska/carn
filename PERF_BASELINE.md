@@ -5,7 +5,7 @@ Captured on March 8, 2026.
 Command:
 
 ```bash
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
@@ -20,6 +20,7 @@ Results (Apple M4 Pro, darwin/arm64):
 | BenchmarkViewerSearch | 8,824 | 120 | 4 |
 | BenchmarkCollectFilesToSync | 1,213,578 | 514,826 | 4,041 |
 | BenchmarkStreamImportAnalysis | 8,034,847 | 24,646,138 | 10,055 |
+| BenchmarkCanonicalStoreIncrementalRebuild | 60,748,039 | 272,504,556 | 356,023 |
 
 Notes:
 - `go test -race ./...` is currently not runnable in this environment (`cannot find package` from the race toolchain).
