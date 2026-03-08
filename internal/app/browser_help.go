@@ -3,6 +3,10 @@ package app
 import "fmt"
 
 func (m browserModel) footerView() string {
+	if m.searchEditing() && !m.transcriptFocused() {
+		return renderSearchFooter(m.width, m.searchInput.View(), m.notification)
+	}
+
 	if m.transcriptFocused() && m.viewer.searching {
 		return renderSearchFooter(m.width, m.viewer.searchInput.View(), m.notification)
 	}
@@ -44,7 +48,7 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "gg", desc: "top"},
 		{key: "G", desc: "bottom"},
 		{key: "ctrl+f/b", desc: "page"},
-		{key: "/", desc: "filter"},
+		{key: "/", desc: "search"},
 		{key: "enter", desc: "open"},
 		{key: "o", desc: "editor"},
 		{key: "r", desc: "resume"},
@@ -64,15 +68,27 @@ func (m browserModel) listFooterItems() []helpItem {
 }
 
 func (m browserModel) listFooterStatusParts() []string {
-	status := make([]string, 0, 4)
-	if m.deepSearch {
+	status := make([]string, 0, 6)
+	if m.search.mode == searchModeDeep {
 		status = append(status, styleToolCall.Render("[DEEP SEARCH]"))
+	} else {
+		status = append(status, styleToolCall.Render("[METADATA]"))
+	}
+	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
+		status = append(status, styleToolCall.Render("[UPDATING]"))
+	}
+	if m.indexWarmup {
+		status = append(status, styleToolCall.Render("[INDEXING]"))
 	}
 	if m.transcriptMode == transcriptSplit {
 		status = append(status, "[split]")
 	}
 
 	info := fmt.Sprintf("%d sessions", m.mainConversationCount)
+	if m.search.query != "" {
+		info = fmt.Sprintf("%d/%d sessions", len(m.search.visibleConversations), m.mainConversationCount)
+		status = append(status, fmt.Sprintf("/%s", m.search.query))
+	}
 	if conv, ok := m.selectedConversation(); ok {
 		info = fmt.Sprintf("%s  %s", info, conv.project.displayName)
 	}
@@ -102,11 +118,11 @@ func (m browserModel) helpSections() []helpSection {
 	}
 
 	actions := []helpItem{
-		{key: "/", desc: "filter list"},
+		{key: "/", desc: "search list"},
 		{key: "enter", desc: "open transcript"},
 		{key: "o", desc: "open in editor"},
 		{key: "r", desc: "resume session"},
-		{key: "ctrl+s", desc: "toggle deep search"},
+		{key: "ctrl+s", desc: "toggle deep scope"},
 	}
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,

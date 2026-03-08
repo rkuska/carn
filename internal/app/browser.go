@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -41,10 +42,13 @@ type browserModel struct {
 	height                int
 	mainConversationCount int
 	notification          notification
-	deepSearch            bool
+	searchInput           textinput.Model
+	search                browserSearchState
 	sessionCache          map[string]sessionFull
 	transcriptCache       map[string]sessionFull
-	searchIndex           map[string]string
+	searchIndex           conversationSearchIndex
+	searchCancel          context.CancelFunc
+	indexWarmup           bool
 	openConversationID    string
 	loadingConversationID string
 	helpOpen              bool
@@ -58,7 +62,7 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 	l := list.New(nil, delegate, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(true)
-	l.SetFilteringEnabled(true)
+	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
 		Background(colorHighlight).
@@ -87,15 +91,20 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 	l.KeyMap = keyMap
 
 	return browserModel{
-		ctx:             ctx,
-		archiveDir:      archiveDir,
-		glamourStyle:    glamourStyle,
-		list:            l,
-		focus:           focusList,
-		transcriptMode:  transcriptClosed,
+		ctx:            ctx,
+		archiveDir:     archiveDir,
+		glamourStyle:   glamourStyle,
+		list:           l,
+		focus:          focusList,
+		transcriptMode: transcriptClosed,
+		searchInput:    newBrowserSearchInput(),
+		search: browserSearchState{
+			mode:   searchModeMetadata,
+			status: searchStatusIdle,
+		},
 		sessionCache:    make(map[string]sessionFull, browserCacheSize),
 		transcriptCache: make(map[string]sessionFull, browserCacheSize),
-		searchIndex:     make(map[string]string, browserCacheSize),
+		searchIndex:     newConversationSearchIndex(),
 	}
 }
 
@@ -108,9 +117,17 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		cmd := m.handleKey(msg, &cmds)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
+		if m.searchEditing() && !m.transcriptFocused() {
+			var cmd tea.Cmd
+			m, cmd = m.handleSearchKey(msg, &cmds)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		} else {
+			cmd := m.handleKey(msg, &cmds)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -122,8 +139,18 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.allConversations = msg.conversations
 		mainConvs := filterMainConversations(msg.conversations)
 		m.mainConversationCount = len(mainConvs)
-		m.searchIndex = make(map[string]string, browserCacheSize)
-		cmds = append(cmds, m.list.SetItems(conversationItems(mainConvs)))
+		m.searchIndex = newConversationSearchIndex()
+		m.search.baseConversations = mainConvs
+		m.search.visibleConversations = mainConvs
+		m.indexWarmup = len(mainConvs) > 0
+		if m.search.query == "" {
+			m.applyFullConversationList(&cmds)
+		} else {
+			m.refreshSearchResults(&cmds)
+		}
+		if m.indexWarmup {
+			cmds = append(cmds, warmSearchIndexCmd(m.ctx, mainConvs, m.searchIndex.cloneBlobs(), m.cloneSessionCache()))
+		}
 		m.syncTranscriptSelection(&cmds)
 
 	case sessionsLoadErrorMsg:
@@ -137,14 +164,29 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 			m.installViewer(msg.session, msg.conversation)
 		}
 
+	case deepSearchDebounceMsg:
+		if m.search.mode == searchModeDeep &&
+			msg.revision == m.search.revision &&
+			msg.query == m.search.query {
+			m.startDeepSearch(&cmds)
+		}
+
 	case deepSearchResultMsg:
-		maps.Copy(m.searchIndex, msg.indexed)
-		cmds = append(cmds, m.list.SetItems(conversationItems(msg.conversations)))
-		m.setNotification(
-			infoNotification(fmt.Sprintf("deep search: %d results", len(msg.conversations))).notification,
-			&cmds,
-		)
-		m.syncTranscriptSelection(&cmds)
+		m.searchIndex.mergeBlobs(msg.indexed)
+		m.searchIndex.mergePreviews(msg.previews)
+		if m.search.mode == searchModeDeep &&
+			msg.revision == m.search.revision &&
+			msg.query == m.search.query {
+			m.search.appliedRevision = msg.revision
+			m.search.status = searchStatusIdle
+			m.searchCancel = nil
+			m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), &cmds)
+			m.syncTranscriptSelection(&cmds)
+		}
+
+	case searchIndexWarmMsg:
+		m.indexWarmup = false
+		m.searchIndex.mergeBlobs(msg.indexed)
 
 	case notificationMsg:
 		m.setNotification(msg.notification, &cmds)
@@ -164,6 +206,7 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		m.updateSelectedConversationID()
 		m.syncTranscriptSelection(&cmds)
 	}
 
@@ -227,12 +270,12 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		return nil
 	}
 
-	if key.Matches(msg, browserKeys.Help) && !m.isFiltering() {
+	if key.Matches(msg, browserKeys.Help) && !m.searchEditing() {
 		m.helpOpen = true
 		return nil
 	}
 
-	if m.isFiltering() {
+	if m.searchEditing() {
 		m.pendingListGotoTopKey = false
 		return nil
 	}
@@ -250,6 +293,9 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	m.pendingListGotoTopKey = false
 
 	switch {
+	case key.Matches(msg, browserKeys.Search):
+		return m.beginSearchEditing()
+
 	case key.Matches(msg, browserKeys.Enter):
 		if conv, ok := m.selectedConversation(); ok {
 			m.transcriptMode = transcriptSplit
@@ -259,19 +305,7 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		}
 
 	case key.Matches(msg, browserKeys.DeepSearch):
-		m.deepSearch = !m.deepSearch
-		if m.deepSearch {
-			m.notification = infoNotification("deep search: loading...").notification
-			return deepSearchCmd(
-				m.ctx,
-				m.list.FilterValue(),
-				filterMainConversations(m.allConversations),
-				m.cloneSearchIndex(),
-				m.cloneSessionCache(),
-			)
-		}
-		*cmds = append(*cmds, m.list.SetItems(conversationItems(filterMainConversations(m.allConversations))))
-		m.setNotification(infoNotification("deep search disabled").notification, cmds)
+		m.toggleSearchMode(cmds)
 		m.syncTranscriptSelection(cmds)
 		return nil
 
@@ -298,19 +332,12 @@ func (m *browserModel) selectedConversation() (conversation, bool) {
 		return conversation{}, false
 	}
 
-	conv, ok := item.(conversation)
-	return conv, ok
+	return conversationFromItem(item)
 }
 
 func (m *browserModel) setNotification(n notification, cmds *[]tea.Cmd) {
 	m.notification = n
 	*cmds = append(*cmds, clearNotificationAfter(n.kind))
-}
-
-func (m browserModel) cloneSearchIndex() map[string]string {
-	out := make(map[string]string, len(m.searchIndex))
-	maps.Copy(out, m.searchIndex)
-	return out
 }
 
 func (m browserModel) cloneSessionCache() map[string]sessionFull {
@@ -338,7 +365,7 @@ func (m *browserModel) installViewer(session sessionFull, conv conversation) {
 	m.loadingConversationID = ""
 	m.transcriptCache[session.meta.id] = session
 	m.sessionCache[session.meta.id] = session
-	m.searchIndex[session.meta.id] = buildSessionSearchBlob(session)
+	m.searchIndex.blobs[session.meta.id] = buildSessionSearchBlob(session)
 	m.addToCache(session.meta.id)
 
 	m.viewer = newViewerModel(session, conv, m.glamourStyle, m.viewerWidth(), m.height)
@@ -399,14 +426,14 @@ func (m browserModel) transcriptFocused() bool {
 }
 
 func (m browserModel) isFiltering() bool {
-	return m.list.FilterState() == list.Filtering
+	return m.search.editing
 }
 
 func (m browserModel) shouldUpdateList(isKey bool) bool {
 	if !isKey {
 		return true
 	}
-	if m.helpOpen || m.transcriptMode == transcriptFullscreen {
+	if m.helpOpen || m.transcriptMode == transcriptFullscreen || m.searchEditing() {
 		return false
 	}
 	return m.focus == focusList
@@ -439,14 +466,6 @@ func filterMainConversations(convs []conversation) []conversation {
 		if !c.isSubagent() {
 			items = append(items, c)
 		}
-	}
-	return items
-}
-
-func conversationItems(convs []conversation) []list.Item {
-	items := make([]list.Item, 0, len(convs))
-	for _, c := range convs {
-		items = append(items, c)
 	}
 	return items
 }

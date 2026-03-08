@@ -1,10 +1,10 @@
 ╭─  Claude Sessions  ─────────────────────────────────────╮ ╭─  project-a / first-session  2026-03-07 12:00  ──────────╮
-│                                                         │ │ ╭──────────────────────────────────────────────────────╮ │
-│  1 item                                                 │ │ │ model claude-opus-4-1  duration 1s  msgs 2           │ │
-│                                                         │ │ │ started 2026-03-07 12:00  last 2026-03-07 12:00      │ │
-││ project-a / first-session  2026-03-07 12:00            │ │ ╰──────────────────────────────────────────────────────╯ │
-││ claude-opus-4-1  2 msgs  1s                            │ │                                                          │
-││ Test session question                                  │ │  User ────────────────────────────────────────────────── │
+│  1 item                                                 │ │ ╭──────────────────────────────────────────────────────╮ │
+│                                                         │ │ │ model claude-opus-4-1  duration 1s  msgs 2           │ │
+││ project-a / first-session  2026-03-07 12:00            │ │ │ started 2026-03-07 12:00  last 2026-03-07 12:00      │ │
+││ claude-opus-4-1  2 msgs  1s                            │ │ ╰──────────────────────────────────────────────────────╯ │
+││ Test session question                                  │ │                                                          │
+│                                                         │ │  User ────────────────────────────────────────────────── │
 │                                                         │ │                                                          │
 │                                                         │ │                                                          │
 │                                                         │ │   Test session question                                  │
@@ -36,5 +36,5 @@
 │                                                         │ │                                                          │
 │                                                         │ │                                                          │
 ╰─────────────────────────────────────────────────────────╯ ╰──────────────────────────────────────────────────────────╯
- j/k move  gg top  G bottom  ctrl+f/b page  / filter  enter open  o editor  r resume  c… [split]  1 sessions  project-a 
+ j/k move  gg top  G bottom  ctrl+f/b page  / search  enter open  o editor … [METADATA]  [split]  1 sessions  project-a 
                                                                                                                         

@@ -302,6 +302,17 @@ func TestConversationListItem(t *testing.T) {
 		}
 	})
 
+	t.Run("FilterValue contains search preview", func(t *testing.T) {
+		t.Parallel()
+
+		withPreview := conv
+		withPreview.searchPreview = archiveMatchesSourceSubtitle
+		fv := withPreview.FilterValue()
+		if !strings.Contains(fv, withPreview.searchPreview) {
+			t.Fatalf("FilterValue() = %q, missing search preview %q", fv, withPreview.searchPreview)
+		}
+	})
+
 	t.Run("Title contains parts indicator", func(t *testing.T) {
 		t.Parallel()
 		title := conv.Title()
@@ -342,6 +353,20 @@ func TestConversationListItem(t *testing.T) {
 		}
 		if !strings.Contains(desc, "help me with Go") {
 			t.Errorf("Description() = %q, missing first message", desc)
+		}
+	})
+
+	t.Run("Description prefers search preview", func(t *testing.T) {
+		t.Parallel()
+
+		withPreview := conv
+		withPreview.searchPreview = archiveMatchesSourceSubtitle
+		desc := withPreview.Description()
+		if !strings.Contains(desc, withPreview.searchPreview) {
+			t.Fatalf("Description() = %q, missing search preview", desc)
+		}
+		if strings.Contains(desc, "help me with Go") {
+			t.Fatalf("Description() = %q, should prefer search preview over first message", desc)
 		}
 	})
 }

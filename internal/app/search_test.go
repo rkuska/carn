@@ -36,6 +36,23 @@ func TestBuildSessionSearchBlob(t *testing.T) {
 	}
 }
 
+func TestFindSessionSearchPreview(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		messages: []message{
+			{role: roleUser, text: "first prompt"},
+			{role: roleAssistant, text: archiveMatchesSourceSubtitle},
+		},
+	}
+
+	got := findSessionSearchPreview(session, "archive")
+	want := archiveMatchesSourceSubtitle
+	if got != want {
+		t.Fatalf("findSessionSearchPreview() = %q, want %q", got, want)
+	}
+}
+
 func testConversation(id, slug string) conversation {
 	return conversation{
 		name:    slug,
@@ -58,7 +75,7 @@ func TestDeepSearchCmd_UsesSessionCache(t *testing.T) {
 		"s2": {messages: []message{{role: roleAssistant, text: "contains needle"}}},
 	}
 
-	msg := deepSearchCmd(context.Background(), "needle", mainConvs, nil, sessionCache)()
+	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, nil, nil, sessionCache)()
 	result, ok := msg.(deepSearchResultMsg)
 	if !ok {
 		t.Fatalf("unexpected msg type: %T", msg)
@@ -72,6 +89,9 @@ func TestDeepSearchCmd_UsesSessionCache(t *testing.T) {
 	if len(result.indexed) != 2 {
 		t.Fatalf("indexed len = %d, want 2", len(result.indexed))
 	}
+	if result.conversations[0].searchPreview != "contains needle" {
+		t.Fatalf("searchPreview = %q, want %q", result.conversations[0].searchPreview, "contains needle")
+	}
 }
 
 func TestDeepSearchCmd_UsesExistingIndexCache(t *testing.T) {
@@ -82,7 +102,7 @@ func TestDeepSearchCmd_UsesExistingIndexCache(t *testing.T) {
 	}
 	indexCache := map[string]string{"s1": "cached needle content"}
 
-	msg := deepSearchCmd(context.Background(), "needle", mainConvs, indexCache, nil)()
+	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, indexCache, nil, nil)()
 	result, ok := msg.(deepSearchResultMsg)
 	if !ok {
 		t.Fatalf("unexpected msg type: %T", msg)
@@ -102,7 +122,7 @@ func TestDeepSearchCmd_EmptyQueryReturnsMainConversations(t *testing.T) {
 		testConversation("s1", "slug-1"),
 		testConversation("s2", "slug-2"),
 	}
-	msg := deepSearchCmd(context.Background(), "", mainConvs, nil, nil)()
+	msg := deepSearchCmd(context.Background(), "", 1, mainConvs, nil, nil, nil)()
 	result, ok := msg.(deepSearchResultMsg)
 	if !ok {
 		t.Fatalf("unexpected msg type: %T", msg)
@@ -168,7 +188,7 @@ func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
 		},
 	}
 
-	msg := deepSearchCmd(context.Background(), "needle", []conversation{conv}, nil, nil)()
+	msg := deepSearchCmd(context.Background(), "needle", 1, []conversation{conv}, nil, nil, nil)()
 	result, ok := msg.(deepSearchResultMsg)
 	if !ok {
 		t.Fatalf("unexpected msg type: %T", msg)
