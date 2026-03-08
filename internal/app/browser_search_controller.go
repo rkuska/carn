@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	deepSearchDebounceDelay = 200 * time.Millisecond
+	deepSearchDebounceDelay  = 200 * time.Millisecond
+	delegateHeightDefault    = 3
+	delegateHeightDeepSearch = 5
 )
 
 type deepSearchDebounceMsg struct {
@@ -93,10 +95,16 @@ func (m *browserModel) setSearchItems(items []conversationListItem, cmds *[]tea.
 	m.restoreSelection()
 }
 
+func (m *browserModel) setDelegateHeight(height int) {
+	m.delegate.SetHeight(height)
+	m.list.SetDelegate(m.delegate)
+}
+
 func (m *browserModel) applyMetadataSearch(cmds *[]tea.Cmd) {
 	m.search.status = searchStatusIdle
 	m.search.appliedRevision = m.search.revision
 	m.cancelActiveDeepSearch()
+	m.setDelegateHeight(delegateHeightDefault)
 	m.setSearchItems(buildMetadataSearchItems(m.search.query, m.search.baseConversations), cmds)
 }
 
@@ -104,6 +112,7 @@ func (m *browserModel) applyFullConversationList(cmds *[]tea.Cmd) {
 	m.search.status = searchStatusIdle
 	m.search.appliedRevision = m.search.revision
 	m.cancelActiveDeepSearch()
+	m.setDelegateHeight(delegateHeightDefault)
 	m.setSearchItems(buildPlainConversationItems(m.search.baseConversations), cmds)
 }
 
