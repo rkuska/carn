@@ -2,17 +2,13 @@ package app
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildSessionSearchBlob(t *testing.T) {
+func TestBuildSearchUnitsIndexesVisibleTextOnly(t *testing.T) {
 	t.Parallel()
 
 	session := sessionFull{
@@ -31,132 +27,52 @@ func TestBuildSessionSearchBlob(t *testing.T) {
 		},
 	}
 
-	got := buildSessionSearchBlob(session)
-	assertContainsAll(t, got, "hello user", "internal thought", "readme.md", "tool output")
+	got := buildSearchUnits("conv-1", session)
+	require.Len(t, got, 2)
+	assert.Equal(t, "Hello User", got[0].text)
+	assert.Equal(t, "README.md", got[1].text)
 }
 
-func TestFindSessionSearchPreview(t *testing.T) {
+func TestChunkSearchTextSplitsLongLinesWithOverlap(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "first prompt"},
-			{role: roleAssistant, text: archiveMatchesSourceSubtitle},
-		},
-	}
-
-	got := findSessionSearchPreview(session, "archive")
-	assert.Equal(t, archiveMatchesSourceSubtitle, got)
+	text := "0123456789abcdefghijklmnopqrstuvwxyz"
+	got := chunkSearchText(text, 10, 4)
+	require.Len(t, got, 6)
+	assert.Equal(t, "0123456789", got[0])
+	assert.Equal(t, "6789abcdef", got[1])
 }
 
-func testConversation(id, slug string) conversation {
-	return conversation{
-		name:    slug,
-		project: project{displayName: "test"},
-		sessions: []sessionMeta{
-			{id: id, slug: slug, filePath: "/nonexistent/" + id + ".jsonl", timestamp: time.Now()},
-		},
-	}
-}
-
-func TestDeepSearchCmd_UsesSessionCache(t *testing.T) {
+func TestDeepSearchCmdReturnsGroupedFuzzyMatches(t *testing.T) {
 	t.Parallel()
 
 	mainConvs := []conversation{
-		testConversation("s1", "slug-1"),
-		testConversation("s2", "slug-2"),
+		testNamedConversation("s1", "slug-1"),
+		testNamedConversation("s2", "slug-2"),
 	}
-	sessionCache := map[string]sessionFull{
-		"s1": {messages: []message{{role: roleUser, text: "nothing here"}}},
-		"s2": {messages: []message{{role: roleAssistant, text: "contains needle"}}},
+	corpus := searchCorpus{
+		units: []searchUnit{
+			{conversationID: mainConvs[0].cacheKey(), text: "contains alpha needle"},
+			{conversationID: mainConvs[1].cacheKey(), text: "contains beta needle"},
+			{conversationID: mainConvs[1].cacheKey(), text: "secondary beta result"},
+		},
 	}
 
-	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, nil, nil, sessionCache)()
+	msg := deepSearchCmd(context.Background(), "btndl", 1, mainConvs, corpus)()
 	result := requireMsgType[deepSearchResultMsg](t, msg)
 	require.Len(t, result.conversations, 1)
 	assert.Equal(t, "s2", result.conversations[0].id())
-	assert.Len(t, result.indexed, 2)
-	assert.Equal(t, "contains needle", result.conversations[0].searchPreview)
+	assert.Contains(t, result.conversations[0].searchPreview, "beta needle")
 }
 
-func TestDeepSearchCmd_UsesExistingIndexCache(t *testing.T) {
+func TestDeepSearchCmdEmptyQueryReturnsMainConversations(t *testing.T) {
 	t.Parallel()
 
 	mainConvs := []conversation{
-		testConversation("s1", "slug-1"),
+		testNamedConversation("s1", "slug-1"),
+		testNamedConversation("s2", "slug-2"),
 	}
-	indexCache := map[string]string{"s1": "cached needle content"}
-
-	msg := deepSearchCmd(context.Background(), "needle", 1, mainConvs, indexCache, nil, nil)()
-	result := requireMsgType[deepSearchResultMsg](t, msg)
-	assert.Len(t, result.conversations, 1)
-	assert.Empty(t, result.indexed)
-}
-
-func TestDeepSearchCmd_EmptyQueryReturnsMainConversations(t *testing.T) {
-	t.Parallel()
-
-	mainConvs := []conversation{
-		testConversation("s1", "slug-1"),
-		testConversation("s2", "slug-2"),
-	}
-	msg := deepSearchCmd(context.Background(), "", 1, mainConvs, nil, nil, nil)()
+	msg := deepSearchCmd(context.Background(), "", 1, mainConvs, searchCorpus{})()
 	result := requireMsgType[deepSearchResultMsg](t, msg)
 	assert.Len(t, result.conversations, 2)
-}
-
-func TestDeepSearchCmd_SearchesSubagentContentOnCacheMiss(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	parentID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-	parentPath := filepath.Join(dir, parentID+".jsonl")
-	parentContent := strings.Join([]string{
-		strings.Join([]string{
-			`{"type":"user","sessionId":"`, parentID,
-			`","slug":"demo","timestamp":"2024-01-01T00:00:00Z","cwd":"/tmp/demo",`,
-			`"message":{"role":"user","content":"parent"}}`,
-		}, ""),
-		strings.Join([]string{
-			`{"type":"assistant","timestamp":"2024-01-01T00:01:00Z",`,
-			`"message":{"role":"assistant","model":"claude-3","content":[`,
-			`{"type":"text","text":"parent response"}]}}`,
-		}, ""),
-	}, "\n")
-	require.NoError(t, os.WriteFile(parentPath, []byte(parentContent), 0o644))
-
-	subDir := filepath.Join(dir, parentID, "subagents")
-	require.NoError(t, os.MkdirAll(subDir, 0o755))
-	subContent := strings.Join([]string{
-		strings.Join([]string{
-			`{"type":"user","sessionId":"sub-session","slug":"demo",`,
-			`"timestamp":"2024-01-01T00:02:00Z","cwd":"/tmp/demo",`,
-			`"message":{"role":"user","content":"subagent needle"}}`,
-		}, ""),
-		strings.Join([]string{
-			`{"type":"assistant","timestamp":"2024-01-01T00:03:00Z",`,
-			`"message":{"role":"assistant","model":"claude-3","content":[`,
-			`{"type":"text","text":"done"}]}}`,
-		}, ""),
-	}, "\n")
-	require.NoError(t, os.WriteFile(filepath.Join(subDir, "agent-1.jsonl"), []byte(subContent), 0o644))
-
-	conv := conversation{
-		name:    "demo",
-		project: project{displayName: "proj"},
-		sessions: []sessionMeta{
-			{
-				id:        parentID,
-				slug:      "demo",
-				filePath:  parentPath,
-				timestamp: time.Now(),
-				project:   project{displayName: "proj"},
-			},
-		},
-	}
-
-	msg := deepSearchCmd(context.Background(), "needle", 1, []conversation{conv}, nil, nil, nil)()
-	result := requireMsgType[deepSearchResultMsg](t, msg)
-	require.Len(t, result.conversations, 1)
-	assert.Equal(t, parentID, result.conversations[0].id())
 }

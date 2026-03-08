@@ -13,6 +13,8 @@ type fakeConversationSource struct {
 	sourceProvider conversationProvider
 	scanResult     []conversation
 	loadResult     sessionFull
+	searchResult   searchCorpus
+	searchErr      error
 	loadCalls      int
 	lastLoaded     conversation
 }
@@ -25,10 +27,14 @@ func (s *fakeConversationSource) scan(context.Context, string) ([]conversation, 
 	return s.scanResult, nil
 }
 
-func (s *fakeConversationSource) load(_ context.Context, conv conversation) (sessionFull, error) {
+func (s *fakeConversationSource) load(_ context.Context, _ string, conv conversation) (sessionFull, error) {
 	s.loadCalls++
 	s.lastLoaded = conv
 	return s.loadResult, nil
+}
+
+func (s *fakeConversationSource) searchCorpus(context.Context, string) (searchCorpus, error) {
+	return s.searchResult, s.searchErr
 }
 
 func TestConversationRepositoryLoadUsesMatchingProvider(t *testing.T) {
@@ -53,7 +59,7 @@ func TestConversationRepositoryLoadUsesMatchingProvider(t *testing.T) {
 		},
 	}
 
-	got, err := repo.load(context.Background(), conv)
+	got, err := repo.load(context.Background(), t.TempDir(), conv)
 	require.NoError(t, err)
 	assert.Equal(t, "beta-session", got.meta.id)
 	assert.Zero(t, alpha.loadCalls)
@@ -102,6 +108,8 @@ func TestLoadSessionsCmdWithRepositorySortsAndFilters(t *testing.T) {
 	)()
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
 	require.Len(t, loaded.conversations, 2)
+	assert.Empty(t, loaded.searchCorpus.units)
+	assert.True(t, loaded.deepSearchAvailable)
 	assert.Equal(t, "newer", loaded.conversations[0].id())
 	assert.Equal(t, "older", loaded.conversations[1].id())
 }

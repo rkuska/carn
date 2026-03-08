@@ -127,7 +127,11 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		writeTestFile(t, filepath.Join(projDir, "s1.jsonl"), content)
 
 		// Create matching archive file with same size and mod time
-		archPath := filepath.Join(archDir, "proj1", "s1.jsonl")
+		archPath := filepath.Join(
+			providerRawDir(archDir, conversationProviderClaude),
+			"proj1",
+			"s1.jsonl",
+		)
 		writeTestFile(t, archPath, content)
 		srcInfo, _ := os.Stat(filepath.Join(projDir, "s1.jsonl"))
 		_ = os.Chtimes(archPath, srcInfo.ModTime(), srcInfo.ModTime())
@@ -155,7 +159,11 @@ func TestAnalyzeProjectDir(t *testing.T) {
 		writeTestFile(t, filepath.Join(projDir, "s1.jsonl"), content)
 
 		// Create archive file with older mod time
-		archPath := filepath.Join(archDir, "proj1", "s1.jsonl")
+		archPath := filepath.Join(
+			providerRawDir(archDir, conversationProviderClaude),
+			"proj1",
+			"s1.jsonl",
+		)
 		writeTestFile(t, archPath, content)
 		past := time.Now().Add(-1 * time.Hour)
 		_ = os.Chtimes(archPath, past, past)

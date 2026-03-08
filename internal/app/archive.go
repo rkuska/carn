@@ -29,6 +29,9 @@ type syncResult struct {
 	skipped int
 	failed  int
 	elapsed time.Duration
+	files   []syncFileResult
+
+	storeBuilt bool
 }
 
 type syncProgress struct {
@@ -37,6 +40,8 @@ type syncProgress struct {
 	file    string // current file being copied (basename)
 	copied  int
 	failed  int
+
+	stage string
 }
 
 func defaultArchiveConfig() (archiveConfig, error) {
@@ -194,19 +199,31 @@ func fileNeedsSync(srcInfo os.FileInfo, dstPath string) bool {
 
 // importAnalysis holds the final result of the streaming analysis.
 type importAnalysis struct {
-	sourceDir        string
-	archiveDir       string
-	filesInspected   int
-	projects         int
-	conversations    int      // total unique grouped conversations
-	newConversations int      // conversations with no archived files
-	toUpdate         int      // conversations where source file is missing/stale in archive
-	upToDate         int      // conversations fully synced
-	filesToSync      []string // raw file paths needing copy (new + stale)
+	sourceDir         string
+	archiveDir        string
+	filesInspected    int
+	projects          int
+	conversations     int      // total unique grouped conversations
+	newConversations  int      // conversations with no archived files
+	toUpdate          int      // conversations where source file is missing/stale in archive
+	upToDate          int      // conversations fully synced
+	filesToSync       []string // raw file paths needing copy (new + stale)
+	legacyFilesToSync []string
+	storeNeedsBuild   bool
+	err               error
 }
 
 func (a importAnalysis) needsSync() bool {
-	return len(a.filesToSync) > 0
+	if a.err != nil {
+		return false
+	}
+	return len(a.filesToSync) > 0 ||
+		len(a.legacyFilesToSync) > 0 ||
+		a.storeNeedsBuild
+}
+
+func (a importAnalysis) queuedFileCount() int {
+	return len(a.filesToSync) + len(a.legacyFilesToSync)
 }
 
 // importProgress is emitted during streaming analysis.
@@ -308,7 +325,10 @@ func analyzeProjectDir(
 		if relErr != nil {
 			continue
 		}
-		dstPath := filepath.Join(cfg.archiveDir, rel)
+		dstPath := filepath.Join(
+			providerRawDir(cfg.archiveDir, conversationProviderClaude),
+			rel,
+		)
 
 		info, statErr := os.Stat(file.path)
 		if statErr != nil {

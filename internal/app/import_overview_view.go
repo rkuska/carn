@@ -45,15 +45,21 @@ func (m importOverviewModel) dashboardSubtitle() string {
 	case phaseAnalyzing:
 		return "checking Claude projects before import"
 	case phaseReady:
+		if m.analysis.err != nil {
+			return "analysis finished with errors"
+		}
 		if m.analysis.needsSync() {
-			return "review complete; import is ready"
+			return "review complete; import and store build are ready"
 		}
 		return archiveMatchesSourceSubtitle
 	case phaseSyncing:
-		return "copying selected files into the local archive"
+		return "syncing raw files and rebuilding the local store"
 	case phaseDone:
 		if m.result.failed > 0 {
 			return "import finished with some copy failures"
+		}
+		if m.result.storeBuilt {
+			return "import finished and refreshed the local store"
 		}
 		return "import finished and is ready to continue"
 	default:
@@ -148,10 +154,18 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 		}
 		return tokens
 	case phaseReady:
+		if m.analysis.err != nil {
+			return []string{
+				renderSingleChip("New", fmt.Sprintf("%d", m.analysis.newConversations)),
+				renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.toUpdate)),
+				renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.upToDate)),
+			}
+		}
 		return []string{
 			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.newConversations)),
 			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.toUpdate)),
 			renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.upToDate)),
+			renderSingleChip("Legacy", fmt.Sprintf("%d", len(m.analysis.legacyFilesToSync))),
 		}
 	case phaseSyncing:
 		return []string{
@@ -222,14 +236,30 @@ func (m importOverviewModel) activityLines(width int) []string {
 			),
 		)
 	case phaseReady:
-		if m.analysis.needsSync() {
+		if m.analysis.err != nil {
 			lines = append(
 				lines,
 				ansi.Hardwrap(
-					fmt.Sprintf(
-						"Will import %d archive files after confirmation.",
-						len(m.analysis.filesToSync),
-					),
+					fmt.Sprintf("Import is blocked: %v", m.analysis.err),
+					width,
+					false,
+				),
+			)
+			lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
+			return lines
+		}
+		if m.analysis.needsSync() {
+			message := fmt.Sprintf(
+				"Will import %d archive files and refresh the local store after confirmation.",
+				m.analysis.queuedFileCount(),
+			)
+			if m.analysis.queuedFileCount() == 0 {
+				message = "Will rebuild the local store after confirmation."
+			}
+			lines = append(
+				lines,
+				ansi.Hardwrap(
+					message,
 					width,
 					false,
 				),
@@ -247,10 +277,14 @@ func (m importOverviewModel) activityLines(width int) []string {
 			lines = append(lines, renderKeyHint("Press ", "Enter", " to continue"))
 		}
 	case phaseSyncing:
+		label := "Importing archive files"
+		if m.currentStage != "" {
+			label = m.currentStage
+		}
 		lines = append(
 			lines,
 			ansi.Hardwrap(
-				fmt.Sprintf("%s Importing archive files", m.spinner.View()),
+				fmt.Sprintf("%s %s", m.spinner.View(), label),
 				width,
 				false,
 			),

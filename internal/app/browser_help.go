@@ -77,9 +77,6 @@ func (m browserModel) listFooterStatusParts() []string {
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		status = append(status, styleToolCall.Render("[UPDATING]"))
 	}
-	if m.indexWarmup {
-		status = append(status, styleToolCall.Render("[INDEXING]"))
-	}
 	if m.transcriptMode == transcriptSplit {
 		status = append(status, "[split]")
 	}

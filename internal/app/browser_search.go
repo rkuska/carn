@@ -2,9 +2,6 @@ package app
 
 import (
 	"fmt"
-	"maps"
-	"slices"
-	"strings"
 
 	"charm.land/bubbles/v2/list"
 )
@@ -65,49 +62,6 @@ func (i conversationListItem) MatchRanges() itemMatchRanges {
 	return i.matchRanges
 }
 
-type previewKey struct {
-	conversationID string
-	query          string
-}
-
-type conversationSearchIndex struct {
-	blobs    map[string]string
-	previews map[previewKey]string
-}
-
-func newConversationSearchIndex() conversationSearchIndex {
-	return conversationSearchIndex{
-		blobs:    make(map[string]string),
-		previews: make(map[previewKey]string),
-	}
-}
-
-func (i conversationSearchIndex) cloneBlobs() map[string]string {
-	out := make(map[string]string, len(i.blobs))
-	maps.Copy(out, i.blobs)
-	return out
-}
-
-func (i conversationSearchIndex) clonePreviews() map[previewKey]string {
-	out := make(map[previewKey]string, len(i.previews))
-	maps.Copy(out, i.previews)
-	return out
-}
-
-func (i *conversationSearchIndex) mergeBlobs(blobs map[string]string) {
-	if len(blobs) == 0 {
-		return
-	}
-	maps.Copy(i.blobs, blobs)
-}
-
-func (i *conversationSearchIndex) mergePreviews(previews map[previewKey]string) {
-	if len(previews) == 0 {
-		return
-	}
-	maps.Copy(i.previews, previews)
-}
-
 func conversationFromItem(item list.Item) (conversation, bool) {
 	switch typed := item.(type) {
 	case conversation:
@@ -158,7 +112,7 @@ func buildMetadataSearchItems(query string, convs []conversation) []conversation
 	return items
 }
 
-func buildDeepSearchItems(query string, convs []conversation) []conversationListItem {
+func buildDeepSearchItems(convs []conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(convs))
 	for _, conv := range convs {
 		desc := conv.Description()
@@ -166,9 +120,6 @@ func buildDeepSearchItems(query string, convs []conversation) []conversationList
 			conversation: conv,
 			title:        conv.Title(),
 			description:  desc,
-			matchRanges: itemMatchRanges{
-				desc: substringMatchIndices(desc, query),
-			},
 		})
 	}
 	return items
@@ -206,25 +157,4 @@ func conversationMetadataDescription(conv conversation) string {
 		desc += "\n" + fm
 	}
 	return desc
-}
-
-func substringMatchIndices(text, query string) []int {
-	textRunes := []rune(strings.ToLower(text))
-	queryRunes := []rune(strings.ToLower(query))
-	if len(textRunes) == 0 || len(queryRunes) == 0 || len(queryRunes) > len(textRunes) {
-		return nil
-	}
-
-	matches := make([]int, 0, len(textRunes))
-	for i := 0; i <= len(textRunes)-len(queryRunes); i++ {
-		if !slices.Equal(textRunes[i:i+len(queryRunes)], queryRunes) {
-			continue
-		}
-		for j := range queryRunes {
-			matches = append(matches, i+j)
-		}
-		i += len(queryRunes) - 1
-	}
-
-	return matches
 }

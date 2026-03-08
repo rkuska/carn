@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"path/filepath"
 )
 
 type conversationProvider string
@@ -28,7 +30,8 @@ func (r conversationRef) cacheKey() string {
 type conversationSource interface {
 	provider() conversationProvider
 	scan(ctx context.Context, archiveDir string) ([]conversation, error)
-	load(ctx context.Context, conv conversation) (sessionFull, error)
+	load(ctx context.Context, archiveDir string, conv conversation) (sessionFull, error)
+	searchCorpus(ctx context.Context, archiveDir string) (searchCorpus, error)
 }
 
 type conversationRepository struct {
@@ -57,12 +60,16 @@ func (r conversationRepository) scan(ctx context.Context, archiveDir string) ([]
 	return all, nil
 }
 
-func (r conversationRepository) load(ctx context.Context, conv conversation) (sessionFull, error) {
+func (r conversationRepository) load(
+	ctx context.Context,
+	archiveDir string,
+	conv conversation,
+) (sessionFull, error) {
 	source, ok := r.sourceFor(conv)
 	if !ok {
 		return sessionFull{}, fmt.Errorf("load: %w", errors.New("conversation source not found"))
 	}
-	session, err := source.load(ctx, conv)
+	session, err := source.load(ctx, archiveDir, conv)
 	if err != nil {
 		return sessionFull{}, fmt.Errorf("load_%s: %w", source.provider(), err)
 	}
@@ -94,26 +101,44 @@ func (claudeSource) provider() conversationProvider {
 }
 
 func (claudeSource) scan(ctx context.Context, archiveDir string) ([]conversation, error) {
-	sessions, err := scanSessions(ctx, archiveDir)
+	catalogPath := filepath.Join(
+		providerStoreDir(archiveDir, conversationProviderClaude),
+		"catalog.bin",
+	)
+	conversations, err := readCatalogFile(catalogPath)
 	if err != nil {
-		return nil, fmt.Errorf("scanSessions: %w", err)
-	}
-
-	conversations := groupConversations(sessions)
-	for i := range conversations {
-		conversations[i].ref = conversationRef{
-			provider: conversationProviderClaude,
-			id:       conversations[i].id(),
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
 		}
+		return nil, fmt.Errorf("readCatalogFile: %w", err)
 	}
 
 	return conversations, nil
 }
 
-func (claudeSource) load(ctx context.Context, conv conversation) (sessionFull, error) {
-	session, err := loadConversationSession(ctx, conv)
+func (claudeSource) load(_ context.Context, archiveDir string, conv conversation) (sessionFull, error) {
+	if conv.cacheKey() == "" {
+		return sessionFull{}, fmt.Errorf("readTranscriptFile: %w", errors.New("conversation key is required"))
+	}
+	transcriptPath := storeTranscriptPath(
+		providerStoreDir(archiveDir, conversationProviderClaude),
+		conv.cacheKey(),
+	)
+	session, err := readTranscriptFile(transcriptPath)
 	if err != nil {
-		return sessionFull{}, fmt.Errorf("loadConversationSession: %w", err)
+		return sessionFull{}, fmt.Errorf("readTranscriptFile: %w", err)
 	}
 	return session, nil
+}
+
+func (claudeSource) searchCorpus(ctx context.Context, archiveDir string) (searchCorpus, error) {
+	searchPath := filepath.Join(
+		providerStoreDir(archiveDir, conversationProviderClaude),
+		"search.bin",
+	)
+	corpus, err := readSearchFile(searchPath)
+	if err != nil {
+		return searchCorpus{}, fmt.Errorf("readSearchFile: %w", err)
+	}
+	return corpus, nil
 }

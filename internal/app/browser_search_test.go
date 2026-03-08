@@ -39,23 +39,16 @@ func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
 	assert.Empty(t, items)
 }
 
-func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
+func TestBuildDeepSearchItemsDoesNotHighlightPreviewMatches(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv("one")
 	conv.searchPreview = archiveMatchesSourceSubtitle
 
-	items := buildDeepSearchItems("archive", []conversation{conv})
+	items := buildDeepSearchItems([]conversation{conv})
 	require.Len(t, items, 1)
 	assert.Empty(t, items[0].matchRanges.title)
-	assert.NotEmpty(t, items[0].matchRanges.desc)
-}
-
-func TestSubstringMatchIndicesFindsAllCaseInsensitiveMatches(t *testing.T) {
-	t.Parallel()
-
-	matches := substringMatchIndices("Archive archive", "ARCH")
-	assert.Len(t, matches, 8)
+	assert.Empty(t, items[0].matchRanges.desc)
 }
 
 func TestBrowserSearchBindingUsesSlash(t *testing.T) {
@@ -73,6 +66,7 @@ func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conversation{testNamedConversation("one", "one")}
+	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
 	b.applyFullConversationList(&cmds)
 	b.search.editing = true
@@ -92,6 +86,13 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	b.sessionCache[alpha.id()] = testSearchSession(alpha.id(), "contains alpha needle")
 	b.sessionCache[beta.id()] = testSearchSession(beta.id(), "contains beta needle")
 	b.search.baseConversations = []conversation{alpha, beta}
+	b.searchCorpus = searchCorpus{
+		units: []searchUnit{
+			{conversationID: alpha.cacheKey(), text: "contains alpha needle"},
+			{conversationID: beta.cacheKey(), text: "contains beta needle"},
+		},
+	}
+	b.deepSearchAvailable = true
 	b.mainConversationCount = 2
 
 	var cmds []tea.Cmd
@@ -135,7 +136,7 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	b.search.query = "beta"
 	b.search.revision = 3
 	b.search.visibleConversations = []conversation{beta}
-	b.setSearchItems(buildDeepSearchItems("beta", []conversation{beta}), &cmds)
+	b.setSearchItems(buildDeepSearchItems([]conversation{beta}), &cmds)
 
 	b, _ = b.Update(deepSearchResultMsg{
 		revision:      2,
@@ -158,6 +159,13 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	b.mainConversationCount = 2
 	b.sessionCache[alpha.id()] = testSearchSession(alpha.id(), "contains alpha needle")
 	b.sessionCache[beta.id()] = testSearchSession(beta.id(), "contains beta needle")
+	b.searchCorpus = searchCorpus{
+		units: []searchUnit{
+			{conversationID: alpha.cacheKey(), text: "contains alpha needle"},
+			{conversationID: beta.cacheKey(), text: "contains beta needle"},
+		},
+	}
+	b.deepSearchAvailable = true
 
 	var cmds []tea.Cmd
 	b.setSearchQuery("beta-browser", &cmds)
@@ -175,6 +183,26 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	assert.Equal(t, searchModeMetadata, b.search.mode)
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.id(), b.search.visibleConversations[0].id())
+}
+
+func TestBrowserToggleDeepSearchWhenUnavailableShowsNotification(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.search.baseConversations = []conversation{testNamedConversation("one", "one")}
+	var cmds []tea.Cmd
+	b.applyFullConversationList(&cmds)
+	b.deepSearchAvailable = false
+
+	b.toggleSearchMode(&cmds)
+
+	assert.Equal(t, searchModeMetadata, b.search.mode)
+	assert.Equal(t, searchStatusIdle, b.search.status)
+	assert.Equal(
+		t,
+		"deep search unavailable; re-import to rebuild the local index",
+		b.notification.text,
+	)
 }
 
 func testNamedConversation(id, slug string) conversation {
