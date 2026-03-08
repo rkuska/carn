@@ -392,7 +392,81 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 	}
 }
 
-func makeBenchCanonicalStore(
+func BenchmarkCanonicalStoreScanSessions(b *testing.B) {
+	ctx := context.Background()
+	archiveDir := makeBenchRawArchive(b, 6, 60, 12)
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sessions, err := scanSessions(ctx, rawDir)
+		if err != nil {
+			b.Fatalf("scanSessions: %v", err)
+		}
+		if len(sessions) == 0 {
+			b.Fatal("scanSessions returned no sessions")
+		}
+	}
+}
+
+func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
+	archiveDir := makeBenchCanonicalStore(b, 6, 60, 12)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := rebuildCanonicalStore(
+			context.Background(), archiveDir, conversationProviderClaude, nil,
+		); err != nil {
+			b.Fatalf("rebuildCanonicalStore: %v", err)
+		}
+	}
+}
+
+func BenchmarkCanonicalStoreParseConversationWithSubagents(b *testing.B) {
+	ctx := context.Background()
+	rawDir, conversations := makeBenchConversations(b, 6, 60, 12)
+	if len(conversations) == 0 {
+		b.Fatal("makeBenchConversations returned no conversations")
+	}
+	_ = rawDir
+
+	conv := conversations[0]
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		session, err := parseConversationWithSubagents(ctx, conv)
+		if err != nil {
+			b.Fatalf("parseConversationWithSubagents: %v", err)
+		}
+		if len(session.messages) == 0 {
+			b.Fatal("parseConversationWithSubagents returned no messages")
+		}
+	}
+}
+
+func BenchmarkCanonicalStoreParseConversations(b *testing.B) {
+	ctx := context.Background()
+	_, conversations := makeBenchConversations(b, 6, 60, 12)
+	if len(conversations) == 0 {
+		b.Fatal("makeBenchConversations returned no conversations")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		transcripts, corpus, err := parseConversationsParallel(ctx, conversations)
+		if err != nil {
+			b.Fatalf("parseConversationsParallel: %v", err)
+		}
+		if len(transcripts) != len(conversations) {
+			b.Fatalf("unexpected transcript count: got %d want %d", len(transcripts), len(conversations))
+		}
+		if corpus.Len() == 0 {
+			b.Fatal("parseConversationsParallel returned no search units")
+		}
+	}
+}
+
+func makeBenchRawArchive(
 	b *testing.B,
 	projects, sessionsPerProject, assistantTurns int,
 ) string {
@@ -420,6 +494,43 @@ func makeBenchCanonicalStore(
 			}
 		}
 	}
+
+	return archiveDir
+}
+
+func makeBenchConversations(
+	b *testing.B,
+	projects, sessionsPerProject, assistantTurns int,
+) (string, []conversation) {
+	b.Helper()
+
+	ctx := context.Background()
+	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	sessions, err := scanSessions(ctx, rawDir)
+	if err != nil {
+		b.Fatalf("scanSessions: %v", err)
+	}
+
+	conversations := groupConversations(sessions)
+	for i := range conversations {
+		conversations[i].ref = conversationRef{
+			provider: conversationProviderClaude,
+			id:       buildConversationStoreKey(rawDir, conversationProviderClaude, conversations[i]),
+		}
+	}
+
+	return rawDir, conversations
+}
+
+func makeBenchCanonicalStore(
+	b *testing.B,
+	projects, sessionsPerProject, assistantTurns int,
+) string {
+	b.Helper()
+
+	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
 
 	if err := rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil); err != nil {
 		b.Fatalf("rebuildCanonicalStore: %v", err)
