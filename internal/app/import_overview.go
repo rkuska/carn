@@ -189,10 +189,7 @@ func (m importOverviewModel) handleEnterKey() (importOverviewModel, tea.Cmd) {
 			return m, nil
 		}
 		m.phase = phaseSyncing
-		m.files = append(
-			append([]string{}, m.analysis.legacyFilesToSync...),
-			m.analysis.filesToSync...,
-		)
+		m.files = m.analysis.filesToSync
 		m.current = 0
 		m.total = len(m.files)
 		m.currentFile = ""

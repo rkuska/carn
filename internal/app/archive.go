@@ -199,18 +199,17 @@ func fileNeedsSync(srcInfo os.FileInfo, dstPath string) bool {
 
 // importAnalysis holds the final result of the streaming analysis.
 type importAnalysis struct {
-	sourceDir         string
-	archiveDir        string
-	filesInspected    int
-	projects          int
-	conversations     int      // total unique grouped conversations
-	newConversations  int      // conversations with no archived files
-	toUpdate          int      // conversations where source file is missing/stale in archive
-	upToDate          int      // conversations fully synced
-	filesToSync       []string // raw file paths needing copy (new + stale)
-	legacyFilesToSync []string
-	storeNeedsBuild   bool
-	err               error
+	sourceDir        string
+	archiveDir       string
+	filesInspected   int
+	projects         int
+	conversations    int      // total unique grouped conversations
+	newConversations int      // conversations with no archived files
+	toUpdate         int      // conversations where source file is missing/stale in archive
+	upToDate         int      // conversations fully synced
+	filesToSync      []string // raw file paths needing copy (new + stale)
+	storeNeedsBuild  bool
+	err              error
 }
 
 func (a importAnalysis) needsSync() bool {
@@ -218,12 +217,11 @@ func (a importAnalysis) needsSync() bool {
 		return false
 	}
 	return len(a.filesToSync) > 0 ||
-		len(a.legacyFilesToSync) > 0 ||
 		a.storeNeedsBuild
 }
 
 func (a importAnalysis) queuedFileCount() int {
-	return len(a.filesToSync) + len(a.legacyFilesToSync)
+	return len(a.filesToSync)
 }
 
 // importProgress is emitted during streaming analysis.
