@@ -30,7 +30,7 @@ func newAppModel(ctx context.Context, cfg archiveConfig, glamourStyle string) ap
 		cfg:            cfg,
 		glamourStyle:   glamourStyle,
 		state:          viewImportOverview,
-		importOverview: newImportOverviewModel(cfg),
+		importOverview: newImportOverviewModel(ctx, cfg),
 		browser:        newBrowserModel(ctx, cfg.archiveDir, glamourStyle),
 	}
 }

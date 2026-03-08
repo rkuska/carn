@@ -87,39 +87,54 @@ func (d conversationDelegate) Render(w io.Writer, m list.Model, index int, item 
 		textWidth,
 	)
 
-	isSelected := index == m.Index()
-	emptyFilter := m.FilterState() == list.Filtering && m.FilterValue() == ""
-	isFiltered := m.FilterState() == list.Filtering ||
-		m.FilterState() == list.FilterApplied ||
-		hasMatchRanges(matchRanges)
-
-	switch {
-	case emptyFilter:
-		title = s.DimmedTitle.Render(title)
-		desc = s.DimmedDesc.Render(desc)
-
-	case isSelected && m.FilterState() != list.Filtering:
-		if isFiltered {
-			title = renderMatchedText(title, titleMatches, s.SelectedTitle, s.FilterMatch)
-			desc = renderMatchedText(desc, descMatches, s.SelectedDesc, s.FilterMatch)
-		}
-		title = s.SelectedTitle.Render(title)
-		desc = s.SelectedDesc.Render(desc)
-
-	default:
-		if isFiltered {
-			title = renderMatchedText(title, titleMatches, s.NormalTitle, s.FilterMatch)
-			desc = renderMatchedText(desc, descMatches, s.NormalDesc, s.FilterMatch)
-		}
-		title = s.NormalTitle.Render(title)
-		desc = s.NormalDesc.Render(desc)
-	}
+	title, desc = d.styledTitleDesc(
+		title, desc,
+		titleMatches, descMatches,
+		index == m.Index(),
+		m.FilterState(),
+		m.FilterValue(),
+		hasMatchRanges(matchRanges),
+	)
 
 	if d.ShowDescription {
 		fmt.Fprintf(w, "%s\n%s", title, desc) //nolint:errcheck
 		return
 	}
 	fmt.Fprintf(w, "%s", title) //nolint:errcheck
+}
+
+func (d conversationDelegate) styledTitleDesc(
+	title, desc string,
+	titleMatches, descMatches []int,
+	isSelected bool,
+	filterState list.FilterState,
+	filterValue string,
+	hasMatches bool,
+) (string, string) {
+	s := &d.Styles
+	emptyFilter := filterState == list.Filtering && filterValue == ""
+	isFiltered := filterState == list.Filtering ||
+		filterState == list.FilterApplied ||
+		hasMatches
+
+	switch {
+	case emptyFilter:
+		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(desc)
+
+	case isSelected && filterState != list.Filtering:
+		if isFiltered {
+			title = renderMatchedText(title, titleMatches, s.SelectedTitle, s.FilterMatch)
+			desc = renderMatchedText(desc, descMatches, s.SelectedDesc, s.FilterMatch)
+		}
+		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(desc)
+
+	default:
+		if isFiltered {
+			title = renderMatchedText(title, titleMatches, s.NormalTitle, s.FilterMatch)
+			desc = renderMatchedText(desc, descMatches, s.NormalDesc, s.FilterMatch)
+		}
+		return s.NormalTitle.Render(title), s.NormalDesc.Render(desc)
+	}
 }
 
 func renderMatchedText(

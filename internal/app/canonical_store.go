@@ -744,121 +744,49 @@ func readSessionFull(r *bufio.Reader) (sessionFull, error) {
 }
 
 func writeSessionMeta(w *bufio.Writer, meta sessionMeta) error {
-	if err := writeString(w, meta.id); err != nil {
-		return fmt.Errorf("writeString_id: %w", err)
-	}
-	if err := writeString(w, meta.project.displayName); err != nil {
-		return fmt.Errorf("writeString_project: %w", err)
-	}
-	if err := writeString(w, meta.slug); err != nil {
-		return fmt.Errorf("writeString_slug: %w", err)
-	}
-	if err := writeInt(w, meta.timestamp.UnixNano()); err != nil {
-		return fmt.Errorf("writeInt_timestamp: %w", err)
-	}
-	if err := writeInt(w, meta.lastTimestamp.UnixNano()); err != nil {
-		return fmt.Errorf("writeInt_lastTimestamp: %w", err)
-	}
-	if err := writeString(w, meta.cwd); err != nil {
-		return fmt.Errorf("writeString_cwd: %w", err)
-	}
-	if err := writeString(w, meta.gitBranch); err != nil {
-		return fmt.Errorf("writeString_gitBranch: %w", err)
-	}
-	if err := writeString(w, meta.version); err != nil {
-		return fmt.Errorf("writeString_version: %w", err)
-	}
-	if err := writeString(w, meta.model); err != nil {
-		return fmt.Errorf("writeString_model: %w", err)
-	}
-	if err := writeString(w, meta.firstMessage); err != nil {
-		return fmt.Errorf("writeString_firstMessage: %w", err)
-	}
-	if err := writeUint(w, uint64(meta.messageCount)); err != nil {
-		return fmt.Errorf("writeUint_messageCount: %w", err)
-	}
-	if err := writeUint(w, uint64(meta.mainMessageCount)); err != nil {
-		return fmt.Errorf("writeUint_mainMessageCount: %w", err)
-	}
-	if err := writeString(w, meta.filePath); err != nil {
-		return fmt.Errorf("writeString_filePath: %w", err)
-	}
-	if err := writeTokenUsage(w, meta.totalUsage); err != nil {
-		return fmt.Errorf("writeTokenUsage: %w", err)
-	}
-	if err := writeStringIntMap(w, meta.toolCounts); err != nil {
-		return fmt.Errorf("writeStringIntMap: %w", err)
-	}
-	if err := writeBool(w, meta.isSubagent); err != nil {
-		return fmt.Errorf("writeBool_isSubagent: %w", err)
+	bw := binWriter{w: w}
+	bw.writeString(meta.id)
+	bw.writeString(meta.project.displayName)
+	bw.writeString(meta.slug)
+	bw.writeInt(meta.timestamp.UnixNano())
+	bw.writeInt(meta.lastTimestamp.UnixNano())
+	bw.writeString(meta.cwd)
+	bw.writeString(meta.gitBranch)
+	bw.writeString(meta.version)
+	bw.writeString(meta.model)
+	bw.writeString(meta.firstMessage)
+	bw.writeUint(uint64(meta.messageCount))
+	bw.writeUint(uint64(meta.mainMessageCount))
+	bw.writeString(meta.filePath)
+	bw.writeTokenUsage(meta.totalUsage)
+	bw.writeStringIntMap(meta.toolCounts)
+	bw.writeBool(meta.isSubagent)
+	if bw.err != nil {
+		return fmt.Errorf("writeSessionMeta: %w", bw.err)
 	}
 	return nil
 }
 
 func readSessionMeta(r *bufio.Reader) (sessionMeta, error) {
-	id, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_id: %w", err)
-	}
-	projectName, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_project: %w", err)
-	}
-	slug, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_slug: %w", err)
-	}
-	timestampValue, err := readInt(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readInt_timestamp: %w", err)
-	}
-	lastTimestampValue, err := readInt(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readInt_lastTimestamp: %w", err)
-	}
-	cwd, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_cwd: %w", err)
-	}
-	gitBranch, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_gitBranch: %w", err)
-	}
-	version, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_version: %w", err)
-	}
-	model, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_model: %w", err)
-	}
-	firstMessage, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_firstMessage: %w", err)
-	}
-	messageCount, err := readUint(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readUint_messageCount: %w", err)
-	}
-	mainMessageCount, err := readUint(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readUint_mainMessageCount: %w", err)
-	}
-	filePath, err := readString(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readString_filePath: %w", err)
-	}
-	usage, err := readTokenUsage(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readTokenUsage: %w", err)
-	}
-	toolCounts, err := readStringIntMap(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readStringIntMap: %w", err)
-	}
-	isSubagent, err := readBool(r)
-	if err != nil {
-		return sessionMeta{}, fmt.Errorf("readBool_isSubagent: %w", err)
+	br := binReader{r: r}
+	id := br.readString()
+	projectName := br.readString()
+	slug := br.readString()
+	timestampValue := br.readInt()
+	lastTimestampValue := br.readInt()
+	cwd := br.readString()
+	gitBranch := br.readString()
+	version := br.readString()
+	model := br.readString()
+	firstMessage := br.readString()
+	messageCount := br.readUint()
+	mainMessageCount := br.readUint()
+	filePath := br.readString()
+	usage := br.readTokenUsage()
+	toolCounts := br.readStringIntMap()
+	isSubagent := br.readBool()
+	if br.err != nil {
+		return sessionMeta{}, fmt.Errorf("readSessionMeta: %w", br.err)
 	}
 
 	meta := sessionMeta{
@@ -887,91 +815,60 @@ func readSessionMeta(r *bufio.Reader) (sessionMeta, error) {
 }
 
 func writeMessage(w *bufio.Writer, msg message) error {
-	if err := writeString(w, string(msg.role)); err != nil {
-		return fmt.Errorf("writeString_role: %w", err)
-	}
-	if err := writeString(w, msg.text); err != nil {
-		return fmt.Errorf("writeString_text: %w", err)
-	}
-	if err := writeString(w, msg.thinking); err != nil {
-		return fmt.Errorf("writeString_thinking: %w", err)
-	}
-	if err := writeUint(w, uint64(len(msg.toolCalls))); err != nil {
-		return fmt.Errorf("writeUint_toolCalls: %w", err)
-	}
+	bw := binWriter{w: w}
+	bw.writeString(string(msg.role))
+	bw.writeString(msg.text)
+	bw.writeString(msg.thinking)
+	bw.writeUint(uint64(len(msg.toolCalls)))
 	for _, call := range msg.toolCalls {
-		if err := writeString(w, call.name); err != nil {
-			return fmt.Errorf("writeString_toolCallName: %w", err)
-		}
-		if err := writeString(w, call.summary); err != nil {
-			return fmt.Errorf("writeString_toolCallSummary: %w", err)
-		}
+		bw.writeString(call.name)
+		bw.writeString(call.summary)
 	}
-	if err := writeUint(w, uint64(len(msg.toolResults))); err != nil {
-		return fmt.Errorf("writeUint_toolResults: %w", err)
-	}
+	bw.writeUint(uint64(len(msg.toolResults)))
 	for _, result := range msg.toolResults {
+		if bw.err != nil {
+			break
+		}
 		if err := writeToolResult(w, result); err != nil {
-			return fmt.Errorf("writeToolResult: %w", err)
+			bw.err = fmt.Errorf("writeToolResult: %w", err)
 		}
 	}
-	if err := writeBool(w, msg.isSidechain); err != nil {
-		return fmt.Errorf("writeBool_isSidechain: %w", err)
-	}
-	if err := writeBool(w, msg.isAgentDivider); err != nil {
-		return fmt.Errorf("writeBool_isAgentDivider: %w", err)
+	bw.writeBool(msg.isSidechain)
+	bw.writeBool(msg.isAgentDivider)
+	if bw.err != nil {
+		return fmt.Errorf("writeMessage: %w", bw.err)
 	}
 	return nil
 }
 
 func readMessage(r *bufio.Reader) (message, error) {
-	roleValue, err := readString(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readString_role: %w", err)
-	}
-	text, err := readString(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readString_text: %w", err)
-	}
-	thinking, err := readString(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readString_thinking: %w", err)
-	}
-	callCount, err := readUint(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readUint_toolCalls: %w", err)
-	}
+	br := binReader{r: r}
+	roleValue := br.readString()
+	text := br.readString()
+	thinking := br.readString()
+	callCount := br.readUint()
 	toolCalls := make([]toolCall, 0, callCount)
 	for range callCount {
-		name, err := readString(r)
-		if err != nil {
-			return message{}, fmt.Errorf("readString_toolCallName: %w", err)
-		}
-		summary, err := readString(r)
-		if err != nil {
-			return message{}, fmt.Errorf("readString_toolCallSummary: %w", err)
-		}
+		name := br.readString()
+		summary := br.readString()
 		toolCalls = append(toolCalls, toolCall{name: name, summary: summary})
 	}
-	resultCount, err := readUint(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readUint_toolResults: %w", err)
+	resultCount := br.readUint()
+	if br.err != nil {
+		return message{}, fmt.Errorf("readMessage: %w", br.err)
 	}
 	toolResults := make([]toolResult, 0, resultCount)
 	for range resultCount {
 		result, err := readToolResult(r)
 		if err != nil {
-			return message{}, fmt.Errorf("readToolResult: %w", err)
+			return message{}, fmt.Errorf("readMessage_toolResult: %w", err)
 		}
 		toolResults = append(toolResults, result)
 	}
-	isSidechain, err := readBool(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readBool_isSidechain: %w", err)
-	}
-	isAgentDivider, err := readBool(r)
-	if err != nil {
-		return message{}, fmt.Errorf("readBool_isAgentDivider: %w", err)
+	isSidechain := br.readBool()
+	isAgentDivider := br.readBool()
+	if br.err != nil {
+		return message{}, fmt.Errorf("readMessage: %w", br.err)
 	}
 	return message{
 		role:           role(roleValue),
@@ -1256,6 +1153,128 @@ func readBool(r *bufio.Reader) (bool, error) {
 		return false, fmt.Errorf("ReadByte: %w", err)
 	}
 	return value == 1, nil
+}
+
+// binReader wraps a bufio.Reader and accumulates the first read error.
+// Subsequent reads after an error are no-ops returning zero values.
+type binReader struct {
+	r   *bufio.Reader
+	err error
+}
+
+func (br *binReader) readString() string {
+	if br.err != nil {
+		return ""
+	}
+	v, err := readString(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+func (br *binReader) readInt() int64 {
+	if br.err != nil {
+		return 0
+	}
+	v, err := readInt(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+func (br *binReader) readUint() uint64 {
+	if br.err != nil {
+		return 0
+	}
+	v, err := readUint(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+func (br *binReader) readBool() bool {
+	if br.err != nil {
+		return false
+	}
+	v, err := readBool(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+func (br *binReader) readTokenUsage() tokenUsage {
+	if br.err != nil {
+		return tokenUsage{}
+	}
+	v, err := readTokenUsage(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+func (br *binReader) readStringIntMap() map[string]int {
+	if br.err != nil {
+		return nil
+	}
+	v, err := readStringIntMap(br.r)
+	if err != nil {
+		br.err = err
+	}
+	return v
+}
+
+// binWriter wraps a bufio.Writer and accumulates the first write error.
+// Subsequent writes after an error are no-ops.
+type binWriter struct {
+	w   *bufio.Writer
+	err error
+}
+
+func (bw *binWriter) writeString(s string) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeString(bw.w, s)
+}
+
+func (bw *binWriter) writeInt(v int64) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeInt(bw.w, v)
+}
+
+func (bw *binWriter) writeUint(v uint64) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeUint(bw.w, v)
+}
+
+func (bw *binWriter) writeBool(v bool) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeBool(bw.w, v)
+}
+
+func (bw *binWriter) writeTokenUsage(v tokenUsage) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeTokenUsage(bw.w, v)
+}
+
+func (bw *binWriter) writeStringIntMap(v map[string]int) {
+	if bw.err != nil {
+		return
+	}
+	bw.err = writeStringIntMap(bw.w, v)
 }
 
 func unixTime(value int64) time.Time {

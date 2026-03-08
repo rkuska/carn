@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/rs/zerolog"
 )
 
 type importPhase int
@@ -53,6 +54,7 @@ type importSyncFinishedMsg struct {
 }
 
 type importOverviewModel struct {
+	ctx      context.Context
 	cfg      archiveConfig
 	phase    importPhase
 	spinner  spinner.Model
@@ -84,7 +86,7 @@ type importOverviewModel struct {
 	totalInspected int                             // running file count
 }
 
-func newImportOverviewModel(cfg archiveConfig) importOverviewModel {
+func newImportOverviewModel(ctx context.Context, cfg archiveConfig) importOverviewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
@@ -95,6 +97,7 @@ func newImportOverviewModel(cfg archiveConfig) importOverviewModel {
 	)
 
 	return importOverviewModel{
+		ctx:      ctx,
 		cfg:      cfg,
 		phase:    phaseAnalyzing,
 		spinner:  s,
@@ -113,40 +116,38 @@ func (m importOverviewModel) Update(msg tea.Msg) (importOverviewModel, tea.Cmd) 
 		m.width = msg.Width
 		m.height = msg.Height
 		m.progress.SetWidth(msg.Width / 3)
-
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
-
 	case listProjectDirsMsg:
 		return m.handleListProjectDirs(msg)
-
 	case analysisProgressMsg:
 		return m.handleAnalysisProgress(msg)
-
 	case analysisFinishedMsg:
 		return m.handleAnalysisFinished(msg)
-
-	case importSyncStartedMsg:
-		m.syncEvents = msg.events
-		return m, waitForImportSyncMsg(m.syncEvents)
-
-	case importSyncProgressMsg:
-		return m.handleSyncProgress(msg)
-
-	case importSyncFinishedMsg:
-		return m.handleSyncFinished(msg)
-
+	case importSyncStartedMsg, importSyncProgressMsg, importSyncFinishedMsg:
+		return m.handleSyncMsg(msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-
 	case progress.FrameMsg:
 		var cmd tea.Cmd
 		m.progress, cmd = m.progress.Update(msg)
 		return m, cmd
 	}
+	return m, nil
+}
 
+func (m importOverviewModel) handleSyncMsg(msg tea.Msg) (importOverviewModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case importSyncStartedMsg:
+		m.syncEvents = msg.events
+		return m, waitForImportSyncMsg(m.syncEvents)
+	case importSyncProgressMsg:
+		return m.handleSyncProgress(msg)
+	case importSyncFinishedMsg:
+		return m.handleSyncFinished(msg)
+	}
 	return m, nil
 }
 
@@ -168,40 +169,40 @@ func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel
 		return m, tea.Quit
 
 	case key.Matches(msg, importOverviewKeys.Enter):
-		switch m.phase {
-		case phaseAnalyzing:
-			// Enter is disabled during analysis
+		return m.handleEnterKey()
+	}
+
+	return m, nil
+}
+
+func (m importOverviewModel) handleEnterKey() (importOverviewModel, tea.Cmd) {
+	switch m.phase {
+	case phaseAnalyzing, phaseSyncing:
+		return m, nil
+
+	case phaseReady:
+		if m.analysis.err != nil {
 			return m, nil
-
-		case phaseReady:
-			if m.analysis.err != nil {
-				return m, nil
-			}
-			if !m.analysis.needsSync() {
-				m.done = true
-				return m, nil
-			}
-			// Start sync
-			m.phase = phaseSyncing
-			m.files = append(
-				append([]string{}, m.analysis.legacyFilesToSync...),
-				m.analysis.filesToSync...,
-			)
-			m.current = 0
-			m.total = len(m.files)
-			m.currentFile = ""
-			m.currentStage = ""
-			m.result = syncResult{}
-			return m, startImportSyncCmd(m.cfg)
-
-		case phaseSyncing:
-			// Disabled during sync
-			return m, nil
-
-		case phaseDone:
+		}
+		if !m.analysis.needsSync() {
 			m.done = true
 			return m, nil
 		}
+		m.phase = phaseSyncing
+		m.files = append(
+			append([]string{}, m.analysis.legacyFilesToSync...),
+			m.analysis.filesToSync...,
+		)
+		m.current = 0
+		m.total = len(m.files)
+		m.currentFile = ""
+		m.currentStage = ""
+		m.result = syncResult{}
+		return m, startImportSyncCmd(m.ctx, m.cfg)
+
+	case phaseDone:
+		m.done = true
+		return m, nil
 	}
 
 	return m, nil
@@ -229,6 +230,10 @@ func (m importOverviewModel) handleListProjectDirs(msg listProjectDirsMsg) (impo
 
 func (m importOverviewModel) handleAnalysisProgress(msg analysisProgressMsg) (importOverviewModel, tea.Cmd) {
 	if msg.progress.err != nil {
+		zerolog.Ctx(m.ctx).Warn().
+			Err(msg.progress.err).
+			Str("project", msg.progress.currentProject).
+			Msgf("project analysis failed, skipping")
 		m.projIndex++
 	} else {
 		m.totalInspected += msg.progress.filesInspected
@@ -462,14 +467,20 @@ func analyzeProjectCmd(projDir string, cfg archiveConfig) tea.Cmd {
 	}
 }
 
-func startImportSyncCmd(cfg archiveConfig) tea.Cmd {
+func startImportSyncCmd(ctx context.Context, cfg archiveConfig) tea.Cmd {
 	return func() tea.Msg {
 		events := make(chan tea.Msg)
 		go func() {
-			result, err := runImportPipeline(context.Background(), cfg, func(progress syncProgress) {
-				events <- importSyncProgressMsg{progress: progress}
+			result, err := runImportPipeline(ctx, cfg, func(progress syncProgress) {
+				select {
+				case events <- importSyncProgressMsg{progress: progress}:
+				case <-ctx.Done():
+				}
 			})
-			events <- importSyncFinishedMsg{result: result, err: err}
+			select {
+			case events <- importSyncFinishedMsg{result: result, err: err}:
+			case <-ctx.Done():
+			}
 			close(events)
 		}()
 		return importSyncStartedMsg{events: events}

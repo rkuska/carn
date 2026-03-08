@@ -116,166 +116,158 @@ func (m browserModel) Init() tea.Cmd {
 func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	m.handleMsg(msg, &cmds)
+
+	_, isKey := msg.(tea.KeyPressMsg)
+	m.updateChildModels(msg, isKey, &cmds)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m *browserModel) handleMsg(msg tea.Msg, cmds *[]tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		if m.searchEditing() && !m.transcriptFocused() {
-			var cmd tea.Cmd
-			m, cmd = m.handleSearchKey(msg, &cmds)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			cmd := m.handleKey(msg, &cmds)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-
+		m.handleKeyMsg(msg, cmds)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
-
 	case conversationsLoadedMsg:
-		m.allConversations = msg.conversations
-		mainConvs := filterMainConversations(msg.conversations)
-		m.mainConversationCount = len(mainConvs)
-		m.searchCorpus = msg.searchCorpus
-		m.deepSearchAvailable = msg.deepSearchAvailable
-		m.search.baseConversations = mainConvs
-		m.search.visibleConversations = mainConvs
-		if !m.deepSearchAvailable && m.search.mode == searchModeDeep {
-			m.search.mode = searchModeMetadata
-			m.search.status = searchStatusIdle
-		}
-		if m.search.query == "" {
-			m.applyFullConversationList(&cmds)
-		} else {
-			m.refreshSearchResults(&cmds)
-		}
-		m.syncTranscriptSelection(&cmds)
-
+		m.applyConversationsLoaded(msg, cmds)
 	case sessionsLoadErrorMsg:
 		m.setNotification(
 			errorNotification(fmt.Sprintf("load sessions failed: %v", msg.err)).notification,
-			&cmds,
+			cmds,
 		)
-
 	case openViewerMsg:
-		if msg.conversationID == m.loadingConversationID && msg.conversationID != "" {
-			m.installViewer(msg.session, msg.conversation)
-		}
-
+		m.applyOpenViewer(msg)
 	case deepSearchDebounceMsg:
-		if m.search.mode == searchModeDeep &&
-			msg.revision == m.search.revision &&
-			msg.query == m.search.query {
-			m.startDeepSearch(&cmds)
-		}
-
+		m.applyDeepSearchDebounce(msg, cmds)
 	case deepSearchResultMsg:
-		if m.search.mode == searchModeDeep &&
-			msg.revision == m.search.revision &&
-			msg.query == m.search.query {
-			m.search.appliedRevision = msg.revision
-			m.search.status = searchStatusIdle
-			m.searchCancel = nil
-			m.setSearchItems(buildDeepSearchItems(msg.conversations), &cmds)
-			m.syncTranscriptSelection(&cmds)
-		}
-
+		m.applyDeepSearchResult(msg, cmds)
 	case notificationMsg:
-		m.setNotification(msg.notification, &cmds)
-
+		m.setNotification(msg.notification, cmds)
 	case clearNotificationMsg:
-		m.notification = notification{}
-		if m.viewer.notification.text != "" {
-			m.viewer.notification = notification{}
-		}
+		m.clearNotifications()
 	}
+}
 
-	_, isKey := msg.(tea.KeyPressMsg)
+func (m *browserModel) handleKeyMsg(msg tea.KeyPressMsg, cmds *[]tea.Cmd) {
+	if m.searchEditing() && !m.transcriptFocused() {
+		var cmd tea.Cmd
+		*m, cmd = m.handleSearchKey(msg, cmds)
+		appendCmd(cmds, cmd)
+	} else {
+		appendCmd(cmds, m.handleKey(msg, cmds))
+	}
+}
 
+func (m *browserModel) applyOpenViewer(msg openViewerMsg) {
+	if msg.conversationID == m.loadingConversationID && msg.conversationID != "" {
+		m.installViewer(msg.session, msg.conversation)
+	}
+}
+
+func (m *browserModel) clearNotifications() {
+	m.notification = notification{}
+	if m.viewer.notification.text != "" {
+		m.viewer.notification = notification{}
+	}
+}
+
+func (m *browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cmd) {
 	if m.shouldUpdateList(isKey) {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+		appendCmd(cmds, cmd)
 		m.updateSelectedConversationID()
-		m.syncTranscriptSelection(&cmds)
+		m.syncTranscriptSelection(cmds)
 	}
 
 	if m.shouldUpdateViewer(isKey) {
 		var cmd tea.Cmd
 		previousNotification := m.viewer.notification
 		m.viewer, cmd = m.viewer.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+		appendCmd(cmds, cmd)
 		if m.viewer.notification != previousNotification {
 			m.notification = m.viewer.notification
 		}
 	}
+}
 
-	return m, tea.Batch(cmds...)
+func (m *browserModel) applyDeepSearchDebounce(msg deepSearchDebounceMsg, cmds *[]tea.Cmd) {
+	if m.search.mode == searchModeDeep &&
+		msg.revision == m.search.revision &&
+		msg.query == m.search.query {
+		m.startDeepSearch(cmds)
+	}
+}
+
+func appendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {
+	if cmd != nil {
+		*cmds = append(*cmds, cmd)
+	}
+}
+
+func (m *browserModel) applyConversationsLoaded(msg conversationsLoadedMsg, cmds *[]tea.Cmd) {
+	m.allConversations = msg.conversations
+	mainConvs := filterMainConversations(msg.conversations)
+	m.mainConversationCount = len(mainConvs)
+	m.searchCorpus = msg.searchCorpus
+	m.deepSearchAvailable = msg.deepSearchAvailable
+	m.search.baseConversations = mainConvs
+	m.search.visibleConversations = mainConvs
+	if !m.deepSearchAvailable && m.search.mode == searchModeDeep {
+		m.search.mode = searchModeMetadata
+		m.search.status = searchStatusIdle
+	}
+	if m.search.query == "" {
+		m.applyFullConversationList(cmds)
+	} else {
+		m.refreshSearchResults(cmds)
+	}
+	m.syncTranscriptSelection(cmds)
+}
+
+func (m *browserModel) applyDeepSearchResult(msg deepSearchResultMsg, cmds *[]tea.Cmd) {
+	if m.search.mode == searchModeDeep &&
+		msg.revision == m.search.revision &&
+		msg.query == m.search.query {
+		m.search.appliedRevision = msg.revision
+		m.search.status = searchStatusIdle
+		m.searchCancel = nil
+		m.setSearchItems(buildDeepSearchItems(msg.conversations), cmds)
+		m.syncTranscriptSelection(cmds)
+	}
 }
 
 func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	if m.helpOpen {
-		switch {
-		case key.Matches(msg, browserKeys.Help), key.Matches(msg, browserKeys.Close):
+		if key.Matches(msg, browserKeys.Help) || key.Matches(msg, browserKeys.Close) {
 			m.helpOpen = false
 		}
 		return nil
 	}
 
-	if m.transcriptVisible() {
-		switch {
-		case key.Matches(msg, browserKeys.Help):
-			if !m.isFiltering() && !m.viewer.searching {
-				m.helpOpen = true
-			}
-			return nil
-
-		case key.Matches(msg, browserKeys.ToggleFullscreen):
-			if !m.isFiltering() && !m.viewer.searching {
-				m.toggleTranscriptLayout()
-			}
-			return nil
-
-		case key.Matches(msg, browserKeys.Close):
-			if !m.isFiltering() && !m.viewer.searching {
-				m.closeTranscript()
-			}
-			return nil
-
-		case m.transcriptMode == transcriptSplit && key.Matches(msg, browserKeys.FocusPane):
-			if !m.isFiltering() && !m.viewer.searching {
-				if m.focus == focusList {
-					m.focus = focusTranscript
-				} else {
-					m.focus = focusList
-				}
-			}
-			return nil
-		}
+	if m.transcriptVisible() && m.handleTranscriptKey(msg) {
+		return nil
 	}
-
 	if m.transcriptFocused() {
 		return nil
 	}
-
 	if key.Matches(msg, browserKeys.Help) && !m.searchEditing() {
 		m.helpOpen = true
 		return nil
 	}
-
 	if m.searchEditing() {
 		m.pendingListGotoTopKey = false
 		return nil
 	}
 
+	return m.handleListNavigation(msg, cmds)
+}
+
+func (m *browserModel) handleListNavigation(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	if msg.Text == "g" {
 		if m.pendingListGotoTopKey {
 			m.list.GoToStart()
@@ -287,7 +279,51 @@ func (m *browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 		return nil
 	}
 	m.pendingListGotoTopKey = false
+	return m.handleListKey(msg, cmds)
+}
 
+func (m browserModel) canHandleTranscriptAction() bool {
+	return !m.isFiltering() && !m.viewer.searching
+}
+
+func (m *browserModel) handleTranscriptKey(msg tea.KeyPressMsg) bool {
+	switch {
+	case key.Matches(msg, browserKeys.Help):
+		if m.canHandleTranscriptAction() {
+			m.helpOpen = true
+		}
+		return true
+
+	case key.Matches(msg, browserKeys.ToggleFullscreen):
+		if m.canHandleTranscriptAction() {
+			m.toggleTranscriptLayout()
+		}
+		return true
+
+	case key.Matches(msg, browserKeys.Close):
+		if m.canHandleTranscriptAction() {
+			m.closeTranscript()
+		}
+		return true
+
+	case m.transcriptMode == transcriptSplit && key.Matches(msg, browserKeys.FocusPane):
+		if m.canHandleTranscriptAction() {
+			m.toggleFocus()
+		}
+		return true
+	}
+	return false
+}
+
+func (m *browserModel) toggleFocus() {
+	if m.focus == focusList {
+		m.focus = focusTranscript
+	} else {
+		m.focus = focusList
+	}
+}
+
+func (m *browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
 	switch {
 	case key.Matches(msg, browserKeys.Search):
 		return m.beginSearchEditing()

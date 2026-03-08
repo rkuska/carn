@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -22,7 +23,7 @@ func TestImportOverviewModelInit(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 
 	cmd := m.Init()
 	require.NotNil(t, cmd)
@@ -37,7 +38,7 @@ func TestImportOverviewAnalyzingDisablesEnter(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -56,7 +57,7 @@ func TestImportOverviewAnalysisCompletionEnablesEnter(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -84,7 +85,7 @@ func TestImportOverviewEnterStartsSync(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -117,7 +118,7 @@ func TestImportOverviewSyncCompletion(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -159,7 +160,7 @@ func TestImportOverviewEmptyProjectDirs(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -178,7 +179,7 @@ func TestImportOverviewListProjectDirsError(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -196,7 +197,7 @@ func TestImportOverviewWindowResize(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 200, Height: 50})
 
@@ -212,7 +213,7 @@ func TestImportOverviewSpinnerTick(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -232,7 +233,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("analyzing", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseAnalyzing
@@ -256,7 +257,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("ready with sync needed", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseReady
@@ -279,7 +280,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("ready without sync", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseReady
@@ -296,7 +297,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("syncing", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseSyncing
@@ -312,7 +313,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("done", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseDone
@@ -326,7 +327,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("zero width returns empty", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(cfg)
+		m := newImportOverviewModel(context.Background(), cfg)
 
 		view := m.View()
 		assert.Empty(t, view)
@@ -342,7 +343,7 @@ func TestImportOverviewViewPreservesBottomContentWhenPathsWrap(t *testing.T) {
 		archiveDir: filepath.Join(dir, strings.Repeat("very-long-archive-path-segment-", 4)),
 	}
 
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 52
 	m.height = 20
 	m.phase = phaseReady
@@ -369,7 +370,7 @@ func TestImportOverviewAnalysisPipeline(t *testing.T) {
 		makeJSONLRecord("user", "feat-b", "id2"))
 
 	cfg := archiveConfig{sourceDir: srcDir, archiveDir: archDir}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 
@@ -441,7 +442,7 @@ func TestImportOverviewSyncingDisablesEnter(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 	m.phase = phaseSyncing
@@ -460,7 +461,7 @@ func TestImportOverviewSyncFailure(t *testing.T) {
 		sourceDir:  filepath.Join(dir, "source"),
 		archiveDir: filepath.Join(dir, "archive"),
 	}
-	m := newImportOverviewModel(cfg)
+	m := newImportOverviewModel(context.Background(), cfg)
 	m.width = 120
 	m.height = 40
 	m.phase = phaseSyncing

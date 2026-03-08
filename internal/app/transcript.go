@@ -61,59 +61,85 @@ func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []tr
 
 		switch msg.role {
 		case roleUser:
-			userText := msg.text
-			if isSystemInterrupt(userText) {
-				userText = ""
-			}
-			hasContent := userText != "" || (opts.showToolResults && len(msg.toolResults) > 0)
-			if !hasContent {
-				continue
-			}
-
-			flush()
-			segments = append(segments, transcriptSegment{kind: segmentRoleHeader, role: roleUser})
-			if userText != "" {
-				md.WriteString(userText)
-				md.WriteString("\n\n")
-			}
-			if opts.showToolResults && len(msg.toolResults) > 0 {
-				flush()
-				for _, tr := range msg.toolResults {
-					segments = append(segments, transcriptSegment{kind: segmentToolResult, result: tr})
-				}
-				md.WriteString("\n")
-			}
-
+			appendUserSegments(&segments, &md, flush, msg, opts)
 		case roleAssistant:
-			hasContent := msg.text != "" ||
-				(opts.showThinking && msg.thinking != "") ||
-				(opts.showTools && len(msg.toolCalls) > 0)
-			if !hasContent {
-				continue
-			}
-
-			flush()
-			segments = append(segments, transcriptSegment{kind: segmentRoleHeader, role: roleAssistant})
-			if opts.showThinking && msg.thinking != "" {
-				flush()
-				segments = append(segments, transcriptSegment{kind: segmentThinking, text: msg.thinking})
-			}
-			if msg.text != "" {
-				md.WriteString(msg.text)
-				md.WriteString("\n\n")
-			}
-			if opts.showTools && len(msg.toolCalls) > 0 {
-				flush()
-				for _, tc := range msg.toolCalls {
-					segments = append(segments, transcriptSegment{kind: segmentToolCall, text: formatToolCall(tc)})
-				}
-				md.WriteString("\n")
-			}
+			appendAssistantSegments(&segments, &md, flush, msg, opts)
 		}
 	}
 
 	flush()
 	return segments
+}
+
+func appendUserSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	msg message,
+	opts transcriptOptions,
+) {
+	userText := msg.text
+	if isSystemInterrupt(userText) {
+		userText = ""
+	}
+	hasContent := userText != "" || (opts.showToolResults && len(msg.toolResults) > 0)
+	if !hasContent {
+		return
+	}
+
+	flush()
+	*segments = append(*segments, transcriptSegment{kind: segmentRoleHeader, role: roleUser})
+	if userText != "" {
+		md.WriteString(userText)
+		md.WriteString("\n\n")
+	}
+	if opts.showToolResults && len(msg.toolResults) > 0 {
+		flush()
+		for _, tr := range msg.toolResults {
+			*segments = append(*segments, transcriptSegment{kind: segmentToolResult, result: tr})
+		}
+		md.WriteString("\n")
+	}
+}
+
+func assistantHasContent(msg message, opts transcriptOptions) bool {
+	return msg.text != "" ||
+		(opts.showThinking && msg.thinking != "") ||
+		(opts.showTools && len(msg.toolCalls) > 0)
+}
+
+func appendAssistantSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	msg message,
+	opts transcriptOptions,
+) {
+	if !assistantHasContent(msg, opts) {
+		return
+	}
+
+	flush()
+	*segments = append(*segments, transcriptSegment{kind: segmentRoleHeader, role: roleAssistant})
+	if opts.showThinking && msg.thinking != "" {
+		flush()
+		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.thinking})
+	}
+	if msg.text != "" {
+		md.WriteString(msg.text)
+		md.WriteString("\n\n")
+	}
+	if opts.showTools && len(msg.toolCalls) > 0 {
+		flush()
+		appendToolCallSegments(segments, msg.toolCalls)
+		md.WriteString("\n")
+	}
+}
+
+func appendToolCallSegments(segments *[]transcriptSegment, toolCalls []toolCall) {
+	for _, tc := range toolCalls {
+		*segments = append(*segments, transcriptSegment{kind: segmentToolCall, text: formatToolCall(tc)})
+	}
 }
 
 // flattenSegments produces a plain-text transcript from segments.
@@ -313,31 +339,36 @@ func renderPreview(session sessionFull, maxMessages int, width int) string {
 			continue
 		}
 
-		switch msg.role {
-		case roleUser:
-			if msg.text == "" || isSystemInterrupt(msg.text) {
-				continue
-			}
-			if !skippedFirstUser {
-				skippedFirstUser = true
-				continue
-			}
-			sb.WriteString("▶ You\n")
-			sb.WriteString(wrapText(msg.text, width))
-			sb.WriteString("\n\n")
-		case roleAssistant:
-			sb.WriteString("◀ Assistant\n")
-			text := msg.text
-			if text == "" && len(msg.toolCalls) > 0 {
-				text = formatToolCall(msg.toolCalls[0])
-			}
-			sb.WriteString(wrapText(text, width))
-			sb.WriteString("\n\n")
+		rendered, skip := renderPreviewMessage(msg, &skippedFirstUser, width)
+		if skip {
+			continue
 		}
+		sb.WriteString(rendered)
 		count++
 	}
 
 	return sb.String()
+}
+
+func renderPreviewMessage(msg message, skippedFirstUser *bool, width int) (string, bool) {
+	switch msg.role {
+	case roleUser:
+		if msg.text == "" || isSystemInterrupt(msg.text) {
+			return "", true
+		}
+		if !*skippedFirstUser {
+			*skippedFirstUser = true
+			return "", true
+		}
+		return "▶ You\n" + wrapText(msg.text, width) + "\n\n", false
+	case roleAssistant:
+		text := msg.text
+		if text == "" && len(msg.toolCalls) > 0 {
+			text = formatToolCall(msg.toolCalls[0])
+		}
+		return "◀ Assistant\n" + wrapText(text, width) + "\n\n", false
+	}
+	return "", true
 }
 
 func wrapText(text string, width int) string {

@@ -72,9 +72,8 @@ linters:
     # Style & Formatting
     - lll           # Checks line length
 
-    # Complexity & Maintainability (Optional but recommended)
-    # - gocyclo       # Checks cyclomatic complexity (might need tuning)
-    # - funlen        # Checks function length (might need tuning)
+    # Complexity & Maintainability
+    - cyclop
 
 issues:
   # Maximum issues count per linter. Set to 0 to disable limit.

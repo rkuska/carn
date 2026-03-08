@@ -215,101 +215,75 @@ func (m importOverviewModel) renderActivityBlock(width int) string {
 }
 
 func (m importOverviewModel) activityLines(width int) []string {
-	var lines []string
-
 	switch m.phase {
 	case phaseAnalyzing:
-		lines = append(
-			lines,
-			ansi.Hardwrap(
-				fmt.Sprintf("%s Scanning Claude projects", m.spinner.View()),
-				width,
-				false,
-			),
-		)
-		lines = append(
-			lines,
-			ansi.Hardwrap(
-				"Import becomes available after analysis completes.",
-				width,
-				false,
-			),
-		)
+		return m.analyzingActivityLines(width)
 	case phaseReady:
-		if m.analysis.err != nil {
-			lines = append(
-				lines,
-				ansi.Hardwrap(
-					fmt.Sprintf("Import is blocked: %v", m.analysis.err),
-					width,
-					false,
-				),
-			)
-			lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
-			return lines
-		}
-		if m.analysis.needsSync() {
-			message := fmt.Sprintf(
-				"Will import %d archive files and refresh the local store after confirmation.",
-				m.analysis.queuedFileCount(),
-			)
-			if m.analysis.queuedFileCount() == 0 {
-				message = "Will rebuild the local store after confirmation."
-			}
-			lines = append(
-				lines,
-				ansi.Hardwrap(
-					message,
-					width,
-					false,
-				),
-			)
-			lines = append(lines, renderKeyHint("Press ", "Enter", " to import"))
-		} else {
-			lines = append(
-				lines,
-				ansi.Hardwrap(
-					"No import needed. Archived files already match the source.",
-					width,
-					false,
-				),
-			)
-			lines = append(lines, renderKeyHint("Press ", "Enter", " to continue"))
-		}
+		return m.readyActivityLines(width)
 	case phaseSyncing:
-		label := "Importing archive files"
-		if m.currentStage != "" {
-			label = m.currentStage
-		}
-		lines = append(
-			lines,
-			ansi.Hardwrap(
-				fmt.Sprintf("%s %s", m.spinner.View(), label),
-				width,
-				false,
-			),
-		)
-		lines = append(lines, m.renderProgressLine(width))
-		if m.currentFile != "" {
-			lines = append(
-				lines,
-				ansi.Truncate(
-					renderSingleChip("Current file", m.currentFile),
-					width,
-					"…",
-				),
-			)
-		}
+		return m.syncingActivityLines(width)
 	case phaseDone:
-		message := "Import complete."
-		if m.result.failed > 0 {
-			message = "Import complete with failures."
+		return m.doneActivityLines(width)
+	default:
+		return nil
+	}
+}
+
+func (m importOverviewModel) analyzingActivityLines(width int) []string {
+	return []string{
+		ansi.Hardwrap(fmt.Sprintf("%s Scanning Claude projects", m.spinner.View()), width, false),
+		ansi.Hardwrap("Import becomes available after analysis completes.", width, false),
+	}
+}
+
+func (m importOverviewModel) readyActivityLines(width int) []string {
+	var lines []string
+	if m.analysis.err != nil {
+		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.err), width, false))
+		lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
+		return lines
+	}
+	if m.analysis.needsSync() {
+		message := fmt.Sprintf(
+			"Will import %d archive files and refresh the local store after confirmation.",
+			m.analysis.queuedFileCount(),
+		)
+		if m.analysis.queuedFileCount() == 0 {
+			message = "Will rebuild the local store after confirmation."
 		}
 		lines = append(lines, ansi.Hardwrap(message, width, false))
+		lines = append(lines, renderKeyHint("Press ", "Enter", " to import"))
+	} else {
+		lines = append(lines, ansi.Hardwrap("No import needed. Archived files already match the source.", width, false))
 		lines = append(lines, renderKeyHint("Press ", "Enter", " to continue"))
 	}
-
 	return lines
+}
+
+func (m importOverviewModel) syncingActivityLines(width int) []string {
+	label := "Importing archive files"
+	if m.currentStage != "" {
+		label = m.currentStage
+	}
+	lines := []string{
+		ansi.Hardwrap(fmt.Sprintf("%s %s", m.spinner.View(), label), width, false),
+		m.renderProgressLine(width),
+	}
+	if m.currentFile != "" {
+		lines = append(lines, ansi.Truncate(renderSingleChip("Current file", m.currentFile), width, "…"))
+	}
+	return lines
+}
+
+func (m importOverviewModel) doneActivityLines(width int) []string {
+	message := "Import complete."
+	if m.result.failed > 0 {
+		message = "Import complete with failures."
+	}
+	return []string{
+		ansi.Hardwrap(message, width, false),
+		renderKeyHint("Press ", "Enter", " to continue"),
+	}
 }
 
 func (m importOverviewModel) renderProgressLine(width int) string {

@@ -124,6 +124,75 @@ func buildConversationGroupKey(file sessionFile, meta sessionMeta) groupKey {
 	return groupKey{dirName: file.groupDirName, slug: meta.slug}
 }
 
+type scanStats struct {
+	total      int
+	mainOnly   int
+	lastTS     time.Time
+	totalUsage tokenUsage
+	toolCounts map[string]int
+}
+
+func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
+	if recRole != roleUser && recRole != roleAssistant {
+		return
+	}
+	stats.total++
+	if !extractIsSidechain(line) {
+		stats.mainOnly++
+	}
+	if ts := extractTimestamp(line); ts != "" {
+		if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+			stats.lastTS = t
+		}
+	}
+}
+
+func accumulateAssistantStats(line []byte, stats *scanStats) {
+	u := extractUsage(line)
+	stats.totalUsage.inputTokens += u.inputTokens
+	stats.totalUsage.cacheCreationInputTokens += u.cacheCreationInputTokens
+	stats.totalUsage.cacheReadInputTokens += u.cacheReadInputTokens
+	stats.totalUsage.outputTokens += u.outputTokens
+	for _, name := range extractToolNames(line) {
+		stats.toolCounts[name]++
+	}
+}
+
+func scanMetadataLine(
+	ctx context.Context,
+	line []byte,
+	result *scannedSession,
+	foundUser, foundAssistant *bool,
+	stats *scanStats,
+) {
+	recRole := role(extractType(line))
+	accumulateRecordCounts(line, recRole, stats)
+
+	switch recRole {
+	case roleUser:
+		hasContent, err := parseUserRecord(line, &result.meta, foundUser)
+		if err != nil {
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", result.meta.filePath)
+			return
+		}
+		if !result.hasConversationContent && hasContent {
+			result.hasConversationContent = true
+		}
+	case roleAssistant:
+		hasContent, err := parseAssistantRecord(
+			line, &result.meta, foundAssistant, result.hasConversationContent,
+		)
+		if err != nil {
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", result.meta.filePath)
+			return
+		}
+		if !result.hasConversationContent && hasContent {
+			result.hasConversationContent = true
+		}
+		accumulateAssistantStats(line, stats)
+	}
+}
+
 func scanMetadataResult(ctx context.Context, filePath string, proj project) (scannedSession, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -135,86 +204,33 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
 
 	result := scannedSession{
-		meta: sessionMeta{
-			filePath: filePath,
-			project:  proj,
-		},
+		meta: sessionMeta{filePath: filePath, project: proj},
 	}
 
 	var foundUser, foundAssistant bool
-	var total, mainOnly int
-	var totalUsage tokenUsage
-	var lastTS time.Time
-	toolCounts := make(map[string]int)
+	stats := scanStats{toolCounts: make(map[string]int)}
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
-
-		recRole := role(extractType(line))
-		if recRole == roleUser || recRole == roleAssistant {
-			total++
-			if !extractIsSidechain(line) {
-				mainOnly++
-			}
-			if ts := extractTimestamp(line); ts != "" {
-				if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
-					lastTS = t
-				}
-			}
-		}
-
-		switch recRole {
-		case roleUser:
-			hasContent, err := parseUserRecord(line, &result.meta, &foundUser)
-			if err != nil {
-				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", filePath)
-				continue
-			}
-			if !result.hasConversationContent && hasContent {
-				result.hasConversationContent = true
-			}
-		case roleAssistant:
-			hasContent, err := parseAssistantRecord(
-				line,
-				&result.meta,
-				&foundAssistant,
-				result.hasConversationContent,
-			)
-			if err != nil {
-				zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", filePath)
-				continue
-			}
-			if !result.hasConversationContent && hasContent {
-				result.hasConversationContent = true
-			}
-			u := extractUsage(line)
-			totalUsage.inputTokens += u.inputTokens
-			totalUsage.cacheCreationInputTokens += u.cacheCreationInputTokens
-			totalUsage.cacheReadInputTokens += u.cacheReadInputTokens
-			totalUsage.outputTokens += u.outputTokens
-			for _, name := range extractToolNames(line) {
-				toolCounts[name]++
-			}
-		}
+		scanMetadataLine(ctx, line, &result, &foundUser, &foundAssistant, &stats)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return scannedSession{}, fmt.Errorf("scanner.Err: %w", err)
 	}
-
 	if result.meta.id == "" {
 		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
 	}
 
-	result.meta.messageCount = total
-	result.meta.mainMessageCount = mainOnly
-	result.meta.totalUsage = totalUsage
-	result.meta.lastTimestamp = lastTS
-	if len(toolCounts) > 0 {
-		result.meta.toolCounts = toolCounts
+	result.meta.messageCount = stats.total
+	result.meta.mainMessageCount = stats.mainOnly
+	result.meta.totalUsage = stats.totalUsage
+	result.meta.lastTimestamp = stats.lastTS
+	if len(stats.toolCounts) > 0 {
+		result.meta.toolCounts = stats.toolCounts
 	}
 
 	return result, nil
@@ -481,6 +497,35 @@ func aggregateUsage(messages []parsedMessage) tokenUsage {
 	return total
 }
 
+func initSessionMeta(meta *sessionMeta, rec jsonRecord) {
+	meta.id = rec.SessionID
+	meta.slug = rec.Slug
+	meta.cwd = rec.CWD
+	meta.gitBranch = rec.GitBranch
+	meta.version = rec.Version
+	if rec.Timestamp != "" {
+		if t, err := time.Parse(time.RFC3339Nano, rec.Timestamp); err == nil {
+			meta.timestamp = t
+		}
+	}
+	if rec.CWD != "" {
+		meta.project.displayName = displayNameFromCWD(rec.CWD)
+	}
+}
+
+func applyUserMetadata(meta *sessionMeta, rec jsonRecord) {
+	if meta.id == "" {
+		initSessionMeta(meta, rec)
+	}
+	if meta.slug == "" && rec.Slug != "" {
+		meta.slug = rec.Slug
+	}
+}
+
+func isUserContentText(content string) bool {
+	return content != "" && !isSystemInterrupt(content)
+}
+
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) {
 	if *found && meta.slug != "" {
 		return false, nil
@@ -491,28 +536,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 		return false, fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
-	// Extract session-level metadata from the first user record
-	if meta.id == "" {
-		meta.id = rec.SessionID
-		meta.slug = rec.Slug
-		meta.cwd = rec.CWD
-		meta.gitBranch = rec.GitBranch
-		meta.version = rec.Version
-		if rec.Timestamp != "" {
-			if t, err := time.Parse(time.RFC3339Nano, rec.Timestamp); err == nil {
-				meta.timestamp = t
-			}
-		}
-		// Update display name from cwd if available
-		if rec.CWD != "" {
-			meta.project.displayName = displayNameFromCWD(rec.CWD)
-		}
-	}
-
-	// Backfill slug from later records if still missing
-	if meta.slug == "" && rec.Slug != "" {
-		meta.slug = rec.Slug
-	}
+	applyUserMetadata(meta, rec)
 
 	if rec.IsMeta {
 		return false, nil
@@ -524,10 +548,9 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 	}
 
 	content, toolResults := extractUserContent(msg.Content)
-	hasContent := len(toolResults) > 0 || (content != "" && !isSystemInterrupt(content))
+	hasContent := len(toolResults) > 0 || isUserContentText(content)
 
-	// Extract first user message text; skip meta records (system-injected)
-	if !*found && content != "" && !isSystemInterrupt(content) {
+	if !*found && isUserContentText(content) {
 		meta.firstMessage = truncate(content, maxFirstMessage)
 		*found = true
 	}
@@ -606,6 +629,40 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 	}, nil
 }
 
+func parseAndIndexLine(
+	ctx context.Context,
+	line []byte,
+	recType role,
+	toolCallIndex map[string]parsedToolCall,
+) (parsedMessage, bool) {
+	switch recType {
+	case roleUser:
+		msg, ok := parseParsedUserMessage(line)
+		if !ok {
+			return parsedMessage{}, false
+		}
+		for i, tr := range msg.toolResults {
+			if tc, found := toolCallIndex[tr.toolUseID]; found {
+				msg.toolResults[i].toolName = tc.name
+				msg.toolResults[i].toolSummary = tc.summary
+			}
+		}
+		return msg, true
+	case roleAssistant:
+		msg, ok := parseParsedAssistantMessage(ctx, line)
+		if !ok {
+			return parsedMessage{}, false
+		}
+		for _, tc := range msg.toolCalls {
+			if tc.id != "" {
+				toolCallIndex[tc.id] = tc
+			}
+		}
+		return msg, true
+	}
+	return parsedMessage{}, false
+}
+
 func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parsedMessage, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -630,28 +687,8 @@ func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parse
 		}
 
 		recType := role(extractType(line))
-		switch recType {
-		case roleUser:
-			msg, ok := parseParsedUserMessage(line)
-			if ok {
-				for i, tr := range msg.toolResults {
-					if tc, found := toolCallIndex[tr.toolUseID]; found {
-						msg.toolResults[i].toolName = tc.name
-						msg.toolResults[i].toolSummary = tc.summary
-					}
-				}
-				messages = append(messages, msg)
-			}
-		case roleAssistant:
-			msg, ok := parseParsedAssistantMessage(ctx, line)
-			if ok {
-				for _, tc := range msg.toolCalls {
-					if tc.id != "" {
-						toolCallIndex[tc.id] = tc
-					}
-				}
-				messages = append(messages, msg)
-			}
+		if msg, ok := parseAndIndexLine(ctx, line, recType, toolCallIndex); ok {
+			messages = append(messages, msg)
 		}
 	}
 
@@ -756,6 +793,30 @@ type contentBlock struct {
 	Input    json.RawMessage `json:"input"`
 }
 
+func extractAssistantContent(blocks []contentBlock) (text, thinking string, toolCalls []parsedToolCall) {
+	for _, b := range blocks {
+		switch b.Type {
+		case blockTypeText:
+			if text != "" {
+				text += "\n"
+			}
+			text += b.Text
+		case "thinking":
+			if thinking != "" {
+				thinking += "\n"
+			}
+			thinking += b.Thinking
+		case "tool_use":
+			toolCalls = append(toolCalls, parsedToolCall{
+				id:      b.ID,
+				name:    b.Name,
+				summary: summarizeToolCall(b.Name, b.Input),
+			})
+		}
+	}
+	return text, thinking, toolCalls
+}
+
 func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessage, bool) {
 	var rec jsonRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
@@ -773,31 +834,7 @@ func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessag
 		return parsedMessage{}, false
 	}
 
-	var text, thinking string
-	var toolCalls []parsedToolCall
-
-	for _, b := range blocks {
-		switch b.Type {
-		case blockTypeText:
-			if text != "" {
-				text += "\n"
-			}
-			text += b.Text
-		case "thinking":
-			if thinking != "" {
-				thinking += "\n"
-			}
-			thinking += b.Thinking
-		case "tool_use":
-			tc := parsedToolCall{
-				id:      b.ID,
-				name:    b.Name,
-				summary: summarizeToolCall(b.Name, b.Input),
-			}
-			toolCalls = append(toolCalls, tc)
-		}
-	}
-
+	text, thinking, toolCalls := extractAssistantContent(blocks)
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
 		return parsedMessage{}, false
 	}
@@ -828,6 +865,39 @@ func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessag
 	}, true
 }
 
+// toolParamKey maps tool names to their primary parameter key for summarization.
+var toolParamKey = map[string]string{
+	"Read":          "file_path",
+	"Write":         "file_path",
+	"Edit":          "file_path",
+	"Glob":          "pattern",
+	"Grep":          "pattern",
+	"WebFetch":      "url",
+	"WebSearch":     "query",
+	"Skill":         "skill",
+	"TaskCreate":    "subject",
+	"TaskUpdate":    "taskId",
+	"TaskGet":       "taskId",
+	"NotebookEdit":  "notebook_path",
+	"EnterWorktree": "name",
+	"TaskOutput":    "task_id",
+}
+
+// toolTruncateKey maps tool names to their parameter key + truncation for summarization.
+var toolTruncateKey = map[string]string{
+	"Bash":            "command",
+	"Agent":           "prompt",
+	"AskUserQuestion": "question",
+	"Task":            "description",
+}
+
+// toolConstant maps tool names to constant summaries.
+var toolConstant = map[string]string{
+	"EnterPlanMode": "enter plan mode",
+	"ExitPlanMode":  "exit plan mode",
+	"TaskList":      "list tasks",
+}
+
 // summarizeToolCall creates a one-line summary of a tool call.
 func summarizeToolCall(name string, input json.RawMessage) string {
 	var params map[string]json.RawMessage
@@ -835,54 +905,19 @@ func summarizeToolCall(name string, input json.RawMessage) string {
 		return name
 	}
 
-	switch name {
-	case "Read":
-		return extractStringParam(params, "file_path")
-	case "Write":
-		return extractStringParam(params, "file_path")
-	case "Edit":
-		return extractStringParam(params, "file_path")
-	case "Bash":
-		cmd := extractStringParam(params, "command")
-		return truncate(cmd, 80)
-	case "Glob":
-		return extractStringParam(params, "pattern")
-	case "Grep":
-		return extractStringParam(params, "pattern")
-	case "WebFetch":
-		return extractStringParam(params, "url")
-	case "WebSearch":
-		return extractStringParam(params, "query")
-	case "Agent":
-		return truncate(extractStringParam(params, "prompt"), 80)
-	case "Skill":
-		return extractStringParam(params, "skill")
-	case "TaskCreate":
-		return extractStringParam(params, "subject")
-	case "TaskUpdate", "TaskGet":
-		return extractStringParam(params, "taskId")
-	case "AskUserQuestion":
-		return truncate(extractStringParam(params, "question"), 80)
-	case "NotebookEdit":
-		return extractStringParam(params, "notebook_path")
-	case "EnterPlanMode":
-		return "enter plan mode"
-	case "ExitPlanMode":
-		return "exit plan mode"
-	case "EnterWorktree":
-		return extractStringParam(params, "name")
-	case "Task":
-		return truncate(extractStringParam(params, "description"), 80)
-	case "TaskOutput":
-		return extractStringParam(params, "task_id")
-	case "TaskList":
-		return "list tasks"
-	default:
-		if strings.HasPrefix(name, "mcp__") {
-			return summarizeMCPTool(params)
-		}
-		return ""
+	if paramKey, ok := toolParamKey[name]; ok {
+		return extractStringParam(params, paramKey)
 	}
+	if paramKey, ok := toolTruncateKey[name]; ok {
+		return truncate(extractStringParam(params, paramKey), 80)
+	}
+	if constant, ok := toolConstant[name]; ok {
+		return constant
+	}
+	if strings.HasPrefix(name, "mcp__") {
+		return summarizeMCPTool(params)
+	}
+	return ""
 }
 
 func extractStringParam(params map[string]json.RawMessage, key string) string {
