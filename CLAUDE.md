@@ -3,6 +3,42 @@
 Claude search is tool that provides additional functionality over ~/.claude/projects files that hold sessions from claude locally.
 
 
+## Architecture
+
+All code lives in `internal/app/` (single flat package). Source: `~/.claude/projects/`, archive: `~/.local/share/cldrsrch/`.
+
+### Data pipeline
+
+```
+~/.claude/projects/**/*.jsonl (raw sessions)
+  → scanSessions()            scanner.go         fast metadata extraction
+  → groupConversations()      conversation.go    group by slug+project
+  → rebuildCanonicalStore()   canonical_store.go binary cache with search index
+  → conversationRepository    conversation_repository.go load on demand
+  → TUI display               browser.go → viewer.go → transcript.go
+```
+
+### File map
+
+**Entry**: `run.go` (init, logger, Bubble Tea program)
+**Data pipeline**: `scanner.go` (JSONL parse), `parser_types.go` (intermediate types), `conversation.go` (grouping), `conversation_repository.go` (data access)
+**Store**: `canonical_store.go` (binary cache), `canonical_store_incremental.go` (incremental rebuild)
+**Import**: `archive.go` (config, sync orchestration), `sync.go` (concurrent file sync), `import_pipeline.go` (pipeline logic), `import_overview.go` + `import_overview_view.go` (TUI wizard)
+**TUI core**: `app.go` (root model, viewImportOverview → viewBrowser), `browser.go` (conversation list + preview), `viewer.go` (transcript reader), `transcript.go` (message → segments)
+**TUI support**: `browser_search.go` + `browser_search_controller.go` (search), `search.go` + `search_preview.go` (deep search), `delegate.go` (list rendering), `styles.go` (theming), `keys.go` (keybindings), `commands.go` (Bubble Tea cmds), `footer.go`, `notifications.go`, `session.go` (session state), `conversation_header.go` (header rendering)
+**Domain**: `types.go` (core types), `conversation_projection.go` (subagent transcript merge)
+
+### Core types (types.go, conversation.go)
+
+- `sessionMeta` — id, project, slug, timestamp, lastTimestamp, cwd, gitBranch, version, model, firstMessage, messageCount, mainMessageCount, totalUsage, toolCounts, isSubagent, filePath
+- `sessionFull` — meta + []message
+- `message` — role, text, thinking, []toolCall, []toolResult, isSidechain, isAgentDivider
+- `toolCall` — name, summary
+- `toolResult` — toolName, toolSummary, content, isError, []diffHunk (structuredPatch)
+- `conversation` — ref, name (slug), project, []sessionMeta (chronological), searchPreview
+- `tokenUsage` — inputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens
+- `scannedSession` (scanner.go) — sessionMeta + groupKey + hasConversationContent
+
 ## How to write code
 
 This is a custom tool and we don't plan it to be used as a package therefore most of the functionality can be written private.
@@ -109,6 +145,23 @@ for i, v := range Backward(items) {
 }
 ```
 
+### TUI development
+
+* For layout changes, verify height/width arithmetic accounts for all decorations (borders, padding, footer, status bar). Document: total = top_decoration + content + bottom_decoration = terminal_dimension.
+* When adding a UI element that replaces an existing one, remove or disable the old element. Verify no visual duplication.
+* Apply styling changes to the exact scope described — "make X white" means only X, not surrounding text.
+* Use `lipgloss.Width()` (not `len()`) for width calculations — it accounts for ANSI escape codes and Unicode.
+* After implementing TUI state transitions, test the full user flow manually (start app → sync → navigate → view → back).
+
+### Session data
+
+* Before filtering or removing records from the pipeline, scan real data to verify what information would be lost. Never assume fields are empty without checking.
+
+### Review and planning workflow
+
+* When asked to review code, present all findings first. Wait for confirmation before making changes.
+* When a fix reintroduces a previous bug, stop and find the root cause instead of adding workarounds.
+
 ## Testing
 
 Make sure the new code passes linting:
@@ -128,7 +181,7 @@ go fix ./...
 
 Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
-go test -run '^$' -bench 'Benchmark(ScanSessions|DeepSearch|ViewerRenderContent|ViewerSearch|CollectFilesToSync|CanonicalStoreIncrementalRebuild)$' -benchmem ./...
+go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
 ```
 
 Keep benchmark scenarios in `perf_bench_test.go` and update `PERF_BASELINE.md`
@@ -175,3 +228,4 @@ what was done, how was it done and why it was done in a continuous human
 readable text.
 For fixes try to include an error message that you are fixing.
 Don't use first person speech.
+Before writing a commit message, re-read the actual git diff. The message must describe what was changed, not what was planned.
