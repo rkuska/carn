@@ -100,7 +100,7 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "real.jsonl"), []byte(realSession), 0o644))
 	commandOnlyPath := filepath.Join(projectDir, "command-only.jsonl")
 	require.NoError(t, os.WriteFile(commandOnlyPath, []byte(commandOnlySession), 0o644))
-	require.NoError(t, rebuildCanonicalStore(context.Background(), baseDir, conversationProviderClaude))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), baseDir, conversationProviderClaude, nil))
 
 	msg := loadSessionsCmd(context.Background(), baseDir)()
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)

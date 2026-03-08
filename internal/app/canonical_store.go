@@ -72,6 +72,7 @@ func rebuildCanonicalStore(
 	ctx context.Context,
 	archiveDir string,
 	provider conversationProvider,
+	changedRawPaths []string,
 ) error {
 	rawDir := providerRawDir(archiveDir, provider)
 	if _, err := statDir(rawDir); err != nil {
@@ -91,15 +92,19 @@ func rebuildCanonicalStore(
 		}
 	}
 
-	transcripts := make(map[string]sessionFull, len(conversations))
-	corpus := searchCorpus{units: make([]searchUnit, 0)}
-	for _, conv := range conversations {
-		session, err := parseConversationWithSubagents(ctx, conv)
-		if err != nil {
-			return fmt.Errorf("parseConversationWithSubagents: %w", err)
+	if len(changedRawPaths) > 0 {
+		transcripts, corpus, err := tryIncrementalRebuild(
+			ctx, archiveDir, provider, conversations, changedRawPaths,
+		)
+		if err == nil {
+			return writeCanonicalStoreAtomically(archiveDir, provider, conversations, transcripts, corpus)
 		}
-		transcripts[conv.cacheKey()] = session
-		corpus.units = append(corpus.units, buildSearchUnits(conv.cacheKey(), session)...)
+		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
+	}
+
+	transcripts, corpus, err := fullRebuild(ctx, conversations)
+	if err != nil {
+		return fmt.Errorf("fullRebuild: %w", err)
 	}
 
 	if err := writeCanonicalStoreAtomically(
@@ -113,6 +118,89 @@ func rebuildCanonicalStore(
 	}
 
 	return nil
+}
+
+func fullRebuild(
+	ctx context.Context,
+	conversations []conversation,
+) (map[string]sessionFull, searchCorpus, error) {
+	transcripts := make(map[string]sessionFull, len(conversations))
+	corpus := searchCorpus{units: make([]searchUnit, 0)}
+	for _, conv := range conversations {
+		session, err := parseConversationWithSubagents(ctx, conv)
+		if err != nil {
+			return nil, searchCorpus{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
+		}
+		key := conv.cacheKey()
+		transcripts[key] = session
+		corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
+	}
+	return transcripts, corpus, nil
+}
+
+func tryIncrementalRebuild(
+	ctx context.Context,
+	archiveDir string,
+	provider conversationProvider,
+	conversations []conversation,
+	changedRawPaths []string,
+) (map[string]sessionFull, searchCorpus, error) {
+	log := zerolog.Ctx(ctx)
+	storeDir := providerStoreDir(archiveDir, provider)
+
+	oldCatalog, err := readCatalogFile(filepath.Join(storeDir, "catalog.bin"))
+	if err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("readCatalogFile: %w", err)
+	}
+
+	oldCorpus, err := readSearchFile(filepath.Join(storeDir, "search.bin"))
+	if err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("readSearchFile: %w", err)
+	}
+
+	changedSet := make(map[string]struct{}, len(changedRawPaths))
+	for _, path := range changedRawPaths {
+		changedSet[path] = struct{}{}
+	}
+
+	plan := classifyStoreConversations(conversations, oldCatalog, changedSet)
+	oldUnits := groupSearchUnitsByConversation(oldCorpus)
+
+	transcripts := make(map[string]sessionFull, len(conversations))
+	corpus := searchCorpus{units: make([]searchUnit, 0)}
+
+	for _, conv := range plan.unchanged {
+		key := conv.cacheKey()
+		session, err := readTranscriptFile(storeTranscriptPath(storeDir, key))
+		if err != nil {
+			log.Debug().Err(err).Msgf("incremental rebuild: cannot read transcript %s, re-parsing", key)
+			session, err = parseConversationWithSubagents(ctx, conv)
+			if err != nil {
+				return nil, searchCorpus{}, fmt.Errorf("parseConversationWithSubagents_fallback: %w", err)
+			}
+			transcripts[key] = session
+			corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
+			continue
+		}
+		transcripts[key] = session
+		corpus.units = append(corpus.units, oldUnits[key]...)
+	}
+
+	toParse := make([]conversation, 0, len(plan.changed)+len(plan.added))
+	toParse = append(toParse, plan.changed...)
+	toParse = append(toParse, plan.added...)
+
+	for _, conv := range toParse {
+		session, err := parseConversationWithSubagents(ctx, conv)
+		if err != nil {
+			return nil, searchCorpus{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
+		}
+		key := conv.cacheKey()
+		transcripts[key] = session
+		corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
+	}
+
+	return transcripts, corpus, nil
 }
 
 func writeCanonicalStoreAtomically(

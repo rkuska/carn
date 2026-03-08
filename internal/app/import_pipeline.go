@@ -121,7 +121,9 @@ func runImportPipeline(
 		return syncResult{}, fmt.Errorf("storeNeedsRebuild: %w", err)
 	}
 
-	if len(successfulChangedRawPaths(result.files)) > 0 || storeNeedsBuild {
+	changedPaths := result.changedRawPaths()
+
+	if len(changedPaths) > 0 || storeNeedsBuild {
 		if onProgress != nil {
 			onProgress(syncProgress{
 				current: totalRaw,
@@ -131,7 +133,7 @@ func runImportPipeline(
 				stage:   "building local store",
 			})
 		}
-		if err := rebuildCanonicalStore(ctx, cfg.archiveDir, conversationProviderClaude); err != nil {
+		if err := rebuildCanonicalStore(ctx, cfg.archiveDir, conversationProviderClaude, changedPaths); err != nil {
 			return syncResult{}, fmt.Errorf("rebuildCanonicalStore: %w", err)
 		}
 		result.storeBuilt = true
@@ -166,10 +168,10 @@ func mergeSyncResult(target *syncResult, source syncResult) {
 	target.files = append(target.files, source.files...)
 }
 
-func successfulChangedRawPaths(files []syncFileResult) []string {
-	seen := make(map[string]struct{}, len(files))
-	paths := make([]string, 0, len(files))
-	for _, file := range files {
+func (r syncResult) changedRawPaths() []string {
+	seen := make(map[string]struct{}, len(r.files))
+	paths := make([]string, 0, len(r.files))
+	for _, file := range r.files {
 		if file.status != syncStatusNew && file.status != syncStatusUpdated {
 			continue
 		}

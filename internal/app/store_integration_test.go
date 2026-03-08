@@ -144,7 +144,7 @@ func TestRebuildCanonicalStoreBuildsStoreFromRawArchive(t *testing.T) {
 		}, ""),
 	}, "\n"))
 
-	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 
 	storeDir := providerStoreDir(archiveDir, conversationProviderClaude)
 	_, err := os.Stat(filepath.Join(storeDir, "manifest.json"))
@@ -188,11 +188,11 @@ func TestRebuildCanonicalStoreKeepsExistingStoreWhenRebuildFails(t *testing.T) {
 		}, ""),
 	}, "\n"))
 
-	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := rebuildCanonicalStore(ctx, archiveDir, conversationProviderClaude)
+	err := rebuildCanonicalStore(ctx, archiveDir, conversationProviderClaude, nil)
 	require.Error(t, err)
 
 	repo := newDefaultConversationRepository()
@@ -225,7 +225,7 @@ func TestLoadSessionsCmdUsesCatalogWhenSearchIndexIsMissing(t *testing.T) {
 		}, ""),
 	}, "\n"))
 
-	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 	require.NoError(
 		t,
 		os.Remove(filepath.Join(providerStoreDir(archiveDir, conversationProviderClaude), "search.bin")),
@@ -257,7 +257,7 @@ func TestLoadSessionsCmdUsesCatalogWhenSearchIndexIsCorrupt(t *testing.T) {
 		}, ""),
 	}, "\n"))
 
-	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
 	searchPath := filepath.Join(providerStoreDir(archiveDir, conversationProviderClaude), "search.bin")
 	require.NoError(t, os.WriteFile(searchPath, []byte("not-a-valid-search-index"), 0o644))
 
@@ -265,4 +265,151 @@ func TestLoadSessionsCmdUsesCatalogWhenSearchIndexIsCorrupt(t *testing.T) {
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
 	require.Len(t, loaded.conversations, 1)
 	assert.False(t, loaded.deepSearchAvailable)
+}
+
+func TestRebuildCanonicalStoreIncrementalReusesUnchanged(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archiveDir := filepath.Join(dir, "archive")
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	pathA := filepath.Join(rawDir, "project-a", "session-a.jsonl")
+	pathB := filepath.Join(rawDir, "project-b", "session-b.jsonl")
+
+	writeTestFile(t, pathA, strings.Join([]string{
+		makeJSONLRecord("user", "session-a", "session-a"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T10:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply A"}]}}`,
+		}, ""),
+	}, "\n"))
+	writeTestFile(t, pathB, strings.Join([]string{
+		makeJSONLRecord("user", "session-b", "session-b"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T11:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply B original"}]}}`,
+		}, ""),
+	}, "\n"))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, nil,
+	))
+
+	writeTestFile(t, pathB, strings.Join([]string{
+		makeJSONLRecord("user", "session-b", "session-b"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T11:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply B updated"}]}}`,
+		}, ""),
+	}, "\n"))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, []string{pathB},
+	))
+
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 2)
+
+	for _, conv := range conversations {
+		session, err := repo.load(context.Background(), archiveDir, conv)
+		require.NoError(t, err)
+		rendered := renderTranscript(session, transcriptOptions{})
+		if conv.name == "session-a" {
+			assert.Contains(t, rendered, "reply A")
+		}
+		if conv.name == "session-b" {
+			assert.Contains(t, rendered, "reply B updated")
+		}
+	}
+
+	corpus, err := repo.searchCorpus(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, corpus.units)
+}
+
+func TestRebuildCanonicalStoreIncrementalHandlesNewConversation(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archiveDir := filepath.Join(dir, "archive")
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	pathA := filepath.Join(rawDir, "project-a", "session-a.jsonl")
+	writeTestFile(t, pathA, strings.Join([]string{
+		makeJSONLRecord("user", "session-a", "session-a"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T10:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply A"}]}}`,
+		}, ""),
+	}, "\n"))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, nil,
+	))
+
+	pathB := filepath.Join(rawDir, "project-b", "session-b.jsonl")
+	writeTestFile(t, pathB, strings.Join([]string{
+		makeJSONLRecord("user", "session-b", "session-b"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T11:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply B"}]}}`,
+		}, ""),
+	}, "\n"))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, []string{pathB},
+	))
+
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 2)
+}
+
+func TestRebuildCanonicalStoreIncrementalFallsBackOnCorruptStore(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archiveDir := filepath.Join(dir, "archive")
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	pathA := filepath.Join(rawDir, "project-a", "session-a.jsonl")
+	writeTestFile(t, pathA, strings.Join([]string{
+		makeJSONLRecord("user", "session-a", "session-a"),
+		strings.Join([]string{
+			`{"type":"assistant","timestamp":"2026-03-08T10:00:00Z",`,
+			`"message":{"role":"assistant","model":"claude","content":[`,
+			`{"type":"text","text":"reply A"}]}}`,
+		}, ""),
+	}, "\n"))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, nil,
+	))
+
+	catalogPath := filepath.Join(
+		providerStoreDir(archiveDir, conversationProviderClaude), "catalog.bin",
+	)
+	require.NoError(t, os.WriteFile(catalogPath, []byte("corrupt"), 0o644))
+
+	require.NoError(t, rebuildCanonicalStore(
+		context.Background(), archiveDir, conversationProviderClaude, []string{pathA},
+	))
+
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := repo.load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	assert.Contains(t, renderTranscript(session, transcriptOptions{}), "reply A")
 }
