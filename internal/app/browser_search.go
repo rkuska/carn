@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -38,6 +39,8 @@ type browserSearchState struct {
 type conversationListItem struct {
 	conversation conversation
 	matchRanges  itemMatchRanges
+	title        string
+	description  string
 }
 
 func (i conversationListItem) FilterValue() string {
@@ -45,10 +48,16 @@ func (i conversationListItem) FilterValue() string {
 }
 
 func (i conversationListItem) Title() string {
+	if i.title != "" {
+		return i.title
+	}
 	return i.conversation.Title()
 }
 
 func (i conversationListItem) Description() string {
+	if i.description != "" {
+		return i.description
+	}
 	return i.conversation.Description()
 }
 
@@ -113,7 +122,11 @@ func conversationFromItem(item list.Item) (conversation, bool) {
 func buildPlainConversationItems(convs []conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(convs))
 	for _, conv := range convs {
-		items = append(items, conversationListItem{conversation: conv})
+		items = append(items, conversationListItem{
+			conversation: conv,
+			title:        conv.Title(),
+			description:  conversationMetadataDescription(conv),
+		})
 	}
 	return items
 }
@@ -125,16 +138,20 @@ func buildMetadataSearchItems(query string, convs []conversation) []conversation
 
 	targets := make([]string, len(convs))
 	for i, conv := range convs {
-		targets[i] = conv.FilterValue()
+		targets[i] = conversationMetadataSearchText(conv)
 	}
 
 	ranks := list.DefaultFilter(query, targets)
 	items := make([]conversationListItem, 0, len(ranks))
 	for _, rank := range ranks {
 		conv := convs[rank.Index]
+		title := conv.Title()
+		desc := conversationMetadataDescription(conv)
 		items = append(items, conversationListItem{
 			conversation: conv,
-			matchRanges:  splitItemMatches(conv.Title(), conv.Description(), rank.MatchedIndexes),
+			title:        title,
+			description:  desc,
+			matchRanges:  splitItemMatches(title, desc, rank.MatchedIndexes),
 		})
 	}
 
@@ -144,14 +161,51 @@ func buildMetadataSearchItems(query string, convs []conversation) []conversation
 func buildDeepSearchItems(query string, convs []conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(convs))
 	for _, conv := range convs {
+		desc := conv.Description()
 		items = append(items, conversationListItem{
 			conversation: conv,
+			title:        conv.Title(),
+			description:  desc,
 			matchRanges: itemMatchRanges{
-				desc: substringMatchIndices(conv.Description(), query),
+				desc: substringMatchIndices(desc, query),
 			},
 		})
 	}
 	return items
+}
+
+func conversationMetadataSearchText(conv conversation) string {
+	title := conv.Title()
+	desc := conversationMetadataDescription(conv)
+	if desc == "" {
+		return title
+	}
+	return title + "\n" + desc
+}
+
+func conversationMetadataDescription(conv conversation) string {
+	msgCount := conv.totalMessageCount()
+	mainCount := conv.mainMessageCount()
+	desc := fmt.Sprintf("%s  %d msgs", conv.model(), msgCount)
+	if mainCount > 0 && mainCount != msgCount {
+		desc = fmt.Sprintf("%s  %d msgs (%d main)", conv.model(), msgCount, mainCount)
+	}
+	if v := conv.version(); v != "" {
+		desc = v + "  " + desc
+	}
+	if total := conv.totalTokenUsage().totalTokens(); total > 0 {
+		desc += fmt.Sprintf("  %dk tokens", total/1000)
+	}
+	if d := conv.duration(); d > 0 {
+		desc += "  " + formatDuration(d)
+	}
+	if counts := conv.totalToolCounts(); len(counts) > 0 {
+		desc += "  " + formatToolCounts(counts)
+	}
+	if fm := conv.firstMessage(); fm != "" {
+		desc += "\n" + fm
+	}
+	return desc
 }
 
 func substringMatchIndices(text, query string) []int {

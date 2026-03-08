@@ -33,6 +33,18 @@ func TestBuildMetadataSearchItemsUsesFuzzyMatches(t *testing.T) {
 	}
 }
 
+func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
+	t.Parallel()
+
+	conv := testConv("one")
+	conv.searchPreview = "needle only in preview"
+
+	items := buildMetadataSearchItems("needle", []conversation{conv})
+	if len(items) != 0 {
+		t.Fatalf("items len = %d, want 0", len(items))
+	}
+}
+
 func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
 	t.Parallel()
 

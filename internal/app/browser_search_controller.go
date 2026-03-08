@@ -43,8 +43,9 @@ func deepSearchDebounceCmd(revision int, query string) tea.Cmd {
 	})
 }
 
-func warmSearchIndexCmd(
+func warmSearchIndexCmdWithRepository(
 	ctx context.Context,
+	repo conversationRepository,
 	conversations []conversation,
 	indexCache map[string]string,
 	sessionCache map[string]sessionFull,
@@ -57,7 +58,7 @@ func warmSearchIndexCmd(
 
 		for i := range conversations {
 			conv := conversations[i]
-			cid := conv.id()
+			cid := conv.cacheKey()
 			if _, ok := indexCache[cid]; ok {
 				continue
 			}
@@ -77,7 +78,7 @@ func warmSearchIndexCmd(
 				if cachedSession, ok := sessionCache[convID]; ok {
 					session = cachedSession
 				} else {
-					loadedSession, err := loadConversationSession(groupCtx, conv)
+					loadedSession, err := repo.load(groupCtx, conv)
 					if err != nil {
 						if errors.Is(err, context.Canceled) {
 							return err
@@ -128,7 +129,7 @@ func (m *browserModel) cancelActiveDeepSearch() {
 
 func (m *browserModel) updateSelectedConversationID() {
 	if conv, ok := m.selectedConversation(); ok {
-		m.search.selectedConversationID = conv.id()
+		m.search.selectedConversationID = conv.cacheKey()
 		return
 	}
 	m.search.selectedConversationID = ""
@@ -141,7 +142,7 @@ func (m *browserModel) restoreSelection() {
 
 	if m.search.selectedConversationID != "" {
 		for i, conv := range m.search.visibleConversations {
-			if conv.id() == m.search.selectedConversationID {
+			if conv.cacheKey() == m.search.selectedConversationID {
 				m.list.Select(i)
 				return
 			}
@@ -199,8 +200,9 @@ func (m *browserModel) startDeepSearch(cmds *[]tea.Cmd) {
 	searchCtx, cancel := context.WithCancel(m.ctx)
 	m.searchCancel = cancel
 	m.search.status = searchStatusSearching
-	*cmds = append(*cmds, deepSearchCmd(
+	*cmds = append(*cmds, deepSearchCmdWithRepository(
 		searchCtx,
+		m.repo,
 		m.search.query,
 		m.search.revision,
 		m.search.baseConversations,

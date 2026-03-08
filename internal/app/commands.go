@@ -32,13 +32,21 @@ type openViewerMsg struct {
 // Commands
 
 func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
+	return loadSessionsCmdWithRepository(ctx, archiveDir, newDefaultConversationRepository())
+}
+
+func loadSessionsCmdWithRepository(
+	ctx context.Context,
+	archiveDir string,
+	repo conversationRepository,
+) tea.Cmd {
 	return func() tea.Msg {
-		sessions, err := scanSessions(ctx, archiveDir)
+		conversations, err := repo.scan(ctx, archiveDir)
 		if err != nil {
 			return sessionsLoadErrorMsg{err: err}
 		}
 
-		conversations := filterRenderableConversations(groupConversations(sessions))
+		conversations = filterRenderableConversations(conversations)
 
 		// Sort by timestamp descending (newest first)
 		sort.Slice(conversations, func(i, j int) bool {
@@ -49,21 +57,38 @@ func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
 	}
 }
 
-func openConversationCmd(ctx context.Context, conv conversation) tea.Cmd {
+func openConversationCmdWithRepository(
+	ctx context.Context,
+	conv conversation,
+	repo conversationRepository,
+) tea.Cmd {
 	return func() tea.Msg {
-		session, err := loadConversationSession(ctx, conv)
+		session, err := repo.load(ctx, conv)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("loadConversationSession failed for %s", conv.id())
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("conversationRepository.load failed for %s", conv.id())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
-		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
+		return openViewerMsg{conversationID: conv.cacheKey(), conversation: conv, session: session}
 	}
 }
 
-func openConversationCmdCached(ctx context.Context, conv conversation, parent sessionFull) tea.Cmd {
+func openConversationCmdCachedWithRepository(
+	ctx context.Context,
+	conv conversation,
+	parent sessionFull,
+	repo conversationRepository,
+) tea.Cmd {
 	return func() tea.Msg {
-		session := loadConversationSessionCached(ctx, conv, parent)
-		return openViewerMsg{conversationID: conv.id(), conversation: conv, session: session}
+		session := parent
+		if len(parent.linked) == 0 {
+			loaded, err := repo.load(ctx, conv)
+			if err != nil {
+				zerolog.Ctx(ctx).Error().Err(err).Msgf("conversationRepository.load cached failed for %s", conv.id())
+				return errorNotification(fmt.Sprintf("load session failed: %v", err))
+			}
+			session = loaded
+		}
+		return openViewerMsg{conversationID: conv.cacheKey(), conversation: conv, session: session}
 	}
 }
 
