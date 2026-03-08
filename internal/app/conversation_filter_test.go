@@ -69,8 +69,11 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	projectDir := filepath.Join(baseDir, "proj")
-	require.NoError(t, os.Mkdir(projectDir, 0o755))
+	projectDir := filepath.Join(
+		providerRawDir(baseDir, conversationProviderClaude),
+		"proj",
+	)
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
 
 	realSession := strings.Join([]string{
 		`{"type":"user","sessionId":"real-session","slug":"real-session",` +
@@ -97,9 +100,11 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "real.jsonl"), []byte(realSession), 0o644))
 	commandOnlyPath := filepath.Join(projectDir, "command-only.jsonl")
 	require.NoError(t, os.WriteFile(commandOnlyPath, []byte(commandOnlySession), 0o644))
+	require.NoError(t, rebuildCanonicalStore(context.Background(), baseDir, conversationProviderClaude))
 
 	msg := loadSessionsCmd(context.Background(), baseDir)()
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
 	require.Len(t, loaded.conversations, 1)
-	assert.Equal(t, "real-session", loaded.conversations[0].id())
+	assert.Equal(t, "real-session", loaded.conversations[0].name)
+	assert.NotEqual(t, "real-session", loaded.conversations[0].id())
 }

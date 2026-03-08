@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 
 	"charm.land/bubbles/v2/key"
@@ -45,11 +44,11 @@ type browserModel struct {
 	notification          notification
 	searchInput           textinput.Model
 	search                browserSearchState
+	searchCorpus          searchCorpus
+	deepSearchAvailable   bool
 	sessionCache          map[string]sessionFull
 	transcriptCache       map[string]sessionFull
-	searchIndex           conversationSearchIndex
 	searchCancel          context.CancelFunc
-	indexWarmup           bool
 	openConversationID    string
 	loadingConversationID string
 	helpOpen              bool
@@ -104,9 +103,9 @@ func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) brows
 			mode:   searchModeMetadata,
 			status: searchStatusIdle,
 		},
-		sessionCache:    make(map[string]sessionFull, browserCacheSize),
-		transcriptCache: make(map[string]sessionFull, browserCacheSize),
-		searchIndex:     newConversationSearchIndex(),
+		sessionCache:        make(map[string]sessionFull, browserCacheSize),
+		transcriptCache:     make(map[string]sessionFull, browserCacheSize),
+		deepSearchAvailable: true,
 	}
 }
 
@@ -141,26 +140,18 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		m.allConversations = msg.conversations
 		mainConvs := filterMainConversations(msg.conversations)
 		m.mainConversationCount = len(mainConvs)
-		m.searchIndex = newConversationSearchIndex()
+		m.searchCorpus = msg.searchCorpus
+		m.deepSearchAvailable = msg.deepSearchAvailable
 		m.search.baseConversations = mainConvs
 		m.search.visibleConversations = mainConvs
-		m.indexWarmup = len(mainConvs) > 0
+		if !m.deepSearchAvailable && m.search.mode == searchModeDeep {
+			m.search.mode = searchModeMetadata
+			m.search.status = searchStatusIdle
+		}
 		if m.search.query == "" {
 			m.applyFullConversationList(&cmds)
 		} else {
 			m.refreshSearchResults(&cmds)
-		}
-		if m.indexWarmup {
-			cmds = append(
-				cmds,
-				warmSearchIndexCmdWithRepository(
-					m.ctx,
-					m.repo,
-					mainConvs,
-					m.searchIndex.cloneBlobs(),
-					m.cloneSessionCache(),
-				),
-			)
 		}
 		m.syncTranscriptSelection(&cmds)
 
@@ -183,21 +174,15 @@ func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 		}
 
 	case deepSearchResultMsg:
-		m.searchIndex.mergeBlobs(msg.indexed)
-		m.searchIndex.mergePreviews(msg.previews)
 		if m.search.mode == searchModeDeep &&
 			msg.revision == m.search.revision &&
 			msg.query == m.search.query {
 			m.search.appliedRevision = msg.revision
 			m.search.status = searchStatusIdle
 			m.searchCancel = nil
-			m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), &cmds)
+			m.setSearchItems(buildDeepSearchItems(msg.conversations), &cmds)
 			m.syncTranscriptSelection(&cmds)
 		}
-
-	case searchIndexWarmMsg:
-		m.indexWarmup = false
-		m.searchIndex.mergeBlobs(msg.indexed)
 
 	case notificationMsg:
 		m.setNotification(msg.notification, &cmds)
@@ -351,12 +336,6 @@ func (m *browserModel) setNotification(n notification, cmds *[]tea.Cmd) {
 	*cmds = append(*cmds, clearNotificationAfter(n.kind))
 }
 
-func (m browserModel) cloneSessionCache() map[string]sessionFull {
-	out := make(map[string]sessionFull, len(m.sessionCache))
-	maps.Copy(out, m.sessionCache)
-	return out
-}
-
 func (m *browserModel) openTranscript(conv conversation) tea.Cmd {
 	if session, ok := m.transcriptCache[conv.cacheKey()]; ok {
 		m.installViewer(session, conv)
@@ -368,7 +347,7 @@ func (m *browserModel) openTranscript(conv conversation) tea.Cmd {
 	if session, ok := m.sessionCache[conv.cacheKey()]; ok {
 		return openConversationCmdCachedWithRepository(m.ctx, conv, session, m.repo)
 	}
-	return openConversationCmdWithRepository(m.ctx, conv, m.repo)
+	return openConversationCmdWithRepository(m.ctx, m.archiveDir, conv, m.repo)
 }
 
 func (m *browserModel) installViewer(session sessionFull, conv conversation) {
@@ -380,7 +359,6 @@ func (m *browserModel) installViewer(session sessionFull, conv conversation) {
 	m.loadingConversationID = ""
 	m.transcriptCache[key] = session
 	m.sessionCache[key] = session
-	m.searchIndex.blobs[key] = buildSessionSearchBlob(session)
 	m.addToCache(key)
 
 	m.viewer = newViewerModel(session, conv, m.glamourStyle, m.viewerWidth(), m.height)

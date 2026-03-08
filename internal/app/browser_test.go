@@ -331,7 +331,7 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	conv := testConv(testConversationIDPrimary)
 	conv.searchPreview = archiveMatchesSourceSubtitle
 
-	items := buildDeepSearchItems("archive", []conversation{conv})
+	items := buildDeepSearchItems([]conversation{conv})
 	listItems := make([]list.Item, 0, len(items))
 	for _, item := range items {
 		listItems = append(listItems, item)
@@ -340,7 +340,7 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 
 	view := b.list.View()
 	assert.Contains(t, ansi.Strip(view), archiveMatchesSourceSubtitle)
-	assert.NotContains(t, view, archiveMatchesSourceSubtitle)
+	assert.Contains(t, view, archiveMatchesSourceSubtitle)
 }
 
 func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {

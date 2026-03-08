@@ -11,58 +11,6 @@ import (
 	"time"
 )
 
-func makeBenchArchive(b *testing.B, projects, sessionsPerProject int) string {
-	b.Helper()
-	base := b.TempDir()
-
-	for p := range projects {
-		projDir := filepath.Join(base, fmt.Sprintf("project-%d", p))
-		if err := os.MkdirAll(projDir, 0o755); err != nil {
-			b.Fatalf("MkdirAll: %v", err)
-		}
-		for s := range sessionsPerProject {
-			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
-			content := benchSessionJSONL(b, sessionID, s%9 == 0)
-			path := filepath.Join(projDir, sessionID+".jsonl")
-			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-				b.Fatalf("WriteFile: %v", err)
-			}
-		}
-	}
-
-	return base
-}
-
-func makeBenchArchiveLongConversations(
-	b *testing.B,
-	projects, sessionsPerProject, assistantTurns int,
-) string {
-	b.Helper()
-	base := b.TempDir()
-
-	for p := range projects {
-		projDir := filepath.Join(base, fmt.Sprintf("project-%d", p))
-		if err := os.MkdirAll(projDir, 0o755); err != nil {
-			b.Fatalf("MkdirAll: %v", err)
-		}
-		for s := range sessionsPerProject {
-			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
-			content := benchSessionJSONLLongConversation(
-				b,
-				sessionID,
-				assistantTurns,
-				s%9 == 0,
-			)
-			path := filepath.Join(projDir, sessionID+".jsonl")
-			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-				b.Fatalf("WriteFile: %v", err)
-			}
-		}
-	}
-
-	return base
-}
-
 func benchSessionJSONL(tb testing.TB, sessionID string, includeNeedle bool) string {
 	tb.Helper()
 
@@ -230,69 +178,86 @@ func benchViewerSession(messages int, withNeedle bool) sessionFull {
 	}
 }
 
-func BenchmarkScanSessions(b *testing.B) {
+func BenchmarkLoadCatalog(b *testing.B) {
 	ctx := context.Background()
-	archive := makeBenchArchive(b, 6, 60)
+	archiveDir := makeBenchCanonicalStore(b, 6, 60, 12)
+	repo := newDefaultConversationRepository()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sessions, err := scanSessions(ctx, archive)
+		conversations, err := repo.scan(ctx, archiveDir)
 		if err != nil {
-			b.Fatalf("scanSessions: %v", err)
+			b.Fatalf("repo.scan: %v", err)
 		}
-		if len(sessions) == 0 {
-			b.Fatal("scanSessions returned no sessions")
+		if len(conversations) == 0 {
+			b.Fatal("repo.scan returned no conversations")
 		}
 	}
 }
 
-func BenchmarkScanSessionsLongConversations(b *testing.B) {
+func BenchmarkLoadSearchIndex(b *testing.B) {
 	ctx := context.Background()
-	archive := makeBenchArchiveLongConversations(b, 4, 30, 24)
+	archiveDir := makeBenchCanonicalStore(b, 6, 60, 12)
+	repo := newDefaultConversationRepository()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sessions, err := scanSessions(ctx, archive)
+		corpus, err := repo.searchCorpus(ctx, archiveDir)
 		if err != nil {
-			b.Fatalf("scanSessions: %v", err)
+			b.Fatalf("repo.searchCorpus: %v", err)
 		}
-		if len(sessions) == 0 {
-			b.Fatal("scanSessions returned no sessions")
+		if corpus.Len() == 0 {
+			b.Fatal("repo.searchCorpus returned no search units")
 		}
 	}
 }
 
-func BenchmarkDeepSearch(b *testing.B) {
+func BenchmarkDeepSearchFuzzy(b *testing.B) {
 	ctx := context.Background()
-	archive := makeBenchArchive(b, 4, 50)
-	sessions, err := scanSessions(ctx, archive)
+	archiveDir := makeBenchCanonicalStore(b, 4, 50, 12)
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(ctx, archiveDir)
 	if err != nil {
-		b.Fatalf("scanSessions: %v", err)
+		b.Fatalf("repo.scan: %v", err)
 	}
-	mainConvs := filterMainConversations(groupConversations(sessions))
+	corpus, err := repo.searchCorpus(ctx, archiveDir)
+	if err != nil {
+		b.Fatalf("repo.searchCorpus: %v", err)
+	}
+	mainConvs := filterMainConversations(conversations)
 
-	b.Run("cold", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			msg := deepSearchCmd(ctx, "important_needle", 1, mainConvs, nil, nil, nil)()
-			result, ok := msg.(deepSearchResultMsg)
-			if !ok || len(result.conversations) == 0 {
-				b.Fatalf("unexpected deep search result: %#v", msg)
-			}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		msg := deepSearchCmd(ctx, "important_needle", 1, mainConvs, corpus)()
+		result, ok := msg.(deepSearchResultMsg)
+		if !ok || len(result.conversations) == 0 {
+			b.Fatalf("unexpected deep search result: %#v", msg)
 		}
-	})
+	}
+}
 
-	warm := deepSearchCmd(ctx, "important_needle", 1, mainConvs, nil, nil, nil)().(deepSearchResultMsg)
-	index := warm.indexed
+func BenchmarkCanonicalTranscriptOpen(b *testing.B) {
+	ctx := context.Background()
+	archiveDir := makeBenchCanonicalStore(b, 4, 50, 12)
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(ctx, archiveDir)
+	if err != nil {
+		b.Fatalf("repo.scan: %v", err)
+	}
+	if len(conversations) == 0 {
+		b.Fatal("repo.scan returned no conversations")
+	}
 
-	b.Run("warm", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			msg := deepSearchCmd(ctx, "important_needle", 1, mainConvs, index, nil, nil)()
-			result, ok := msg.(deepSearchResultMsg)
-			if !ok || len(result.conversations) == 0 {
-				b.Fatalf("unexpected deep search result: %#v", msg)
-			}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		session, err := repo.load(ctx, archiveDir, conversations[0])
+		if err != nil {
+			b.Fatalf("repo.load: %v", err)
 		}
-	})
+		if len(session.messages) == 0 {
+			b.Fatal("repo.load returned no messages")
+		}
+	}
 }
 
 func BenchmarkViewerRenderContent(b *testing.B) {
@@ -402,4 +367,40 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 			b.Fatal("no conversations found")
 		}
 	}
+}
+
+func makeBenchCanonicalStore(
+	b *testing.B,
+	projects, sessionsPerProject, assistantTurns int,
+) string {
+	b.Helper()
+
+	archiveDir := b.TempDir()
+	rawDir := providerRawDir(archiveDir, conversationProviderClaude)
+
+	for p := range projects {
+		projDir := filepath.Join(rawDir, fmt.Sprintf("project-%d", p))
+		if err := os.MkdirAll(projDir, 0o755); err != nil {
+			b.Fatalf("MkdirAll: %v", err)
+		}
+		for s := range sessionsPerProject {
+			sessionID := fmt.Sprintf("session-%02d-%04d", p, s)
+			content := benchSessionJSONLLongConversation(
+				b,
+				sessionID,
+				assistantTurns,
+				s%9 == 0,
+			)
+			path := filepath.Join(projDir, sessionID+".jsonl")
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				b.Fatalf("WriteFile: %v", err)
+			}
+		}
+	}
+
+	if err := rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude); err != nil {
+		b.Fatalf("rebuildCanonicalStore: %v", err)
+	}
+
+	return archiveDir
 }

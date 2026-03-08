@@ -1043,14 +1043,6 @@ func parseConversationWithSubagents(ctx context.Context, conv conversation) (ses
 	}, nil
 }
 
-func loadConversationSession(ctx context.Context, conv conversation) (sessionFull, error) {
-	session, err := parseConversationWithSubagents(ctx, conv)
-	if err != nil {
-		return sessionFull{}, fmt.Errorf("parseConversationWithSubagents: %w", err)
-	}
-	return session, nil
-}
-
 func discoverProjectSessionFiles(projDir string, proj project, groupDirName string) ([]sessionFile, error) {
 	mainFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
 	if err != nil {

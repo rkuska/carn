@@ -15,21 +15,6 @@ type itemMatchRanges struct {
 	desc  []int
 }
 
-func findSessionSearchPreview(session sessionFull, query string) string {
-	if query == "" {
-		return ""
-	}
-
-	queryLower := strings.ToLower(query)
-	for _, msg := range session.messages {
-		if preview := messageSearchPreview(msg, queryLower); preview != "" {
-			return preview
-		}
-	}
-
-	return ""
-}
-
 func splitItemMatches(title, desc string, matched []int) itemMatchRanges {
 	titleRunes := utf8.RuneCountInString(title)
 	descOffset := titleRunes + 1
@@ -50,41 +35,6 @@ func splitItemMatches(title, desc string, matched []int) itemMatchRanges {
 	}
 
 	return ranges
-}
-
-func messageSearchPreview(msg message, queryLower string) string {
-	if preview := textSearchPreview(msg.text, queryLower); preview != "" {
-		return preview
-	}
-	if preview := textSearchPreview(msg.thinking, queryLower); preview != "" {
-		return preview
-	}
-	for _, tc := range msg.toolCalls {
-		if preview := textSearchPreview(tc.summary, queryLower); preview != "" {
-			return preview
-		}
-	}
-	for _, tr := range msg.toolResults {
-		if preview := textSearchPreview(tr.content, queryLower); preview != "" {
-			return preview
-		}
-	}
-	return ""
-}
-
-func textSearchPreview(text, queryLower string) string {
-	if text == "" || queryLower == "" {
-		return ""
-	}
-
-	for line := range strings.SplitSeq(text, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if preview := matchPreview(trimmed, queryLower); preview != "" {
-			return preview
-		}
-	}
-
-	return ""
 }
 
 func matchPreview(text, queryLower string) string {

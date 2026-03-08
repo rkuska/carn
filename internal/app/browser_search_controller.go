@@ -2,31 +2,21 @@ package app
 
 import (
 	"context"
-	"errors"
-	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 const (
 	deepSearchDebounceDelay = 200 * time.Millisecond
-	deepSearchWarmWorkers   = 4
 )
 
 type deepSearchDebounceMsg struct {
 	revision int
 	query    string
-}
-
-type searchIndexWarmMsg struct {
-	indexed map[string]string
 }
 
 func newBrowserSearchInput() textinput.Model {
@@ -41,68 +31,6 @@ func deepSearchDebounceCmd(revision int, query string) tea.Cmd {
 	return tea.Tick(deepSearchDebounceDelay, func(time.Time) tea.Msg {
 		return deepSearchDebounceMsg{revision: revision, query: query}
 	})
-}
-
-func warmSearchIndexCmdWithRepository(
-	ctx context.Context,
-	repo conversationRepository,
-	conversations []conversation,
-	indexCache map[string]string,
-	sessionCache map[string]sessionFull,
-) tea.Cmd {
-	return func() tea.Msg {
-		indexed := make(map[string]string)
-		group, groupCtx := errgroup.WithContext(ctx)
-		sem := semaphore.NewWeighted(deepSearchWarmWorkers)
-		var mu sync.Mutex
-
-		for i := range conversations {
-			conv := conversations[i]
-			cid := conv.cacheKey()
-			if _, ok := indexCache[cid]; ok {
-				continue
-			}
-
-			convID := cid
-			if err := sem.Acquire(groupCtx, 1); err != nil {
-				break
-			}
-
-			group.Go(func() error {
-				defer sem.Release(1)
-				if err := groupCtx.Err(); err != nil {
-					return err
-				}
-
-				var session sessionFull
-				if cachedSession, ok := sessionCache[convID]; ok {
-					session = cachedSession
-				} else {
-					loadedSession, err := repo.load(groupCtx, conv)
-					if err != nil {
-						if errors.Is(err, context.Canceled) {
-							return err
-						}
-						zerolog.Ctx(ctx).Debug().Err(err).Msgf("warmSearchIndex: %s", convID)
-						return nil
-					}
-					session = loadedSession
-				}
-
-				blob := buildSessionSearchBlob(session)
-				mu.Lock()
-				indexed[convID] = blob
-				mu.Unlock()
-				return nil
-			})
-		}
-
-		if err := group.Wait(); err != nil && !errors.Is(err, context.Canceled) {
-			zerolog.Ctx(ctx).Debug().Err(err).Msg("warmSearchIndex_wait")
-		}
-
-		return searchIndexWarmMsg{indexed: indexed}
-	}
 }
 
 func (m *browserModel) searchEditing() bool {
@@ -196,20 +124,24 @@ func (m *browserModel) startDeepSearch(cmds *[]tea.Cmd) {
 		m.applyFullConversationList(cmds)
 		return
 	}
+	if !m.deepSearchAvailable {
+		m.search.status = searchStatusIdle
+		return
+	}
 
 	searchCtx, cancel := context.WithCancel(m.ctx)
 	m.searchCancel = cancel
 	m.search.status = searchStatusSearching
-	*cmds = append(*cmds, deepSearchCmdWithRepository(
-		searchCtx,
-		m.repo,
-		m.search.query,
-		m.search.revision,
-		m.search.baseConversations,
-		m.searchIndex.cloneBlobs(),
-		m.searchIndex.clonePreviews(),
-		m.cloneSessionCache(),
-	))
+	*cmds = append(
+		*cmds,
+		deepSearchCmd(
+			searchCtx,
+			m.search.query,
+			m.search.revision,
+			m.search.baseConversations,
+			m.searchCorpus,
+		),
+	)
 }
 
 func (m *browserModel) refreshSearchResults(cmds *[]tea.Cmd) {
@@ -237,6 +169,13 @@ func (m *browserModel) toggleSearchMode(cmds *[]tea.Cmd) {
 		m.search.status = searchStatusIdle
 		m.search.revision++
 		m.applyMetadataSearch(cmds)
+		return
+	}
+	if !m.deepSearchAvailable {
+		m.setNotification(
+			infoNotification("deep search unavailable; re-import to rebuild the local index").notification,
+			cmds,
+		)
 		return
 	}
 

@@ -51,10 +51,13 @@ func TestScenarioImportAndOpenTranscript(t *testing.T) {
 	})
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	harness.waitForText(t, "Import Workspace")
-	harness.waitForText(t, "Will import 1 archive files after confirmation.")
+	harness.waitForText(
+		t,
+		"Will import 1 archive files and refresh the local store after confirmation.",
+	)
 
 	harness.pressEnter()
-	harness.waitForText(t, "import finished and is ready to continue")
+	harness.waitForText(t, "import finished and refreshed the local store")
 
 	harness.pressEnter()
 	harness.waitForText(t, "Claude Sessions")
@@ -94,7 +97,10 @@ func TestScenarioImportOverviewReady(t *testing.T) {
 
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	harness.waitForText(t, "Import Workspace")
-	harness.waitForText(t, "Will import 1 archive files after confirmation.")
+	harness.waitForText(
+		t,
+		"Will import 1 archive files and refresh the local store after confirmation.",
+	)
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
@@ -113,10 +119,13 @@ func TestScenarioImportOverviewDone(t *testing.T) {
 
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	harness.waitForText(t, "Import Workspace")
-	harness.waitForText(t, "Will import 1 archive files after confirmation.")
+	harness.waitForText(
+		t,
+		"Will import 1 archive files and refresh the local store after confirmation.",
+	)
 
 	harness.pressEnter()
-	harness.waitForText(t, "import finished and is ready to continue")
+	harness.waitForText(t, "import finished and refreshed the local store")
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))

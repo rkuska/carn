@@ -16,7 +16,9 @@ import (
 // Messages
 
 type conversationsLoadedMsg struct {
-	conversations []conversation
+	conversations       []conversation
+	searchCorpus        searchCorpus
+	deepSearchAvailable bool
 }
 
 type sessionsLoadErrorMsg struct {
@@ -46,22 +48,35 @@ func loadSessionsCmdWithRepository(
 			return sessionsLoadErrorMsg{err: err}
 		}
 
+		deepSearchAvailable := true
+		corpus, err := repo.searchCorpus(ctx, archiveDir)
+		if err != nil {
+			deepSearchAvailable = false
+			corpus = searchCorpus{}
+			zerolog.Ctx(ctx).Debug().Err(err).Msg("search corpus unavailable during browser load")
+		}
+
 		// Sort by timestamp descending (newest first)
 		sort.Slice(conversations, func(i, j int) bool {
 			return conversations[i].timestamp().After(conversations[j].timestamp())
 		})
 
-		return conversationsLoadedMsg{conversations: conversations}
+		return conversationsLoadedMsg{
+			conversations:       conversations,
+			searchCorpus:        corpus,
+			deepSearchAvailable: deepSearchAvailable,
+		}
 	}
 }
 
 func openConversationCmdWithRepository(
 	ctx context.Context,
+	archiveDir string,
 	conv conversation,
 	repo conversationRepository,
 ) tea.Cmd {
 	return func() tea.Msg {
-		session, err := repo.load(ctx, conv)
+		session, err := repo.load(ctx, archiveDir, conv)
 		if err != nil {
 			zerolog.Ctx(ctx).Error().Err(err).Msgf("conversationRepository.load failed for %s", conv.id())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))

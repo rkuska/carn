@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,4 +64,31 @@ func TestOpenConversationCmdCachedWithRepositoryUsesCachedSession(t *testing.T) 
 	open := requireMsgType[openViewerMsg](t, msg)
 	assert.Equal(t, cached.meta.id, open.session.meta.id)
 	assert.Zero(t, source.loadCalls)
+}
+
+func TestLoadSessionsCmdWithRepositoryIgnoresSearchCorpusErrors(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeConversationSource{
+		sourceProvider: conversationProviderClaude,
+		scanResult: []conversation{
+			singleSessionConversation(sessionMeta{
+				id:        "session-1",
+				timestamp: time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
+				project:   project{displayName: "proj"},
+			}),
+		},
+		searchErr: errors.New("corrupt search index"),
+	}
+
+	msg := loadSessionsCmdWithRepository(
+		context.Background(),
+		t.TempDir(),
+		newConversationRepository(source),
+	)()
+
+	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
+	require.Len(t, loaded.conversations, 1)
+	assert.False(t, loaded.deepSearchAvailable)
+	assert.Empty(t, loaded.searchCorpus.units)
 }

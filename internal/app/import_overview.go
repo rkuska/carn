@@ -63,12 +63,13 @@ type importOverviewModel struct {
 	analysis         importAnalysis // final result (valid when phase >= phaseReady)
 
 	// Sync state
-	files       []string
-	current     int
-	total       int
-	currentFile string
-	result      syncResult
-	syncEvents  <-chan tea.Msg
+	files        []string
+	current      int
+	total        int
+	currentFile  string
+	currentStage string
+	result       syncResult
+	syncEvents   <-chan tea.Msg
 
 	done     bool // signals app.go to transition to browser
 	width    int
@@ -173,18 +174,25 @@ func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel
 			return m, nil
 
 		case phaseReady:
+			if m.analysis.err != nil {
+				return m, nil
+			}
 			if !m.analysis.needsSync() {
 				m.done = true
 				return m, nil
 			}
 			// Start sync
 			m.phase = phaseSyncing
-			m.files = m.analysis.filesToSync
+			m.files = append(
+				append([]string{}, m.analysis.legacyFilesToSync...),
+				m.analysis.filesToSync...,
+			)
 			m.current = 0
 			m.total = len(m.files)
 			m.currentFile = ""
+			m.currentStage = ""
 			m.result = syncResult{}
-			return m, startImportSyncCmd(m.cfg, m.files)
+			return m, startImportSyncCmd(m.cfg)
 
 		case phaseSyncing:
 			// Disabled during sync
@@ -203,10 +211,7 @@ func (m importOverviewModel) handleListProjectDirs(msg listProjectDirsMsg) (impo
 	if msg.err != nil {
 		// Analysis failed — transition to ready with empty result
 		m.phase = phaseReady
-		m.analysis = importAnalysis{
-			sourceDir:  m.cfg.sourceDir,
-			archiveDir: m.cfg.archiveDir,
-		}
+		m.analysis = buildFinalImportAnalysis(m.cfg, 0, 0, m.seen, m.syncCandidates)
 		return m, nil
 	}
 
@@ -214,10 +219,7 @@ func (m importOverviewModel) handleListProjectDirs(msg listProjectDirsMsg) (impo
 	if len(m.projectDirs) == 0 {
 		// No projects — transition to ready
 		m.phase = phaseReady
-		m.analysis = importAnalysis{
-			sourceDir:  m.cfg.sourceDir,
-			archiveDir: m.cfg.archiveDir,
-		}
+		m.analysis = buildFinalImportAnalysis(m.cfg, 0, 0, m.seen, m.syncCandidates)
 		return m, nil
 	}
 
@@ -262,18 +264,13 @@ func (m importOverviewModel) handleAnalysisProgress(msg analysisProgressMsg) (im
 	}
 
 	// All projects analyzed — build final result
-	_, _, upToDate := classifyConversations(m.seen)
-	analysis := importAnalysis{
-		sourceDir:        m.cfg.sourceDir,
-		archiveDir:       m.cfg.archiveDir,
-		filesInspected:   m.totalInspected,
-		projects:         len(m.projectDirs),
-		conversations:    len(m.seen),
-		newConversations: newConvs,
-		toUpdate:         toUpdate,
-		upToDate:         upToDate,
-		filesToSync:      m.syncCandidates,
-	}
+	analysis := buildFinalImportAnalysis(
+		m.cfg,
+		m.totalInspected,
+		len(m.projectDirs),
+		m.seen,
+		m.syncCandidates,
+	)
 
 	return m, func() tea.Msg {
 		return analysisFinishedMsg{analysis: analysis}
@@ -290,6 +287,7 @@ func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (impo
 	m.current = msg.progress.current
 	m.total = msg.progress.total
 	m.currentFile = msg.progress.file
+	m.currentStage = msg.progress.stage
 	m.result.copied = msg.progress.copied
 	m.result.failed = msg.progress.failed
 	return m, waitForImportSyncMsg(m.syncEvents)
@@ -299,6 +297,7 @@ func (m importOverviewModel) handleSyncFinished(msg importSyncFinishedMsg) (impo
 	m.phase = phaseDone
 	m.result = msg.result
 	m.current = m.total
+	m.currentStage = ""
 	m.syncEvents = nil
 	return m, nil
 }
@@ -344,6 +343,12 @@ func (m importOverviewModel) footerItems() []helpItem {
 			{key: "q", desc: "quit"},
 		}
 	case phaseReady:
+		if m.analysis.err != nil {
+			return []helpItem{
+				{key: "?", desc: "help"},
+				{key: "q", desc: "quit"},
+			}
+		}
 		action := "continue"
 		if m.analysis.needsSync() {
 			action = "import"
@@ -457,11 +462,11 @@ func analyzeProjectCmd(projDir string, cfg archiveConfig) tea.Cmd {
 	}
 }
 
-func startImportSyncCmd(cfg archiveConfig, files []string) tea.Cmd {
+func startImportSyncCmd(cfg archiveConfig) tea.Cmd {
 	return func() tea.Msg {
 		events := make(chan tea.Msg)
 		go func() {
-			result, err := syncFiles(context.Background(), cfg, files, func(progress syncProgress) {
+			result, err := runImportPipeline(context.Background(), cfg, func(progress syncProgress) {
 				events <- importSyncProgressMsg{progress: progress}
 			})
 			events <- importSyncFinishedMsg{result: result, err: err}
