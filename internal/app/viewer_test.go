@@ -190,7 +190,7 @@ func TestPerformSearchFindsMatchesBeyondViewport(t *testing.T) {
 	m.searchQuery = "UNIQUEWORD"
 	m.performSearch()
 
-	assert.NotEmpty(t, m.matchIndices)
+	assert.NotEmpty(t, m.matches)
 }
 
 func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
@@ -204,7 +204,7 @@ func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
 	m.searchQuery = testTextHello
 	m.performSearch()
 
-	assert.NotEmpty(t, m.matchIndices)
+	assert.NotEmpty(t, m.matches)
 }
 
 func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
@@ -221,13 +221,13 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 
 	m.searchQuery = "TARGETWORD"
 	m.performSearch()
-	matchesBefore := len(m.matchIndices)
+	matchesBefore := len(m.matches)
 
 	// Toggle thinking on — adds the thinking block which contains TARGETWORD.
 	m.opts.showThinking = true
 	m.renderContent()
 
-	assert.Greater(t, len(m.matchIndices), matchesBefore)
+	assert.Greater(t, len(m.matches), matchesBefore)
 }
 
 func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
@@ -252,11 +252,11 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	m.searchQuery = testTextHello
 	m.performSearch()
 
-	require.NotEmpty(t, m.matchIndices)
+	require.NotEmpty(t, m.matches)
 
 	footer := m.footerView()
 
-	expected := fmt.Sprintf("1/%d", len(m.matchIndices))
+	expected := fmt.Sprintf("1/%d", len(m.matches))
 	assert.Contains(t, footer, expected)
 }
 
@@ -351,7 +351,7 @@ func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
 	m := newTestViewer(testSession("viewer-search-cancel"), 120, 40)
 	m.searchQuery = testTextHello
 	m.performSearch()
-	require.NotEmpty(t, m.matchIndices)
+	require.NotEmpty(t, m.matches)
 
 	m.searching = true
 	m.searchInput.Focus()
@@ -361,7 +361,7 @@ func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
 
 	assert.False(t, m.searching)
 	assert.Empty(t, m.searchQuery)
-	assert.Empty(t, m.matchIndices)
+	assert.Empty(t, m.matches)
 	assert.Equal(t, 0, m.currentMatch)
 	assert.Empty(t, m.searchInput.Value())
 }
@@ -416,4 +416,152 @@ func TestRenderRoleHeader(t *testing.T) {
 			assert.Contains(t, stripped, "─")
 		})
 	}
+}
+
+func TestViewerSearchHighlightsMatchedText(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("search-highlight"), 120, 40)
+
+	contentBefore := m.viewport.View()
+
+	m.searchQuery = testTextHello
+	m.performSearch()
+	require.NotEmpty(t, m.matches)
+
+	contentAfter := m.viewport.View()
+
+	// The viewport content should differ because matches are highlighted.
+	assert.NotEqual(t, contentBefore, contentAfter)
+	// Stripped content should be the same (only styling changed).
+	assert.Equal(t, ansi.Strip(contentBefore), ansi.Strip(contentAfter))
+}
+
+func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
+	t.Parallel()
+
+	session := testSessionLong("jump-highlight", "JUMPWORD")
+	// Add more messages with the keyword to get multiple matches.
+	session.messages = append(session.messages,
+		message{role: roleUser, text: "JUMPWORD again"},
+		message{role: roleAssistant, text: "reply with JUMPWORD"},
+	)
+
+	m := newTestViewer(session, 120, 10)
+
+	m.searchQuery = "JUMPWORD"
+	m.performSearch()
+	require.Greater(t, len(m.matches), 1)
+
+	contentAt0 := m.viewport.View()
+
+	m.jumpToMatch(1)
+	contentAt1 := m.viewport.View()
+
+	// Different current match should produce different highlighted content.
+	assert.NotEqual(t, contentAt0, contentAt1)
+}
+
+func TestViewerSearchClearRemovesHighlights(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSession("clear-highlight"), 120, 40)
+
+	// Capture the un-highlighted content.
+	contentClean := m.viewport.View()
+
+	m.searchQuery = testTextHello
+	m.performSearch()
+	require.NotEmpty(t, m.matches)
+
+	// After clearing, content should return to the original un-highlighted state.
+	m.clearSearch()
+	contentAfterClear := m.viewport.View()
+
+	assert.Equal(t, contentClean, contentAfterClear)
+}
+
+func TestPerformSearchCountsOccurrencesNotLines(t *testing.T) {
+	t.Parallel()
+
+	// A single line with "foo" appearing 3 times.
+	session := sessionFull{
+		meta: sessionMeta{
+			id:        "occ-count",
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: []message{
+			{role: roleUser, text: "foo foo foo"},
+		},
+	}
+	m := newTestViewer(session, 120, 40)
+
+	m.searchQuery = "foo"
+	m.performSearch()
+
+	assert.GreaterOrEqual(t, len(m.matches), 3)
+}
+
+func TestJumpToMatchCyclesThroughOccurrencesOnSameLine(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		meta: sessionMeta{
+			id:        "jump-occ",
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: []message{
+			{role: roleUser, text: "aaa bbb aaa ccc aaa"},
+		},
+	}
+	m := newTestViewer(session, 120, 40)
+
+	m.searchQuery = "aaa"
+	m.performSearch()
+	require.GreaterOrEqual(t, len(m.matches), 3)
+
+	// Find the first 3 matches that are on the same line as matches[0].
+	targetLine := m.matches[0].line
+	sameLineCount := 0
+	for _, occ := range m.matches {
+		if occ.line == targetLine {
+			sameLineCount++
+		}
+	}
+	require.GreaterOrEqual(t, sameLineCount, 3)
+
+	assert.Equal(t, 0, m.currentMatch)
+	m.jumpToMatch(1)
+	assert.Equal(t, 1, m.currentMatch)
+	m.jumpToMatch(1)
+	assert.Equal(t, 2, m.currentMatch)
+}
+
+func TestFooterShowsOccurrenceCount(t *testing.T) {
+	t.Parallel()
+
+	// Two lines: "xxx xxx" and "xxx" → at least 3 occurrences.
+	session := sessionFull{
+		meta: sessionMeta{
+			id:        "footer-occ",
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: []message{
+			{role: roleUser, text: "xxx xxx"},
+			{role: roleAssistant, text: "xxx"},
+		},
+	}
+	m := newTestViewer(session, 120, 40)
+
+	m.searchQuery = "xxx"
+	m.performSearch()
+
+	require.GreaterOrEqual(t, len(m.matches), 3)
+
+	footer := m.footerView()
+	expected := fmt.Sprintf("1/%d", len(m.matches))
+	assert.Contains(t, footer, expected)
 }
