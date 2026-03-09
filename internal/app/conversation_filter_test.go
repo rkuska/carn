@@ -83,6 +83,7 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 		[]string{
 			"fixture-basic",
 			"legacy-format",
+			"plan-session",
 			"subagent-helper",
 			"subagent-parent",
 			"tool-runbook",

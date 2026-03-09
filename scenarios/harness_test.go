@@ -151,6 +151,10 @@ func (h *programHarness) pressEnter() {
 	h.program.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 }
 
+func (h *programHarness) pressKey(r rune) {
+	h.program.Send(tea.KeyPressMsg{Code: r})
+}
+
 func (h *programHarness) quit(tb testing.TB) {
 	tb.Helper()
 	h.program.Quit()

@@ -101,6 +101,7 @@ func TestRunImportPipelineWithFixtureCorpus(t *testing.T) {
 		[]string{
 			"fixture-basic",
 			"legacy-format",
+			"plan-session",
 			"subagent-helper",
 			"subagent-parent",
 			"tool-runbook",
@@ -203,6 +204,7 @@ func TestRebuildCanonicalStoreWithFixtureCorpus(t *testing.T) {
 		[]string{
 			"fixture-basic",
 			"legacy-format",
+			"plan-session",
 			"subagent-helper",
 			"subagent-parent",
 			"tool-runbook",
