@@ -59,22 +59,36 @@ func headerBadges(conv conversation) []string {
 	if parts := len(conv.sessions); parts > 1 {
 		badges = append(badges, renderHeaderBadge(fmt.Sprintf("%d parts", parts), colorSecondary))
 	}
+	if conv.planCount > 0 {
+		label := fmt.Sprintf("%d plan", conv.planCount)
+		if conv.planCount > 1 {
+			label += "s"
+		}
+		badges = append(badges, renderHeaderBadge(label, colorPrimary))
+	}
 	return badges
 }
 
-// renderPlanHeader renders the final accepted plan inside a bordered box,
-// placed below the conversation metadata header. Returns empty if no plan.
-// When collapsed, shows only the plan filename; when expanded, shows full content.
+// renderPlanHeader renders plans inside bordered boxes below the conversation
+// metadata header. Returns empty if no plans exist.
+// When collapsed, shows only the last plan filename; when expanded, shows all plans.
 func renderPlanHeader(messages []message, width int, expanded bool) string {
-	p, ok := lastPlan(messages)
-	if !ok {
+	plans := allPlans(messages)
+	if len(plans) == 0 {
 		return ""
 	}
-	title := fmt.Sprintf("Plan: %s", filepath.Base(p.filePath))
 	if !expanded {
+		p := plans[len(plans)-1]
+		title := fmt.Sprintf("Plan: %s", filepath.Base(p.filePath))
 		return renderInsetBox(width, colorPrimary, title) + "\n\n"
 	}
-	return renderInsetBox(width, colorPrimary, title+"\n\n"+p.content) + "\n\n"
+	var sb strings.Builder
+	for _, p := range plans {
+		title := fmt.Sprintf("Plan: %s", filepath.Base(p.filePath))
+		sb.WriteString(renderInsetBox(width, colorPrimary, title+"\n\n"+p.content))
+		sb.WriteString("\n\n")
+	}
+	return sb.String()
 }
 
 func headerSummaryChips(conv conversation) []string {

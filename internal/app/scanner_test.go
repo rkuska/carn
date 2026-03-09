@@ -892,7 +892,7 @@ func TestScanSessions(t *testing.T) {
 	baseDir := copyScannerFixtureCorpus(t)
 	sessions, err := scanSessions(context.Background(), baseDir)
 	require.NoError(t, err)
-	require.Len(t, sessions, 7)
+	require.Len(t, sessions, 8)
 
 	// Verify all sessions have required fields
 	for i, s := range sessions {

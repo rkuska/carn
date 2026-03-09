@@ -116,6 +116,15 @@ func lastPlan(messages []message) (plan, bool) {
 	return plan{}, false
 }
 
+// allPlans collects all plans from a message list in chronological order.
+func allPlans(messages []message) []plan {
+	var plans []plan
+	for _, msg := range messages {
+		plans = append(plans, msg.plans...)
+	}
+	return plans
+}
+
 // countPlansInMessages counts the total number of plans across all messages.
 func countPlansInMessages(messages []message) int {
 	count := 0
