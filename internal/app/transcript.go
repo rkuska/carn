@@ -71,6 +71,11 @@ func renderTranscriptSegmented(session sessionFull, opts transcriptOptions) []tr
 	return segments
 }
 
+func userHasContent(msg message, userText string, opts transcriptOptions) bool {
+	return userText != "" ||
+		(opts.showToolResults && len(msg.toolResults) > 0)
+}
+
 func appendUserSegments(
 	segments *[]transcriptSegment,
 	md *strings.Builder,
@@ -82,8 +87,7 @@ func appendUserSegments(
 	if isSystemInterrupt(userText) {
 		userText = ""
 	}
-	hasContent := userText != "" || (opts.showToolResults && len(msg.toolResults) > 0)
-	if !hasContent {
+	if !userHasContent(msg, userText, opts) {
 		return
 	}
 
@@ -95,10 +99,14 @@ func appendUserSegments(
 	}
 	if opts.showToolResults && len(msg.toolResults) > 0 {
 		flush()
-		for _, tr := range msg.toolResults {
-			*segments = append(*segments, transcriptSegment{kind: segmentToolResult, result: tr})
-		}
+		appendToolResultSegments(segments, msg.toolResults)
 		md.WriteString("\n")
+	}
+}
+
+func appendToolResultSegments(segments *[]transcriptSegment, results []toolResult) {
+	for _, tr := range results {
+		*segments = append(*segments, transcriptSegment{kind: segmentToolResult, result: tr})
 	}
 }
 
@@ -172,8 +180,15 @@ func flattenSegments(segments []transcriptSegment) string {
 }
 
 // renderTranscript produces a clean text transcript from a parsed session.
+// The final plan (if any) is included at the top of the output.
 func renderTranscript(session sessionFull, opts transcriptOptions) string {
-	return flattenSegments(renderTranscriptSegmented(session, opts))
+	var sb strings.Builder
+	if p, ok := lastPlan(session.messages); ok {
+		sb.WriteString(formatPlan(p))
+		sb.WriteString("\n\n---\n\n")
+	}
+	sb.WriteString(flattenSegments(renderTranscriptSegmented(session, opts)))
+	return sb.String()
 }
 
 func formatToolCall(tc toolCall) string {

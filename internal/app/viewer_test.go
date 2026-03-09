@@ -308,6 +308,43 @@ func TestViewerFooterOrdersItemsByWorkflow(t *testing.T) {
 	)
 }
 
+func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		meta: sessionMeta{
+			id:        "plan-toggle",
+			timestamp: time.Now(),
+			project:   project{displayName: "test"},
+		},
+		messages: []message{
+			{role: roleUser, text: "hello", plans: []plan{{filePath: "a.md", content: "plan"}}},
+			{role: roleAssistant, text: "hi"},
+		},
+	}
+	m := newTestViewer(session, 120, 40)
+
+	keys := helpItemKeys(m.footerItems())
+	assert.Contains(t, keys, "p")
+
+	// p should appear after the last transcript toggle and before action items
+	pIdx := -1
+	sIdx := -1
+	yIdx := -1
+	for i, k := range keys {
+		switch k {
+		case "p":
+			pIdx = i
+		case "s":
+			sIdx = i
+		case "y":
+			yIdx = i
+		}
+	}
+	assert.Greater(t, pIdx, sIdx, "plan toggle should come after sidechain toggle")
+	assert.Less(t, pIdx, yIdx, "plan toggle should come before action items")
+}
+
 func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
 	t.Parallel()
 

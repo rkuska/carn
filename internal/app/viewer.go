@@ -24,29 +24,31 @@ type contentFlags struct {
 	hasThinking    bool
 	hasToolCalls   bool
 	hasToolResults bool
+	hasPlans       bool
 	hasSidechain   bool
 }
 
 func scanContentFlags(messages []message) contentFlags {
 	var flags contentFlags
 	for _, msg := range messages {
-		if msg.thinking != "" {
-			flags.hasThinking = true
-		}
-		if len(msg.toolCalls) > 0 {
-			flags.hasToolCalls = true
-		}
-		if len(msg.toolResults) > 0 {
-			flags.hasToolResults = true
-		}
-		if msg.isSidechain {
-			flags.hasSidechain = true
-		}
-		if flags.hasThinking && flags.hasToolCalls && flags.hasToolResults && flags.hasSidechain {
+		flags.accumulate(msg)
+		if flags.allSet() {
 			break
 		}
 	}
 	return flags
+}
+
+func (f *contentFlags) accumulate(msg message) {
+	f.hasThinking = f.hasThinking || msg.thinking != ""
+	f.hasToolCalls = f.hasToolCalls || len(msg.toolCalls) > 0
+	f.hasToolResults = f.hasToolResults || len(msg.toolResults) > 0
+	f.hasPlans = f.hasPlans || len(msg.plans) > 0
+	f.hasSidechain = f.hasSidechain || msg.isSidechain
+}
+
+func (f contentFlags) allSet() bool {
+	return f.hasThinking && f.hasToolCalls && f.hasToolResults && f.hasPlans && f.hasSidechain
 }
 
 type viewerModel struct {
@@ -69,6 +71,7 @@ type viewerModel struct {
 	renderer          *glamour.TermRenderer
 	renderWrap        int
 	pendingGotoTopKey bool
+	planExpanded      bool
 }
 
 func newViewerModel(session sessionFull, conv conversation, glamourStyle string, width, height int) viewerModel {
@@ -240,6 +243,12 @@ func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool
 		)
 		return true
 
+	case key.Matches(msg, viewerKeys.TogglePlan):
+		m.planExpanded = !m.planExpanded
+		m.renderContent()
+		m.setNotification(infoNotification(fmt.Sprintf("plan: %s", toggleLabel(m.planExpanded))).notification, cmds)
+		return true
+
 	case key.Matches(msg, viewerKeys.ToggleSidechain):
 		m.opts.hideSidechain = !m.opts.hideSidechain
 		m.renderContent()
@@ -249,6 +258,7 @@ func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool
 		}
 		m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
 		return true
+
 	}
 	return false
 }
@@ -306,7 +316,23 @@ func (m viewerModel) footerView() string {
 }
 
 func (m viewerModel) footerItems() []helpItem {
-	return transcriptFooterItems(m.opts, m.content)
+	items := transcriptFooterItems(m.opts, m.content)
+	if !m.content.hasPlans {
+		return items
+	}
+	planItem := helpItem{
+		key: "p", desc: "plan", toggle: true,
+		on: m.planExpanded, glow: !m.planExpanded && m.content.hasPlans,
+	}
+	// Insert plan toggle after the last transcript toggle (before action items).
+	insertAt := len(items)
+	for i := len(items) - 1; i >= 0; i-- {
+		if items[i].toggle {
+			insertAt = i + 1
+			break
+		}
+	}
+	return append(items[:insertAt], append([]helpItem{planItem}, items[insertAt:]...)...)
 }
 
 func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
@@ -316,22 +342,27 @@ func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
 func (m viewerModel) footerStatusParts() []string {
 	rightParts := []string{fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100)}
 	rightParts = appendToggleStatusParts(rightParts, m.opts, m.content)
+	if m.planExpanded && m.content.hasPlans {
+		rightParts = append(rightParts, styleToolCall.Render("[plan]"))
+	}
 	rightParts = appendSearchStatusPart(rightParts, m.searchQuery, m.matchIndices, m.currentMatch)
 	return rightParts
 }
 
 func appendToggleStatusParts(parts []string, opts transcriptOptions, content contentFlags) []string {
-	if opts.showThinking && content.hasThinking {
-		parts = append(parts, styleToolCall.Render("[thinking]"))
+	toggles := []struct {
+		active bool
+		label  string
+	}{
+		{opts.showThinking && content.hasThinking, "[thinking]"},
+		{opts.showTools && content.hasToolCalls, "[tools]"},
+		{opts.showToolResults && content.hasToolResults, "[results]"},
+		{opts.hideSidechain && content.hasSidechain, "[no-sidechain]"},
 	}
-	if opts.showTools && content.hasToolCalls {
-		parts = append(parts, styleToolCall.Render("[tools]"))
-	}
-	if opts.showToolResults && content.hasToolResults {
-		parts = append(parts, styleToolCall.Render("[results]"))
-	}
-	if opts.hideSidechain && content.hasSidechain {
-		parts = append(parts, styleToolCall.Render("[no-sidechain]"))
+	for _, t := range toggles {
+		if t.active {
+			parts = append(parts, styleToolCall.Render(t.label))
+		}
 	}
 	return parts
 }
@@ -361,6 +392,9 @@ func (m *viewerModel) renderContent() {
 	var sb strings.Builder
 	if header := renderConversationHeader(m.conversation, contentWidth); header != "" {
 		sb.WriteString(header)
+	}
+	if planHeader := renderPlanHeader(m.session.messages, contentWidth, m.planExpanded); planHeader != "" {
+		sb.WriteString(planHeader)
 	}
 	for _, seg := range segments {
 		renderSegment(&sb, seg, renderer, rendererErr, contentWidth)

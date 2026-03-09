@@ -62,6 +62,21 @@ func headerBadges(conv conversation) []string {
 	return badges
 }
 
+// renderPlanHeader renders the final accepted plan inside a bordered box,
+// placed below the conversation metadata header. Returns empty if no plan.
+// When collapsed, shows only the plan filename; when expanded, shows full content.
+func renderPlanHeader(messages []message, width int, expanded bool) string {
+	p, ok := lastPlan(messages)
+	if !ok {
+		return ""
+	}
+	title := fmt.Sprintf("Plan: %s", filepath.Base(p.filePath))
+	if !expanded {
+		return renderInsetBox(width, colorPrimary, title) + "\n\n"
+	}
+	return renderInsetBox(width, colorPrimary, title+"\n\n"+p.content) + "\n\n"
+}
+
 func headerSummaryChips(conv conversation) []string {
 	var chips []string
 	if model := conv.model(); model != "" {

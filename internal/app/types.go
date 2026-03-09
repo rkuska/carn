@@ -151,6 +151,7 @@ type message struct {
 	thinking       string
 	toolCalls      []toolCall
 	toolResults    []toolResult
+	plans          []plan
 	isSidechain    bool
 	isAgentDivider bool
 }

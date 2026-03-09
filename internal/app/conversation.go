@@ -14,6 +14,7 @@ type conversation struct {
 	name          string // session slug (session name)
 	project       project
 	sessions      []sessionMeta // chronologically ordered, len >= 1
+	planCount     int
 	searchPreview string
 }
 
