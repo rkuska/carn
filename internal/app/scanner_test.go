@@ -15,31 +15,12 @@ import (
 const testTextHello = "hello"
 const testToolRead = "Read"
 
-func findTestJSONL(t *testing.T) string {
+func copyScannerFixtureCorpus(t *testing.T) string {
 	t.Helper()
-	home, err := os.UserHomeDir()
-	require.NoError(t, err)
-	baseDir := filepath.Join(home, claudeProjectsDir)
-	entries, err := os.ReadDir(baseDir)
-	if err != nil {
-		t.Skipf("no claude projects dir: %v", err)
-	}
 
-	// Find a file that is at least a few KB (likely has real content)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		files, _ := filepath.Glob(filepath.Join(baseDir, entry.Name(), "*.jsonl"))
-		for _, f := range files {
-			info, err := os.Stat(f)
-			if err == nil && info.Size() > 4096 {
-				return f
-			}
-		}
-	}
-	t.Skip("no JSONL files found")
-	return ""
+	baseDir := t.TempDir()
+	copyFixtureCorpusToSource(t, baseDir)
+	return baseDir
 }
 
 func TestExtractType(t *testing.T) {
@@ -117,18 +98,18 @@ func TestProjectFromDirName(t *testing.T) {
 	}{
 		{
 			name:        "typical project path",
-			dirName:     "-Users-testuser-Work-apropos",
-			wantDisplay: "Work-apropos",
+			dirName:     "-Users-testuser-work-sample-project",
+			wantDisplay: "work-sample-project",
 		},
 		{
 			name:        "deep path preserves hyphens",
-			dirName:     "-Users-testuser-Projects-claude-search",
-			wantDisplay: "Projects-claude-search",
+			dirName:     "-Users-testuser-Projects-carn-fixtures",
+			wantDisplay: "Projects-carn-fixtures",
 		},
 		{
 			name:        "single component after prefix",
-			dirName:     "-Users-testuser-myproject",
-			wantDisplay: "myproject",
+			dirName:     "-Users-testuser-sample-project",
+			wantDisplay: "sample-project",
 		},
 		{
 			name:        "home prefix",
@@ -161,13 +142,13 @@ func TestDisplayNameFromCWD(t *testing.T) {
 	}{
 		{
 			name: "typical path",
-			cwd:  "/Users/testuser/Work/apropos",
-			want: "Work/apropos",
+			cwd:  "/Users/testuser/work/sample-project",
+			want: "work/sample-project",
 		},
 		{
 			name: "deep path",
-			cwd:  "/Users/testuser/Projects/claude-search",
-			want: "Projects/claude-search",
+			cwd:  "/Users/testuser/Projects/carn-fixtures",
+			want: "Projects/carn-fixtures",
 		},
 		{
 			name: "root",
@@ -858,30 +839,32 @@ func TestScanMetadataArrayFirstMessage(t *testing.T) {
 	assert.Equal(t, "array first message", meta.firstMessage)
 }
 
-func TestScanMetadataRealFile(t *testing.T) {
+func TestScanMetadataFixtureFile(t *testing.T) {
 	t.Parallel()
 
-	filePath := findTestJSONL(t)
-	proj := project{displayName: "test/project"}
+	baseDir := copyScannerFixtureCorpus(t)
+	filePath := filepath.Join(baseDir, "project-a", "session-with-tools.jsonl")
+	proj := project{displayName: "project-a"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
-	assert.NotEmpty(t, meta.id)
-	// slug may be empty in older sessions, so don't require it
+	assert.Equal(t, "session-tools", meta.id)
+	assert.Equal(t, "tool-runbook", meta.slug)
 	assert.False(t, meta.timestamp.IsZero())
-	assert.NotEmpty(t, meta.firstMessage)
-	assert.NotZero(t, meta.messageCount)
+	assert.Equal(t, "Inspect the main package and run the tests.", meta.firstMessage)
+	assert.Equal(t, 5, meta.messageCount)
+	assert.Equal(t, 4, meta.mainMessageCount)
 	assert.Equal(t, filePath, meta.filePath)
-	if total := meta.totalUsage.totalTokens(); total == 0 {
-		t.Logf("totalTokens() = 0 for %s (file may use a format where extractType misses assistant records)", filePath)
-	}
+	assert.Equal(t, 440, meta.totalUsage.totalTokens())
+	assert.Equal(t, map[string]int{"Bash": 1, "Read": 1}, meta.toolCounts)
 }
 
-func TestParseSessionRealFile(t *testing.T) {
+func TestParseSessionFixtureFile(t *testing.T) {
 	t.Parallel()
 
-	filePath := findTestJSONL(t)
-	proj := project{displayName: "test/project"}
+	baseDir := copyScannerFixtureCorpus(t)
+	filePath := filepath.Join(baseDir, "project-a", "session-with-tools.jsonl")
+	proj := project{displayName: "project-a"}
 
 	meta, err := scanMetadata(context.Background(), filePath, proj)
 	require.NoError(t, err)
@@ -892,38 +875,38 @@ func TestParseSessionRealFile(t *testing.T) {
 
 	// First message should be from user
 	assert.Equal(t, roleUser, session.messages[0].role)
-
-	// Should have at least one assistant message with text
-	hasAssistant := false
-	for _, msg := range session.messages {
-		if msg.role == roleAssistant && (msg.text != "" || len(msg.toolCalls) > 0) {
-			hasAssistant = true
-			break
-		}
-	}
-	if !hasAssistant {
-		t.Logf("no assistant messages with text/tools found in %s (%d total messages)", meta.filePath, len(session.messages))
-	}
+	require.Len(t, session.messages, 5)
+	assert.Equal(t, "Inspect the main package and run the tests.", session.messages[0].text)
+	assert.Len(t, session.messages[1].toolCalls, 2)
+	assert.Equal(t, "/Users/testuser/work/sample-project/main.go", session.messages[1].toolCalls[0].summary)
+	assert.Equal(t, "go test ./...", session.messages[1].toolCalls[1].summary)
+	assert.Len(t, session.messages[2].toolResults, 2)
+	assert.True(t, session.messages[3].isSidechain)
+	assert.Equal(t, "Background tool planning", session.messages[3].text)
+	assert.Equal(t, "Main package inspected and tests passed.", session.messages[4].text)
 }
 
 func TestScanSessions(t *testing.T) {
 	t.Parallel()
 
-	home, err := os.UserHomeDir()
-	require.NoError(t, err)
-	baseDir := filepath.Join(home, claudeProjectsDir)
+	baseDir := copyScannerFixtureCorpus(t)
 	sessions, err := scanSessions(context.Background(), baseDir)
 	require.NoError(t, err)
-
-	if len(sessions) == 0 {
-		t.Skip("no sessions found")
-	}
+	require.Len(t, sessions, 7)
 
 	// Verify all sessions have required fields
 	for i, s := range sessions {
 		assert.NotEmpty(t, s.meta.id, "session[%d] has empty id", i)
 		assert.NotEmpty(t, s.meta.filePath, "session[%d] has empty filePath", i)
 	}
+
+	var subagentCount int
+	for _, s := range sessions {
+		if s.meta.isSubagent {
+			subagentCount++
+		}
+	}
+	assert.Equal(t, 1, subagentCount)
 }
 
 func TestSummarizeToolCall(t *testing.T) {

@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"agent-1","slug":"subagent-helper","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-09T10:00:03Z","message":{"role":"user","content":"Check tokenizer edge cases."}}
+{"type":"assistant","sessionId":"agent-1","slug":"subagent-helper","timestamp":"2026-03-09T10:00:05Z","message":{"role":"assistant","model":"claude-haiku-3.5","content":[{"type":"text","text":"Tokenizer edge case report"}]}}

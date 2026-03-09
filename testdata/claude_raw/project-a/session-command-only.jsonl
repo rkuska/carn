@@ -1,0 +1,3 @@
+{"type":"user","sessionId":"session-command-only","slug":"command-only","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-07T09:30:00Z","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>system caveat</local-command-caveat>"}}
+{"type":"user","sessionId":"session-command-only","slug":"command-only","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-07T09:30:01Z","message":{"role":"user","content":"<command-name>/exit</command-name>"}}
+{"type":"user","sessionId":"session-command-only","slug":"command-only","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-07T09:30:02Z","message":{"role":"user","content":"<local-command-stdout>Catch you later!</local-command-stdout>"}}

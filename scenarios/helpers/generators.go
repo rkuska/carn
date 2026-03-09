@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,12 @@ func NewWorkspace(tb testing.TB) Workspace {
 		SourceDir:  sourceDir,
 		ArchiveDir: archiveDir,
 	}
+}
+
+// SeedFixtureCorpus copies the shared raw-session corpus into the workspace source.
+func (w Workspace) SeedFixtureCorpus(tb testing.TB) {
+	tb.Helper()
+	copyFixtureDir(tb, fixtureCorpusDir(tb), w.SourceDir)
 }
 
 // WriteSession writes a minimal session JSONL file into the source workspace.
@@ -130,4 +137,50 @@ func mustJSON(tb testing.TB, value any) string {
 	}
 
 	return string(raw)
+}
+
+func fixtureCorpusDir(tb testing.TB) string {
+	tb.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		tb.Fatal("runtime.Caller: no caller information")
+	}
+
+	return filepath.Join(filepath.Dir(file), "..", "..", "testdata", "claude_raw")
+}
+
+func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {
+	tb.Helper()
+
+	err := filepath.WalkDir(srcDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+
+		dstPath := filepath.Join(dstDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dstPath, 0o755)
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(dstPath, data, 0o644)
+	})
+	if err != nil {
+		tb.Fatalf("copyFixtureDir: %v", err)
+	}
 }

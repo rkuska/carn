@@ -15,6 +15,7 @@ func newScenarioHarness(
 	width, height int,
 ) *programHarness {
 	t.Helper()
+	t.Setenv("HOME", workspace.RootDir)
 
 	model, err := app.NewModel(t.Context(), app.Config{
 		SourceDir:    workspace.SourceDir,
@@ -69,6 +70,32 @@ func TestScenarioImportAndOpenTranscript(t *testing.T) {
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
+}
+
+func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.SeedFixtureCorpus(t)
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Import Workspace")
+	harness.waitForText(
+		t,
+		"Will import 7 archive files and refresh the local store after confirmation.",
+	)
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+
+	harness.pressEnter()
+	harness.waitForText(t, "Claude Sessions")
+	harness.waitForText(t, "subagent-parent")
+
+	harness.pressEnter()
+	harness.waitForText(t, "Investigate flaky search results.")
+	harness.waitForText(t, "Tokenizer edge case report")
+	harness.waitForText(t, "Tokenizer investigation completed.")
+
+	harness.quit(t)
 }
 
 func TestScenarioEmptyWorkspaceNarrowLayout(t *testing.T) {

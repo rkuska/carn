@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"session-legacy","slug":"legacy-format","cwd":"/home/user/work/legacy-project","timestamp":"2026-03-06T08:00:00Z","message":{"role":"user","content":"Can you read the older transcript?"}}
+{"type":"assistant","sessionId":"session-legacy","slug":"legacy-format","timestamp":"2026-03-06T08:00:04Z","message":{"role":"assistant","type":"message","model":"claude-2.1","content":[{"type":"text","text":"Legacy transcript loaded"}]}}

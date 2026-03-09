@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"session-usage","slug":"usage-summary","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-08T08:00:00Z","message":{"role":"user","content":"Give me token totals."}}
+{"type":"assistant","sessionId":"session-usage","slug":"usage-summary","timestamp":"2026-03-08T08:00:04Z","message":{"role":"assistant","model":"claude-haiku-3.5","content":[{"type":"text","text":"Token totals are available."}],"usage":{"input_tokens":300,"output_tokens":90,"cache_creation_input_tokens":20,"cache_read_input_tokens":30}}}

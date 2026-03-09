@@ -2,9 +2,6 @@ package app
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -69,42 +66,28 @@ func TestLoadSessionsCmdFiltersCommandOnlyConversations(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	projectDir := filepath.Join(
-		providerRawDir(baseDir, conversationProviderClaude),
-		"proj",
-	)
-	require.NoError(t, os.MkdirAll(projectDir, 0o755))
-
-	realSession := strings.Join([]string{
-		`{"type":"user","sessionId":"real-session","slug":"real-session",` +
-			`"cwd":"/Users/testuser/Work/apropos","timestamp":"2026-03-06T14:50:00Z",` +
-			`"message":{"role":"user","content":"actual question"}}`,
-		`{"type":"assistant","timestamp":"2026-03-06T14:50:05Z",` +
-			`"message":{"role":"assistant","model":"claude-sonnet-4",` +
-			`"content":[{"type":"text","text":"actual answer"}]}}`,
-	}, "\n")
-	commandOnlySession := strings.Join([]string{
-		`{"type":"user","sessionId":"command-only",` +
-			`"cwd":"/Users/testuser/Work/apropos","timestamp":"2026-03-06T14:53:23.505Z",` +
-			`"isMeta":true,"message":{"role":"user",` +
-			`"content":"<local-command-caveat>system caveat</local-command-caveat>"}}`,
-		`{"type":"user","sessionId":"command-only",` +
-			`"cwd":"/Users/testuser/Work/apropos","timestamp":"2026-03-06T14:53:25.316Z",` +
-			`"message":{"role":"user","content":"<command-name>/exit</command-name>"}}`,
-		`{"type":"user","sessionId":"command-only",` +
-			`"cwd":"/Users/testuser/Work/apropos","timestamp":"2026-03-06T14:53:25.317Z",` +
-			`"message":{"role":"user",` +
-			`"content":"<local-command-stdout>Catch you later!</local-command-stdout>"}}`,
-	}, "\n")
-
-	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "real.jsonl"), []byte(realSession), 0o644))
-	commandOnlyPath := filepath.Join(projectDir, "command-only.jsonl")
-	require.NoError(t, os.WriteFile(commandOnlyPath, []byte(commandOnlySession), 0o644))
+	copyFixtureCorpusToArchive(t, baseDir)
 	require.NoError(t, rebuildCanonicalStore(context.Background(), baseDir, conversationProviderClaude, nil))
 
 	msg := loadSessionsCmd(context.Background(), baseDir)()
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
-	require.Len(t, loaded.conversations, 1)
-	assert.Equal(t, "real-session", loaded.conversations[0].name)
-	assert.NotEqual(t, "real-session", loaded.conversations[0].id())
+
+	names := make([]string, 0, len(loaded.conversations))
+	for _, conv := range loaded.conversations {
+		names = append(names, conv.name)
+	}
+
+	assert.NotContains(t, names, "command-only")
+	assert.ElementsMatch(
+		t,
+		[]string{
+			"fixture-basic",
+			"legacy-format",
+			"subagent-helper",
+			"subagent-parent",
+			"tool-runbook",
+			"usage-summary",
+		},
+		names,
+	)
 }
