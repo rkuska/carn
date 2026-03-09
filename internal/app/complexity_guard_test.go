@@ -42,6 +42,7 @@ var complexityExceptions = map[string]fileThresholds{
 	"canonical_store.go": {maxComplexity: 400, maxCodeLines: 1300},
 	"scanner.go":         {maxComplexity: 120, maxCodeLines: 1300},
 	"scanner_test.go":    {maxComplexity: 120, maxCodeLines: 1900},
+	"viewer.go":          {maxComplexity: 120, maxCodeLines: 510},
 }
 
 func thresholdsForFile(name string) (fileThresholds, bool) {

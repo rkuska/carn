@@ -63,10 +63,11 @@ type viewerModel struct {
 	searchInput       textinput.Model
 	searching         bool
 	searchQuery       string
-	matchIndices      []int // line indices of matches
+	matches           []searchOccurrence
 	currentMatch      int
 	notification      notification
 	rawContent        string // unrendered transcript
+	baseContent       string // rendered content before search highlights
 	searchLines       []string
 	renderer          *glamour.TermRenderer
 	renderWrap        int
@@ -265,8 +266,9 @@ func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool
 
 func (m *viewerModel) clearSearch() {
 	m.searchQuery = ""
-	m.matchIndices = nil
+	m.matches = nil
 	m.currentMatch = 0
+	m.applyViewportContent()
 }
 
 func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
@@ -345,7 +347,7 @@ func (m viewerModel) footerStatusParts() []string {
 	if m.planExpanded && m.content.hasPlans {
 		rightParts = append(rightParts, styleToolCall.Render("[plan]"))
 	}
-	rightParts = appendSearchStatusPart(rightParts, m.searchQuery, m.matchIndices, m.currentMatch)
+	rightParts = appendSearchStatusPart(rightParts, m.searchQuery, m.matches, m.currentMatch)
 	return rightParts
 }
 
@@ -367,14 +369,14 @@ func appendToggleStatusParts(parts []string, opts transcriptOptions, content con
 	return parts
 }
 
-func appendSearchStatusPart(parts []string, query string, matchIndices []int, currentMatch int) []string {
+func appendSearchStatusPart(parts []string, query string, matches []searchOccurrence, currentMatch int) []string {
 	if query == "" {
 		return parts
 	}
-	if len(matchIndices) == 0 {
+	if len(matches) == 0 {
 		return append(parts, fmt.Sprintf("/%s (no matches)", query))
 	}
-	return append(parts, fmt.Sprintf("/%s (%d/%d)", query, currentMatch+1, len(matchIndices)))
+	return append(parts, fmt.Sprintf("/%s (%d/%d)", query, currentMatch+1, len(matches)))
 }
 
 func (m *viewerModel) setNotification(n notification, cmds *[]tea.Cmd) {
@@ -400,9 +402,9 @@ func (m *viewerModel) renderContent() {
 		renderSegment(&sb, seg, renderer, rendererErr, contentWidth)
 	}
 
-	content := sb.String()
-	m.viewport.SetContent(content)
-	m.rebuildSearchIndex(content)
+	m.baseContent = sb.String()
+	m.rebuildSearchIndex(m.baseContent)
+	m.applyViewportContent()
 
 	if m.searchQuery != "" {
 		m.performSearch()
@@ -494,7 +496,7 @@ func (m *viewerModel) rebuildSearchIndex(content string) {
 }
 
 func (m *viewerModel) performSearch() {
-	m.matchIndices = nil
+	m.matches = nil
 	m.currentMatch = 0
 
 	if m.searchQuery == "" {
@@ -503,23 +505,35 @@ func (m *viewerModel) performSearch() {
 
 	queryLower := strings.ToLower(m.searchQuery)
 	for i, line := range m.searchLines {
-		if strings.Contains(line, queryLower) {
-			m.matchIndices = append(m.matchIndices, i)
+		offset := 0
+		for {
+			idx := strings.Index(line[offset:], queryLower)
+			if idx < 0 {
+				break
+			}
+			m.matches = append(m.matches, searchOccurrence{
+				line:      i,
+				byteStart: offset + idx,
+			})
+			offset += idx + len(queryLower)
 		}
 	}
 
-	if len(m.matchIndices) > 0 {
-		m.viewport.SetYOffset(m.matchIndices[0])
+	m.applyViewportContent()
+
+	if len(m.matches) > 0 {
+		m.viewport.SetYOffset(m.matches[0].line)
 	}
 }
 
 func (m *viewerModel) jumpToMatch(delta int) {
-	if len(m.matchIndices) == 0 {
+	if len(m.matches) == 0 {
 		return
 	}
 
-	m.currentMatch = (m.currentMatch + delta + len(m.matchIndices)) % len(m.matchIndices)
-	m.viewport.SetYOffset(m.matchIndices[m.currentMatch])
+	m.currentMatch = (m.currentMatch + delta + len(m.matches)) % len(m.matches)
+	m.applyViewportContent()
+	m.viewport.SetYOffset(m.matches[m.currentMatch].line)
 }
 
 func renderRoleHeader(r role, width int) string {
