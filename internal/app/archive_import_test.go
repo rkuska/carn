@@ -85,6 +85,21 @@ func TestExtractSessionSlugNonExistent(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestExtractSessionSlugLargeUserRecord(t *testing.T) {
+	t.Parallel()
+
+	largeContent := strings.Repeat("s", 2*1024*1024)
+	content := makeTestUserRecord(t, "session-large-slug", "large-slug", largeContent)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "large-slug.jsonl")
+	writeTestFile(t, path, content)
+
+	slug, err := extractSessionSlug(path)
+	require.NoError(t, err)
+	assert.Equal(t, "large-slug", slug)
+}
+
 func TestAnalyzeProjectDir(t *testing.T) {
 	t.Parallel()
 

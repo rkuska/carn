@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -263,6 +267,193 @@ func TestCountMessagesWithSidechain(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, total)
 	assert.Equal(t, 3, mainOnly)
+}
+
+func TestJSONLLines(t *testing.T) {
+	t.Parallel()
+
+	largeLine := strings.Repeat("x", 2*1024*1024)
+	secondLargeLine := strings.Repeat("y", 1536*1024)
+
+	tests := []struct {
+		name       string
+		input      string
+		bufferSize int
+		want       []string
+	}{
+		{
+			name:       "normal lines",
+			input:      "first\nsecond\nthird\n",
+			bufferSize: 32,
+			want:       []string{"first", "second", "third"},
+		},
+		{
+			name:       "no trailing newline",
+			input:      "first\nsecond",
+			bufferSize: 32,
+			want:       []string{"first", "second"},
+		},
+		{
+			name:       "empty lines skipped",
+			input:      "\nfirst\n\nsecond\n\n",
+			bufferSize: 32,
+			want:       []string{"first", "second"},
+		},
+		{
+			name:       "crlf trimmed",
+			input:      "first\r\nsecond\r\n",
+			bufferSize: 32,
+			want:       []string{"first", "second"},
+		},
+		{
+			name:       "empty input",
+			input:      "",
+			bufferSize: 32,
+			want:       []string{},
+		},
+		{
+			name:       "line larger than one megabyte",
+			input:      largeLine + "\n",
+			bufferSize: 512 * 1024,
+			want:       []string{largeLine},
+		},
+		{
+			name:       "oversized lines back to back",
+			input:      largeLine + "\n" + secondLargeLine + "\n",
+			bufferSize: 512 * 1024,
+			want:       []string{largeLine, secondLargeLine},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := collectJSONLLines(jsonlLines(strings.NewReader(tt.input), tt.bufferSize))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestJSONLLinesEarlyBreak(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+	for line, err := range jsonlLines(strings.NewReader("first\nsecond\nthird\n"), 32) {
+		require.NoError(t, err)
+		got = append(got, string(append([]byte(nil), line...)))
+		break
+	}
+
+	assert.Equal(t, []string{"first"}, got)
+}
+
+func TestJSONLLinesReadError(t *testing.T) {
+	t.Parallel()
+
+	reader := &sequenceReader{
+		steps: []readStep{
+			{data: "first\n"},
+			{err: errors.New("boom")},
+		},
+	}
+
+	got, err := collectJSONLLines(jsonlLines(reader, 32))
+	assert.Equal(t, []string{"first"}, got)
+	require.Error(t, err)
+	assert.EqualError(t, err, "boom")
+}
+
+func TestScanMetadataResultLargeToolResultLine(t *testing.T) {
+	t.Parallel()
+
+	largeContent := strings.Repeat("r", 2*1024*1024)
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "session-large-meta", "large-meta", "initial"),
+		makeTestUserToolResultRecord(
+			t,
+			"session-large-meta",
+			"large-meta",
+			"toolu_large_meta",
+			largeContent,
+			"finished",
+		),
+	}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "large-metadata.jsonl")
+	writeTestFile(t, filePath, content)
+
+	result, err := scanMetadataResult(
+		context.Background(),
+		filePath,
+		project{displayName: "test"},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "session-large-meta", result.meta.id)
+	assert.Equal(t, "large-meta", result.meta.slug)
+	assert.Equal(t, "initial", result.meta.firstMessage)
+	assert.Equal(t, 2, result.meta.messageCount)
+	assert.Equal(t, 2, result.meta.mainMessageCount)
+}
+
+func TestCountMessagesLargeLine(t *testing.T) {
+	t.Parallel()
+
+	largeContent := strings.Repeat("a", 2*1024*1024)
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "session-large-count", "large-count", "hello"),
+		makeTestAssistantTextRecord(t, "session-large-count", largeContent),
+	}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "large-count.jsonl")
+	writeTestFile(t, filePath, content)
+
+	total, mainOnly, err := countMessages(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Equal(t, 2, mainOnly)
+}
+
+func TestParseSessionLargeToolResultLine(t *testing.T) {
+	t.Parallel()
+
+	largeContent := strings.Repeat("z", 2*1024*1024)
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "session-large-parse", "large-parse", "initial"),
+		makeTestAssistantToolUseRecord(t, "session-large-parse", "toolu_large_parse"),
+		makeTestUserToolResultRecord(
+			t,
+			"session-large-parse",
+			"large-parse",
+			"toolu_large_parse",
+			largeContent,
+			"done",
+		),
+	}, "\n")
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "large-parse.jsonl")
+	writeTestFile(t, filePath, content)
+
+	meta := sessionMeta{
+		id:       "session-large-parse",
+		filePath: filePath,
+		project:  project{displayName: "test"},
+	}
+	session, err := parseSession(context.Background(), meta)
+	require.NoError(t, err)
+	require.Len(t, session.messages, 3)
+	require.Len(t, session.messages[2].toolResults, 1)
+	assert.Equal(t, testToolRead, session.messages[2].toolResults[0].toolName)
+	assert.Equal(t, "/tmp/large.txt", session.messages[2].toolResults[0].toolSummary)
+	assert.Equal(
+		t,
+		truncatePreserveNewlines(largeContent, maxToolResultChars),
+		session.messages[2].toolResults[0].content,
+	)
 }
 
 func TestExtractUserContent(t *testing.T) {
@@ -1829,6 +2020,138 @@ func TestSessionMetaTitleNoGap(t *testing.T) {
 		title := meta.Title()
 		assert.Contains(t, title, "untitled")
 	})
+}
+
+func collectJSONLLines(seq iter.Seq2[[]byte, error]) ([]string, error) {
+	lines := make([]string, 0)
+	for line, err := range seq {
+		if err != nil {
+			return lines, err
+		}
+		lines = append(lines, string(append([]byte(nil), line...)))
+	}
+	return lines, nil
+}
+
+type readStep struct {
+	data string
+	err  error
+}
+
+type sequenceReader struct {
+	steps []readStep
+}
+
+func (r *sequenceReader) Read(p []byte) (int, error) {
+	if len(r.steps) == 0 {
+		return 0, io.EOF
+	}
+
+	step := r.steps[0]
+	r.steps = r.steps[1:]
+	n := copy(p, step.data)
+	return n, step.err
+}
+
+func makeTestUserRecord(t testing.TB, sessionID, slug, text string) string {
+	t.Helper()
+
+	return marshalTestJSONLRecord(t, map[string]any{
+		"type":      "user",
+		"sessionId": sessionID,
+		"slug":      slug,
+		"timestamp": "2024-01-01T00:00:00Z",
+		"cwd":       "/tmp",
+		"message": map[string]any{
+			"role":    "user",
+			"content": text,
+		},
+	})
+}
+
+func makeTestUserToolResultRecord(
+	t testing.TB,
+	sessionID, slug, toolUseID, toolContent, text string,
+) string {
+	t.Helper()
+
+	return marshalTestJSONLRecord(t, map[string]any{
+		"type":      "user",
+		"sessionId": sessionID,
+		"slug":      slug,
+		"timestamp": "2024-01-01T00:00:01Z",
+		"cwd":       "/tmp",
+		"message": map[string]any{
+			"role": "user",
+			"content": []map[string]any{
+				{
+					"type":        "tool_result",
+					"tool_use_id": toolUseID,
+					"content":     toolContent,
+				},
+				{
+					"type": "text",
+					"text": text,
+				},
+			},
+		},
+	})
+}
+
+func makeTestAssistantTextRecord(t testing.TB, sessionID, text string) string {
+	t.Helper()
+
+	return marshalTestJSONLRecord(t, map[string]any{
+		"type":      "assistant",
+		"sessionId": sessionID,
+		"timestamp": "2024-01-01T00:00:01Z",
+		"message": map[string]any{
+			"role":  "assistant",
+			"model": "claude",
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": text,
+				},
+			},
+		},
+	})
+}
+
+func makeTestAssistantToolUseRecord(t testing.TB, sessionID, toolUseID string) string {
+	t.Helper()
+
+	return marshalTestJSONLRecord(t, map[string]any{
+		"type":      "assistant",
+		"sessionId": sessionID,
+		"timestamp": "2024-01-01T00:00:00Z",
+		"message": map[string]any{
+			"role":  "assistant",
+			"model": "claude",
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "reading file",
+				},
+				{
+					"type": "tool_use",
+					"id":   toolUseID,
+					"name": "Read",
+					"input": map[string]any{
+						"file_path": "/tmp/large.txt",
+					},
+				},
+			},
+		},
+	})
+}
+
+func marshalTestJSONLRecord(t testing.TB, rec map[string]any) string {
+	t.Helper()
+
+	raw, err := json.Marshal(rec)
+	require.NoError(t, err)
+	return string(raw)
 }
 
 func TestScanMetadataSkipsIsMetaFirstMessage(t *testing.T) {

@@ -248,3 +248,13 @@ readable text.
 For fixes try to include an error message that you are fixing.
 Don't use first person speech.
 Before writing a commit message, re-read the actual git diff. The message must describe what was changed, not what was planned.
+
+### Commit command
+
+When creating or amending commits, write the message to a temporary file
+with real newlines and use `git commit -F <file>` or
+`git commit --amend -F <file>`.
+
+Do not use a single `-m` argument with escaped `\n` sequences for a
+multi-line message. That stores the backslash characters literally and
+produces a one-line body in git history.

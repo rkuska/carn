@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -251,13 +250,9 @@ func extractSessionSlug(filePath string) (string, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 512*1024)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
+	for line, err := range jsonlLines(f, jsonlSlugBufferSize) {
+		if err != nil {
+			return "", fmt.Errorf("extractSessionSlug_jsonlLines: %w", err)
 		}
 		if extractType(line) != "user" {
 			continue
@@ -272,10 +267,6 @@ func extractSessionSlug(filePath string) (string, error) {
 		if rec.Slug != "" {
 			return rec.Slug, nil
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scanner.Err: %w", err)
 	}
 
 	return "", nil

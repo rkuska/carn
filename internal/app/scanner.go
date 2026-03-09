@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"iter"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,10 +22,12 @@ import (
 )
 
 const (
-	claudeProjectsDir  = ".claude/projects"
-	maxFirstMessage    = 200
-	maxToolResultChars = 500
-	blockTypeText      = "text"
+	claudeProjectsDir   = ".claude/projects"
+	maxFirstMessage     = 200
+	maxToolResultChars  = 500
+	blockTypeText       = "text"
+	jsonlScanBufferSize = 512 * 1024
+	jsonlSlugBufferSize = 64 * 1024
 )
 
 type sessionFile struct {
@@ -41,6 +45,47 @@ type scannedSessionResult struct {
 type parsedSessionMessagesResult struct {
 	messages []parsedMessage
 	ok       bool
+}
+
+// jsonlLines iterates over non-empty JSONL lines without a line-length limit.
+// Returned slices are backed by the reader buffer or a reusable overflow buffer
+// and are only valid until the next iteration.
+func jsonlLines(r io.Reader, bufferSize int) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		br := bufio.NewReaderSize(r, bufferSize)
+		var overflow []byte
+
+		yieldLine := func(line []byte) bool {
+			line = bytes.TrimRight(line, "\n\r")
+			if len(line) == 0 {
+				return true
+			}
+			return yield(line, nil)
+		}
+
+		for {
+			line, err := br.ReadSlice('\n')
+			if err == bufio.ErrBufferFull {
+				overflow = append(overflow[:0], line...)
+				for err == bufio.ErrBufferFull {
+					var more []byte
+					more, err = br.ReadSlice('\n')
+					overflow = append(overflow, more...)
+				}
+				line = overflow
+			}
+
+			if len(line) > 0 && !yieldLine(line) {
+				return
+			}
+			if err != nil {
+				if err != io.EOF {
+					yield(nil, err)
+				}
+				return
+			}
+		}
+	}
 }
 
 // scanSessions discovers all session JSONL files and extracts metadata.
@@ -272,9 +317,6 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
-
 	result := scannedSession{
 		meta: sessionMeta{filePath: filePath, project: proj},
 	}
@@ -282,20 +324,14 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	var foundUser, foundAssistant bool
 	stats := scanStats{toolCounts: make(map[string]int)}
 
-	for scanner.Scan() {
+	for line, err := range jsonlLines(f, jsonlScanBufferSize) {
 		if err := ctx.Err(); err != nil {
 			return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", err)
 		}
-
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
+		if err != nil {
+			return scannedSession{}, fmt.Errorf("scanMetadataResult_jsonlLines: %w", err)
 		}
 		scanMetadataLine(ctx, line, &result, &foundUser, &foundAssistant, &stats)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return scannedSession{}, fmt.Errorf("scanner.Err: %w", err)
 	}
 	if result.meta.id == "" {
 		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
@@ -671,13 +707,12 @@ func countMessages(filePath string) (int, int, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
-
 	var total, mainOnly int
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	for line, err := range jsonlLines(f, jsonlScanBufferSize) {
+		if err != nil {
+			return 0, 0, fmt.Errorf("countMessages_jsonlLines: %w", err)
+		}
 		t := role(extractType(line))
 		if t == roleUser || t == roleAssistant {
 			total++
@@ -687,7 +722,7 @@ func countMessages(filePath string) (int, int, error) {
 		}
 	}
 
-	return total, mainOnly, scanner.Err()
+	return total, mainOnly, nil
 }
 
 // parseSession reads a full JSONL file and returns a complete session.
@@ -747,30 +782,21 @@ func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parse
 	}
 	defer func() { _ = f.Close() }()
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 512*1024), 1024*1024)
-
 	var messages []parsedMessage
 	toolCallIndex := make(map[string]parsedToolCall)
 
-	for scanner.Scan() {
+	for line, err := range jsonlLines(f, jsonlScanBufferSize) {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("parseSessionMessagesDetailed_ctx: %w", err)
 		}
-
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
+		if err != nil {
+			return nil, fmt.Errorf("parseSessionMessagesDetailed_jsonlLines: %w", err)
 		}
 
 		recType := role(extractType(line))
 		if msg, ok := parseAndIndexLine(ctx, line, recType, toolCallIndex); ok {
 			messages = append(messages, msg)
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scanner.Err: %w", err)
 	}
 
 	return messages, nil
