@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	storeSchemaVersion       = 1
-	storeProjectionVersion   = 1
+	storeSchemaVersion       = 3
+	storeProjectionVersion   = 3
 	storeSearchCorpusVersion = 1
 
 	catalogMagic    = "CLDSCAT1"
@@ -106,6 +106,7 @@ func rebuildCanonicalStore(
 			ctx, archiveDir, conversations, changedRawPaths,
 		)
 		if err == nil {
+			setPlanCounts(conversations, transcripts)
 			return writeCanonicalStoreAtomically(archiveDir, conversations, transcripts, corpus)
 		}
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
@@ -115,6 +116,8 @@ func rebuildCanonicalStore(
 	if err != nil {
 		return fmt.Errorf("fullRebuild: %w", err)
 	}
+
+	setPlanCounts(conversations, transcripts)
 
 	if err := writeCanonicalStoreAtomically(
 		archiveDir,
@@ -420,12 +423,23 @@ func conversationProjectDir(rawDir string, conv conversation) string {
 	return parts[0]
 }
 
+func setPlanCounts(conversations []conversation, transcripts map[string]sessionFull) {
+	for i := range conversations {
+		if session, ok := transcripts[conversations[i].cacheKey()]; ok {
+			conversations[i].planCount = countPlansInMessages(session.messages)
+		}
+	}
+}
+
 func buildSearchUnits(conversationID string, session sessionFull) []searchUnit {
 	var units []searchUnit
 	for _, msg := range session.messages {
 		units = appendSearchUnits(units, conversationID, msg.text)
 		for _, call := range msg.toolCalls {
 			units = appendSearchUnits(units, conversationID, call.summary)
+		}
+		for _, p := range msg.plans {
+			units = appendSearchUnits(units, conversationID, p.content)
 		}
 	}
 	return units
@@ -709,12 +723,15 @@ func writeConversation(w *bufio.Writer, conv conversation) error {
 		return fmt.Errorf("writeString_project: %w", err)
 	}
 	if err := writeUint(w, uint64(len(conv.sessions))); err != nil {
-		return fmt.Errorf("writeUint: %w", err)
+		return fmt.Errorf("writeUint_sessions: %w", err)
 	}
 	for _, session := range conv.sessions {
 		if err := writeSessionMeta(w, session); err != nil {
 			return fmt.Errorf("writeSessionMeta: %w", err)
 		}
+	}
+	if err := writeUint(w, uint64(conv.planCount)); err != nil {
+		return fmt.Errorf("writeUint_planCount: %w", err)
 	}
 	return nil
 }
@@ -748,14 +765,19 @@ func readConversation(r *bufio.Reader) (conversation, error) {
 		}
 		sessions = append(sessions, session)
 	}
+	planCount, err := readUint(r)
+	if err != nil {
+		return conversation{}, fmt.Errorf("readUint_planCount: %w", err)
+	}
 	return conversation{
 		ref: conversationRef{
 			provider: conversationProvider(providerValue),
 			id:       id,
 		},
-		name:     name,
-		project:  project{displayName: projectName},
-		sessions: sessions,
+		name:      name,
+		project:   project{displayName: projectName},
+		sessions:  sessions,
+		planCount: int(planCount),
 	}, nil
 }
 
@@ -886,6 +908,15 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	}
 	bw.writeBool(msg.isSidechain)
 	bw.writeBool(msg.isAgentDivider)
+	bw.writeUint(uint64(len(msg.plans)))
+	for _, p := range msg.plans {
+		if bw.err != nil {
+			break
+		}
+		if err := writePlan(w, p); err != nil {
+			bw.err = fmt.Errorf("writePlan: %w", err)
+		}
+	}
 	if bw.err != nil {
 		return fmt.Errorf("writeMessage: %w", bw.err)
 	}
@@ -918,8 +949,17 @@ func readMessage(r *bufio.Reader) (message, error) {
 	}
 	isSidechain := br.readBool()
 	isAgentDivider := br.readBool()
+	planCount := br.readUint()
 	if br.err != nil {
 		return message{}, fmt.Errorf("readMessage: %w", br.err)
+	}
+	plans := make([]plan, 0, planCount)
+	for range planCount {
+		p, err := readPlan(r)
+		if err != nil {
+			return message{}, fmt.Errorf("readMessage_plan: %w", err)
+		}
+		plans = append(plans, p)
 	}
 	return message{
 		role:           role(roleValue),
@@ -927,6 +967,7 @@ func readMessage(r *bufio.Reader) (message, error) {
 		thinking:       thinking,
 		toolCalls:      toolCalls,
 		toolResults:    toolResults,
+		plans:          plans,
 		isSidechain:    isSidechain,
 		isAgentDivider: isAgentDivider,
 	}, nil

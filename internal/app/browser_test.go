@@ -327,8 +327,6 @@ func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
 func TestRenderHelpItemHighlightsActiveToggle(t *testing.T) {
 	t.Parallel()
 
-	initPalette(true)
-
 	active := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true, on: true})
 	inactive := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true})
 

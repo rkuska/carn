@@ -698,6 +698,7 @@ func parseSession(ctx context.Context, meta sessionMeta) (sessionFull, error) {
 	}
 
 	meta.totalUsage = aggregateUsage(messages)
+	deduplicatePlans(messages)
 
 	return sessionFull{
 		meta:     meta,
@@ -788,6 +789,7 @@ func parseConversation(ctx context.Context, conv conversation) (sessionFull, err
 
 	meta := conv.sessions[0]
 	meta.totalUsage = totalUsage
+	deduplicatePlans(allMessages)
 
 	return sessionFull{
 		meta:     meta,
@@ -890,15 +892,21 @@ func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 		return parsedMessage{}, false
 	}
 
-	if len(rec.ToolUseResult) > 0 && len(toolResults) == 1 {
-		if patch := extractStructuredPatch(rec.ToolUseResult); patch != nil {
-			toolResults[0].structuredPatch = patch
-		}
-	}
-
 	var ts time.Time
 	if rec.Timestamp != "" {
 		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
+	}
+
+	var plans []plan
+	if len(rec.ToolUseResult) > 0 {
+		if len(toolResults) == 1 {
+			if patch := extractStructuredPatch(rec.ToolUseResult); patch != nil {
+				toolResults[0].structuredPatch = patch
+			}
+		}
+		if p, ok := extractExitPlanResult(rec.ToolUseResult, ts); ok {
+			plans = append(plans, p)
+		}
 	}
 
 	return parsedMessage{
@@ -906,6 +914,7 @@ func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 		timestamp:   ts,
 		text:        content,
 		toolResults: toolResults,
+		plans:       plans,
 		isSidechain: rec.IsSidechain,
 	}, true
 }
@@ -1098,6 +1107,7 @@ func parseSessionWithSubagents(ctx context.Context, meta sessionMeta) (sessionFu
 	}
 
 	meta.totalUsage = aggregateUsage(messages)
+	deduplicatePlans(messages)
 	return sessionFull{
 		meta:     meta,
 		messages: projectConversationTranscript(messages, loadLinkedTranscripts(ctx, meta)),
@@ -1199,6 +1209,7 @@ func parseConversationWithSubagents(ctx context.Context, conv conversation) (ses
 
 	meta := conv.sessions[0]
 	meta.totalUsage = totalUsage
+	deduplicatePlans(baseMessages)
 	return sessionFull{
 		meta:     meta,
 		messages: projectConversationTranscript(baseMessages, linked),
