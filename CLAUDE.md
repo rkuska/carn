@@ -198,6 +198,12 @@ go tool pprof -top /tmp/carn.cpu
 Keep benchmark scenarios in `perf_bench_test.go` and update `PERF_BASELINE.md`
 when benchmark results change in a meaningful way.
 
+File-level complexity thresholds are enforced by `TestFileComplexityGuard` in
+`internal/app/complexity_guard_test.go` (runs with `go test ./...`).
+Exceptions live in `complexityExceptions` — add entries consciously, set caps
+just above current values. Update `COMPLEXITY_BASELINE.md` when metrics change
+meaningfully.
+
 Make sure to always start implementation with tests and scenarios. If doing refactor adjust the tests first to the expected
 behavior if any test fails start with assumption that there is a bug in refactor rather than a wrong test.
 
