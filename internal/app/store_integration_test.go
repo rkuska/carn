@@ -74,6 +74,75 @@ func TestRunImportPipelineSyncsSourceAndBuildsStore(t *testing.T) {
 	assert.NotEmpty(t, corpus.units)
 }
 
+func TestRunImportPipelineWithFixtureCorpus(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "source")
+	archiveDir := filepath.Join(dir, "archive")
+	copyFixtureCorpusToSource(t, sourceDir)
+
+	cfg := archiveConfig{
+		sourceDir:  sourceDir,
+		archiveDir: archiveDir,
+	}
+
+	result, err := runImportPipeline(context.Background(), cfg, nil)
+	require.NoError(t, err)
+	assert.True(t, result.storeBuilt)
+
+	repo := newDefaultConversationRepository()
+	conversations, err := repo.scan(context.Background(), archiveDir)
+	require.NoError(t, err)
+
+	names := conversationNames(conversations)
+	assert.ElementsMatch(
+		t,
+		[]string{
+			"fixture-basic",
+			"legacy-format",
+			"subagent-helper",
+			"subagent-parent",
+			"tool-runbook",
+			"usage-summary",
+		},
+		names,
+	)
+
+	toolConv := requireConversationByName(t, conversations, "tool-runbook")
+	toolSession, err := repo.load(context.Background(), archiveDir, toolConv)
+	require.NoError(t, err)
+	toolTranscript := renderTranscript(toolSession, transcriptOptions{})
+	assertContainsAll(
+		t,
+		toolTranscript,
+		"Inspect the main package and run the tests.",
+		"Main package inspected and tests passed.",
+	)
+	assert.True(t, sessionHasToolCallSummary(toolSession, "go test ./..."))
+	assert.True(
+		t,
+		sessionHasToolResultContent(toolSession, "github.com/example/carn/internal/app"),
+	)
+
+	subagentConv := requireConversationByName(t, conversations, "subagent-parent")
+	subagentSession, err := repo.load(context.Background(), archiveDir, subagentConv)
+	require.NoError(t, err)
+	subagentTranscript := renderTranscript(subagentSession, transcriptOptions{})
+	assertContainsAll(
+		t,
+		subagentTranscript,
+		"Investigate flaky search results.",
+		"Check tokenizer edge cases.",
+		"Tokenizer edge case report",
+		"Tokenizer investigation completed.",
+	)
+
+	corpus, err := repo.searchCorpus(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.True(t, corpusContains(corpus, "Tokenizer edge case report"))
+}
+
 func TestRebuildCanonicalStoreBuildsStoreFromRawArchive(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +183,42 @@ func TestRebuildCanonicalStoreBuildsStoreFromRawArchive(t *testing.T) {
 	corpus, err := repo.searchCorpus(context.Background(), archiveDir)
 	require.NoError(t, err)
 	assert.NotEmpty(t, corpus.units)
+}
+
+func TestRebuildCanonicalStoreWithFixtureCorpus(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archiveDir := filepath.Join(dir, "archive")
+	copyFixtureCorpusToArchive(t, archiveDir)
+
+	require.NoError(t, rebuildCanonicalStore(context.Background(), archiveDir, conversationProviderClaude, nil))
+
+	msg := loadSessionsCmd(context.Background(), archiveDir)()
+	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
+
+	names := conversationNames(loaded.conversations)
+	assert.ElementsMatch(
+		t,
+		[]string{
+			"fixture-basic",
+			"legacy-format",
+			"subagent-helper",
+			"subagent-parent",
+			"tool-runbook",
+			"usage-summary",
+		},
+		names,
+	)
+	assert.NotContains(t, names, "command-only")
+	assert.True(t, loaded.deepSearchAvailable)
+	assert.True(t, corpusContains(loaded.searchCorpus, "Deployment checklist summary"))
+
+	repo := newDefaultConversationRepository()
+	subagentConv := requireConversationByName(t, loaded.conversations, "subagent-parent")
+	session, err := repo.load(context.Background(), archiveDir, subagentConv)
+	require.NoError(t, err)
+	assert.Contains(t, renderTranscript(session, transcriptOptions{}), "Tokenizer edge case report")
 }
 
 func TestRebuildCanonicalStoreKeepsExistingStoreWhenRebuildFails(t *testing.T) {
@@ -360,4 +465,60 @@ func TestRebuildCanonicalStoreIncrementalFallsBackOnCorruptStore(t *testing.T) {
 	session, err := repo.load(context.Background(), archiveDir, conversations[0])
 	require.NoError(t, err)
 	assert.Contains(t, renderTranscript(session, transcriptOptions{}), "reply A")
+}
+
+func conversationNames(conversations []conversation) []string {
+	names := make([]string, 0, len(conversations))
+	for _, conv := range conversations {
+		names = append(names, conv.name)
+	}
+	return names
+}
+
+func requireConversationByName(
+	t testing.TB,
+	conversations []conversation,
+	name string,
+) conversation {
+	t.Helper()
+
+	for _, conv := range conversations {
+		if conv.name == name {
+			return conv
+		}
+	}
+
+	t.Fatalf("conversation %q not found", name)
+	return conversation{}
+}
+
+func corpusContains(corpus searchCorpus, needle string) bool {
+	for _, unit := range corpus.units {
+		if strings.Contains(unit.text, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func sessionHasToolCallSummary(session sessionFull, want string) bool {
+	for _, msg := range session.messages {
+		for _, call := range msg.toolCalls {
+			if call.summary == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func sessionHasToolResultContent(session sessionFull, want string) bool {
+	for _, msg := range session.messages {
+		for _, result := range msg.toolResults {
+			if strings.Contains(result.content, want) {
+				return true
+			}
+		}
+	}
+	return false
 }

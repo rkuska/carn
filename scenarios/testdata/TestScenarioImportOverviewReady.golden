@@ -10,13 +10,12 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
+                                                                                                                        
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
                 │  Ready to Import   review complete; import and store build are ready                 │                
-                │ Source                                                                               │                
-                │ /var/folders/yh/h7qvnyzn72x_q3mlljbjvp800000gn/T/TestScenarioImportOverviewR…        │                
-                │ Archive                                                                              │                
-                │ /var/folders/yh/h7qvnyzn72x_q3mlljbjvp800000gn/T/TestScenarioImportOverview…         │                
+                │ Source ~/source                                                                      │                
+                │ Archive ~/archive                                                                    │                
                 │ Projects 1  Files 1  Conversations 1                                                 │                
                 │ New 1  Update 0  Current 0                                                           │                
                 │                                                                                      │                
@@ -24,6 +23,7 @@
                 │ Press Enter to import                                                                │                
                 │                                                                                      │                
                 ╰──────────────────────────────────────────────────────────────────────────────────────╯                
+                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

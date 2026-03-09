@@ -218,6 +218,14 @@ logic. They exist in scenarios/ folder.
 * avoid using mocks always prefer to use real dependency (not possible for llm for example)
 * test via most outer layer 
 * tests are run sequentially (no parallelism) and each is atomic (test shouldn't depend on values from other test)
+
+### Test data and fixtures
+
+* tests must not read pre-existing files from `~/.claude/projects`, the current home directory, or any other host-specific location
+* use committed sanitized fixtures under `testdata/` when you need raw session coverage
+* `t.TempDir()` is allowed for scratch space, but the source data copied into it must come from the repository
+* test fixtures and goldens must not contain author-specific usernames, local project names, private transcript content, or machine-specific temp paths
+* when snapshotting UI output, normalize unstable paths so golden files stay portable across machines
 * write generators for objects in `helpers/generators.go` when you need various objects for tests
 
 

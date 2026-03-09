@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"session-basic","slug":"fixture-basic","cwd":"/Users/testuser/work/sample-project","gitBranch":"main","version":"1.0.0","timestamp":"2026-03-07T09:00:00Z","message":{"role":"user","content":"Summarize the deployment checklist."}}
+{"type":"assistant","sessionId":"session-basic","slug":"fixture-basic","timestamp":"2026-03-07T09:00:05Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"Deployment checklist summary"}],"usage":{"input_tokens":120,"output_tokens":60}}}

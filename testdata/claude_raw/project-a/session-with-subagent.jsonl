@@ -1,0 +1,3 @@
+{"type":"user","sessionId":"session-subagent","slug":"subagent-parent","cwd":"/Users/testuser/work/sample-project","timestamp":"2026-03-09T10:00:00Z","message":{"role":"user","content":"Investigate flaky search results."}}
+{"type":"assistant","sessionId":"session-subagent","slug":"subagent-parent","timestamp":"2026-03-09T10:00:02Z","message":{"role":"assistant","model":"claude-opus-4-1","content":[{"type":"text","text":"Starting a subagent to inspect tokenizer edge cases."}]}}
+{"type":"assistant","sessionId":"session-subagent","slug":"subagent-parent","timestamp":"2026-03-09T10:00:08Z","message":{"role":"assistant","model":"claude-opus-4-1","content":[{"type":"text","text":"Tokenizer investigation completed."}],"usage":{"input_tokens":150,"output_tokens":70}}}
