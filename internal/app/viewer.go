@@ -404,10 +404,11 @@ func (m *viewerModel) renderContent() {
 
 	m.baseContent = sb.String()
 	m.rebuildSearchIndex(m.baseContent)
-	m.applyViewportContent()
 
 	if m.searchQuery != "" {
 		m.performSearch()
+	} else {
+		m.applyViewportContent()
 	}
 }
 
