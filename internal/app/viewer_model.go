@@ -27,33 +27,37 @@ type contentFlags struct {
 }
 
 type viewerModel struct {
-	viewport          viewport.Model
-	conversation      conv.Conversation
-	session           conv.Session
-	opts              transcriptOptions
-	content           contentFlags
-	glamourStyle      string
-	width             int
-	height            int
-	searchInput       textinput.Model
-	searching         bool
-	searchQuery       string
-	matches           []searchOccurrence
-	currentMatch      int
-	notification      notification
-	rawContent        string
-	baseContent       string
-	searchLines       []searchLineIndex
-	renderer          *glamour.TermRenderer
-	renderWrap        int
-	pendingGotoTopKey bool
-	planExpanded      bool
+	viewport             viewport.Model
+	conversation         conv.Conversation
+	session              conv.Session
+	opts                 transcriptOptions
+	content              contentFlags
+	glamourStyle         string
+	width                int
+	height               int
+	searchInput          textinput.Model
+	searching            bool
+	searchQuery          string
+	searchIndexVersion   int
+	searchAppliedVersion int
+	searchAppliedQuery   string
+	searchMatchesValid   bool
+	matches              []searchOccurrence
+	currentMatch         int
+	notification         notification
+	rawContent           string
+	baseContent          string
+	searchLines          []searchLineIndex
+	renderer             *glamour.TermRenderer
+	renderWrap           int
+	pendingGotoTopKey    bool
+	planExpanded         bool
 }
 
 func scanContentFlags(messages []conv.Message) contentFlags {
 	var flags contentFlags
 	for _, msg := range messages {
-		flags.accumulate(msg)
+		flags = flags.accumulate(msg)
 		if flags.allSet() {
 			break
 		}
@@ -61,12 +65,13 @@ func scanContentFlags(messages []conv.Message) contentFlags {
 	return flags
 }
 
-func (f *contentFlags) accumulate(msg conv.Message) {
+func (f contentFlags) accumulate(msg conv.Message) contentFlags {
 	f.hasThinking = f.hasThinking || msg.Thinking != ""
 	f.hasToolCalls = f.hasToolCalls || len(msg.ToolCalls) > 0
 	f.hasToolResults = f.hasToolResults || len(msg.ToolResults) > 0
 	f.hasPlans = f.hasPlans || len(msg.Plans) > 0
 	f.hasSidechain = f.hasSidechain || msg.IsSidechain
+	return f
 }
 
 func (f contentFlags) allSet() bool {
@@ -108,20 +113,11 @@ func newViewerModel(
 		height:       height,
 		searchInput:  ti,
 	}
-	m.renderContent()
-	return m
+	return m.renderContent()
 }
 
 func (m viewerModel) Init() tea.Cmd {
 	return nil
-}
-
-func (m *viewerModel) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-	m.viewport.SetWidth(m.viewportWidth())
-	m.viewport.SetHeight(framedBodyHeight(m.height))
-	m.renderContent()
 }
 
 func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
@@ -132,14 +128,15 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		if m.searching {
 			return m.handleSearchKey(msg)
 		}
-		cmd := m.handleKey(msg, &cmds)
+		var cmd tea.Cmd
+		m, cmd = m.handleKey(msg, &cmds)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	case tea.WindowSizeMsg:
-		m.SetSize(msg.Width, msg.Height)
+		m = m.SetSize(msg.Width, msg.Height)
 	case notificationMsg:
-		m.setNotification(msg.notification, &cmds)
+		m = m.setNotification(msg.notification, &cmds)
 	case clearNotificationMsg:
 		m.notification = notification{}
 	}
@@ -160,109 +157,115 @@ func toggleLabel(on bool) string {
 	return "off"
 }
 
-func (m *viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) tea.Cmd {
+func (m viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (viewerModel, tea.Cmd) {
 	if msg.Text == "g" {
 		if m.pendingGotoTopKey {
 			m.viewport.GotoTop()
 			m.pendingGotoTopKey = false
-			return nil
+			return m, nil
 		}
 		m.pendingGotoTopKey = true
-		return nil
+		return m, nil
 	}
 	m.pendingGotoTopKey = false
 
-	if m.handleToggleKey(msg, cmds) {
-		return nil
+	var handled bool
+	m, handled = m.handleToggleKey(msg, cmds)
+	if handled {
+		return m, nil
 	}
 	return m.handleViewerAction(msg)
 }
 
-func (m *viewerModel) handleViewerAction(msg tea.KeyPressMsg) tea.Cmd {
-	if m.handleViewerNav(msg) {
-		return nil
+func (m viewerModel) handleViewerAction(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
+	var handled bool
+	m, handled = m.handleViewerNav(msg)
+	if handled {
+		return m, nil
 	}
 	return m.handleViewerCmd(msg)
 }
 
-func (m *viewerModel) handleViewerNav(msg tea.KeyPressMsg) bool {
+func (m viewerModel) handleViewerNav(msg tea.KeyPressMsg) (viewerModel, bool) {
 	switch {
 	case msg.Code == tea.KeyHome:
 		m.viewport.GotoTop()
-		return true
+		return m, true
 	case msg.Code == tea.KeyEnd || msg.Text == "G":
 		m.viewport.GotoBottom()
-		return true
+		return m, true
 	case key.Matches(msg, viewerKeys.NextMatch):
-		m.jumpToMatch(1)
-		return true
+		return m.jumpToMatch(1), true
 	case key.Matches(msg, viewerKeys.PrevMatch):
-		m.jumpToMatch(-1)
-		return true
+		return m.jumpToMatch(-1), true
 	}
-	return false
+	return m, false
 }
 
-func (m *viewerModel) handleViewerCmd(msg tea.KeyPressMsg) tea.Cmd {
+func (m viewerModel) handleViewerCmd(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
 	switch {
 	case key.Matches(msg, viewerKeys.Search):
 		m.searching = true
 		m.searchInput.Focus()
-		return textinput.Blink
+		return m, textinput.Blink
 	case key.Matches(msg, viewerKeys.Copy):
-		return copyTranscriptCmd(m.session, m.opts)
+		return m, copyTranscriptCmd(m.session, m.opts)
 	case key.Matches(msg, viewerKeys.Export):
-		return exportTranscriptCmd(m.session, m.opts)
+		return m, exportTranscriptCmd(m.session, m.opts)
 	case key.Matches(msg, viewerKeys.Editor):
-		return openInEditorCmd(m.editorFilePath())
+		return m, openInEditorCmd(m.editorFilePath())
 	case key.Matches(msg, viewerKeys.Resume):
 		id, cwd := m.resumeTarget()
-		return resumeSessionCmd(id, cwd)
+		return m, resumeSessionCmd(id, cwd)
 	}
-	return nil
+	return m, nil
 }
 
-func (m *viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) bool {
+func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (viewerModel, bool) {
 	switch {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
-		m.renderContent()
-		m.setNotification(infoNotification(fmt.Sprintf("thinking: %s", toggleLabel(m.opts.showThinking))).notification, cmds)
-		return true
+		m = m.renderContent()
+		m = m.setNotification(
+			infoNotification(fmt.Sprintf("thinking: %s", toggleLabel(m.opts.showThinking))).notification,
+			cmds,
+		)
+		return m, true
 	case key.Matches(msg, viewerKeys.ToggleTools):
 		m.opts.showTools = !m.opts.showTools
-		m.renderContent()
-		m.setNotification(infoNotification(fmt.Sprintf("tools: %s", toggleLabel(m.opts.showTools))).notification, cmds)
-		return true
+		m = m.renderContent()
+		m = m.setNotification(
+			infoNotification(fmt.Sprintf("tools: %s", toggleLabel(m.opts.showTools))).notification,
+			cmds,
+		)
+		return m, true
 	case key.Matches(msg, viewerKeys.ToggleToolResults):
 		m.opts.showToolResults = !m.opts.showToolResults
-		m.renderContent()
-		m.setNotification(
+		m = m.renderContent()
+		m = m.setNotification(
 			infoNotification(fmt.Sprintf("tool results: %s", toggleLabel(m.opts.showToolResults))).notification,
 			cmds,
 		)
-		return true
+		return m, true
 	case key.Matches(msg, viewerKeys.TogglePlan):
 		m.planExpanded = !m.planExpanded
-		m.renderContent()
-		m.setNotification(infoNotification(fmt.Sprintf("plan: %s", toggleLabel(m.planExpanded))).notification, cmds)
-		return true
+		m = m.renderContent()
+		m = m.setNotification(
+			infoNotification(fmt.Sprintf("plan: %s", toggleLabel(m.planExpanded))).notification,
+			cmds,
+		)
+		return m, true
 	case key.Matches(msg, viewerKeys.ToggleSidechain):
 		m.opts.hideSidechain = !m.opts.hideSidechain
-		m.renderContent()
+		m = m.renderContent()
 		label := "shown"
 		if m.opts.hideSidechain {
 			label = "hidden"
 		}
-		m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
-		return true
+		m = m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
+		return m, true
 	}
-	return false
-}
-
-func (m *viewerModel) setNotification(n notification, cmds *[]tea.Cmd) {
-	m.notification = n
-	*cmds = append(*cmds, clearNotificationAfter(n.kind))
+	return m, false
 }
 
 func (m viewerModel) editorFilePath() string {
@@ -279,14 +282,28 @@ func (m viewerModel) resumeTarget() (string, string) {
 	return m.session.Meta.ID, m.session.Meta.CWD
 }
 
-func (m *viewerModel) viewportWidth() int {
+func (m viewerModel) viewportWidth() int {
 	return max(m.width-viewerBorderH, 1)
 }
 
-func (m *viewerModel) contentWidth() int {
+func (m viewerModel) contentWidth() int {
 	return max(m.width-viewerBorderH-viewerPaddingH, 1)
 }
 
-func (m *viewerModel) markdownWrapWidth() int {
+func (m viewerModel) markdownWrapWidth() int {
 	return max(m.width-viewerBorderH-viewerPaddingH-viewerMarginH, 1)
+}
+
+func (m viewerModel) SetSize(width, height int) viewerModel {
+	m.width = width
+	m.height = height
+	m.viewport.SetWidth(m.viewportWidth())
+	m.viewport.SetHeight(framedBodyHeight(m.height))
+	return m.renderContent()
+}
+
+func (m viewerModel) setNotification(n notification, cmds *[]tea.Cmd) viewerModel {
+	m.notification = n
+	*cmds = append(*cmds, clearNotificationAfter(n.kind))
+	return m
 }

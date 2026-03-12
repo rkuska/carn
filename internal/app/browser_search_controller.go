@@ -45,55 +45,58 @@ func deepSearchDebounceCmd(revision int, query string) tea.Cmd {
 	})
 }
 
-func (m *browserModel) searchEditing() bool {
+func (m browserModel) searchEditing() bool {
 	return m.search.editing
 }
 
-func (m *browserModel) beginSearchEditing() tea.Cmd {
+func (m browserModel) beginSearchEditing() (browserModel, tea.Cmd) {
 	m.search.editing = true
 	m.searchInput.Focus()
-	return textinput.Blink
+	return m, textinput.Blink
 }
 
-func (m *browserModel) stopSearchEditing() {
+func (m browserModel) stopSearchEditing() browserModel {
 	m.search.editing = false
 	m.searchInput.Blur()
+	return m
 }
 
-func (m *browserModel) cancelActiveDeepSearch() {
+func (m browserModel) cancelActiveDeepSearch() browserModel {
 	if m.searchCancel != nil {
 		m.searchCancel()
 		m.searchCancel = nil
 	}
+	return m
 }
 
-func (m *browserModel) updateSelectedConversationID() {
+func (m browserModel) updateSelectedConversationID() browserModel {
 	if conv, ok := m.selectedConversation(); ok {
 		m.search.selectedConversationID = conv.CacheKey()
-		return
+		return m
 	}
 	m.search.selectedConversationID = ""
+	return m
 }
 
-func (m *browserModel) restoreSelection() {
+func (m browserModel) restoreSelection() browserModel {
 	if len(m.search.visibleConversations) == 0 {
-		return
+		return m
 	}
 
 	if m.search.selectedConversationID != "" {
 		for i, conv := range m.search.visibleConversations {
 			if conv.CacheKey() == m.search.selectedConversationID {
 				m.list.Select(i)
-				return
+				return m
 			}
 		}
 	}
 
 	m.list.Select(0)
-	m.updateSelectedConversationID()
+	return m.updateSelectedConversationID()
 }
 
-func (m *browserModel) setSearchItems(items []conversationListItem, cmds *[]tea.Cmd) {
+func (m browserModel) setSearchItems(items []conversationListItem, cmds *[]tea.Cmd) browserModel {
 	m.search.visibleConversations = make([]conv.Conversation, 0, len(items))
 	listItems := make([]list.Item, 0, len(items))
 	for _, item := range items {
@@ -102,50 +105,50 @@ func (m *browserModel) setSearchItems(items []conversationListItem, cmds *[]tea.
 	}
 
 	*cmds = append(*cmds, m.list.SetItems(listItems))
-	m.restoreSelection()
+	return m.restoreSelection()
 }
 
-func (m *browserModel) setDelegateHeight(height int) {
+func (m browserModel) setDelegateHeight(height int) browserModel {
 	m.delegate.SetHeight(height)
 	m.list.SetDelegate(m.delegate)
+	return m
 }
 
-func (m *browserModel) applyMetadataSearch(cmds *[]tea.Cmd) {
+func (m browserModel) applyMetadataSearch(cmds *[]tea.Cmd) browserModel {
 	m.search.status = searchStatusIdle
 	m.search.appliedRevision = m.search.revision
-	m.cancelActiveDeepSearch()
-	m.setDelegateHeight(delegateHeightDefault)
-	m.setSearchItems(buildMetadataSearchItems(m.search.query, m.search.baseConversations), cmds)
+	m = m.cancelActiveDeepSearch()
+	m = m.setDelegateHeight(delegateHeightDefault)
+	return m.setSearchItems(buildMetadataSearchItems(m.search.query, m.search.baseConversations), cmds)
 }
 
-func (m *browserModel) applyFullConversationList(cmds *[]tea.Cmd) {
+func (m browserModel) applyFullConversationList(cmds *[]tea.Cmd) browserModel {
 	m.search.status = searchStatusIdle
 	m.search.appliedRevision = m.search.revision
-	m.cancelActiveDeepSearch()
-	m.setDelegateHeight(delegateHeightDefault)
-	m.setSearchItems(buildPlainConversationItems(m.search.baseConversations), cmds)
+	m = m.cancelActiveDeepSearch()
+	m = m.setDelegateHeight(delegateHeightDefault)
+	return m.setSearchItems(buildPlainConversationItems(m.search.baseConversations), cmds)
 }
 
-func (m *browserModel) scheduleDeepSearch(cmds *[]tea.Cmd) {
-	m.cancelActiveDeepSearch()
+func (m browserModel) scheduleDeepSearch(cmds *[]tea.Cmd) browserModel {
+	m = m.cancelActiveDeepSearch()
 	if m.search.query == "" {
-		m.applyFullConversationList(cmds)
-		return
+		return m.applyFullConversationList(cmds)
 	}
 
 	m.search.status = searchStatusDebouncing
 	*cmds = append(*cmds, deepSearchDebounceCmd(m.search.revision, m.search.query))
+	return m
 }
 
-func (m *browserModel) startDeepSearch(cmds *[]tea.Cmd) {
-	m.cancelActiveDeepSearch()
+func (m browserModel) startDeepSearch(cmds *[]tea.Cmd) browserModel {
+	m = m.cancelActiveDeepSearch()
 	if m.search.query == "" {
-		m.applyFullConversationList(cmds)
-		return
+		return m.applyFullConversationList(cmds)
 	}
 	if !m.deepSearchAvailable {
 		m.search.status = searchStatusIdle
-		return
+		return m
 	}
 
 	searchCtx, cancel := context.WithCancel(m.ctx)
@@ -162,6 +165,7 @@ func (m *browserModel) startDeepSearch(cmds *[]tea.Cmd) {
 			m.store,
 		),
 	)
+	return m
 }
 
 func deepSearchRepositoryCmd(
@@ -189,74 +193,73 @@ func deepSearchRepositoryCmd(
 	}
 }
 
-func (m *browserModel) refreshSearchResults(cmds *[]tea.Cmd) {
+func (m browserModel) refreshSearchResults(cmds *[]tea.Cmd) browserModel {
 	switch m.search.mode {
 	case searchModeMetadata:
-		m.applyMetadataSearch(cmds)
+		return m.applyMetadataSearch(cmds)
 	case searchModeDeep:
-		m.scheduleDeepSearch(cmds)
+		return m.scheduleDeepSearch(cmds)
 	}
+	return m
 }
 
-func (m *browserModel) setSearchQuery(query string, cmds *[]tea.Cmd) {
+func (m browserModel) setSearchQuery(query string, cmds *[]tea.Cmd) browserModel {
 	if query == m.search.query {
-		return
+		return m
 	}
 
 	m.search.query = query
 	m.search.revision++
-	m.refreshSearchResults(cmds)
+	return m.refreshSearchResults(cmds)
 }
 
-func (m *browserModel) toggleSearchMode(cmds *[]tea.Cmd) {
+func (m browserModel) toggleSearchMode(cmds *[]tea.Cmd) browserModel {
 	if m.search.mode == searchModeDeep {
 		m.search.mode = searchModeMetadata
 		m.search.status = searchStatusIdle
 		m.search.revision++
-		m.applyMetadataSearch(cmds)
-		return
+		return m.applyMetadataSearch(cmds)
 	}
 	if !m.deepSearchAvailable {
-		m.setNotification(
+		return m.setNotification(
 			infoNotification("deep search unavailable; re-import to rebuild the local index").notification,
 			cmds,
 		)
-		return
 	}
 
 	m.search.mode = searchModeDeep
 	m.search.revision++
-	m.startDeepSearch(cmds)
+	return m.startDeepSearch(cmds)
 }
 
-func (m *browserModel) handleDeepSearchToggle(cmds *[]tea.Cmd) {
+func (m browserModel) handleDeepSearchToggle(cmds *[]tea.Cmd) browserModel {
 	previousMode := m.search.mode
-	m.toggleSearchMode(cmds)
+	m = m.toggleSearchMode(cmds)
 	if m.search.mode == previousMode {
-		return
+		return m
 	}
 
-	m.setNotification(
+	m = m.setNotification(
 		infoNotification(fmt.Sprintf("search scope: %s", m.searchScopeLabel())).notification,
 		cmds,
 	)
-	m.syncTranscriptSelection(cmds)
+	return m.syncTranscriptSelection(cmds)
 }
 
 func (m browserModel) handleSearchKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
 	if key.Matches(msg, browserKeys.DeepSearch) {
-		m.handleDeepSearchToggle(cmds)
+		m = m.handleDeepSearchToggle(cmds)
 		return m, nil
 	}
 
 	switch msg.Code {
 	case tea.KeyEnter:
-		m.stopSearchEditing()
+		m = m.stopSearchEditing()
 		return m, nil
 	case tea.KeyEscape:
-		m.stopSearchEditing()
+		m = m.stopSearchEditing()
 		m.searchInput.SetValue("")
-		m.setSearchQuery("", cmds)
+		m = m.setSearchQuery("", cmds)
 		return m, nil
 	}
 
@@ -264,7 +267,7 @@ func (m browserModel) handleSearchKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (bro
 	before := m.searchInput.Value()
 	m.searchInput, cmd = m.searchInput.Update(msg)
 	if after := m.searchInput.Value(); after != before {
-		m.setSearchQuery(after, cmds)
+		m = m.setSearchQuery(after, cmds)
 	}
 
 	return m, cmd

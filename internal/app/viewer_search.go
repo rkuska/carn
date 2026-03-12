@@ -6,10 +6,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func (m *viewerModel) clearSearch() {
+func (m viewerModel) clearSearch() viewerModel {
 	m.searchQuery = ""
 	m.matches = nil
 	m.currentMatch = 0
+	m.searchMatchesValid = false
+	return m
 }
 
 func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd) {
@@ -17,7 +19,7 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 		m.searching = false
 		m.searchQuery = m.searchInput.Value()
 		m.searchInput.Blur()
-		m.performSearch()
+		m = m.performSearch()
 		return m, nil
 	}
 
@@ -25,7 +27,7 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 		m.searching = false
 		m.searchInput.Blur()
 		m.searchInput.SetValue("")
-		m.clearSearch()
+		m = m.clearSearch()
 		return m, nil
 	}
 
@@ -34,29 +36,39 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 	return m, cmd
 }
 
-func (m *viewerModel) rebuildSearchIndex(content string) {
+func (m viewerModel) rebuildSearchIndex(content string) viewerModel {
 	lines := strings.Split(content, "\n")
 	indexedLines := make([]searchLineIndex, len(lines))
 	for i, line := range lines {
 		indexedLines[i] = buildSearchLineIndex(line, 0)
 	}
 	m.searchLines = indexedLines
+	m.searchIndexVersion++
+	return m
 }
 
-func (m *viewerModel) performSearch() {
-	m.matches = collectSearchOccurrences(m.searchLines, m.searchQuery)
+func (m viewerModel) performSearch() viewerModel {
 	m.currentMatch = 0
+	if !m.searchMatchesValid ||
+		m.searchAppliedVersion != m.searchIndexVersion ||
+		m.searchAppliedQuery != m.searchQuery {
+		m.matches = collectSearchOccurrences(m.searchLines, m.searchQuery)
+		m.searchAppliedVersion = m.searchIndexVersion
+		m.searchAppliedQuery = m.searchQuery
+		m.searchMatchesValid = true
+	}
 
 	if len(m.matches) == 0 {
-		return
+		return m
 	}
 
 	m.viewport.SetYOffset(m.matches[0].line)
+	return m
 }
 
-func (m *viewerModel) jumpToMatch(delta int) {
+func (m viewerModel) jumpToMatch(delta int) viewerModel {
 	if len(m.matches) == 0 || delta == 0 {
-		return
+		return m
 	}
 
 	steps := delta
@@ -74,4 +86,5 @@ func (m *viewerModel) jumpToMatch(delta int) {
 		m.currentMatch = (m.currentMatch - 1 + len(m.matches)) % len(m.matches)
 		m.viewport.SetYOffset(m.matches[m.currentMatch].line)
 	}
+	return m
 }
