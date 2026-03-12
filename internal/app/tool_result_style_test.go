@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,29 +16,29 @@ func TestRenderStyledToolResult(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		tr       toolResult
+		tr       conv.ToolResult
 		width    int
 		contains []string
 	}{
 		{
 			name: "header contains tool name",
-			tr: toolResult{
-				toolName:    "Read",
-				toolSummary: "/path/file.go",
-				content:     "package main",
+			tr: conv.ToolResult{
+				ToolName:    "Read",
+				ToolSummary: "/path/file.go",
+				Content:     "package main",
 			},
 			width:    80,
 			contains: []string{"Read", "/path/file.go"},
 		},
 		{
 			name: "diff lines present in output",
-			tr: toolResult{
-				toolName:    "Edit",
-				toolSummary: "/file.go",
-				structuredPatch: []diffHunk{
+			tr: conv.ToolResult{
+				ToolName:    "Edit",
+				ToolSummary: "/file.go",
+				StructuredPatch: []conv.DiffHunk{
 					{
-						oldStart: 1, oldLines: 2, newStart: 1, newLines: 3,
-						lines: []string{" ctx", "-old", "+new1", "+new2"},
+						OldStart: 1, OldLines: 2, NewStart: 1, NewLines: 3,
+						Lines: []string{" ctx", "-old", "+new1", "+new2"},
 					},
 				},
 			},
@@ -46,20 +47,20 @@ func TestRenderStyledToolResult(t *testing.T) {
 		},
 		{
 			name: "plain content when no patch",
-			tr: toolResult{
-				toolName: "Bash",
-				content:  "ls output here",
+			tr: conv.ToolResult{
+				ToolName: "Bash",
+				Content:  "ls output here",
 			},
 			width:    80,
 			contains: []string{"Bash", "ls output here"},
 		},
 		{
 			name: "multiple hunks produce multiple @@ markers",
-			tr: toolResult{
-				toolName: "Edit",
-				structuredPatch: []diffHunk{
-					{oldStart: 5, oldLines: 2, newStart: 5, newLines: 3, lines: []string{"+a"}},
-					{oldStart: 20, oldLines: 1, newStart: 21, newLines: 2, lines: []string{"+b"}},
+			tr: conv.ToolResult{
+				ToolName: "Edit",
+				StructuredPatch: []conv.DiffHunk{
+					{OldStart: 5, OldLines: 2, NewStart: 5, NewLines: 3, Lines: []string{"+a"}},
+					{OldStart: 20, OldLines: 1, NewStart: 21, NewLines: 2, Lines: []string{"+b"}},
 				},
 			},
 			width:    80,
@@ -67,8 +68,8 @@ func TestRenderStyledToolResult(t *testing.T) {
 		},
 		{
 			name: "fallback header for unnamed tool",
-			tr: toolResult{
-				content: "output",
+			tr: conv.ToolResult{
+				Content: "output",
 			},
 			width:    80,
 			contains: []string{"Result", "output"},
@@ -89,11 +90,11 @@ func TestRenderStyledToolResult(t *testing.T) {
 func TestRenderStyledToolResultMultipleHunksCount(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName: "Edit",
-		structuredPatch: []diffHunk{
-			{oldStart: 5, oldLines: 2, newStart: 5, newLines: 3, lines: []string{"+a"}},
-			{oldStart: 20, oldLines: 1, newStart: 21, newLines: 2, lines: []string{"+b"}},
+	tr := conv.ToolResult{
+		ToolName: "Edit",
+		StructuredPatch: []conv.DiffHunk{
+			{OldStart: 5, OldLines: 2, NewStart: 5, NewLines: 3, Lines: []string{"+a"}},
+			{OldStart: 20, OldLines: 1, NewStart: 21, NewLines: 2, Lines: []string{"+b"}},
 		},
 	}
 	got := renderStyledToolResult(tr, 80)
@@ -217,15 +218,15 @@ func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 
 	t.Run("error result uses different ANSI styling than success", func(t *testing.T) {
 		t.Parallel()
-		errTR := toolResult{
-			toolName: "Bash",
-			content:  "command failed",
-			isError:  true,
+		errTR := conv.ToolResult{
+			ToolName: "Bash",
+			Content:  "command failed",
+			IsError:  true,
 		}
-		okTR := toolResult{
-			toolName: "Bash",
-			content:  "command succeeded",
-			isError:  false,
+		okTR := conv.ToolResult{
+			ToolName: "Bash",
+			Content:  "command succeeded",
+			IsError:  false,
 		}
 		errOutput := renderStyledToolResult(errTR, 80)
 		okOutput := renderStyledToolResult(okTR, 80)
@@ -239,9 +240,9 @@ func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 func TestRenderStyledToolResultLineCount(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName: "Read",
-		content:  "line1\nline2\nline3",
+	tr := conv.ToolResult{
+		ToolName: "Read",
+		Content:  "line1\nline2\nline3",
 	}
 	got := renderStyledToolResult(tr, 80)
 	stripped := ansi.Strip(got)
@@ -251,8 +252,8 @@ func TestRenderStyledToolResultLineCount(t *testing.T) {
 func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		content: "first line of output\nsecond line",
+	tr := conv.ToolResult{
+		Content: "first line of output\nsecond line",
 	}
 	got := renderStyledToolResult(tr, 80)
 	stripped := ansi.Strip(got)

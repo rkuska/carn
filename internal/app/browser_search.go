@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"charm.land/bubbles/v2/list"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type searchMode int
@@ -29,12 +30,12 @@ type browserSearchState struct {
 	appliedRevision        int
 	editing                bool
 	selectedConversationID string
-	baseConversations      []conversation
-	visibleConversations   []conversation
+	baseConversations      []conv.Conversation
+	visibleConversations   []conv.Conversation
 }
 
 type conversationListItem struct {
-	conversation conversation
+	conversation conv.Conversation
 	matchRanges  itemMatchRanges
 	title        string
 	description  string
@@ -62,47 +63,47 @@ func (i conversationListItem) MatchRanges() itemMatchRanges {
 	return i.matchRanges
 }
 
-func conversationFromItem(item list.Item) (conversation, bool) {
+func conversationFromItem(item list.Item) (conv.Conversation, bool) {
 	switch typed := item.(type) {
-	case conversation:
+	case conv.Conversation:
 		return typed, true
 	case conversationListItem:
 		return typed.conversation, true
 	default:
-		return conversation{}, false
+		return conv.Conversation{}, false
 	}
 }
 
-func buildPlainConversationItems(convs []conversation) []conversationListItem {
-	items := make([]conversationListItem, 0, len(convs))
-	for _, conv := range convs {
+func buildPlainConversationItems(conversations []conv.Conversation) []conversationListItem {
+	items := make([]conversationListItem, 0, len(conversations))
+	for _, conversation := range conversations {
 		items = append(items, conversationListItem{
-			conversation: conv,
-			title:        conv.Title(),
-			description:  conversationMetadataDescription(conv),
+			conversation: conversation,
+			title:        conversation.Title(),
+			description:  conversationMetadataDescription(conversation),
 		})
 	}
 	return items
 }
 
-func buildMetadataSearchItems(query string, convs []conversation) []conversationListItem {
+func buildMetadataSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
 	if query == "" {
-		return buildPlainConversationItems(convs)
+		return buildPlainConversationItems(conversations)
 	}
 
-	targets := make([]string, len(convs))
-	for i, conv := range convs {
-		targets[i] = conversationMetadataSearchText(conv)
+	targets := make([]string, len(conversations))
+	for i, conversation := range conversations {
+		targets[i] = conversationMetadataSearchText(conversation)
 	}
 
 	ranks := list.DefaultFilter(query, targets)
 	items := make([]conversationListItem, 0, len(ranks))
 	for _, rank := range ranks {
-		conv := convs[rank.Index]
-		title := conv.Title()
-		desc := conversationMetadataDescription(conv)
+		conversation := conversations[rank.Index]
+		title := conversation.Title()
+		desc := conversationMetadataDescription(conversation)
 		items = append(items, conversationListItem{
-			conversation: conv,
+			conversation: conversation,
 			title:        title,
 			description:  desc,
 			matchRanges:  splitItemMatches(title, desc, rank.MatchedIndexes),
@@ -112,17 +113,17 @@ func buildMetadataSearchItems(query string, convs []conversation) []conversation
 	return items
 }
 
-func buildDeepSearchItems(query string, convs []conversation) []conversationListItem {
-	items := make([]conversationListItem, 0, len(convs))
-	for _, conv := range convs {
-		desc := conv.Description()
+func buildDeepSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
+	items := make([]conversationListItem, 0, len(conversations))
+	for _, conversation := range conversations {
+		desc := conversation.Description()
 		var ranges itemMatchRanges
 		if query != "" {
 			ranges.desc = findQueryMatchIndices(desc, query)
 		}
 		items = append(items, conversationListItem{
-			conversation: conv,
-			title:        conv.Title(),
+			conversation: conversation,
+			title:        conversation.Title(),
 			description:  desc,
 			matchRanges:  ranges,
 		})
@@ -130,35 +131,35 @@ func buildDeepSearchItems(query string, convs []conversation) []conversationList
 	return items
 }
 
-func conversationMetadataSearchText(conv conversation) string {
-	title := conv.Title()
-	desc := conversationMetadataDescription(conv)
+func conversationMetadataSearchText(conversation conv.Conversation) string {
+	title := conversation.Title()
+	desc := conversationMetadataDescription(conversation)
 	if desc == "" {
 		return title
 	}
 	return title + "\n" + desc
 }
 
-func conversationMetadataDescription(conv conversation) string {
-	msgCount := conv.totalMessageCount()
-	mainCount := conv.mainMessageCount()
-	desc := fmt.Sprintf("%s  %d msgs", conv.model(), msgCount)
+func conversationMetadataDescription(conversation conv.Conversation) string {
+	msgCount := conversation.TotalMessageCount()
+	mainCount := conversation.MainMessageCount()
+	desc := fmt.Sprintf("%s  %d msgs", conversation.Model(), msgCount)
 	if mainCount > 0 && mainCount != msgCount {
-		desc = fmt.Sprintf("%s  %d msgs (%d main)", conv.model(), msgCount, mainCount)
+		desc = fmt.Sprintf("%s  %d msgs (%d main)", conversation.Model(), msgCount, mainCount)
 	}
-	if v := conv.version(); v != "" {
+	if v := conversation.Version(); v != "" {
 		desc = v + "  " + desc
 	}
-	if total := conv.totalTokenUsage().totalTokens(); total > 0 {
+	if total := conversation.TotalTokenUsage().TotalTokens(); total > 0 {
 		desc += fmt.Sprintf("  %dk tokens", total/1000)
 	}
-	if d := conv.duration(); d > 0 {
-		desc += "  " + formatDuration(d)
+	if d := conversation.Duration(); d > 0 {
+		desc += "  " + conv.FormatDuration(d)
 	}
-	if counts := conv.totalToolCounts(); len(counts) > 0 {
-		desc += "  " + formatToolCounts(counts)
+	if counts := conversation.TotalToolCounts(); len(counts) > 0 {
+		desc += "  " + conv.FormatToolCounts(counts)
 	}
-	if fm := conv.firstMessage(); fm != "" {
+	if fm := conversation.FirstMessage(); fm != "" {
 		desc += "\n" + fm
 	}
 	return desc

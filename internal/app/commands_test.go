@@ -8,9 +8,52 @@ import (
 	"testing"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeBrowserStore struct {
+	listResult          []conv.Conversation
+	listErr             error
+	loadResult          conv.Session
+	loadErr             error
+	loadCalls           int
+	deepSearchResults   map[string][]conv.Conversation
+	deepSearchErr       error
+	deepSearchAvailable bool
+}
+
+func (s *fakeBrowserStore) List(context.Context, string) ([]conv.Conversation, error) {
+	return s.listResult, s.listErr
+}
+
+func (s *fakeBrowserStore) Load(
+	context.Context,
+	string,
+	conv.Conversation,
+) (conv.Session, error) {
+	s.loadCalls++
+	return s.loadResult, s.loadErr
+}
+
+func (s *fakeBrowserStore) DeepSearch(
+	_ context.Context,
+	_ string,
+	query string,
+	conversations []conv.Conversation,
+) ([]conv.Conversation, bool, error) {
+	if s.deepSearchErr != nil {
+		return conversations, false, s.deepSearchErr
+	}
+	if query == "" {
+		return conversations, s.deepSearchAvailable, nil
+	}
+	if results, ok := s.deepSearchResults[query]; ok {
+		return results, s.deepSearchAvailable, nil
+	}
+	return nil, s.deepSearchAvailable, nil
+}
 
 func TestExportTextReturnsSuccessNotification(t *testing.T) {
 	homeDir := t.TempDir()
@@ -18,9 +61,9 @@ func TestExportTextReturnsSuccessNotification(t *testing.T) {
 	require.NoError(t, os.Mkdir(desktopDir, 0o755))
 	t.Setenv("HOME", homeDir)
 
-	msg := exportText("hello export", sessionMeta{
-		id:   "session-12345678",
-		slug: "demo-session",
+	msg := exportText("hello export", conv.SessionMeta{
+		ID:   "session-12345678",
+		Slug: "demo-session",
 	})
 
 	assert.Equal(t, notificationSuccess, msg.notification.kind)
@@ -43,52 +86,47 @@ func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
 	assert.Equal(t, "resume failed: session working directory is unavailable", notification.notification.text)
 }
 
-func TestOpenConversationCmdCachedWithRepositoryUsesCachedSession(t *testing.T) {
+func TestOpenConversationCmdCachedWithStoreUsesCachedSession(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeConversationSource{
-		sourceProvider: conversationProviderClaude,
-		loadResult:     testSession("loaded"),
+	store := &fakeBrowserStore{
+		loadResult: testSession("loaded"),
 	}
-	repo := newConversationRepository(source)
 	cached := testSession("cached")
-	conv := singleSessionConversation(cached.meta)
+	conversation := singleSessionConversation(cached.Meta)
 
-	msg := openConversationCmdCachedWithRepository(
+	msg := openConversationCmdCachedWithStore(
 		context.Background(),
-		conv,
+		conversation,
 		cached,
-		repo,
 	)()
 
 	open := requireMsgType[openViewerMsg](t, msg)
-	assert.Equal(t, cached.meta.id, open.session.meta.id)
-	assert.Zero(t, source.loadCalls)
+	assert.Equal(t, cached.Meta.ID, open.session.Meta.ID)
+	assert.Zero(t, store.loadCalls)
 }
 
-func TestLoadSessionsCmdWithRepositoryIgnoresSearchCorpusErrors(t *testing.T) {
+func TestLoadSessionsCmdWithStoreIgnoresDeepSearchErrors(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeConversationSource{
-		sourceProvider: conversationProviderClaude,
-		scanResult: []conversation{
-			singleSessionConversation(sessionMeta{
-				id:        "session-1",
-				timestamp: time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
-				project:   project{displayName: "proj"},
+	store := &fakeBrowserStore{
+		listResult: []conv.Conversation{
+			singleSessionConversation(conv.SessionMeta{
+				ID:        "session-1",
+				Timestamp: time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
+				Project:   conv.Project{DisplayName: "proj"},
 			}),
 		},
-		searchErr: errors.New("corrupt search index"),
+		deepSearchErr: errors.New("corrupt search index"),
 	}
 
-	msg := loadSessionsCmdWithRepository(
+	msg := loadSessionsCmdWithStore(
 		context.Background(),
 		t.TempDir(),
-		newConversationRepository(source),
+		store,
 	)()
 
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
 	require.Len(t, loaded.conversations, 1)
 	assert.False(t, loaded.deepSearchAvailable)
-	assert.Empty(t, loaded.searchCorpus.units)
 }

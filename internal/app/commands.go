@@ -10,14 +10,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
 )
 
 // Messages
 
 type conversationsLoadedMsg struct {
-	conversations       []conversation
-	searchCorpus        searchCorpus
+	conversations       []conv.Conversation
 	deepSearchAvailable bool
 }
 
@@ -27,80 +27,76 @@ type sessionsLoadErrorMsg struct {
 
 type openViewerMsg struct {
 	conversationID string
-	conversation   conversation
-	session        sessionFull
+	conversation   conv.Conversation
+	session        conv.Session
 }
 
 // Commands
 
-func loadSessionsCmd(ctx context.Context, archiveDir string) tea.Cmd {
-	return loadSessionsCmdWithRepository(ctx, archiveDir, newDefaultConversationRepository())
-}
-
-func loadSessionsCmdWithRepository(
+func loadSessionsCmdWithStore(
 	ctx context.Context,
 	archiveDir string,
-	repo conversationRepository,
+	store browserStore,
 ) tea.Cmd {
 	return func() tea.Msg {
-		conversations, err := repo.scan(ctx, archiveDir)
+		conversations, err := store.List(ctx, archiveDir)
 		if err != nil {
 			return sessionsLoadErrorMsg{err: err}
 		}
 
-		deepSearchAvailable := true
-		corpus, err := repo.searchCorpus(ctx, archiveDir)
-		if err != nil {
-			deepSearchAvailable = false
-			corpus = searchCorpus{}
-			zerolog.Ctx(ctx).Debug().Err(err).Msg("search corpus unavailable during browser load")
-		}
-
 		// Sort by timestamp descending (newest first)
 		sort.Slice(conversations, func(i, j int) bool {
-			return conversations[i].timestamp().After(conversations[j].timestamp())
+			return conversations[i].Timestamp().After(conversations[j].Timestamp())
 		})
+
+		_, deepSearchAvailable, err := store.DeepSearch(ctx, archiveDir, "", conversations)
+		if err != nil {
+			deepSearchAvailable = false
+			zerolog.Ctx(ctx).Debug().Err(err).Msg("deep search unavailable during browser load")
+		}
 
 		return conversationsLoadedMsg{
 			conversations:       conversations,
-			searchCorpus:        corpus,
 			deepSearchAvailable: deepSearchAvailable,
 		}
 	}
 }
 
-func openConversationCmdWithRepository(
+func openConversationCmdWithStore(
 	ctx context.Context,
 	archiveDir string,
-	conv conversation,
-	repo conversationRepository,
+	conversation conv.Conversation,
+	store browserStore,
 ) tea.Cmd {
 	return func() tea.Msg {
-		session, err := repo.load(ctx, archiveDir, conv)
+		session, err := store.Load(ctx, archiveDir, conversation)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("conversationRepository.load failed for %s", conv.id())
+			zerolog.Ctx(ctx).Error().Err(err).Msgf("browserStore.Load failed for %s", conversation.ID())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
-		return openViewerMsg{conversationID: conv.cacheKey(), conversation: conv, session: session}
+		return openViewerMsg{
+			conversationID: conversation.CacheKey(),
+			conversation:   conversation,
+			session:        session,
+		}
 	}
 }
 
-func openConversationCmdCachedWithRepository(
+func openConversationCmdCachedWithStore(
 	ctx context.Context,
-	conv conversation,
-	parent sessionFull,
-	repo conversationRepository,
+	conversation conv.Conversation,
+	parent conv.Session,
 ) tea.Cmd {
 	return func() tea.Msg {
 		return openViewerMsg{
-			conversationID: conv.cacheKey(),
-			conversation:   conv,
+			conversationID: conversation.CacheKey(),
+			conversation:   conversation,
 			session:        parent,
 		}
 	}
 }
 
-func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
+func copyTranscriptCmd(session conv.Session, opts transcriptOptions) tea.Cmd {
 	return func() tea.Msg {
 		text := renderTranscript(session, opts)
 		if err := clipboard.WriteAll(text); err != nil {
@@ -110,17 +106,17 @@ func copyTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
 	}
 }
 
-func exportTranscriptCmd(session sessionFull, opts transcriptOptions) tea.Cmd {
+func exportTranscriptCmd(session conv.Session, opts transcriptOptions) tea.Cmd {
 	return func() tea.Msg {
 		text := renderTranscript(session, opts)
-		return exportText(text, session.meta)
+		return exportText(text, session.Meta)
 	}
 }
 
-func exportText(text string, meta sessionMeta) notificationMsg {
-	name := fmt.Sprintf("claude-session-%s.md", meta.slug)
-	if meta.slug == "" {
-		name = fmt.Sprintf("claude-session-%s.md", meta.id[:8])
+func exportText(text string, meta conv.SessionMeta) notificationMsg {
+	name := fmt.Sprintf("claude-session-%s.md", meta.Slug)
+	if meta.Slug == "" {
+		name = fmt.Sprintf("claude-session-%s.md", meta.ID[:8])
 	}
 
 	home, err := os.UserHomeDir()

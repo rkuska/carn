@@ -5,47 +5,82 @@ càrn is a tool that provides additional functionality over ~/.claude/projects f
 
 ## Architecture
 
-All code lives in `internal/app/` (single flat package). Source: `~/.claude/projects/`, archive: `~/.local/share/carn/`.
+Code is split by ownership under `internal/`.
+
+- `internal/app/` is the composition root and TUI layer only.
+- `internal/conversation/` owns shared conversation/session/message/plan types
+  and presentation helpers.
+- `internal/source/claude/` owns Claude raw-source scan, parse, grouping,
+  projection, and source-side import analysis.
+- `internal/canonical/` owns the Canonical Store, rebuild/load logic, codecs,
+  transcript persistence, and deep search.
+- `internal/archive/` owns sync, import analysis, and pipeline orchestration.
+
+Source: `~/.claude/projects/`, archive: `~/.local/share/carn/`.
 
 ### Data pipeline
 
 ```
 ~/.claude/projects/**/*.jsonl (raw sessions)
-  → scanSessions()            scanner.go         fast metadata extraction
-  → groupConversations()      conversation.go    group by slug+project
-  → rebuildCanonicalStore()   canonical_store.go binary cache with search index
-  → conversationRepository    conversation_repository.go load on demand
-  → TUI display               browser.go → viewer.go → transcript.go
+  → source/claude.Scan()          raw scan, metadata extraction, grouping
+  → canonical.Store.Rebuild()     binary cache with transcript + search data
+  → canonical.Store.List/Load()   browser list and transcript open
+  → canonical.Store.DeepSearch()  canonical deep search
+  → archive.Pipeline.Analyze/Run() import analysis and sync flow
+  → app browser/viewer/transcript TUI
 ```
 
-### File map
+### Package map
 
-**Entry**: `run.go` (init, logger, Bubble Tea program)
-**Data pipeline**: `scanner.go` (JSONL parse), `parser_types.go` (intermediate types), `conversation.go` (grouping), `conversation_repository.go` (data access)
-**Store**: `canonical_store.go` (binary cache), `canonical_store_incremental.go` (incremental rebuild)
-**Import**: `archive.go` (config, sync orchestration), `sync.go` (concurrent file sync), `import_pipeline.go` (pipeline logic), `import_overview.go` + `import_overview_view.go` (TUI wizard)
-**TUI core**: `app.go` (root model, viewImportOverview → viewBrowser), `browser.go` (conversation list + preview), `viewer.go` (transcript reader), `transcript.go` (message → segments)
-**TUI support**: `browser_search.go` + `browser_search_controller.go` (search), `search.go` + `search_preview.go` (deep search), `delegate.go` (list rendering), `styles.go` (theming), `keys.go` (keybindings), `commands.go` (Bubble Tea cmds), `footer.go`, `notifications.go`, `session.go` (session state), `conversation_header.go` (header rendering)
-**Domain**: `types.go` (core types), `conversation_projection.go` (subagent transcript merge)
+**Entry and composition**: `internal/app/run.go`, `internal/app/app.go`
 
-### Core types (types.go, conversation.go)
+**TUI core**: `internal/app/browser_*.go`, `internal/app/viewer_*.go`,
+`internal/app/transcript_*.go`, `internal/app/import_overview*.go`
 
-- `sessionMeta` — id, project, slug, timestamp, lastTimestamp, cwd, gitBranch, version, model, firstMessage, messageCount, mainMessageCount, totalUsage, toolCounts, isSubagent, filePath
-- `sessionFull` — meta + []message
-- `message` — role, text, thinking, []toolCall, []toolResult, isSidechain, isAgentDivider
-- `toolCall` — name, summary
-- `toolResult` — toolName, toolSummary, content, isError, []diffHunk (structuredPatch)
-- `conversation` — ref, name (slug), project, []sessionMeta (chronological), searchPreview
-- `tokenUsage` — inputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens
-- `scannedSession` (scanner.go) — sessionMeta + groupKey + hasConversationContent
+**TUI support**: `internal/app/commands.go`, `internal/app/delegate.go`,
+`internal/app/footer.go`, `internal/app/help.go`, `internal/app/keys.go`,
+`internal/app/notifications.go`, `internal/app/styles.go`,
+`internal/app/conversation_header.go`, `internal/app/browser_store.go`,
+`internal/app/import_pipeline_binding.go`
+
+**Shared conversation model**: `internal/conversation/*.go`
+
+**Claude source backend**: `internal/source/claude/*.go`
+
+**Canonical Store backend**: `internal/canonical/*.go`
+
+**Archive/import backend**: `internal/archive/*.go`
+
+### Core types (`internal/conversation`)
+
+- `SessionMeta` — id, project, slug, timestamps, cwd, git branch, version,
+  model, first message, counts, token usage, tool counts, subagent flag,
+  file path
+- `Session` — `Meta` plus ordered `Messages`
+- `Message` — role, text, thinking, tool calls, tool results, plans,
+  sidechain flag, agent divider flag
+- `ToolCall` — name and summary
+- `ToolResult` — tool name, summary, content, error flag, structured patch
+- `Conversation` — ref, name, project, chronological sessions, plan count,
+  search preview
+- `TokenUsage`, `DiffHunk`, `Plan`, `Ref`, `Provider`
 
 ## How to write code
 
 This is a custom tool and we don't plan it to be used as a package therefore most of the functionality can be written private.
 
-We use flat layout wit no folders to not complicate things. We keep our files small in terms of line length and we group code by its functionality into separate files.
+Keep `internal/app/` focused on app wiring and the TUI. When a file mixes
+backend responsibilities or approaches the complexity cap, split it by
+responsibility and move backend code into vocabulary-named packages under
+`internal/` when needed. Keep files small and group code by functionality.
 
 Write code using TDD platform. First write stubs. Then tests (following testing guidelines, scenarios are the most important tests) and implementation after. Write meaningful tests.
+
+When handling objects or creating signatures follow the mantra "Parse, don’t validate".
+
+Use `VOCABULARY.md` as the source of truth for naming packages, files, and
+refactor targets. If a needed term is missing, add it there first.
+
 
 ### Dependencies
 
@@ -72,6 +107,8 @@ When adding new dependencies always make sure you are using the latest major ver
 
 * Only use pointers for shared objects (for example, a Client or shared state)
 * Pass by reference when using schemas like value objects or entities 
+
+If the object is meant to be used as pointer then all methods should have pointer receiver. And vice versa. Only exception are awalys marshal functions.
 
 ### Interfaces
 
@@ -186,23 +223,37 @@ go fix ./...
 
 Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents|CanonicalStoreParseConversations|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents)$' -benchmem ./internal/source/claude
+go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
+go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
+go test -run '^$' -bench 'Benchmark(ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
 ```
 
 When identifying optimization candidates, always start with a benchmark for the target path and inspect a CPU profile before coding:
 ```bash
-go test -run '^$' -bench '<benchmark>' -cpuprofile /tmp/carn.cpu ./internal/app
+go test -run '^$' -bench '<benchmark>' -cpuprofile /tmp/carn.cpu <package>
 go tool pprof -top /tmp/carn.cpu
 ```
 
-Keep benchmark scenarios in `perf_bench_test.go` and update `PERF_BASELINE.md`
-when benchmark results change in a meaningful way.
+Keep benchmarks with the package that owns the runtime path and update
+`PERF_BASELINE.md` with the full benchmark suite when benchmark commands or
+results change in a meaningful way.
 
 File-level complexity thresholds are enforced by `TestFileComplexityGuard` in
-`internal/app/complexity_guard_test.go` (runs with `go test ./...`).
-Exceptions live in `complexityExceptions` — add entries consciously, set caps
-just above current values. Update `COMPLEXITY_BASELINE.md` when metrics change
-meaningfully.
+`internal/app/complexity_guard_test.go` (runs with `go test ./...`) across
+`internal/**/*.go`.
+
+Hard limits:
+
+* source files: complexity `<=80`, code lines `<=400`
+* test files: code lines `<=800`
+
+There are no file-level exceptions. When the guard fails, use
+`COMPLEXITY_GUIDE.md` and refresh `COMPLEXITY_BASELINE.md` with:
+
+```bash
+go test ./internal/app -run TestComplexityBaselineDocument -count=1 -update
+```
 
 Make sure to always start implementation with tests and scenarios. If doing refactor adjust the tests first to the expected
 behavior if any test fails start with assumption that there is a bug in refactor rather than a wrong test.

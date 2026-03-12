@@ -37,7 +37,7 @@ func (m *browserModel) updateLayout() {
 	}
 
 	m.list.SetSize(max(listWidth-2, 1), framedBodyHeight(m.height))
-	if m.transcriptVisible() && m.viewer.session.meta.id != "" {
+	if m.transcriptVisible() && m.viewer.session.Meta.ID != "" {
 		m.viewer.SetSize(m.viewerWidth(), m.height)
 	}
 }
@@ -76,7 +76,7 @@ func (m browserModel) renderTranscriptPane(width int, active bool) string {
 		)
 	}
 
-	if m.viewer.session.meta.id == "" {
+	if m.viewer.session.Meta.ID == "" {
 		return renderFramedPane(
 			"Transcript",
 			width,

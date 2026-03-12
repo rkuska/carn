@@ -31,7 +31,7 @@ func (m importOverviewModel) viewDashboard() string {
 }
 
 func (m importOverviewModel) renderDashboardHeader(width int) string {
-	pill := renderImportStatusPill(m.phase, m.result.failed > 0)
+	pill := renderImportStatusPill(m.phase, m.result.Failed > 0)
 	subtitle := styleSubtitle.Render(m.dashboardSubtitle())
 
 	if lipgloss.Width(pill)+2+lipgloss.Width(subtitle) <= width {
@@ -45,20 +45,20 @@ func (m importOverviewModel) dashboardSubtitle() string {
 	case phaseAnalyzing:
 		return "checking Claude projects before import"
 	case phaseReady:
-		if m.analysis.err != nil {
+		if m.analysis.Err != nil {
 			return "analysis finished with errors"
 		}
-		if m.analysis.needsSync() {
+		if m.analysis.NeedsSync() {
 			return "review complete; import and store build are ready"
 		}
 		return archiveMatchesSourceSubtitle
 	case phaseSyncing:
 		return "syncing raw files and rebuilding the local store"
 	case phaseDone:
-		if m.result.failed > 0 {
+		if m.result.Failed > 0 {
 			return "import finished with some copy failures"
 		}
-		if m.result.storeBuilt {
+		if m.result.StoreBuilt {
 			return "import finished and refreshed the local store"
 		}
 		return "import finished and is ready to continue"
@@ -106,12 +106,12 @@ func renderImportStatusPill(phase importPhase, hasFailures bool) string {
 func (m importOverviewModel) renderContextBlock(width int) string {
 	lines := []string{
 		ansi.Truncate(
-			renderSingleChip("Source", shortenPath(m.cfg.sourceDir)),
+			renderSingleChip("Source", shortenPath(m.cfg.SourceDir)),
 			width,
 			"…",
 		),
 		ansi.Truncate(
-			renderSingleChip("Archive", shortenPath(m.cfg.archiveDir)),
+			renderSingleChip("Archive", shortenPath(m.cfg.ArchiveDir)),
 			width,
 			"…",
 		),
@@ -143,40 +143,40 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 	switch m.phase {
 	case phaseAnalyzing:
 		tokens := []string{
-			renderSingleChip("New", fmt.Sprintf("%d", m.analysisProgress.newConversations)),
-			renderSingleChip("Update", fmt.Sprintf("%d", m.analysisProgress.toUpdate)),
+			renderSingleChip("New", fmt.Sprintf("%d", m.analysisProgress.NewConversations)),
+			renderSingleChip("Update", fmt.Sprintf("%d", m.analysisProgress.ToUpdate)),
 		}
-		if m.analysisProgress.currentProject != "" {
+		if m.analysisProgress.CurrentProject != "" {
 			tokens = append(
 				tokens,
-				renderSingleChip("Current", m.analysisProgress.currentProject),
+				renderSingleChip("Current", m.analysisProgress.CurrentProject),
 			)
 		}
 		return tokens
 	case phaseReady:
-		if m.analysis.err != nil {
+		if m.analysis.Err != nil {
 			return []string{
-				renderSingleChip("New", fmt.Sprintf("%d", m.analysis.newConversations)),
-				renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.toUpdate)),
-				renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.upToDate)),
+				renderSingleChip("New", fmt.Sprintf("%d", m.analysis.NewConversations)),
+				renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),
+				renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.UpToDate)),
 			}
 		}
 		return []string{
-			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.newConversations)),
-			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.toUpdate)),
-			renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.upToDate)),
+			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.NewConversations)),
+			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),
+			renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.UpToDate)),
 		}
 	case phaseSyncing:
 		return []string{
 			renderSingleChip("Queued", fmt.Sprintf("%d", m.total)),
-			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.copied)),
-			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.failed)),
+			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.Copied)),
+			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.Failed)),
 		}
 	case phaseDone:
 		return []string{
-			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.copied)),
-			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.failed)),
-			renderSingleChip("Elapsed", formatElapsed(m.result.elapsed)),
+			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.Copied)),
+			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.Failed)),
+			renderSingleChip("Elapsed", formatElapsed(m.result.Elapsed)),
 		}
 	default:
 		return nil
@@ -185,29 +185,29 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 
 func (m importOverviewModel) filesMetric() string {
 	if m.phase == phaseAnalyzing {
-		return fmt.Sprintf("%d", m.analysisProgress.filesInspected)
+		return fmt.Sprintf("%d", m.analysisProgress.FilesInspected)
 	}
-	return fmt.Sprintf("%d", m.analysis.filesInspected)
+	return fmt.Sprintf("%d", m.analysis.FilesInspected)
 }
 
 func (m importOverviewModel) projectsMetric() string {
 	if m.phase == phaseAnalyzing {
-		return fmt.Sprintf("%d", len(m.projectDirs))
+		return fmt.Sprintf("%d", m.analysisProgress.ProjectsTotal)
 	}
-	return fmt.Sprintf("%d", m.analysis.projects)
+	return fmt.Sprintf("%d", m.analysis.Projects)
 }
 
 func (m importOverviewModel) conversationMetric() string {
 	if m.phase == phaseAnalyzing {
-		return fmt.Sprintf("%d", m.analysisProgress.conversations)
+		return fmt.Sprintf("%d", m.analysisProgress.Conversations)
 	}
-	return fmt.Sprintf("%d", m.analysis.conversations)
+	return fmt.Sprintf("%d", m.analysis.Conversations)
 }
 
 func (m importOverviewModel) renderActivityBlock(width int) string {
 	lines := m.activityLines(width)
 	block := strings.Join(lines, "\n")
-	if m.phase == phaseReady && !m.analysis.needsSync() {
+	if m.phase == phaseReady && !m.analysis.NeedsSync() {
 		return "\n\n" + centerImportBlock(block, width)
 	}
 	return "\n" + block
@@ -237,17 +237,17 @@ func (m importOverviewModel) analyzingActivityLines(width int) []string {
 
 func (m importOverviewModel) readyActivityLines(width int) []string {
 	var lines []string
-	if m.analysis.err != nil {
-		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.err), width, false))
+	if m.analysis.Err != nil {
+		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false))
 		lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
 		return lines
 	}
-	if m.analysis.needsSync() {
+	if m.analysis.NeedsSync() {
 		message := fmt.Sprintf(
 			"Will import %d archive files and refresh the local store after confirmation.",
-			m.analysis.queuedFileCount(),
+			m.analysis.QueuedFileCount(),
 		)
-		if m.analysis.queuedFileCount() == 0 {
+		if m.analysis.QueuedFileCount() == 0 {
 			message = "Will rebuild the local store after confirmation."
 		}
 		lines = append(lines, ansi.Hardwrap(message, width, false))
@@ -276,7 +276,7 @@ func (m importOverviewModel) syncingActivityLines(width int) []string {
 
 func (m importOverviewModel) doneActivityLines(width int) []string {
 	message := "Import complete."
-	if m.result.failed > 0 {
+	if m.result.Failed > 0 {
 		message = "Import complete with failures."
 	}
 	return []string{

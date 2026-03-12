@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,13 +13,13 @@ import (
 func TestRenderTranscript(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Hello, help me with Go"},
-			{role: roleAssistant, text: "Sure, what do you need?", thinking: "User wants Go help"},
-			{role: roleUser, text: "Write a function"},
-			{role: roleAssistant, text: "Here's the function:", toolCalls: []toolCall{
-				{name: "Write", summary: "/path/file.go"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Hello, help me with Go"},
+			{Role: conv.RoleAssistant, Text: "Sure, what do you need?", Thinking: "User wants Go help"},
+			{Role: conv.RoleUser, Text: "Write a function"},
+			{Role: conv.RoleAssistant, Text: "Here's the function:", ToolCalls: []conv.ToolCall{
+				{Name: "Write", Summary: "/path/file.go"},
 			}},
 		},
 	}
@@ -79,13 +80,13 @@ func TestRenderTranscript(t *testing.T) {
 func TestRenderPreview(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "First question"},
-			{role: roleAssistant, text: "First answer"},
-			{role: roleUser, text: "Second question"},
-			{role: roleAssistant, text: "Second answer"},
-			{role: roleUser, text: "Third question"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "First question"},
+			{Role: conv.RoleAssistant, Text: "First answer"},
+			{Role: conv.RoleUser, Text: "Second question"},
+			{Role: conv.RoleAssistant, Text: "Second answer"},
+			{Role: conv.RoleUser, Text: "Third question"},
 		},
 	}
 
@@ -125,17 +126,17 @@ func TestFormatToolCall(t *testing.T) {
 
 	tests := []struct {
 		name string
-		tc   toolCall
+		tc   conv.ToolCall
 		want string
 	}{
 		{
 			name: "with summary",
-			tc:   toolCall{name: "Read", summary: "/path/file.go"},
+			tc:   conv.ToolCall{Name: "Read", Summary: "/path/file.go"},
 			want: "[Read: /path/file.go]",
 		},
 		{
 			name: "without summary",
-			tc:   toolCall{name: "CustomTool", summary: ""},
+			tc:   conv.ToolCall{Name: "CustomTool", Summary: ""},
 			want: "[CustomTool]",
 		},
 	}
@@ -151,25 +152,25 @@ func TestFormatToolCall(t *testing.T) {
 
 func TestRenderTranscriptEmpty(t *testing.T) {
 	t.Parallel()
-	result := renderTranscript(sessionFull{}, transcriptOptions{})
+	result := renderTranscript(conv.Session{}, transcriptOptions{})
 	assert.Empty(t, result)
 }
 
 func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
 	t.Parallel()
 
-	toolOnlyMsg := message{
-		role: roleAssistant,
-		toolCalls: []toolCall{
-			{name: "Read", summary: "/path/file.go"},
+	toolOnlyMsg := conv.Message{
+		Role: conv.RoleAssistant,
+		ToolCalls: []conv.ToolCall{
+			{Name: "Read", Summary: "/path/file.go"},
 		},
 	}
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Do something"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Do something"},
 			toolOnlyMsg,
-			{role: roleAssistant, text: "Done!"},
+			{Role: conv.RoleAssistant, Text: "Done!"},
 		},
 	}
 
@@ -194,12 +195,12 @@ func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
 func TestRenderTranscriptToolResults(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Check this", toolResults: []toolResult{
-				{toolName: "Read", toolSummary: "/path/file.go", content: "file contents here"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Check this", ToolResults: []conv.ToolResult{
+				{ToolName: "Read", ToolSummary: "/path/file.go", Content: "file contents here"},
 			}},
-			{role: roleAssistant, text: "Done!"},
+			{Role: conv.RoleAssistant, Text: "Done!"},
 		},
 	}
 
@@ -219,13 +220,13 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 func TestRenderTranscriptHideSidechain(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Main message"},
-			{role: roleAssistant, text: "Main reply"},
-			{role: roleUser, text: "Sidechain message", isSidechain: true},
-			{role: roleAssistant, text: "Sidechain reply", isSidechain: true},
-			{role: roleUser, text: "Back to main"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Main message"},
+			{Role: conv.RoleAssistant, Text: "Main reply"},
+			{Role: conv.RoleUser, Text: "Sidechain message", IsSidechain: true},
+			{Role: conv.RoleAssistant, Text: "Sidechain reply", IsSidechain: true},
+			{Role: conv.RoleUser, Text: "Back to main"},
 		},
 	}
 
@@ -246,13 +247,13 @@ func TestRenderTranscriptHideSidechain(t *testing.T) {
 func TestRenderTranscriptAgentDivider(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Main question"},
-			{role: roleAssistant, text: "Main answer"},
-			{role: roleUser, text: "Search the codebase", isAgentDivider: true},
-			{role: roleUser, text: "Sub question"},
-			{role: roleAssistant, text: "Sub answer"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Main question"},
+			{Role: conv.RoleAssistant, Text: "Main answer"},
+			{Role: conv.RoleUser, Text: "Search the codebase", IsAgentDivider: true},
+			{Role: conv.RoleUser, Text: "Sub question"},
+			{Role: conv.RoleAssistant, Text: "Sub answer"},
 		},
 	}
 
@@ -267,12 +268,12 @@ func TestRenderTranscriptAgentDivider(t *testing.T) {
 func TestRenderPreviewAgentDivider(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Main question"},
-			{role: roleAssistant, text: "Main answer"},
-			{role: roleUser, text: "Explore files", isAgentDivider: true},
-			{role: roleUser, text: "Sub question"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Main question"},
+			{Role: conv.RoleAssistant, Text: "Main answer"},
+			{Role: conv.RoleUser, Text: "Explore files", IsAgentDivider: true},
+			{Role: conv.RoleUser, Text: "Sub question"},
 		},
 	}
 
@@ -285,16 +286,16 @@ func TestRenderPreviewAgentDivider(t *testing.T) {
 func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Do something"},
-			{role: roleAssistant, text: "Sure", toolCalls: []toolCall{
-				{name: "Read", summary: "/path/file.go"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Do something"},
+			{Role: conv.RoleAssistant, Text: "Sure", ToolCalls: []conv.ToolCall{
+				{Name: "Read", Summary: "/path/file.go"},
 			}},
-			{role: roleUser, toolResults: []toolResult{
-				{toolName: "Read", toolSummary: "/path/file.go", content: "file contents"},
+			{Role: conv.RoleUser, ToolResults: []conv.ToolResult{
+				{ToolName: "Read", ToolSummary: "/path/file.go", Content: "file contents"},
 			}},
-			{role: roleAssistant, text: "Done!"},
+			{Role: conv.RoleAssistant, Text: "Done!"},
 		},
 	}
 
@@ -317,14 +318,14 @@ func TestRenderUserToolResultOnlyVisibility(t *testing.T) {
 func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Question"},
-			{role: roleAssistant, text: "Answer"},
-			{role: roleUser, text: "", toolResults: []toolResult{
-				{content: "result"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Question"},
+			{Role: conv.RoleAssistant, Text: "Answer"},
+			{Role: conv.RoleUser, Text: "", ToolResults: []conv.ToolResult{
+				{Content: "result"},
 			}},
-			{role: roleAssistant, text: "Final"},
+			{Role: conv.RoleAssistant, Text: "Final"},
 		},
 	}
 
@@ -336,11 +337,11 @@ func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Do something"},
-			{role: roleAssistant, text: "", toolCalls: []toolCall{
-				{name: "Bash", summary: "ls -la"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Do something"},
+			{Role: conv.RoleAssistant, Text: "", ToolCalls: []conv.ToolCall{
+				{Name: "Bash", Summary: "ls -la"},
 			}},
 		},
 	}
@@ -354,10 +355,10 @@ func TestFormatToolResult(t *testing.T) {
 
 	t.Run("resolved with summary", func(t *testing.T) {
 		t.Parallel()
-		tr := toolResult{
-			toolName:    "Read",
-			toolSummary: "/path/to/file.go",
-			content:     "package main",
+		tr := conv.ToolResult{
+			ToolName:    "Read",
+			ToolSummary: "/path/to/file.go",
+			Content:     "package main",
 		}
 		got := formatToolResult(tr)
 		assertContainsAll(t, got, "**Read**: `/path/to/file.go`", "```\npackage main\n```")
@@ -365,9 +366,9 @@ func TestFormatToolResult(t *testing.T) {
 
 	t.Run("resolved without summary", func(t *testing.T) {
 		t.Parallel()
-		tr := toolResult{
-			toolName: "TaskList",
-			content:  "no tasks",
+		tr := conv.ToolResult{
+			ToolName: "TaskList",
+			Content:  "no tasks",
 		}
 		got := formatToolResult(tr)
 		assert.Contains(t, got, "**TaskList**\n")
@@ -375,8 +376,8 @@ func TestFormatToolResult(t *testing.T) {
 
 	t.Run("unresolved fallback", func(t *testing.T) {
 		t.Parallel()
-		tr := toolResult{
-			content: "some output",
+		tr := conv.ToolResult{
+			Content: "some output",
 		}
 		got := formatToolResult(tr)
 		assert.Contains(t, got, "**Result**\n")
@@ -386,10 +387,10 @@ func TestFormatToolResult(t *testing.T) {
 func TestFormatToolResultPreservesNewlines(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName:    "Read",
-		toolSummary: "/file.go",
-		content:     "line1\nline2\nline3",
+	tr := conv.ToolResult{
+		ToolName:    "Read",
+		ToolSummary: "/file.go",
+		Content:     "line1\nline2\nline3",
 	}
 	got := formatToolResult(tr)
 	assert.Contains(t, got, "line1\nline2\nline3")
@@ -398,17 +399,17 @@ func TestFormatToolResultPreservesNewlines(t *testing.T) {
 func TestFormatToolResultDiff(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName:    "Edit",
-		toolSummary: "/path/to/file.go",
-		content:     "file updated",
-		structuredPatch: []diffHunk{
+	tr := conv.ToolResult{
+		ToolName:    "Edit",
+		ToolSummary: "/path/to/file.go",
+		Content:     "file updated",
+		StructuredPatch: []conv.DiffHunk{
 			{
-				oldStart: 10,
-				oldLines: 3,
-				newStart: 10,
-				newLines: 5,
-				lines:    []string{" context", "-old line", "+new line1", "+new line2", " more context"},
+				OldStart: 10,
+				OldLines: 3,
+				NewStart: 10,
+				NewLines: 5,
+				Lines:    []string{" context", "-old line", "+new line1", "+new line2", " more context"},
 			},
 		},
 	}
@@ -426,10 +427,10 @@ func TestFormatToolResultDiff(t *testing.T) {
 func TestFormatToolResultDiffFallsBackToContent(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName:    "Edit",
-		toolSummary: "/path/to/file.go",
-		content:     "file updated successfully",
+	tr := conv.ToolResult{
+		ToolName:    "Edit",
+		ToolSummary: "/path/to/file.go",
+		Content:     "file updated successfully",
 	}
 	got := formatToolResult(tr)
 
@@ -450,10 +451,10 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 
 	t.Run("messages produce role header and markdown segments", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleUser, text: "Hello"},
-				{role: roleAssistant, text: "Hi there"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "Hello"},
+				{Role: conv.RoleAssistant, Text: "Hi there"},
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{})
@@ -463,19 +464,19 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		assert.Equal(t, 2, counts[segmentMarkdown])
 		require.GreaterOrEqual(t, len(segments), 3)
 		assert.Equal(t, segmentRoleHeader, segments[0].kind)
-		assert.Equal(t, roleUser, segments[0].role)
+		assert.Equal(t, conv.RoleUser, segments[0].role)
 		assert.Equal(t, segmentRoleHeader, segments[2].kind)
-		assert.Equal(t, roleAssistant, segments[2].role)
+		assert.Equal(t, conv.RoleAssistant, segments[2].role)
 	})
 
 	t.Run("tool results produce separate segments", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleUser, text: "Check this", toolResults: []toolResult{
-					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "Check this", ToolResults: []conv.ToolResult{
+					{ToolName: "Read", ToolSummary: "/file.go", Content: "package main"},
 				}},
-				{role: roleAssistant, text: "Done"},
+				{Role: conv.RoleAssistant, Text: "Done"},
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: true})
@@ -487,12 +488,12 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 
 	t.Run("tool results hidden when showToolResults false", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleUser, text: "", toolResults: []toolResult{
-					{toolName: "Read", content: "contents"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "", ToolResults: []conv.ToolResult{
+					{ToolName: "Read", Content: "contents"},
 				}},
-				{role: roleAssistant, text: "Done"},
+				{Role: conv.RoleAssistant, Text: "Done"},
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showToolResults: false})
@@ -503,9 +504,9 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 
 	t.Run("thinking produces segmentThinking", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleAssistant, text: "answer", thinking: "deep thought"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleAssistant, Text: "answer", Thinking: "deep thought"},
 			},
 		}
 		segments := renderTranscriptSegmented(session, transcriptOptions{showThinking: true})
@@ -521,11 +522,11 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 
 	t.Run("tool calls produce segmentToolCall", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleAssistant, text: "done", toolCalls: []toolCall{
-					{name: "Read", summary: "/file.go"},
-					{name: "Write", summary: "/out.go"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleAssistant, Text: "done", ToolCalls: []conv.ToolCall{
+					{Name: "Read", Summary: "/file.go"},
+					{Name: "Write", Summary: "/out.go"},
 				}},
 			},
 		}
@@ -537,13 +538,13 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 
 	t.Run("flattenSegments matches renderTranscript output", func(t *testing.T) {
 		t.Parallel()
-		session := sessionFull{
-			messages: []message{
-				{role: roleUser, text: "Hello", toolResults: []toolResult{
-					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+		session := conv.Session{
+			Messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "Hello", ToolResults: []conv.ToolResult{
+					{ToolName: "Read", ToolSummary: "/file.go", Content: "package main"},
 				}},
-				{role: roleAssistant, text: "Done", thinking: "let me think", toolCalls: []toolCall{
-					{name: "Write", summary: "/out.go"},
+				{Role: conv.RoleAssistant, Text: "Done", Thinking: "let me think", ToolCalls: []conv.ToolCall{
+					{Name: "Write", Summary: "/out.go"},
 				}},
 			},
 		}
@@ -557,23 +558,23 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 func TestFormatToolResultMultipleHunks(t *testing.T) {
 	t.Parallel()
 
-	tr := toolResult{
-		toolName:    "Edit",
-		toolSummary: "/path/to/file.go",
-		structuredPatch: []diffHunk{
+	tr := conv.ToolResult{
+		ToolName:    "Edit",
+		ToolSummary: "/path/to/file.go",
+		StructuredPatch: []conv.DiffHunk{
 			{
-				oldStart: 5,
-				oldLines: 2,
-				newStart: 5,
-				newLines: 3,
-				lines:    []string{" ctx", "-removed", "+added1", "+added2"},
+				OldStart: 5,
+				OldLines: 2,
+				NewStart: 5,
+				NewLines: 3,
+				Lines:    []string{" ctx", "-removed", "+added1", "+added2"},
 			},
 			{
-				oldStart: 20,
-				oldLines: 1,
-				newStart: 21,
-				newLines: 2,
-				lines:    []string{"-old", "+new1", "+new2"},
+				OldStart: 20,
+				OldLines: 1,
+				NewStart: 21,
+				NewLines: 2,
+				Lines:    []string{"-old", "+new1", "+new2"},
 			},
 		},
 	}
@@ -589,20 +590,20 @@ func TestRenderPreviewHeader(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		meta     sessionMeta
+		meta     conv.SessionMeta
 		contains []string
 		excludes []string
 	}{
 		{
 			name: "full metadata",
-			meta: sessionMeta{
-				model:         "claude-sonnet-4",
-				messageCount:  42,
-				timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
-				lastTimestamp: time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
-				gitBranch:     "feat/auth",
-				totalUsage:    tokenUsage{inputTokens: 5000, outputTokens: 3000},
-				toolCounts:    map[string]int{"Bash": 12, "Read": 8, "Edit": 5},
+			meta: conv.SessionMeta{
+				Model:         "claude-sonnet-4",
+				MessageCount:  42,
+				Timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				LastTimestamp: time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
+				GitBranch:     "feat/auth",
+				TotalUsage:    conv.TokenUsage{InputTokens: 5000, OutputTokens: 3000},
+				ToolCounts:    map[string]int{"Bash": 12, "Read": 8, "Edit": 5},
 			},
 			contains: []string{
 				"claude-sonnet-4", "23m", "42 msgs", "8k",
@@ -614,19 +615,19 @@ func TestRenderPreviewHeader(t *testing.T) {
 		},
 		{
 			name: "missing optional fields",
-			meta: sessionMeta{
-				messageCount: 5,
+			meta: conv.SessionMeta{
+				MessageCount: 5,
 			},
 			contains: []string{"5 msgs"},
 			excludes: []string{"started", "last"},
 		},
 		{
 			name: "no branch no tools",
-			meta: sessionMeta{
-				model:         "claude-haiku",
-				messageCount:  10,
-				timestamp:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-				lastTimestamp: time.Date(2026, 1, 1, 0, 5, 0, 0, time.UTC),
+			meta: conv.SessionMeta{
+				Model:         "claude-haiku",
+				MessageCount:  10,
+				Timestamp:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				LastTimestamp: time.Date(2026, 1, 1, 0, 5, 0, 0, time.UTC),
 			},
 			contains: []string{"claude-haiku", "10 msgs", "5m"},
 			excludes: nil,
@@ -648,45 +649,45 @@ func TestFirstUserMessage(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		messages []message
+		messages []conv.Message
 		want     string
 	}{
 		{
 			name: "normal first user message",
-			messages: []message{
-				{role: roleUser, text: "Hello world"},
-				{role: roleAssistant, text: "Hi"},
+			messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "Hello world"},
+				{Role: conv.RoleAssistant, Text: "Hi"},
 			},
 			want: "Hello world",
 		},
 		{
 			name: "skips interrupt",
-			messages: []message{
-				{role: roleUser, text: "[Request interrupted by user]"},
-				{role: roleUser, text: "Real question"},
+			messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "[Request interrupted by user]"},
+				{Role: conv.RoleUser, Text: "Real question"},
 			},
 			want: "Real question",
 		},
 		{
 			name: "skips empty",
-			messages: []message{
-				{role: roleUser, text: ""},
-				{role: roleUser, text: "Actual message"},
+			messages: []conv.Message{
+				{Role: conv.RoleUser, Text: ""},
+				{Role: conv.RoleUser, Text: "Actual message"},
 			},
 			want: "Actual message",
 		},
 		{
 			name: "skips agent divider",
-			messages: []message{
-				{role: roleUser, text: "Explore code", isAgentDivider: true},
-				{role: roleUser, text: "My question"},
+			messages: []conv.Message{
+				{Role: conv.RoleUser, Text: "Explore code", IsAgentDivider: true},
+				{Role: conv.RoleUser, Text: "My question"},
 			},
 			want: "My question",
 		},
 		{
 			name: "no user messages",
-			messages: []message{
-				{role: roleAssistant, text: "Hello"},
+			messages: []conv.Message{
+				{Role: conv.RoleAssistant, Text: "Hello"},
 			},
 			want: "",
 		},
@@ -709,17 +710,17 @@ func TestFirstUserMessage(t *testing.T) {
 func TestRenderPreviewWithHeader(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		meta: sessionMeta{
-			model:         "claude-sonnet-4",
-			messageCount:  3,
-			timestamp:     time.Date(2026, 3, 6, 14, 0, 0, 0, time.UTC),
-			lastTimestamp: time.Date(2026, 3, 6, 14, 10, 0, 0, time.UTC),
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			Model:         "claude-sonnet-4",
+			MessageCount:  3,
+			Timestamp:     time.Date(2026, 3, 6, 14, 0, 0, 0, time.UTC),
+			LastTimestamp: time.Date(2026, 3, 6, 14, 10, 0, 0, time.UTC),
 		},
-		messages: []message{
-			{role: roleUser, text: "Help me with auth"},
-			{role: roleAssistant, text: "Sure, I can help."},
-			{role: roleUser, text: "Follow-up question"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Help me with auth"},
+			{Role: conv.RoleAssistant, Text: "Sure, I can help."},
+			{Role: conv.RoleUser, Text: "Follow-up question"},
 		},
 	}
 
@@ -742,13 +743,13 @@ func TestRenderPreviewWithHeader(t *testing.T) {
 func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Hello"},
-			{role: roleAssistant, text: "Hi there"},
-			{role: roleUser, text: "[Request interrupted by user for tool use]"},
-			{role: roleUser, text: "Continue please"},
-			{role: roleAssistant, text: "Continuing"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Hello"},
+			{Role: conv.RoleAssistant, Text: "Hi there"},
+			{Role: conv.RoleUser, Text: "[Request interrupted by user for tool use]"},
+			{Role: conv.RoleUser, Text: "Continue please"},
+			{Role: conv.RoleAssistant, Text: "Continuing"},
 		},
 	}
 
@@ -763,13 +764,13 @@ func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
 func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "Hello"},
-			{role: roleAssistant, text: "Hi there"},
-			{role: roleUser, text: "[Request interrupted by user]"},
-			{role: roleUser, text: "Continue"},
-			{role: roleAssistant, text: "Continuing"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Hello"},
+			{Role: conv.RoleAssistant, Text: "Hi there"},
+			{Role: conv.RoleUser, Text: "[Request interrupted by user]"},
+			{Role: conv.RoleUser, Text: "Continue"},
+			{Role: conv.RoleAssistant, Text: "Continuing"},
 		},
 	}
 
@@ -782,13 +783,13 @@ func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
 func TestRenderTranscriptInterruptWithToolResults(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		messages: []message{
-			{role: roleUser, text: "[Request interrupted by user for tool use]",
-				toolResults: []toolResult{
-					{toolName: "Read", toolSummary: "/file.go", content: "package main"},
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "[Request interrupted by user for tool use]",
+				ToolResults: []conv.ToolResult{
+					{ToolName: "Read", ToolSummary: "/file.go", Content: "package main"},
 				}},
-			{role: roleAssistant, text: "Done"},
+			{Role: conv.RoleAssistant, Text: "Done"},
 		},
 	}
 

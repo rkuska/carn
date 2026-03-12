@@ -91,7 +91,7 @@ func (m browserModel) listFooterStatusParts() []string {
 		status = append(status, fmt.Sprintf("/%s", m.search.query))
 	}
 	if conv, ok := m.selectedConversation(); ok {
-		info = fmt.Sprintf("%s  %s", info, conv.project.displayName)
+		info = fmt.Sprintf("%s  %s", info, conv.Project.DisplayName)
 	}
 	return append(status, info)
 }

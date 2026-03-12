@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const (
@@ -16,6 +17,14 @@ const (
 	delegateHeightDefault    = 3
 	delegateHeightDeepSearch = 5
 )
+
+type deepSearchResultMsg struct {
+	revision      int
+	query         string
+	conversations []conv.Conversation
+	available     bool
+	err           error
+}
 
 type deepSearchDebounceMsg struct {
 	revision int
@@ -60,7 +69,7 @@ func (m *browserModel) cancelActiveDeepSearch() {
 
 func (m *browserModel) updateSelectedConversationID() {
 	if conv, ok := m.selectedConversation(); ok {
-		m.search.selectedConversationID = conv.cacheKey()
+		m.search.selectedConversationID = conv.CacheKey()
 		return
 	}
 	m.search.selectedConversationID = ""
@@ -73,7 +82,7 @@ func (m *browserModel) restoreSelection() {
 
 	if m.search.selectedConversationID != "" {
 		for i, conv := range m.search.visibleConversations {
-			if conv.cacheKey() == m.search.selectedConversationID {
+			if conv.CacheKey() == m.search.selectedConversationID {
 				m.list.Select(i)
 				return
 			}
@@ -85,7 +94,7 @@ func (m *browserModel) restoreSelection() {
 }
 
 func (m *browserModel) setSearchItems(items []conversationListItem, cmds *[]tea.Cmd) {
-	m.search.visibleConversations = make([]conversation, 0, len(items))
+	m.search.visibleConversations = make([]conv.Conversation, 0, len(items))
 	listItems := make([]list.Item, 0, len(items))
 	for _, item := range items {
 		m.search.visibleConversations = append(m.search.visibleConversations, item.conversation)
@@ -144,14 +153,40 @@ func (m *browserModel) startDeepSearch(cmds *[]tea.Cmd) {
 	m.search.status = searchStatusSearching
 	*cmds = append(
 		*cmds,
-		deepSearchCmd(
+		deepSearchRepositoryCmd(
 			searchCtx,
+			m.archiveDir,
 			m.search.query,
 			m.search.revision,
 			m.search.baseConversations,
-			m.searchCorpus,
+			m.store,
 		),
 	)
+}
+
+func deepSearchRepositoryCmd(
+	ctx context.Context,
+	archiveDir string,
+	query string,
+	revision int,
+	mainConversations []conv.Conversation,
+	store browserStore,
+) tea.Cmd {
+	return func() tea.Msg {
+		conversations, available, err := store.DeepSearch(
+			ctx,
+			archiveDir,
+			query,
+			mainConversations,
+		)
+		return deepSearchResultMsg{
+			revision:      revision,
+			query:         query,
+			conversations: conversations,
+			available:     available,
+			err:           err,
+		}
+	}
 }
 
 func (m *browserModel) refreshSearchResults(cmds *[]tea.Cmd) {

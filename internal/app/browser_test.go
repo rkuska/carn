@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,67 +29,72 @@ func testBrowser(t *testing.T) browserModel {
 	return b
 }
 
-func testSession(id string) sessionFull {
-	return sessionFull{
-		meta: sessionMeta{
-			id:        id,
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+func testSession(id string) conv.Session {
+	return conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        id,
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "hello"},
-			{role: roleAssistant, text: "hi there"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "hello"},
+			{Role: conv.RoleAssistant, Text: "hi there"},
 		},
 	}
 }
 
-func testBrowserSessionLong(id string, keyword string) sessionFull {
-	msgs := make([]message, 0, 40)
+func testBrowserSessionLong(id string, keyword string) conv.Session {
+	msgs := make([]conv.Message, 0, 40)
 	for i := range 20 {
-		msgs = append(msgs, message{role: roleUser, text: "user message"})
+		msgs = append(msgs, conv.Message{Role: conv.RoleUser, Text: "user message"})
 		text := "assistant response"
 		if i == 15 {
 			text = "assistant response with " + keyword
 		}
-		msgs = append(msgs, message{role: roleAssistant, text: text})
+		msgs = append(msgs, conv.Message{Role: conv.RoleAssistant, Text: text})
 	}
 
-	return sessionFull{
-		meta: sessionMeta{
-			id:        id,
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	return conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        id,
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: msgs,
-	}
-}
-
-func testConv(id string) conversation {
-	return conversation{
-		name:    "test-slug",
-		project: project{displayName: "test"},
-		sessions: []sessionMeta{
-			{id: id, slug: "test-slug", timestamp: time.Now(), project: project{displayName: "test"}},
-		},
+		Messages: msgs,
 	}
 }
 
-func testLongConv(id string) conversation {
-	return conversation{
-		name: "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
-		project: project{
-			displayName: "Projects/claude-search/with-a-very-long-project-name",
-		},
-		sessions: []sessionMeta{
+func testConv(id string) conv.Conversation {
+	return conv.Conversation{
+		Name:    "test-slug",
+		Project: conv.Project{DisplayName: "test"},
+		Sessions: []conv.SessionMeta{
 			{
-				id:           id,
-				slug:         "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
-				timestamp:    time.Now(),
-				project:      project{displayName: "Projects/claude-search/with-a-very-long-project-name"},
-				firstMessage: strings.Repeat("This is a long first message that wraps. ", 4),
-				model:        "claude-opus-4-1",
-				version:      "1.2.3",
-				messageCount: 20,
+				ID:        id,
+				Slug:      "test-slug",
+				Timestamp: time.Now(),
+				Project:   conv.Project{DisplayName: "test"},
+			},
+		},
+	}
+}
+
+func testLongConv(id string) conv.Conversation {
+	return conv.Conversation{
+		Name: "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
+		Project: conv.Project{
+			DisplayName: "Projects/claude-search/with-a-very-long-project-name",
+		},
+		Sessions: []conv.SessionMeta{
+			{
+				ID:           id,
+				Slug:         "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
+				Timestamp:    time.Now(),
+				Project:      conv.Project{DisplayName: "Projects/claude-search/with-a-very-long-project-name"},
+				FirstMessage: strings.Repeat("This is a long first message that wraps. ", 4),
+				Model:        "claude-opus-4-1",
+				Version:      "1.2.3",
+				MessageCount: 20,
 			},
 		},
 	}
@@ -106,14 +112,14 @@ func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv := testConv(testConversationIDPrimary)
-	b.list.SetItems([]list.Item{conv})
+	conversation := testConv(testConversationIDPrimary)
+	b.list.SetItems([]list.Item{conversation})
 	b.list.Select(0)
 
 	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	assert.Equal(t, transcriptSplit, b.transcriptMode)
-	assert.Equal(t, conv.id(), b.loadingConversationID)
+	assert.Equal(t, conversation.CacheKey(), b.loadingConversationID)
 	require.NotNil(t, cmd)
 	assert.Equal(t, b.listPaneWidth()-2, b.list.Width())
 }
@@ -154,18 +160,18 @@ func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	b := testBrowser(t)
 	session := testSession(testConversationIDPrimary)
 	b.transcriptMode = transcriptSplit
-	b.loadingConversationID = session.meta.id
+	b.loadingConversationID = session.Meta.ID
 
 	b, _ = b.Update(openViewerMsg{
-		conversationID: session.meta.id,
-		conversation:   singleSessionConversation(session.meta),
+		conversationID: session.Meta.ID,
+		conversation:   singleSessionConversation(session.Meta),
 		session:        session,
 	})
 
-	assert.Equal(t, session.meta.id, b.openConversationID)
+	assert.Equal(t, session.Meta.ID, b.openConversationID)
 	assert.Empty(t, b.loadingConversationID)
-	assert.Equal(t, session.meta.id, b.viewer.session.meta.id)
-	_, ok := b.transcriptCache[session.meta.id]
+	assert.Equal(t, session.Meta.ID, b.viewer.session.Meta.ID)
+	_, ok := b.transcriptCache[session.Meta.ID]
 	assert.True(t, ok)
 }
 
@@ -173,22 +179,22 @@ func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv1 := testConv(testConversationIDPrimary)
-	conv2 := testConv(testConversationIDSecondary)
-	b.list.SetItems([]list.Item{conv1, conv2})
+	conversationA := testConv(testConversationIDPrimary)
+	conversationB := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conversationA, conversationB})
 	b.list.Select(1)
 	b.transcriptMode = transcriptSplit
-	b.loadingConversationID = conv2.id()
+	b.loadingConversationID = conversationB.CacheKey()
 
 	b, _ = b.Update(openViewerMsg{
-		conversationID: conv1.id(),
-		conversation:   conv1,
-		session:        testSession(conv1.id()),
+		conversationID: conversationA.CacheKey(),
+		conversation:   conversationA,
+		session:        testSession(conversationA.ID()),
 	})
 
 	assert.Empty(t, b.openConversationID)
-	assert.Equal(t, conv2.id(), b.loadingConversationID)
-	assert.Empty(t, b.viewer.session.meta.id)
+	assert.Equal(t, conversationB.CacheKey(), b.loadingConversationID)
+	assert.Empty(t, b.viewer.session.Meta.ID)
 }
 
 func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
@@ -198,20 +204,20 @@ func TestBrowserOKeyTogglesTranscriptFullscreen(t *testing.T) {
 	session := testSession(testConversationIDPrimary)
 	b.transcriptMode = transcriptSplit
 	b.focus = focusList
-	b.loadingConversationID = session.meta.id
+	b.loadingConversationID = session.Meta.ID
 	b, _ = b.Update(openViewerMsg{
-		conversationID: session.meta.id,
-		conversation:   singleSessionConversation(session.meta),
+		conversationID: session.Meta.ID,
+		conversation:   singleSessionConversation(session.Meta),
 		session:        session,
 	})
 
 	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
 	assert.Equal(t, transcriptFullscreen, b.transcriptMode)
-	assert.Equal(t, session.meta.id, b.openConversationID)
+	assert.Equal(t, session.Meta.ID, b.openConversationID)
 
 	b, _ = b.Update(tea.KeyPressMsg{Text: "O"})
 	assert.Equal(t, transcriptSplit, b.transcriptMode)
-	assert.Equal(t, session.meta.id, b.openConversationID)
+	assert.Equal(t, session.Meta.ID, b.openConversationID)
 }
 
 func TestBrowserQClosesTranscriptBeforeQuit(t *testing.T) {
@@ -242,23 +248,23 @@ func TestBrowserSplitListFocusUpdatesTranscriptSelection(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv1 := testConv(testConversationIDPrimary)
-	conv2 := testConv(testConversationIDSecondary)
-	b.list.SetItems([]list.Item{conv1, conv2})
+	conversationA := testConv(testConversationIDPrimary)
+	conversationB := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conversationA, conversationB})
 	b.list.Select(0)
 	b.transcriptMode = transcriptSplit
 	b.focus = focusList
 	b.loadingConversationID = testConversationIDPrimary
 	b, _ = b.Update(openViewerMsg{
 		conversationID: testConversationIDPrimary,
-		conversation:   conv1,
+		conversation:   conversationA,
 		session:        testSession(testConversationIDPrimary),
 	})
 
 	b, cmd := b.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 
 	assert.Equal(t, 1, b.list.Index())
-	assert.Equal(t, conv2.id(), b.loadingConversationID)
+	assert.Equal(t, conversationB.CacheKey(), b.loadingConversationID)
 	require.NotNil(t, cmd)
 }
 
@@ -266,9 +272,9 @@ func TestBrowserTranscriptFocusDoesNotMoveList(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv1 := testConv(testConversationIDPrimary)
-	conv2 := testConv(testConversationIDSecondary)
-	b.list.SetItems([]list.Item{conv1, conv2})
+	conversationA := testConv(testConversationIDPrimary)
+	conversationB := testConv(testConversationIDSecondary)
+	b.list.SetItems([]list.Item{conversationA, conversationB})
 	b.transcriptMode = transcriptSplit
 	b.focus = focusTranscript
 	b.loadingConversationID = testConversationIDPrimary
@@ -444,9 +450,9 @@ func TestBrowserListHighlightsSearchPreview(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = archiveMatchesSourceSubtitle
-	b.list.SetItems([]list.Item{conv})
+	conversation := testConv(testConversationIDPrimary)
+	conversation.SearchPreview = archiveMatchesSourceSubtitle
+	b.list.SetItems([]list.Item{conversation})
 	b.list.SetFilterText("archive")
 
 	view := b.list.View()
@@ -458,10 +464,10 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = archiveMatchesSourceSubtitle
+	conversation := testConv(testConversationIDPrimary)
+	conversation.SearchPreview = archiveMatchesSourceSubtitle
 
-	items := buildDeepSearchItems("archive", []conversation{conv})
+	items := buildDeepSearchItems("archive", []conv.Conversation{conversation})
 	listItems := make([]list.Item, 0, len(items))
 	for _, item := range items {
 		listItems = append(listItems, item)
@@ -471,8 +477,7 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 	view := b.list.View()
 	stripped := ansi.Strip(view)
 	assert.Contains(t, stripped, archiveMatchesSourceSubtitle)
-	// With highlighting, the raw view should contain ANSI escape codes around "archive"
-	assert.NotEqual(t, stripped, view, "expected ANSI highlighting in deep search preview")
+	assert.NotEqual(t, stripped, view)
 }
 
 func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
@@ -518,8 +523,8 @@ func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv := testConv(testConversationIDPrimary)
-	b.list.SetItems([]list.Item{conv})
+	conversation := testConv(testConversationIDPrimary)
+	b.list.SetItems([]list.Item{conversation})
 	b.list.Select(0)
 
 	cases := []struct {
@@ -601,8 +606,8 @@ func TestBrowserCloseTranscriptRestoresFullWidthList(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	conv := testConv(testConversationIDPrimary)
-	b.list.SetItems([]list.Item{conv})
+	conversation := testConv(testConversationIDPrimary)
+	b.list.SetItems([]list.Item{conversation})
 	b.list.Select(0)
 
 	b, _ = b.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

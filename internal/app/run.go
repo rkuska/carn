@@ -8,6 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	arch "github.com/rkuska/carn/internal/archive"
+	"github.com/rkuska/carn/internal/canonical"
+	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rs/zerolog"
 )
 
@@ -45,8 +48,8 @@ func Run() error {
 	}
 
 	model, err := NewModel(ctx, Config{
-		SourceDir:    cfg.sourceDir,
-		ArchiveDir:   cfg.archiveDir,
+		SourceDir:    cfg.SourceDir,
+		ArchiveDir:   cfg.ArchiveDir,
 		GlamourStyle: glamourStyle,
 	})
 	if err != nil {
@@ -81,10 +84,36 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 
 	initPalette(glamourStyle != "light")
 
-	model := newAppModel(ctx, archiveConfig{
-		sourceDir:  cfg.SourceDir,
-		archiveDir: cfg.ArchiveDir,
-	}, glamourStyle)
+	source := claude.New()
+	store := canonical.New(source)
+	browserStore := newBrowserStore(store)
+	pipeline := newImportPipeline(
+		arch.Config{
+			SourceDir:  cfg.SourceDir,
+			ArchiveDir: cfg.ArchiveDir,
+		},
+		source,
+		store,
+	)
+
+	model := newAppModelWithDeps(
+		ctx,
+		arch.Config{
+			SourceDir:  cfg.SourceDir,
+			ArchiveDir: cfg.ArchiveDir,
+		},
+		glamourStyle,
+		browserStore,
+		pipeline,
+	)
 
 	return model, nil
+}
+
+func defaultArchiveConfig() (arch.Config, error) {
+	cfg, err := arch.DefaultConfig()
+	if err != nil {
+		return arch.Config{}, fmt.Errorf("archive.DefaultConfig: %w", err)
+	}
+	return cfg, nil
 }
