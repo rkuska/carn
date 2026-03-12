@@ -93,7 +93,7 @@ func appendUserSegments(
 		userText = ""
 	}
 	if !userHasContent(msg, userText, opts) {
-		state.breakGroup()
+		// Hidden message kinds should not create a visible role boundary.
 		return
 	}
 
@@ -130,7 +130,7 @@ func appendAssistantSegments(
 	opts transcriptOptions,
 ) {
 	if !assistantHasContent(msg, opts) {
-		state.breakGroup()
+		// Hidden message kinds should not create a visible role boundary.
 		return
 	}
 

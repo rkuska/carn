@@ -74,3 +74,37 @@ func TestRenderTranscriptStartsNewRoleGroupAfterAgentDivider(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(rendered, "## Assistant"))
 	assert.Contains(t, rendered, "### Subagent")
 }
+
+func TestRenderTranscriptGroupsAssistantMessagesAcrossHiddenToolResults(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "group-hidden-results",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
+		},
+		Messages: []conv.Message{
+			{
+				Role: conv.RoleAssistant,
+				Text: "Let me check the file.",
+				ToolCalls: []conv.ToolCall{
+					{Name: "Read", Summary: "/tmp/file.go"},
+				},
+			},
+			{
+				Role: conv.RoleUser,
+				ToolResults: []conv.ToolResult{
+					{ToolName: "Read", ToolSummary: "/tmp/file.go", Content: "package main"},
+				},
+			},
+			{Role: conv.RoleAssistant, Text: "Now I have the answer."},
+		},
+	}
+
+	rendered := renderTranscript(session, transcriptOptions{})
+
+	assert.Equal(t, 1, strings.Count(rendered, "## Assistant"))
+	assert.Contains(t, rendered, "Let me check the file.")
+	assert.Contains(t, rendered, "Now I have the answer.")
+}

@@ -20,10 +20,10 @@
 │  work/sample-project / fixture-basic  2026-03-07 09:0...│ │                                                          │
 │  1.0.0  claude-sonnet-4  2 msgs  0k tokens  5s          │ │                                                          │
 │  Summarize the deployment checklist.                    │ │   Starting with the backup step.                         │
-│                                                         │ │  Assistant ───────────────────────────────────────────── │
-│  work/legacy-project / legacy-format  2026-03-06 08:00  │ │                                                          │
+│                                                         │ │                                                          │
+│  work/legacy-project / legacy-format  2026-03-06 08:00  │ │   Migration and rollback plans are ready.                │
 │  claude-2.1  2 msgs  4s                                 │ │                                                          │
-│  Can you read the older transcript?                     │ │   Migration and rollback plans are ready.                │
+│  Can you read the older transcript?                     │ │                                                          │
 │                                                         │ │                                                          │
 │                                                         │ │                                                          │
 │                                                         │ │                                                          │
