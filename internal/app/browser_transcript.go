@@ -9,33 +9,57 @@ import (
 )
 
 func (m browserModel) canHandleTranscriptAction() bool {
-	return !m.isFiltering() && !m.viewer.searching
+	return !m.isFiltering() && !m.viewer.searching && !m.viewer.hasActiveOverlay()
 }
 
 func (m browserModel) handleTranscriptKey(msg tea.KeyPressMsg) (browserModel, bool) {
 	switch {
 	case keyMatchesBrowserHelp(msg):
-		if m.canHandleTranscriptAction() {
-			m.helpOpen = true
-		}
+		m = m.handleTranscriptHelpKey()
 		return m, true
 	case keyMatchesTranscriptToggle(msg):
-		if m.canHandleTranscriptAction() {
-			m = m.toggleTranscriptLayout()
-		}
+		m = m.handleTranscriptToggleKey()
 		return m, true
 	case keyMatchesBrowserClose(msg):
-		if m.canHandleTranscriptAction() {
-			m = m.closeTranscript()
-		}
+		m = m.handleTranscriptCloseKey()
 		return m, true
 	case m.transcriptMode == transcriptSplit && keyMatchesBrowserFocus(msg):
-		if m.canHandleTranscriptAction() {
-			m = m.toggleFocus()
-		}
+		m = m.handleTranscriptFocusKey()
 		return m, true
 	}
 	return m, false
+}
+
+func (m browserModel) handleTranscriptHelpKey() browserModel {
+	if m.viewer.hasActiveOverlay() {
+		m.helpOpen = true
+		return m
+	}
+	if m.canHandleTranscriptAction() {
+		m.helpOpen = true
+	}
+	return m
+}
+
+func (m browserModel) handleTranscriptToggleKey() browserModel {
+	if m.canHandleTranscriptAction() {
+		return m.toggleTranscriptLayout()
+	}
+	return m
+}
+
+func (m browserModel) handleTranscriptCloseKey() browserModel {
+	if m.canHandleTranscriptAction() {
+		return m.closeTranscript()
+	}
+	return m
+}
+
+func (m browserModel) handleTranscriptFocusKey() browserModel {
+	if m.canHandleTranscriptAction() {
+		return m.toggleFocus()
+	}
+	return m
 }
 
 func keyMatchesBrowserHelp(msg tea.KeyPressMsg) bool {
@@ -119,12 +143,42 @@ func (m browserModel) syncTranscriptSelection(cmds *[]tea.Cmd) browserModel {
 	return m
 }
 
+func (m browserModel) reloadTranscriptAfterResync(cmds *[]tea.Cmd) browserModel {
+	if m.pendingResyncTranscriptID == "" || m.helpOpen {
+		return m
+	}
+	pendingID := m.pendingResyncTranscriptID
+	m.pendingResyncTranscriptID = ""
+	if !m.transcriptVisible() {
+		return m
+	}
+
+	var ok bool
+	m, ok = m.selectVisibleConversation(pendingID)
+	if !ok {
+		return m.closeTranscript()
+	}
+
+	conversation, ok := m.selectedConversation()
+	if !ok {
+		return m.closeTranscript()
+	}
+
+	var cmd tea.Cmd
+	m, cmd = m.openTranscript(conversation)
+	if cmd != nil {
+		*cmds = append(*cmds, cmd)
+	}
+	return m
+}
+
 func (m browserModel) closeTranscript() browserModel {
 	m.transcriptMode = transcriptClosed
 	m.focus = focusList
 	m.helpOpen = false
 	m.loadingConversationID = ""
 	m.openConversationID = ""
+	m.pendingResyncTranscriptID = ""
 	return m.updateLayout()
 }
 

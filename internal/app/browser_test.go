@@ -307,7 +307,7 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	})
 
 	helpLine := ansi.Strip(renderHelpItems(b.viewer.footerItems()))
-	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "editor")
+	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "open")
 }
 
 func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
@@ -355,7 +355,7 @@ func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "?", "q"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "R", "?", "q"},
 		helpItemKeys(b.listFooterItems()),
 	)
 }
@@ -393,7 +393,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "tab", "O", "?", "q/esc"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "R", "tab", "O", "?", "q/esc"},
 		helpItemKeys(items),
 	)
 
@@ -427,7 +427,7 @@ func TestBrowserSplitTranscriptFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"/", "n/N", "t", "T", "R", "s", "y", "o", "tab", "O", "?", "q/esc"},
+		[]string{"/", "n/N", "t", "T", "R", "s", "y", "o", "e", "tab", "O", "?", "q/esc"},
 		helpItemKeys(b.transcriptFooterItems()),
 	)
 
@@ -435,6 +435,112 @@ func TestBrowserSplitTranscriptFooterUsesConsistentActionLabels(t *testing.T) {
 	require.Len(t, items, 2)
 	assert.Equal(t, helpItem{key: "tab", desc: "focus list"}, items[0])
 	assert.Equal(t, helpItem{key: "O", desc: "fullscreen transcript"}, items[1])
+}
+
+func TestBrowserListFooterStatusDoesNotChangeWithSelectedProject(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.mainConversationCount = 2
+
+	conversationA := testConv(testConversationIDPrimary)
+	conversationA.Project.DisplayName = "alpha/project"
+	conversationA.Sessions[0].Project.DisplayName = "alpha/project"
+
+	conversationB := testConv(testConversationIDSecondary)
+	conversationB.Project.DisplayName = "beta/project"
+	conversationB.Sessions[0].Project.DisplayName = "beta/project"
+
+	b.list.SetItems([]list.Item{conversationA, conversationB})
+	b.list.Select(0)
+	first := strings.Join(b.listFooterStatusParts(), "  ")
+
+	b.list.Select(1)
+	second := strings.Join(b.listFooterStatusParts(), "  ")
+
+	assert.Equal(t, first, second)
+	assert.NotContains(t, first, "alpha/project")
+	assert.NotContains(t, second, "beta/project")
+}
+
+func TestBrowserTranscriptCopyOverlayFooterOmitsLayoutItems(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	b, cmd := b.Update(tea.KeyPressMsg{Text: "y"})
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, []string{"c", "r", "?", "q/esc"}, helpItemKeys(b.transcriptFooterItems()))
+}
+
+func TestBrowserTranscriptHelpKeepsCopyOverlayActive(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
+		session:        testSession(testConversationIDPrimary),
+	})
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "y"})
+	require.Equal(t, viewerActionCopy, b.viewer.actionMode)
+
+	b, cmd := b.Update(tea.KeyPressMsg{Text: "?"})
+
+	assert.Nil(t, cmd)
+	assert.True(t, b.helpOpen)
+	assert.Equal(t, viewerActionCopy, b.viewer.actionMode)
+	require.Len(t, b.helpSections(), 1)
+	assert.Equal(t, "Select Target", b.helpSections()[0].title)
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "?"})
+
+	assert.False(t, b.helpOpen)
+	assert.Equal(t, viewerActionCopy, b.viewer.actionMode)
+}
+
+func TestBrowserTranscriptHelpKeepsPlanPickerActive(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.transcriptMode = transcriptSplit
+	b.focus = focusTranscript
+	b.loadingConversationID = testConversationIDPrimary
+	b, _ = b.Update(openViewerMsg{
+		conversationID: testConversationIDPrimary,
+		conversation:   testConv(testConversationIDPrimary),
+		session:        testSessionWithPlans(testConversationIDPrimary, 2),
+	})
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "y"})
+	b, _ = b.Update(tea.KeyPressMsg{Text: "p"})
+	require.True(t, b.viewer.planPicker.active)
+
+	b, cmd := b.Update(tea.KeyPressMsg{Text: "?"})
+
+	assert.Nil(t, cmd)
+	assert.True(t, b.helpOpen)
+	assert.True(t, b.viewer.planPicker.active)
+	require.Len(t, b.helpSections(), 1)
+	assert.Equal(t, "Select Plan", b.helpSections()[0].title)
+
+	b, _ = b.Update(tea.KeyPressMsg{Text: "?"})
+
+	assert.False(t, b.helpOpen)
+	assert.True(t, b.viewer.planPicker.active)
 }
 
 func TestBrowserListFooterOmitsCopyAndExport(t *testing.T) {
@@ -547,7 +653,7 @@ func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {
 	}
 }
 
-func TestBrowserTranscriptFocusAllowsCopyAndExport(t *testing.T) {
+func TestBrowserTranscriptFocusAllowsActionPrefixAndExport(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
@@ -561,17 +667,23 @@ func TestBrowserTranscriptFocusAllowsCopyAndExport(t *testing.T) {
 	})
 
 	cases := []struct {
-		name string
-		msg  tea.KeyPressMsg
+		name    string
+		msg     tea.KeyPressMsg
+		wantCmd bool
 	}{
-		{name: "copy", msg: tea.KeyPressMsg{Text: "y"}},
-		{name: "export", msg: tea.KeyPressMsg{Text: "e"}},
+		{name: "copy prefix", msg: tea.KeyPressMsg{Text: "y"}, wantCmd: false},
+		{name: "export", msg: tea.KeyPressMsg{Text: "e"}, wantCmd: true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, cmd := b.Update(tc.msg)
-			require.NotNil(t, cmd)
+			after, cmd := b.Update(tc.msg)
+			if tc.wantCmd {
+				require.NotNil(t, cmd)
+				return
+			}
+			assert.Nil(t, cmd)
+			assert.Equal(t, viewerActionCopy, after.viewer.actionMode)
 		})
 	}
 }

@@ -7,11 +7,12 @@ import (
 )
 
 type helpItem struct {
-	key    string
-	desc   string
-	toggle bool
-	on     bool
-	glow   bool
+	key      string
+	desc     string
+	toggle   bool
+	on       bool
+	glow     bool
+	priority helpPriority
 }
 
 type helpSection struct {
@@ -19,10 +20,32 @@ type helpSection struct {
 	items []helpItem
 }
 
+type helpPriority int
+
+const (
+	helpPriorityLow helpPriority = iota
+	helpPriorityNormal
+	helpPriorityHigh
+	helpPriorityEssential
+)
+
 func renderHelpFooter(width int, items []helpItem, rightParts []string, n notification) string {
+	contentWidth := framedFooterContentWidth(width)
+	minLeftWidth := essentialHelpWidth(items)
+	right := joinNonEmpty(rightParts, "  ")
+	maxRightWidth := contentWidth
+	if minLeftWidth > 0 && contentWidth > minLeftWidth {
+		maxRightWidth = contentWidth - minLeftWidth - 1
+	}
+	right = truncateFooterText(right, maxRightWidth)
+	leftWidth := contentWidth
+	if right != "" {
+		leftWidth = max(contentWidth-lipgloss.Width(right)-1, 0)
+	}
+
 	return renderFramedFooter(
 		width,
-		composeFooterRow(width, renderHelpItems(items), joinNonEmpty(rightParts, "  ")),
+		composeFooterRow(width, renderFittedHelpItems(items, leftWidth), right),
 		renderNotification(n),
 	)
 }
@@ -36,10 +59,26 @@ func renderSearchFooter(width int, prompt, right string, n notification) string 
 }
 
 func renderHelpItems(items []helpItem) string {
+	return renderHelpItemsWithKeep(items, nil)
+}
+
+func renderFittedHelpItems(items []helpItem, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	keep := keepHelpItems(items, width)
+	return fitToWidth(renderHelpItemsWithKeep(items, keep), width)
+}
+
+func renderHelpItemsWithKeep(items []helpItem, keep []bool) string {
 	helpStyle := lipgloss.NewStyle().Foreground(colorSecondary)
 
 	parts := make([]string, 0, len(items))
-	for _, item := range items {
+	for i, item := range items {
+		if keep != nil && !keep[i] {
+			continue
+		}
 		if item.key == "" || item.desc == "" {
 			continue
 		}

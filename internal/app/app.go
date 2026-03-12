@@ -18,11 +18,13 @@ type appModel struct {
 	ctx            context.Context
 	cfg            arch.Config
 	glamourStyle   string
+	pipeline       importPipeline
 	state          viewState
 	importOverview importOverviewModel
 	browser        browserModel
 	width          int
 	height         int
+	resyncEvents   <-chan tea.Msg
 }
 
 func newAppModelWithDeps(
@@ -36,6 +38,7 @@ func newAppModelWithDeps(
 		ctx:            ctx,
 		cfg:            cfg,
 		glamourStyle:   glamourStyle,
+		pipeline:       pipeline,
 		state:          viewImportOverview,
 		importOverview: newImportOverviewModelWithPipeline(ctx, cfg, pipeline),
 		browser:        newBrowserModelWithStore(ctx, cfg.ArchiveDir, glamourStyle, store),
@@ -76,12 +79,6 @@ func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 	}
 
-	return m, cmd
-}
-
-func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	m.browser, cmd = m.browser.Update(msg)
 	return m, cmd
 }
 

@@ -41,9 +41,10 @@ func transcriptFooterItems(opts transcriptOptions, content contentFlags) []helpI
 	items = append(items, transcriptToggleItems(opts, content)...)
 	items = append(items,
 		helpItem{key: "y", desc: "copy"},
-		helpItem{key: "o", desc: "editor"},
-		helpItem{key: "?", desc: "help"},
-		helpItem{key: "q/esc", desc: "back"},
+		helpItem{key: "o", desc: "open"},
+		helpItem{key: "e", desc: "export", priority: helpPriorityHigh},
+		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
+		helpItem{key: "q/esc", desc: "back", priority: helpPriorityHigh},
 	)
 	return items
 }
@@ -56,9 +57,9 @@ func transcriptHelpSections(
 	actions := []helpItem{
 		{key: "/", desc: "search transcript"},
 		{key: "n / N", desc: "next / previous match"},
-		{key: "y", desc: "copy transcript"},
+		{key: "y", desc: "copy target"},
+		{key: "o", desc: "open target"},
 		{key: "e", desc: "export markdown"},
-		{key: "o", desc: "open in editor"},
 		{key: "r", desc: "resume session"},
 		{key: "q/esc", desc: "close transcript"},
 	}

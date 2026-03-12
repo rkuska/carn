@@ -206,11 +206,23 @@ func (m importOverviewModel) conversationMetric() string {
 
 func (m importOverviewModel) renderActivityBlock(width int) string {
 	lines := m.activityLines(width)
-	block := strings.Join(lines, "\n")
-	if m.phase == phaseReady && !m.analysis.NeedsSync() {
-		return "\n\n" + centerImportBlock(block, width)
+	if m.shouldCenterActivityBlock() {
+		return renderCenteredImportActivityBlock(lines, width)
 	}
-	return "\n" + block
+	return "\n" + strings.Join(lines, "\n")
+}
+
+func (m importOverviewModel) shouldCenterActivityBlock() bool {
+	switch m.phase {
+	case phaseReady:
+		return m.analysis.Err == nil
+	case phaseDone:
+		return true
+	case phaseAnalyzing, phaseSyncing:
+		return false
+	}
+
+	return false
 }
 
 func (m importOverviewModel) activityLines(width int) []string {
@@ -265,8 +277,7 @@ func (m importOverviewModel) syncingActivityLines(width int) []string {
 		label = m.currentStage
 	}
 	lines := []string{
-		ansi.Hardwrap(fmt.Sprintf("%s %s", m.spinner.View(), label), width, false),
-		m.renderProgressLine(width),
+		m.renderProgressLine(width, label),
 	}
 	if m.currentFile != "" {
 		lines = append(lines, ansi.Truncate(renderSingleChip("Current file", m.currentFile), width, "…"))
@@ -285,18 +296,19 @@ func (m importOverviewModel) doneActivityLines(width int) []string {
 	}
 }
 
-func (m importOverviewModel) renderProgressLine(width int) string {
+func (m importOverviewModel) renderProgressLine(width int, label string) string {
 	if m.total == 0 {
-		return "0/0"
+		return ansi.Hardwrap(label, width, false)
 	}
 
-	barWidth := max(width-10, 12)
+	label = ansi.Truncate(label, max(width/3, 12), "…")
+	barWidth := max(width-lipgloss.Width(label)-11, 12)
 	pct := float64(m.current) / float64(m.total)
 
 	progressBar := m.progress
 	progressBar.SetWidth(barWidth)
 
-	return fmt.Sprintf("%s %d/%d", progressBar.ViewAs(pct), m.current, m.total)
+	return fmt.Sprintf("%s %s %d/%d", label, progressBar.ViewAs(pct), m.current, m.total)
 }
 
 func shortenPath(path string) string {
@@ -328,4 +340,12 @@ func centerImportBlock(block string, width int) string {
 		)
 	}
 	return strings.Join(centered, "\n")
+}
+
+func renderCenteredImportActivityBlock(lines []string, width int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return "\n\n" + centerImportBlock(strings.Join(lines, "\n"), width)
 }

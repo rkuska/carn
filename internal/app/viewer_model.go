@@ -52,6 +52,8 @@ type viewerModel struct {
 	renderWrap           int
 	pendingGotoTopKey    bool
 	planExpanded         bool
+	actionMode           viewerActionMode
+	planPicker           viewerPlanPickerState
 }
 
 func scanContentFlags(messages []conv.Message) contentFlags {
@@ -122,12 +124,14 @@ func (m viewerModel) Init() tea.Cmd {
 
 func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	var cmds []tea.Cmd
+	skipViewportUpdate := false
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if m.searching {
 			return m.handleSearchKey(msg)
 		}
+		skipViewportUpdate = m.hasActiveOverlay()
 		var cmd tea.Cmd
 		m, cmd = m.handleKey(msg, &cmds)
 		if cmd != nil {
@@ -141,10 +145,12 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		m.notification = notification{}
 	}
 
-	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	if cmd != nil {
-		cmds = append(cmds, cmd)
+	if !skipViewportUpdate {
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -158,6 +164,10 @@ func toggleLabel(on bool) string {
 }
 
 func (m viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (viewerModel, tea.Cmd) {
+	if m.hasActiveOverlay() {
+		return m.handleActionKey(msg)
+	}
+
 	if msg.Text == "g" {
 		if m.pendingGotoTopKey {
 			m.viewport.GotoTop()
@@ -209,11 +219,11 @@ func (m viewerModel) handleViewerCmd(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case key.Matches(msg, viewerKeys.Copy):
-		return m, copyTranscriptCmd(m.session, m.opts)
+		return m.startActionMode(viewerActionCopy), nil
 	case key.Matches(msg, viewerKeys.Export):
-		return m, exportTranscriptCmd(m.session, m.opts)
+		return m, exportTranscriptCmd(m.session, m.opts, m.planExpanded)
 	case key.Matches(msg, viewerKeys.Editor):
-		return m, openInEditorCmd(m.editorFilePath())
+		return m.startActionMode(viewerActionOpen), nil
 	case key.Matches(msg, viewerKeys.Resume):
 		id, cwd := m.resumeTarget()
 		return m, resumeSessionCmd(id, cwd)

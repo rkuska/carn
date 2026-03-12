@@ -251,29 +251,29 @@ func (m importOverviewModel) footerView() string {
 		return renderHelpFooter(
 			m.width,
 			[]helpItem{
-				{key: "?", desc: "close help"},
-				{key: "q/esc", desc: "close help"},
+				{key: "?", desc: "close help", priority: helpPriorityEssential},
+				{key: "q/esc", desc: "close help", priority: helpPriorityHigh},
 			},
-			[]string{m.phaseLabel()},
+			nil,
 			notification{},
 		)
 	}
 
-	return renderHelpFooter(m.width, m.footerItems(), []string{m.phaseLabel()}, notification{})
+	return renderHelpFooter(m.width, m.footerItems(), nil, notification{})
 }
 
 func (m importOverviewModel) footerItems() []helpItem {
 	switch m.phase {
 	case phaseAnalyzing:
 		return []helpItem{
-			{key: "?", desc: "help"},
-			{key: "q", desc: "quit"},
+			{key: "?", desc: "help", priority: helpPriorityEssential},
+			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}
 	case phaseReady:
 		if m.analysis.Err != nil {
 			return []helpItem{
-				{key: "?", desc: "help"},
-				{key: "q", desc: "quit"},
+				{key: "?", desc: "help", priority: helpPriorityEssential},
+				{key: "q", desc: "quit", priority: helpPriorityHigh},
 			}
 		}
 		action := "continue"
@@ -282,19 +282,19 @@ func (m importOverviewModel) footerItems() []helpItem {
 		}
 		return []helpItem{
 			{key: "enter", desc: action},
-			{key: "?", desc: "help"},
-			{key: "q", desc: "quit"},
+			{key: "?", desc: "help", priority: helpPriorityEssential},
+			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}
 	case phaseSyncing:
 		return []helpItem{
-			{key: "?", desc: "help"},
-			{key: "q", desc: "quit"},
+			{key: "?", desc: "help", priority: helpPriorityEssential},
+			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}
 	case phaseDone:
 		return []helpItem{
 			{key: "enter", desc: "continue"},
-			{key: "?", desc: "help"},
-			{key: "q", desc: "quit"},
+			{key: "?", desc: "help", priority: helpPriorityEssential},
+			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}
 	default:
 		return nil
@@ -307,21 +307,6 @@ func (m importOverviewModel) helpSections() []helpSection {
 			title: "Actions",
 			items: m.footerItems(),
 		},
-	}
-}
-
-func (m importOverviewModel) phaseLabel() string {
-	switch m.phase {
-	case phaseAnalyzing:
-		return "analyzing"
-	case phaseReady:
-		return "ready"
-	case phaseSyncing:
-		return "syncing"
-	case phaseDone:
-		return "done"
-	default:
-		return ""
 	}
 }
 

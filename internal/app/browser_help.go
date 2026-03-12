@@ -1,6 +1,10 @@
 package app
 
-import "fmt"
+import (
+	"fmt"
+
+	"charm.land/lipgloss/v2"
+)
 
 func (m browserModel) footerView() string {
 	if m.searchEditing() && !m.transcriptFocused() {
@@ -15,8 +19,8 @@ func (m browserModel) footerView() string {
 		return renderHelpFooter(
 			m.width,
 			[]helpItem{
-				{key: "?", desc: "close help"},
-				{key: "q/esc", desc: "close help"},
+				{key: "?", desc: "close help", priority: helpPriorityEssential},
+				{key: "q/esc", desc: "close help", priority: helpPriorityHigh},
 			},
 			[]string{m.helpTitle()},
 			m.notification,
@@ -53,6 +57,7 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "enter", desc: "open"},
 		{key: "o", desc: "editor"},
 		{key: "r", desc: "resume"},
+		m.resyncHelpItem(),
 	}
 
 	if m.transcriptMode == transcriptSplit {
@@ -63,24 +68,25 @@ func (m browserModel) listFooterItems() []helpItem {
 	}
 
 	items = append(items,
-		helpItem{key: "?", desc: "help"},
+		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
 	)
 
 	if m.transcriptMode == transcriptSplit {
 		return append(items,
-			helpItem{key: "q/esc", desc: "close"},
+			helpItem{key: "q/esc", desc: "close", priority: helpPriorityHigh},
 		)
 	}
 
-	return append(items, helpItem{key: "q", desc: "quit"})
+	return append(items, helpItem{key: "q", desc: "quit", priority: helpPriorityHigh})
 }
 
 func (m browserModel) listFooterStatusParts() []string {
-	status := make([]string, 0, 6)
-	status = append(status, styleToolCall.Render(m.searchScopeStatus()))
+	status := make([]string, 0, 8)
+	status = append(status, styleToolCall.Render(m.searchScopeFooterStatus()))
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		status = append(status, styleToolCall.Render("[UPDATING]"))
 	}
+	status = append(status, m.resyncStatusParts()...)
 	if m.transcriptMode == transcriptSplit {
 		status = append(status, "[split]")
 	}
@@ -89,9 +95,6 @@ func (m browserModel) listFooterStatusParts() []string {
 	if m.search.query != "" {
 		info = fmt.Sprintf("%d/%d sessions", len(m.search.visibleConversations), m.mainConversationCount)
 		status = append(status, fmt.Sprintf("/%s", m.search.query))
-	}
-	if conv, ok := m.selectedConversation(); ok {
-		info = fmt.Sprintf("%s  %s", info, conv.Project.DisplayName)
 	}
 	return append(status, info)
 }
@@ -121,6 +124,7 @@ func (m browserModel) helpSections() []helpSection {
 		{key: "enter", desc: "open transcript"},
 		{key: "o", desc: "open in editor"},
 		{key: "r", desc: "resume session"},
+		{key: "R", desc: "resync browser data"},
 	}
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,
@@ -177,6 +181,10 @@ func (m browserModel) searchScopeStatus() string {
 	return "[METADATA SEARCH]"
 }
 
+func (m browserModel) searchScopeFooterStatus() string {
+	return fitToWidth(m.searchScopeStatus(), lipgloss.Width("[METADATA SEARCH]"))
+}
+
 func (m browserModel) searchScopeLabel() string {
 	if m.search.mode == searchModeDeep {
 		return "deep search"
@@ -209,6 +217,9 @@ func (m browserModel) transcriptActionItems() []helpItem {
 
 func (m browserModel) transcriptFooterItems() []helpItem {
 	items := append([]helpItem{}, m.viewer.footerItems()...)
+	if m.viewer.hasActiveOverlay() {
+		return items
+	}
 
 	helpIndex := len(items)
 	for i, item := range items {
