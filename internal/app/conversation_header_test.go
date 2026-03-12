@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conversation "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,43 +15,43 @@ import (
 func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 	t.Parallel()
 
-	conv := conversation{
-		name:    "cheerful-ocean",
-		project: project{displayName: "work/claude-search"},
-		sessions: []sessionMeta{
+	conv := conversation.Conversation{
+		Name:    "cheerful-ocean",
+		Project: conversation.Project{DisplayName: "work/claude-search"},
+		Sessions: []conversation.SessionMeta{
 			{
-				id:               "11111111-1111-1111-1111-111111111111",
-				slug:             "cheerful-ocean",
-				project:          project{displayName: "work/claude-search"},
-				timestamp:        time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
-				lastTimestamp:    time.Date(2026, 3, 6, 14, 40, 0, 0, time.UTC),
-				cwd:              "/Users/test/work/claude-search",
-				gitBranch:        "feat/meta-header",
-				model:            "claude-sonnet-4",
-				version:          "1.0.0",
-				messageCount:     10,
-				mainMessageCount: 8,
-				totalUsage: tokenUsage{
-					inputTokens:  700,
-					outputTokens: 300,
+				ID:               "11111111-1111-1111-1111-111111111111",
+				Slug:             "cheerful-ocean",
+				Project:          conversation.Project{DisplayName: "work/claude-search"},
+				Timestamp:        time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				LastTimestamp:    time.Date(2026, 3, 6, 14, 40, 0, 0, time.UTC),
+				CWD:              "/Users/test/work/claude-search",
+				GitBranch:        "feat/meta-header",
+				Model:            "claude-sonnet-4",
+				Version:          "1.0.0",
+				MessageCount:     10,
+				MainMessageCount: 8,
+				TotalUsage: conversation.TokenUsage{
+					InputTokens:  700,
+					OutputTokens: 300,
 				},
-				toolCounts: map[string]int{"Read": 3},
+				ToolCounts: map[string]int{"Read": 3},
 			},
 			{
-				id:               "22222222-2222-2222-2222-222222222222",
-				slug:             "cheerful-ocean",
-				project:          project{displayName: "work/claude-search"},
-				timestamp:        time.Date(2026, 3, 6, 14, 45, 0, 0, time.UTC),
-				lastTimestamp:    time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
-				cwd:              "/Users/test/work/claude-search/subdir",
-				version:          "1.1.0",
-				messageCount:     5,
-				mainMessageCount: 4,
-				totalUsage: tokenUsage{
-					inputTokens:  4000,
-					outputTokens: 2000,
+				ID:               "22222222-2222-2222-2222-222222222222",
+				Slug:             "cheerful-ocean",
+				Project:          conversation.Project{DisplayName: "work/claude-search"},
+				Timestamp:        time.Date(2026, 3, 6, 14, 45, 0, 0, time.UTC),
+				LastTimestamp:    time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
+				CWD:              "/Users/test/work/claude-search/subdir",
+				Version:          "1.1.0",
+				MessageCount:     5,
+				MainMessageCount: 4,
+				TotalUsage: conversation.TokenUsage{
+					InputTokens:  4000,
+					OutputTokens: 2000,
 				},
-				toolCounts: map[string]int{"Bash": 2},
+				ToolCounts: map[string]int{"Bash": 2},
 			},
 		},
 	}
@@ -81,14 +82,14 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 	t.Parallel()
 
-	conv := conversation{
-		name:    "untitled",
-		project: project{displayName: "work/app"},
-		sessions: []sessionMeta{
+	conv := conversation.Conversation{
+		Name:    "untitled",
+		Project: conversation.Project{DisplayName: "work/app"},
+		Sessions: []conversation.SessionMeta{
 			{
-				id:        "11111111-1111-1111-1111-111111111111",
-				project:   project{displayName: "work/app"},
-				timestamp: time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				ID:        "11111111-1111-1111-1111-111111111111",
+				Project:   conversation.Project{DisplayName: "work/app"},
+				Timestamp: time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
 			},
 		},
 	}
@@ -115,24 +116,24 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	t.Parallel()
 
-	conv := conversation{
-		name:    "very-long-conversation-name-for-wrapping",
-		project: project{displayName: "work/claude-search"},
-		sessions: []sessionMeta{
+	conv := conversation.Conversation{
+		Name:    "very-long-conversation-name-for-wrapping",
+		Project: conversation.Project{DisplayName: "work/claude-search"},
+		Sessions: []conversation.SessionMeta{
 			{
-				id:               "11111111-1111-1111-1111-111111111111",
-				slug:             "very-long-conversation-name-for-wrapping",
-				project:          project{displayName: "work/claude-search"},
-				timestamp:        time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
-				lastTimestamp:    time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
-				cwd:              "/Users/test/work/claude-search/narrow",
-				gitBranch:        "feat/meta-header",
-				model:            "claude-sonnet-4",
-				version:          "1.1.0",
-				messageCount:     15,
-				mainMessageCount: 12,
-				totalUsage:       tokenUsage{inputTokens: 4000, outputTokens: 2000},
-				toolCounts:       map[string]int{"Read": 3, "Bash": 2, "Edit": 1},
+				ID:               "11111111-1111-1111-1111-111111111111",
+				Slug:             "very-long-conversation-name-for-wrapping",
+				Project:          conversation.Project{DisplayName: "work/claude-search"},
+				Timestamp:        time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				LastTimestamp:    time.Date(2026, 3, 6, 14, 53, 0, 0, time.UTC),
+				CWD:              "/Users/test/work/claude-search/narrow",
+				GitBranch:        "feat/meta-header",
+				Model:            "claude-sonnet-4",
+				Version:          "1.1.0",
+				MessageCount:     15,
+				MainMessageCount: 12,
+				TotalUsage:       conversation.TokenUsage{InputTokens: 4000, OutputTokens: 2000},
+				ToolCounts:       map[string]int{"Read": 3, "Bash": 2, "Edit": 1},
 			},
 		},
 	}
@@ -148,29 +149,29 @@ func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 func TestViewerUsesConversationTargets(t *testing.T) {
 	t.Parallel()
 
-	conv := conversation{
-		name:    "test-slug",
-		project: project{displayName: "test"},
-		sessions: []sessionMeta{
+	conv := conversation.Conversation{
+		Name:    "test-slug",
+		Project: conversation.Project{DisplayName: "test"},
+		Sessions: []conversation.SessionMeta{
 			{
-				id:        "first-id",
-				project:   project{displayName: "test"},
-				timestamp: time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
-				filePath:  "/tmp/first.jsonl",
-				cwd:       "/tmp/first",
+				ID:        "first-id",
+				Project:   conversation.Project{DisplayName: "test"},
+				Timestamp: time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				FilePath:  "/tmp/first.jsonl",
+				CWD:       "/tmp/first",
 			},
 			{
-				id:        "second-id",
-				project:   project{displayName: "test"},
-				timestamp: time.Date(2026, 3, 6, 14, 35, 0, 0, time.UTC),
-				filePath:  "/tmp/second.jsonl",
-				cwd:       "/tmp/second",
+				ID:        "second-id",
+				Project:   conversation.Project{DisplayName: "test"},
+				Timestamp: time.Date(2026, 3, 6, 14, 35, 0, 0, time.UTC),
+				FilePath:  "/tmp/second.jsonl",
+				CWD:       "/tmp/second",
 			},
 		},
 	}
-	session := sessionFull{
-		meta:     conv.sessions[0],
-		messages: []message{{role: roleUser, text: "hello"}},
+	session := conversation.Session{
+		Meta:     conv.Sessions[0],
+		Messages: []conversation.Message{{Role: conversation.RoleUser, Text: "hello"}},
 	}
 
 	m := newViewerModel(session, conv, "dark", 120, 40)
@@ -184,26 +185,26 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 	t.Parallel()
 
-	conv := conversation{
-		name:    "test-slug",
-		project: project{displayName: "test"},
-		sessions: []sessionMeta{
+	conv := conversation.Conversation{
+		Name:    "test-slug",
+		Project: conversation.Project{DisplayName: "test"},
+		Sessions: []conversation.SessionMeta{
 			{
-				id:            "11111111-1111-1111-1111-111111111111",
-				slug:          "test-slug",
-				project:       project{displayName: "test"},
-				timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
-				lastTimestamp: time.Date(2026, 3, 6, 14, 31, 0, 0, time.UTC),
-				model:         "claude-sonnet-4",
-				messageCount:  2,
+				ID:            "11111111-1111-1111-1111-111111111111",
+				Slug:          "test-slug",
+				Project:       conversation.Project{DisplayName: "test"},
+				Timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				LastTimestamp: time.Date(2026, 3, 6, 14, 31, 0, 0, time.UTC),
+				Model:         "claude-sonnet-4",
+				MessageCount:  2,
 			},
 		},
 	}
-	session := sessionFull{
-		meta: conv.sessions[0],
-		messages: []message{
-			{role: roleUser, text: "hello"},
-			{role: roleAssistant, text: "hi"},
+	session := conversation.Session{
+		Meta: conv.Sessions[0],
+		Messages: []conversation.Message{
+			{Role: conversation.RoleUser, Text: "hello"},
+			{Role: conversation.RoleAssistant, Text: "hi"},
 		},
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	tea "charm.land/bubbletea/v2"
+	arch "github.com/rkuska/carn/internal/archive"
 )
 
 type viewState int
@@ -15,7 +16,7 @@ const (
 
 type appModel struct {
 	ctx            context.Context
-	cfg            archiveConfig
+	cfg            arch.Config
 	glamourStyle   string
 	state          viewState
 	importOverview importOverviewModel
@@ -24,14 +25,20 @@ type appModel struct {
 	height         int
 }
 
-func newAppModel(ctx context.Context, cfg archiveConfig, glamourStyle string) appModel {
+func newAppModelWithDeps(
+	ctx context.Context,
+	cfg arch.Config,
+	glamourStyle string,
+	store browserStore,
+	pipeline importPipeline,
+) appModel {
 	return appModel{
 		ctx:            ctx,
 		cfg:            cfg,
 		glamourStyle:   glamourStyle,
 		state:          viewImportOverview,
-		importOverview: newImportOverviewModel(ctx, cfg),
-		browser:        newBrowserModel(ctx, cfg.archiveDir, glamourStyle),
+		importOverview: newImportOverviewModelWithPipeline(ctx, cfg, pipeline),
+		browser:        newBrowserModelWithStore(ctx, cfg.ArchiveDir, glamourStyle, store),
 	}
 }
 

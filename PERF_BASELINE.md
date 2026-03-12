@@ -1,37 +1,36 @@
 # Performance Baseline
 
-Captured on March 8, 2026.
+Captured on March 12, 2026.
 
-Command:
+Current benchmark commands:
 
 ```bash
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|ViewerRenderContent|ViewerSearch|CollectFilesToSync|StreamImportAnalysis|CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents|CanonicalStoreParseConversations|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents)$' -benchmem ./internal/source/claude
+go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
+go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
+go test -run '^$' -bench 'Benchmark(ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
 
-| Benchmark | ns/op | B/op | allocs/op |
-| --- | ---: | ---: | ---: |
-| BenchmarkLoadCatalog | 145,757 | 250,522 | 6,185 |
-| BenchmarkLoadSearchIndex | 960,018 | 2,672,600 | 53,291 |
-| BenchmarkDeepSearchFuzzy | 936,745 | 164,712 | 957 |
-| BenchmarkCanonicalTranscriptOpen | 183,071 | 247,338 | 8,030 |
-| BenchmarkViewerRenderContent | 33,048,647 | 26,895,774 | 352,642 |
-| BenchmarkViewerSearch | 8,626 | 120 | 4 |
-| BenchmarkCollectFilesToSync | 1,280,234 | 514,825 | 4,041 |
-| BenchmarkStreamImportAnalysis | 7,957,127 | 24,646,047 | 10,055 |
-| BenchmarkCanonicalStoreScanSessions | 16,562,392 | 192,109,275 | 59,443 |
-| BenchmarkCanonicalStoreParseConversationWithSubagents | 5,096,611 | 35,562,278 | 54,560 |
-| BenchmarkCanonicalStoreParseConversations | 16,209,453 | 215,243,549 | 341,277 |
-| BenchmarkCanonicalStoreFullRebuild | 40,072,264 | 409,142,401 | 487,962 |
-| BenchmarkCanonicalStoreIncrementalRebuild | 33,716,624 | 271,872,216 | 358,606 |
+| Package | Benchmark | ns/op | B/op | allocs/op |
+| --- | --- | ---: | ---: | ---: |
+| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 17,771,219 | 192,115,464 | 59,475 |
+| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 5,928,587 | 35,711,956 | 54,555 |
+| `internal/canonical` | BenchmarkLoadCatalog | 139,943 | 249,946 | 6,184 |
+| `internal/canonical` | BenchmarkLoadSearchIndex | 922,871 | 2,238,216 | 53,288 |
+| `internal/canonical` | BenchmarkDeepSearchFuzzy | 915,978 | 165,949 | 981 |
+| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 170,911 | 280,106 | 8,030 |
+| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 41,141,859 | 410,202,976 | 496,991 |
+| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 34,883,505 | 272,447,476 | 367,586 |
+| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 15,872,253 | 216,155,485 | 341,279 |
+| `internal/archive` | BenchmarkCollectFilesToSync | 1,758,282 | 714,488 | 5,241 |
+| `internal/archive` | BenchmarkStreamImportAnalysis | 6,806,307 | 24,639,586 | 9,759 |
+| `internal/app` | BenchmarkViewerRenderContent | 35,262,518 | 30,540,141 | 393,422 |
+| `internal/app` | BenchmarkViewerSearch | 10,105 | 256 | 5 |
 
 Notes:
-- `go test -race ./...` is currently not runnable in this environment (`cannot find package` from the race toolchain).
-- These numbers are intended as a regression baseline for future optimization passes.
-- `BenchmarkLoadCatalog`, `BenchmarkLoadSearchIndex`, `BenchmarkDeepSearchFuzzy`, and `BenchmarkCanonicalTranscriptOpen` now measure the canonical-store runtime path used by the browser.
-- `BenchmarkStreamImportAnalysis` processes 6 projects × 60 sessions (360 files) including slug extraction and conversation classification.
-- `BenchmarkCanonicalStoreScanSessions` isolates raw metadata extraction on the same 6 projects × 60 sessions fixture.
-- `BenchmarkCanonicalStoreParseConversationWithSubagents` isolates one grouped conversation parse on that fixture.
-- `BenchmarkCanonicalStoreParseConversations` isolates the parallel parse and search-unit build stage across all grouped conversations on the same fixture.
-- `BenchmarkCanonicalStoreFullRebuild` and `BenchmarkCanonicalStoreIncrementalRebuild` use the same 6 projects × 60 sessions fixture.
+- Benchmarks live with the package that owns the runtime path.
+- `PERF_BASELINE.md` should always include the full benchmark suite, even
+  when the benchmark code is split across packages.
+- Refresh this file whenever benchmark commands or meaningful results change.

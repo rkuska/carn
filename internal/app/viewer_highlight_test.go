@@ -9,184 +9,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuildSearchLineIndexStripsAnsi(t *testing.T) {
+	t.Parallel()
+
+	index := buildSearchLineIndex("\x1b[31mhello\x1b[0m world", 0)
+	assert.Equal(t, "hello world", index.lower)
+}
+
+func TestCollectSearchOccurrencesReturnsOrderedMatches(t *testing.T) {
+	t.Parallel()
+
+	lines := []searchLineIndex{
+		buildSearchLineIndex("\x1b[31mhello\x1b[0m world", 0),
+		buildSearchLineIndex("say hello again", 0),
+	}
+
+	matches := collectSearchOccurrences(lines, "hello")
+	require.Len(t, matches, 2)
+
+	assert.Equal(t, 0, matches[0].line)
+	assert.Equal(t, 0, matches[0].byteStart)
+	assert.Equal(t, 1, matches[1].line)
+	assert.Equal(t, 4, matches[1].byteStart)
+}
+
 func TestHighlightLineOccurrences(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name       string
-		line       string
-		queryLower string
-		occs       []lineOccurrence
-		wantChange bool
-	}{
-		{
-			name:       "no occurrences returns original",
-			line:       "hello world",
-			queryLower: "hello",
-			occs:       nil,
-			wantChange: false,
+	result := highlightLineOccurrences(
+		"foo bar foo",
+		"foo",
+		[]lineOccurrence{
+			{isCurrentMatch: true},
+			{isCurrentMatch: false},
 		},
-		{
-			name:       "single current match highlights",
-			line:       "hello world",
-			queryLower: "hello",
-			occs:       []lineOccurrence{{byteStart: 0, isCurrentMatch: true}},
-			wantChange: true,
-		},
-		{
-			name:       "single non-current match highlights",
-			line:       "hello world",
-			queryLower: "hello",
-			occs:       []lineOccurrence{{byteStart: 0, isCurrentMatch: false}},
-			wantChange: true,
-		},
-		{
-			name:       "two occurrences with different styles",
-			line:       "foo bar foo",
-			queryLower: "foo",
-			occs: []lineOccurrence{
-				{byteStart: 0, isCurrentMatch: true},
-				{byteStart: 8, isCurrentMatch: false},
-			},
-			wantChange: true,
-		},
-	}
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := highlightLineOccurrences(tt.line, tt.queryLower, tt.occs)
-			if tt.wantChange {
-				assert.NotEqual(t, tt.line, result)
-				assert.Equal(t, ansi.Strip(tt.line), ansi.Strip(result))
-			} else {
-				assert.Equal(t, tt.line, result)
-			}
-		})
-	}
+	assert.NotEqual(t, "foo bar foo", result)
+	assert.Equal(t, "foo bar foo", ansi.Strip(result))
 }
 
-func TestHighlightLineOccurrencesCurrentVsNonCurrentDiffer(t *testing.T) {
+func TestHighlightViewportMatchesHighlightsOnlyVisibleLines(t *testing.T) {
 	t.Parallel()
 
-	line := "foo bar foo"
-	query := "foo"
-
-	// First occurrence is current.
-	result1 := highlightLineOccurrences(line, query, []lineOccurrence{
-		{byteStart: 0, isCurrentMatch: true},
-		{byteStart: 8, isCurrentMatch: false},
-	})
-
-	// Second occurrence is current.
-	result2 := highlightLineOccurrences(line, query, []lineOccurrence{
-		{byteStart: 0, isCurrentMatch: false},
-		{byteStart: 8, isCurrentMatch: true},
-	})
-
-	require.NotEqual(t, result1, result2)
-}
-
-func TestHighlightSearchMatches(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		content      string
-		query        string
-		matches      []searchOccurrence
-		currentMatch int
-		wantChanged  bool
-	}{
-		{
-			name:         "empty query returns unchanged",
-			content:      "line one\nline two",
-			query:        "",
-			matches:      nil,
-			currentMatch: 0,
-			wantChanged:  false,
-		},
-		{
-			name:         "no matches returns unchanged",
-			content:      "line one\nline two",
-			query:        "xyz",
-			matches:      nil,
-			currentMatch: 0,
-			wantChanged:  false,
-		},
-		{
-			name:         "highlights matched line",
-			content:      "first line\nsecond line\nthird line",
-			query:        "second",
-			matches:      []searchOccurrence{{line: 1, byteStart: 0}},
-			currentMatch: 0,
-			wantChanged:  true,
-		},
-		{
-			name:    "current match differs from non-current",
-			content: "foo bar\nfoo baz\nfoo qux",
-			query:   "foo",
-			matches: []searchOccurrence{
-				{line: 0, byteStart: 0},
-				{line: 1, byteStart: 0},
-				{line: 2, byteStart: 0},
-			},
-			currentMatch: 1,
-			wantChanged:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := highlightSearchMatches(tt.content, tt.query, tt.matches, tt.currentMatch)
-			if tt.wantChanged {
-				assert.NotEqual(t, tt.content, result)
-				// Stripped text content should be preserved.
-				assert.Equal(t, ansi.Strip(tt.content), ansi.Strip(result))
-			} else {
-				assert.Equal(t, tt.content, result)
-			}
-		})
-	}
-}
-
-func TestHighlightSearchMatchesCurrentVsNonCurrent(t *testing.T) {
-	t.Parallel()
-
-	content := "foo bar\nfoo baz\nfoo qux"
+	content := "\ntwo hello\nthree"
 	matches := []searchOccurrence{
-		{line: 0, byteStart: 0},
-		{line: 1, byteStart: 0},
-		{line: 2, byteStart: 0},
+		{line: 1, byteStart: 4},
+		{line: 3, byteStart: 4},
 	}
 
-	resultCurrent0 := highlightSearchMatches(content, "foo", matches, 0)
-	resultCurrent1 := highlightSearchMatches(content, "foo", matches, 1)
+	result := highlightViewportMatches(content, "hello", matches, 1, 2)
+	lines := strings.Split(result, "\n")
+	require.Len(t, lines, 3)
 
-	// Different current match should produce different output.
-	require.NotEqual(t, resultCurrent0, resultCurrent1)
-
-	// Line 0 in resultCurrent0 should differ from line 0 in resultCurrent1
-	// because line 0 is current in one and non-current in the other.
-	lines0 := strings.Split(resultCurrent0, "\n")
-	lines1 := strings.Split(resultCurrent1, "\n")
-	assert.NotEqual(t, lines0[0], lines1[0])
-	assert.NotEqual(t, lines0[1], lines1[1])
-}
-
-func TestHighlightSearchMatchesOnlyCurrentOccurrenceGetsCurrentStyle(t *testing.T) {
-	t.Parallel()
-
-	content := "foo bar foo"
-	matches := []searchOccurrence{
-		{line: 0, byteStart: 0},
-		{line: 0, byteStart: 8},
-	}
-
-	resultCurrent0 := highlightSearchMatches(content, "foo", matches, 0)
-	resultCurrent1 := highlightSearchMatches(content, "foo", matches, 1)
-
-	// Different current occurrence on the same line should produce different output.
-	require.NotEqual(t, resultCurrent0, resultCurrent1)
+	assert.Equal(t, "", ansi.Strip(lines[0]))
+	assert.Equal(t, "two hello", ansi.Strip(lines[1]))
+	assert.Equal(t, "three", ansi.Strip(lines[2]))
+	assert.Equal(t, lines[0], "")
+	assert.NotEqual(t, lines[1], "two hello")
 }

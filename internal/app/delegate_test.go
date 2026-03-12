@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,14 +40,14 @@ func TestSplitItemMatches(t *testing.T) {
 // renderDeepSearchView builds deep search items from the given query and
 // conversation, sets them on a browser list with deep search delegate height,
 // and returns the rendered list view.
-func renderDeepSearchView(t *testing.T, query string, conv conversation) string {
+func renderDeepSearchView(t *testing.T, query string, conversation conv.Conversation) string {
 	t.Helper()
 
 	b := testBrowser(t)
 	b.delegate.SetHeight(delegateHeightDeepSearch)
 	b.list.SetDelegate(b.delegate)
 
-	items := buildDeepSearchItems(query, []conversation{conv})
+	items := buildDeepSearchItems(query, []conv.Conversation{conversation})
 	listItems := make([]list.Item, len(items))
 	for i, item := range items {
 		listItems[i] = item
@@ -61,7 +62,7 @@ func TestDeepSearchRenderHighlightsMultiWordQuery(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = "the matching strategy uses string comparison"
+	conv.SearchPreview = "the matching strategy uses string comparison"
 
 	highlighted := renderDeepSearchView(t, "matching strings", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -82,7 +83,7 @@ func TestDeepSearchRenderHighlightsSingleWordQuery(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = "analysis complete; archive already matches the source"
+	conv.SearchPreview = "analysis complete; archive already matches the source"
 
 	highlighted := renderDeepSearchView(t, "archive", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -95,7 +96,7 @@ func TestDeepSearchRenderHighlightsAcrossPreviewLines(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = "the cache layer is fast\nrebuild cache on startup"
+	conv.SearchPreview = "the cache layer is fast\nrebuild cache on startup"
 
 	highlighted := renderDeepSearchView(t, "cache", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -115,7 +116,7 @@ func TestDeepSearchRenderNoHighlightWhenQueryAbsent(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.searchPreview = "some unrelated preview text"
+	conv.SearchPreview = "some unrelated preview text"
 
 	withQuery := renderDeepSearchView(t, "xyznotfound", conv)
 	withoutQuery := renderDeepSearchView(t, "", conv)

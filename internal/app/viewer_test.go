@@ -9,16 +9,19 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testTextHello = "hello"
 
 func TestScanContentFlags(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		messages []message
+		messages []conv.Message
 		want     contentFlags
 	}{
 		{
@@ -28,30 +31,30 @@ func TestScanContentFlags(t *testing.T) {
 		},
 		{
 			name:     "has thinking only",
-			messages: []message{{role: roleAssistant, thinking: "deep thought"}},
+			messages: []conv.Message{{Role: conv.RoleAssistant, Thinking: "deep thought"}},
 			want:     contentFlags{hasThinking: true},
 		},
 		{
 			name:     "has tool calls only",
-			messages: []message{{role: roleAssistant, toolCalls: []toolCall{{name: "Read"}}}},
+			messages: []conv.Message{{Role: conv.RoleAssistant, ToolCalls: []conv.ToolCall{{Name: "Read"}}}},
 			want:     contentFlags{hasToolCalls: true},
 		},
 		{
 			name:     "has tool results only",
-			messages: []message{{role: roleUser, toolResults: []toolResult{{content: "x"}}}},
+			messages: []conv.Message{{Role: conv.RoleUser, ToolResults: []conv.ToolResult{{Content: "x"}}}},
 			want:     contentFlags{hasToolResults: true},
 		},
 		{
 			name:     "has sidechain only",
-			messages: []message{{role: roleAssistant, text: "side", isSidechain: true}},
+			messages: []conv.Message{{Role: conv.RoleAssistant, Text: "side", IsSidechain: true}},
 			want:     contentFlags{hasSidechain: true},
 		},
 		{
 			name: "has all",
-			messages: []message{
-				{role: roleAssistant, thinking: "t", toolCalls: []toolCall{{name: "W"}}},
-				{role: roleUser, toolResults: []toolResult{{content: "x"}}},
-				{role: roleAssistant, text: "side", isSidechain: true},
+			messages: []conv.Message{
+				{Role: conv.RoleAssistant, Thinking: "t", ToolCalls: []conv.ToolCall{{Name: "W"}}},
+				{Role: conv.RoleUser, ToolResults: []conv.ToolResult{{Content: "x"}}},
+				{Role: conv.RoleAssistant, Text: "side", IsSidechain: true},
 			},
 			want: contentFlags{hasThinking: true, hasToolCalls: true, hasToolResults: true, hasSidechain: true},
 		},
@@ -78,15 +81,15 @@ func TestHelpBarAlwaysVisibleInFooter(t *testing.T) {
 func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "glow-test",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "glow-test",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "hello"},
-			{role: roleAssistant, text: "hi", thinking: "deep thought"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "hello"},
+			{Role: conv.RoleAssistant, Text: "hi", Thinking: "deep thought"},
 		},
 	}
 
@@ -106,15 +109,15 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 
 	// Session with no thinking data — glow should not activate,
 	// but the +/- prefix still changes with toggle state.
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "no-glow",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "no-glow",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "hello"},
-			{role: roleAssistant, text: "hi", thinking: "deep thought"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "hello"},
+			{Role: conv.RoleAssistant, Text: "hi", Thinking: "deep thought"},
 		},
 	}
 	m := newTestViewer(session, 120, 40)
@@ -136,8 +139,8 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	assert.Contains(t, footer, "-t")
 }
 
-func newTestViewer(session sessionFull, width, height int) viewerModel {
-	return newViewerModel(session, singleSessionConversation(session.meta), "dark", width, height)
+func newTestViewer(session conv.Session, width, height int) viewerModel {
+	return newViewerModel(session, singleSessionConversation(session.Meta), "dark", width, height)
 }
 
 func TestNewViewerModelStartsWithSearchInactive(t *testing.T) {
@@ -161,23 +164,23 @@ func TestViewerSearchBindingUsesSlash(t *testing.T) {
 }
 
 // testSessionLong creates a session with many messages so content exceeds a small viewport.
-func testSessionLong(id string, keyword string) sessionFull {
-	msgs := make([]message, 0, 40)
+func testSessionLong(id string, keyword string) conv.Session {
+	msgs := make([]conv.Message, 0, 40)
 	for i := range 20 {
-		msgs = append(msgs, message{role: roleUser, text: fmt.Sprintf("user message %d", i)})
+		msgs = append(msgs, conv.Message{Role: conv.RoleUser, Text: fmt.Sprintf("user message %d", i)})
 		text := fmt.Sprintf("assistant response %d", i)
 		if i == 15 {
 			text = fmt.Sprintf("this contains %s in the middle", keyword)
 		}
-		msgs = append(msgs, message{role: roleAssistant, text: text})
+		msgs = append(msgs, conv.Message{Role: conv.RoleAssistant, Text: text})
 	}
-	return sessionFull{
-		meta: sessionMeta{
-			id:        id,
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	return conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        id,
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: msgs,
+		Messages: msgs,
 	}
 }
 
@@ -211,10 +214,10 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 	t.Parallel()
 
 	session := testSessionLong("search-rerender", "TARGETWORD")
-	session.messages = append(session.messages, message{
-		role:     roleAssistant,
-		text:     "thinking about TARGETWORD",
-		thinking: "deep thought about TARGETWORD",
+	session.Messages = append(session.Messages, conv.Message{
+		Role:     conv.RoleAssistant,
+		Text:     "thinking about TARGETWORD",
+		Thinking: "deep thought about TARGETWORD",
 	})
 
 	m := newTestViewer(session, 120, 10)
@@ -311,15 +314,15 @@ func TestViewerFooterOrdersItemsByWorkflow(t *testing.T) {
 func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "plan-toggle",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "conv.Plan-toggle",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "hello", plans: []plan{{filePath: "a.md", content: "plan"}}},
-			{role: roleAssistant, text: "hi"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "hello", Plans: []conv.Plan{{FilePath: "a.md", Content: "conv.Plan"}}},
+			{Role: conv.RoleAssistant, Text: "hi"},
 		},
 	}
 	m := newTestViewer(session, 120, 40)
@@ -341,8 +344,8 @@ func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 			yIdx = i
 		}
 	}
-	assert.Greater(t, pIdx, sIdx, "plan toggle should come after sidechain toggle")
-	assert.Less(t, pIdx, yIdx, "plan toggle should come before action items")
+	assert.Greater(t, pIdx, sIdx, "conv.Plan toggle should come after sidechain toggle")
+	assert.Less(t, pIdx, yIdx, "conv.Plan toggle should come before action items")
 }
 
 func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
@@ -391,17 +394,17 @@ func TestRenderRoleHeader(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
-		role      role
+		role      conv.Role
 		wantLabel string
 	}{
 		{
 			name:      "user role shows User badge",
-			role:      roleUser,
+			role:      conv.RoleUser,
 			wantLabel: "User",
 		},
 		{
 			name:      "assistant role shows Assistant badge",
-			role:      roleAssistant,
+			role:      conv.RoleAssistant,
 			wantLabel: "Assistant",
 		},
 	}
@@ -423,18 +426,20 @@ func TestViewerSearchHighlightsMatchedText(t *testing.T) {
 
 	m := newTestViewer(testSession("search-highlight"), 120, 40)
 
-	contentBefore := m.viewport.View()
+	contentBefore := m.paneView(colorPrimary)
+	baseBefore := m.viewport.GetContent()
 
 	m.searchQuery = testTextHello
 	m.performSearch()
 	require.NotEmpty(t, m.matches)
 
-	contentAfter := m.viewport.View()
+	contentAfter := m.paneView(colorPrimary)
 
 	// The viewport content should differ because matches are highlighted.
 	assert.NotEqual(t, contentBefore, contentAfter)
 	// Stripped content should be the same (only styling changed).
 	assert.Equal(t, ansi.Strip(contentBefore), ansi.Strip(contentAfter))
+	assert.Equal(t, baseBefore, m.viewport.GetContent())
 }
 
 func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
@@ -442,9 +447,9 @@ func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
 
 	session := testSessionLong("jump-highlight", "JUMPWORD")
 	// Add more messages with the keyword to get multiple matches.
-	session.messages = append(session.messages,
-		message{role: roleUser, text: "JUMPWORD again"},
-		message{role: roleAssistant, text: "reply with JUMPWORD"},
+	session.Messages = append(session.Messages,
+		conv.Message{Role: conv.RoleUser, Text: "JUMPWORD again"},
+		conv.Message{Role: conv.RoleAssistant, Text: "reply with JUMPWORD"},
 	)
 
 	m := newTestViewer(session, 120, 10)
@@ -453,13 +458,14 @@ func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
 	m.performSearch()
 	require.Greater(t, len(m.matches), 1)
 
-	contentAt0 := m.viewport.View()
+	contentAt0 := m.paneView(colorPrimary)
 
 	m.jumpToMatch(1)
-	contentAt1 := m.viewport.View()
+	contentAt1 := m.paneView(colorPrimary)
 
 	// Different current match should produce different highlighted content.
 	assert.NotEqual(t, contentAt0, contentAt1)
+	assert.Equal(t, m.baseContent, m.viewport.GetContent())
 }
 
 func TestViewerSearchClearRemovesHighlights(t *testing.T) {
@@ -468,7 +474,7 @@ func TestViewerSearchClearRemovesHighlights(t *testing.T) {
 	m := newTestViewer(testSession("clear-highlight"), 120, 40)
 
 	// Capture the un-highlighted content.
-	contentClean := m.viewport.View()
+	contentClean := m.paneView(colorPrimary)
 
 	m.searchQuery = testTextHello
 	m.performSearch()
@@ -476,23 +482,67 @@ func TestViewerSearchClearRemovesHighlights(t *testing.T) {
 
 	// After clearing, content should return to the original un-highlighted state.
 	m.clearSearch()
-	contentAfterClear := m.viewport.View()
+	contentAfterClear := m.paneView(colorPrimary)
 
 	assert.Equal(t, contentClean, contentAfterClear)
+	assert.Equal(t, m.baseContent, m.viewport.GetContent())
+}
+
+func TestViewerSearchKeepsViewportContentStableAcrossRerender(t *testing.T) {
+	t.Parallel()
+
+	session := testSessionLong("search-stable-rerender", "TARGETWORD")
+	session.Messages = append(session.Messages, conv.Message{
+		Role:     conv.RoleAssistant,
+		Text:     "thinking about TARGETWORD",
+		Thinking: "deep thought about TARGETWORD",
+	})
+
+	m := newTestViewer(session, 120, 10)
+	m.searchQuery = "TARGETWORD"
+	m.performSearch()
+	require.NotEmpty(t, m.matches)
+
+	contentBefore := m.viewport.GetContent()
+
+	m.opts.showThinking = true
+	m.renderContent()
+
+	assert.Equal(t, m.baseContent, m.viewport.GetContent())
+	assert.NotEqual(t, contentBefore, m.viewport.GetContent())
+	assert.NotEmpty(t, m.matches)
+	assert.Equal(t, 0, m.currentMatch)
+}
+
+func TestViewerSearchSurvivesResize(t *testing.T) {
+	t.Parallel()
+
+	m := newTestViewer(testSessionLong("search-resize", "RESIZEWORD"), 120, 10)
+	m.searchQuery = "RESIZEWORD"
+	m.performSearch()
+	require.NotEmpty(t, m.matches)
+
+	m.SetSize(100, 12)
+
+	assert.Equal(t, "RESIZEWORD", m.searchQuery)
+	require.NotEmpty(t, m.matches)
+	assert.Equal(t, m.baseContent, m.viewport.GetContent())
+	assert.Equal(t, 0, m.currentMatch)
+	assert.Contains(t, m.footerView(), fmt.Sprintf("1/%d", len(m.matches)))
 }
 
 func TestPerformSearchCountsOccurrencesNotLines(t *testing.T) {
 	t.Parallel()
 
 	// A single line with "foo" appearing 3 times.
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "occ-count",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "occ-count",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "foo foo foo"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "foo foo foo"},
 		},
 	}
 	m := newTestViewer(session, 120, 40)
@@ -506,14 +556,14 @@ func TestPerformSearchCountsOccurrencesNotLines(t *testing.T) {
 func TestJumpToMatchCyclesThroughOccurrencesOnSameLine(t *testing.T) {
 	t.Parallel()
 
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "jump-occ",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "jump-occ",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "aaa bbb aaa ccc aaa"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "aaa bbb aaa ccc aaa"},
 		},
 	}
 	m := newTestViewer(session, 120, 40)
@@ -543,15 +593,15 @@ func TestFooterShowsOccurrenceCount(t *testing.T) {
 	t.Parallel()
 
 	// Two lines: "xxx xxx" and "xxx" → at least 3 occurrences.
-	session := sessionFull{
-		meta: sessionMeta{
-			id:        "footer-occ",
-			timestamp: time.Now(),
-			project:   project{displayName: "test"},
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "footer-occ",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
 		},
-		messages: []message{
-			{role: roleUser, text: "xxx xxx"},
-			{role: roleAssistant, text: "xxx"},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "xxx xxx"},
+			{Role: conv.RoleAssistant, Text: "xxx"},
 		},
 	}
 	m := newTestViewer(session, 120, 40)

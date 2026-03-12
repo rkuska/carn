@@ -14,23 +14,54 @@ type searchOccurrence struct {
 	byteStart int
 }
 
-// lineOccurrence describes one match on a single line for highlighting.
+type searchLineIndex struct {
+	lower string
+}
+
+// lineOccurrence describes one visible match on a single line.
 type lineOccurrence struct {
-	byteStart      int
 	isCurrentMatch bool
 }
 
-// applyViewportContent sets the viewport content from baseContent,
-// applying search highlights if an active search exists.
-func (m *viewerModel) applyViewportContent() {
-	content := highlightSearchMatches(m.baseContent, m.searchQuery, m.matches, m.currentMatch)
-	m.viewport.SetContent(content)
+func buildSearchLineIndex(line string, _ int) searchLineIndex {
+	return searchLineIndex{
+		lower: strings.ToLower(ansi.Strip(line)),
+	}
+}
+
+func collectSearchOccurrences(lines []searchLineIndex, query string) []searchOccurrence {
+	if query == "" {
+		return nil
+	}
+
+	queryLower := strings.ToLower(query)
+	if queryLower == "" {
+		return nil
+	}
+
+	matches := make([]searchOccurrence, 0)
+	for lineIdx, line := range lines {
+		offset := 0
+		for {
+			idx := strings.Index(line.lower[offset:], queryLower)
+			if idx < 0 {
+				break
+			}
+			byteStart := offset + idx
+			matches = append(matches, searchOccurrence{
+				line:      lineIdx,
+				byteStart: byteStart,
+			})
+			offset = byteStart + len(queryLower)
+		}
+	}
+
+	return matches
 }
 
 // highlightLineOccurrences applies per-occurrence highlight styling.
-// Each lineOccurrence selects styleCurrentMatch or styleSearchMatch
-// based on its isCurrentMatch flag. The line may contain ANSI codes;
-// matching is done on stripped text via lipgloss.StyleRanges.
+// The line may contain ANSI codes; matching is done on stripped text via
+// lipgloss.StyleRanges.
 func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) string {
 	if len(occs) == 0 || queryLower == "" {
 		return line
@@ -53,22 +84,20 @@ func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) st
 		if idx < 0 {
 			break
 		}
+
 		byteStart := offset + idx
 		byteEnd := byteStart + queryLen
-
 		cellStart := ansi.StringWidth(stripped[:byteStart])
 		cellEnd := ansi.StringWidth(stripped[:byteEnd])
 
 		style := styleSearchMatch
-		if occIdx < len(occs) && occs[occIdx].byteStart == byteStart {
-			if occs[occIdx].isCurrentMatch {
-				style = styleCurrentMatch
-			}
-			occIdx++
+		if occIdx < len(occs) && occs[occIdx].isCurrentMatch {
+			style = styleCurrentMatch
 		}
 
 		ranges = append(ranges, lipgloss.NewRange(cellStart, cellEnd, style))
 		offset = byteEnd
+		occIdx++
 	}
 
 	if len(ranges) == 0 {
@@ -78,31 +107,35 @@ func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) st
 	return lipgloss.StyleRanges(line, ranges...)
 }
 
-// highlightSearchMatches highlights individual occurrences in content.
-// The occurrence at matches[currentMatch] gets styleCurrentMatch; all
-// others get styleSearchMatch. Returns content unchanged when query is
-// empty or matches is nil.
-func highlightSearchMatches(content, query string, matches []searchOccurrence, currentMatch int) string {
+func highlightViewportMatches(
+	content string,
+	query string,
+	matches []searchOccurrence,
+	currentMatch int,
+	lineOffset int,
+) string {
 	if query == "" || len(matches) == 0 {
 		return content
 	}
 
 	queryLower := strings.ToLower(query)
 	lines := strings.Split(content, "\n")
-
-	// Group occurrences by line.
-	lineOccs := make(map[int][]lineOccurrence, len(matches))
-	for i, m := range matches {
-		lineOccs[m.line] = append(lineOccs[m.line], lineOccurrence{
-			byteStart:      m.byteStart,
+	lineOccs := make(map[int][]lineOccurrence, len(lines))
+	for i, match := range matches {
+		if match.line < lineOffset {
+			continue
+		}
+		visibleLine := match.line - lineOffset
+		if visibleLine < 0 || visibleLine >= len(lines) {
+			continue
+		}
+		lineOccs[visibleLine] = append(lineOccs[visibleLine], lineOccurrence{
 			isCurrentMatch: i == currentMatch,
 		})
 	}
 
-	for lineIdx, occs := range lineOccs {
-		if lineIdx < len(lines) {
-			lines[lineIdx] = highlightLineOccurrences(lines[lineIdx], queryLower, occs)
-		}
+	for visibleLine, occs := range lineOccs {
+		lines[visibleLine] = highlightLineOccurrences(lines[visibleLine], queryLower, occs)
 	}
 
 	return strings.Join(lines, "\n")

@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const toolResultPrefixW = 2 // ▎ border (1 cell) + space (1 cell)
@@ -14,13 +15,13 @@ const toolResultPrefixW = 2 // ▎ border (1 cell) + space (1 cell)
 // renderStyledToolResult renders a tool result with lipgloss styling:
 // colored header badge, dark background content area with left border,
 // and per-line diff coloring for structured patches.
-func renderStyledToolResult(tr toolResult, width int) string {
+func renderStyledToolResult(tr conv.ToolResult, width int) string {
 	var sb strings.Builder
 
 	// Choose badge color based on error status
 	badgeBg := colorPrimary
 	borderColor := colorPrimary
-	if tr.isError {
+	if tr.IsError {
 		badgeBg = colorDiffRemove
 		borderColor = colorDiffRemove
 	}
@@ -32,8 +33,8 @@ func renderStyledToolResult(tr toolResult, width int) string {
 		Padding(0, 1)
 
 	name := "Result"
-	if tr.toolName != "" {
-		name = tr.toolName
+	if tr.ToolName != "" {
+		name = tr.ToolName
 	}
 	sb.WriteString(badgeStyle.Render(name))
 
@@ -41,9 +42,9 @@ func renderStyledToolResult(tr toolResult, width int) string {
 	contentLines := buildContentLines(tr)
 
 	summaryStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	summary := tr.toolSummary
-	if summary == "" && tr.toolName == "" {
-		summary = contentFallbackSummary(tr.content)
+	summary := tr.ToolSummary
+	if summary == "" && tr.ToolName == "" {
+		summary = contentFallbackSummary(tr.Content)
 	}
 	if summary != "" {
 		sb.WriteString(" ")
@@ -57,7 +58,7 @@ func renderStyledToolResult(tr toolResult, width int) string {
 
 	// Content area
 	if len(contentLines) > 0 {
-		renderContentArea(&sb, contentLines, tr.structuredPatch != nil, width, borderColor)
+		renderContentArea(&sb, contentLines, tr.StructuredPatch != nil, width, borderColor)
 	}
 
 	sb.WriteString("\n")
@@ -70,26 +71,26 @@ func contentFallbackSummary(content string) string {
 	for line := range strings.SplitSeq(content, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" {
-			return truncate(trimmed, 80)
+			return conv.Truncate(trimmed, 80)
 		}
 	}
 	return ""
 }
 
-func buildContentLines(tr toolResult) []string {
-	if len(tr.structuredPatch) > 0 {
+func buildContentLines(tr conv.ToolResult) []string {
+	if len(tr.StructuredPatch) > 0 {
 		var lines []string
-		for _, hunk := range tr.structuredPatch {
+		for _, hunk := range tr.StructuredPatch {
 			lines = append(lines, fmt.Sprintf("@@ -%d,%d +%d,%d @@",
-				hunk.oldStart, hunk.oldLines,
-				hunk.newStart, hunk.newLines))
-			lines = append(lines, hunk.lines...)
+				hunk.OldStart, hunk.OldLines,
+				hunk.NewStart, hunk.NewLines))
+			lines = append(lines, hunk.Lines...)
 		}
 		return lines
 	}
 
-	if tr.content != "" {
-		return strings.Split(tr.content, "\n")
+	if tr.Content != "" {
+		return strings.Split(tr.Content, "\n")
 	}
 
 	return nil
