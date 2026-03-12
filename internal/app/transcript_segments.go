@@ -31,9 +31,16 @@ type transcriptSegment struct {
 	role   conv.Role
 }
 
+type transcriptRenderState struct {
+	lastRole        conv.Role
+	hasVisibleGroup bool
+	forceHeader     bool
+}
+
 func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []transcriptSegment {
 	var segments []transcriptSegment
 	var md strings.Builder
+	state := transcriptRenderState{forceHeader: true}
 
 	flush := func() {
 		if md.Len() == 0 {
@@ -45,20 +52,23 @@ func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []t
 
 	for _, msg := range session.Messages {
 		if opts.hideSidechain && msg.IsSidechain {
+			state.breakGroup()
 			continue
 		}
 		if msg.IsAgentDivider {
+			flush()
 			md.WriteString("---\n### Subagent\n")
 			md.WriteString(msg.Text)
 			md.WriteString("\n---\n\n")
+			state.breakGroup()
 			continue
 		}
 
 		switch msg.Role {
 		case conv.RoleUser:
-			appendUserSegments(&segments, &md, flush, msg, opts)
+			appendUserSegments(&segments, &md, flush, &state, msg, opts)
 		case conv.RoleAssistant:
-			appendAssistantSegments(&segments, &md, flush, msg, opts)
+			appendAssistantSegments(&segments, &md, flush, &state, msg, opts)
 		}
 	}
 
@@ -74,6 +84,7 @@ func appendUserSegments(
 	segments *[]transcriptSegment,
 	md *strings.Builder,
 	flush func(),
+	state *transcriptRenderState,
 	msg conv.Message,
 	opts transcriptOptions,
 ) {
@@ -82,11 +93,11 @@ func appendUserSegments(
 		userText = ""
 	}
 	if !userHasContent(msg, userText, opts) {
+		state.breakGroup()
 		return
 	}
 
-	flush()
-	*segments = append(*segments, transcriptSegment{kind: segmentRoleHeader, role: conv.RoleUser})
+	appendRoleHeader(segments, flush, state, conv.RoleUser)
 	if userText != "" {
 		md.WriteString(userText)
 		md.WriteString("\n\n")
@@ -114,15 +125,16 @@ func appendAssistantSegments(
 	segments *[]transcriptSegment,
 	md *strings.Builder,
 	flush func(),
+	state *transcriptRenderState,
 	msg conv.Message,
 	opts transcriptOptions,
 ) {
 	if !assistantHasContent(msg, opts) {
+		state.breakGroup()
 		return
 	}
 
-	flush()
-	*segments = append(*segments, transcriptSegment{kind: segmentRoleHeader, role: conv.RoleAssistant})
+	appendRoleHeader(segments, flush, state, conv.RoleAssistant)
 	if opts.showThinking && msg.Thinking != "" {
 		flush()
 		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.Thinking})
@@ -136,6 +148,34 @@ func appendAssistantSegments(
 		appendToolCallSegments(segments, msg.ToolCalls)
 		md.WriteString("\n")
 	}
+}
+
+func appendRoleHeader(
+	segments *[]transcriptSegment,
+	flush func(),
+	state *transcriptRenderState,
+	role conv.Role,
+) {
+	if !state.shouldStartGroup(role) {
+		return
+	}
+	flush()
+	*segments = append(*segments, transcriptSegment{kind: segmentRoleHeader, role: role})
+	state.startGroup(role)
+}
+
+func (s *transcriptRenderState) shouldStartGroup(role conv.Role) bool {
+	return s.forceHeader || !s.hasVisibleGroup || s.lastRole != role
+}
+
+func (s *transcriptRenderState) startGroup(role conv.Role) {
+	s.lastRole = role
+	s.hasVisibleGroup = true
+	s.forceHeader = false
+}
+
+func (s *transcriptRenderState) breakGroup() {
+	s.forceHeader = true
 }
 
 func appendToolCallSegments(segments *[]transcriptSegment, toolCalls []conv.ToolCall) {
@@ -177,13 +217,7 @@ func appendRoleHeaderSegment(sb *strings.Builder, r conv.Role) {
 }
 
 func renderTranscript(session conv.Session, opts transcriptOptions) string {
-	var sb strings.Builder
-	if p, ok := conv.LastPlan(session.Messages); ok {
-		sb.WriteString(conv.FormatPlan(p))
-		sb.WriteString("\n\n---\n\n")
-	}
-	sb.WriteString(flattenSegments(renderTranscriptSegmented(session, opts)))
-	return sb.String()
+	return renderVisibleConversation(session, opts, false)
 }
 
 func formatToolCall(tc conv.ToolCall) string {

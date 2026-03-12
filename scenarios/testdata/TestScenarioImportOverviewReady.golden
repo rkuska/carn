@@ -10,7 +10,6 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
                 │  Ready to Import   review complete; import and store build are ready                 │                
@@ -19,8 +18,9 @@
                 │ Projects 1  Files 1  Conversations 1                                                 │                
                 │ New 1  Update 0  Current 0                                                           │                
                 │                                                                                      │                
-                │ Will import 1 archive files and refresh the local store after confirmation.          │                
-                │ Press Enter to import                                                                │                
+                │                                                                                      │                
+                │     Will import 1 archive files and refresh the local store after confirmation.      │                
+                │                                Press Enter to import                                 │                
                 │                                                                                      │                
                 ╰──────────────────────────────────────────────────────────────────────────────────────╯                
                                                                                                                         
@@ -36,5 +36,5 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- enter import  ? help  q quit                                                                                     ready 
+ enter import  ? help  q quit                                                                                           
                                                                                                                         

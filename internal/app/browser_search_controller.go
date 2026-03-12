@@ -78,17 +78,27 @@ func (m browserModel) updateSelectedConversationID() browserModel {
 	return m
 }
 
+func (m browserModel) selectVisibleConversation(id string) (browserModel, bool) {
+	for i, conv := range m.search.visibleConversations {
+		if conv.CacheKey() != id {
+			continue
+		}
+		m.list.Select(i)
+		return m.updateSelectedConversationID(), true
+	}
+	return m, false
+}
+
 func (m browserModel) restoreSelection() browserModel {
 	if len(m.search.visibleConversations) == 0 {
 		return m
 	}
 
 	if m.search.selectedConversationID != "" {
-		for i, conv := range m.search.visibleConversations {
-			if conv.CacheKey() == m.search.selectedConversationID {
-				m.list.Select(i)
-				return m
-			}
+		var ok bool
+		m, ok = m.selectVisibleConversation(m.search.selectedConversationID)
+		if ok {
+			return m
 		}
 	}
 

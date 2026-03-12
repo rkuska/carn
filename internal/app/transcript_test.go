@@ -187,7 +187,7 @@ func TestRenderAssistantToolOnlyVisibility(t *testing.T) {
 		t.Parallel()
 		result := renderTranscript(session, transcriptOptions{showTools: true})
 		count := strings.Count(result, "## Assistant")
-		assert.Equal(t, 2, count)
+		assert.Equal(t, 1, count)
 		assert.Contains(t, result, "[Read: /path/file.go]")
 	})
 }
@@ -551,7 +551,7 @@ func TestRenderTranscriptSegmented(t *testing.T) {
 		opts := transcriptOptions{showToolResults: true, showTools: true, showThinking: true}
 		transcript := renderTranscript(session, opts)
 		flattened := flattenSegments(renderTranscriptSegmented(session, opts))
-		assert.Equal(t, transcript, flattened)
+		assert.Equal(t, strings.TrimSpace(transcript), strings.TrimSpace(flattened))
 	})
 }
 

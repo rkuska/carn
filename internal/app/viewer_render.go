@@ -23,14 +23,13 @@ func (m viewerModel) paneTitle() string {
 }
 
 func (m viewerModel) paneView(borderColor color.Color) string {
-	content := highlightViewportMatches(
-		m.viewport.View(),
-		m.searchQuery,
-		m.matches,
-		m.currentMatch,
-		m.viewport.YOffset(),
+	return renderFramedPane(
+		m.paneTitle(),
+		m.width,
+		framedBodyHeight(m.height),
+		borderColor,
+		m.paneContent(),
 	)
-	return renderFramedPane(m.paneTitle(), m.width, framedBodyHeight(m.height), borderColor, content)
 }
 
 func (m viewerModel) footerView() string {
@@ -41,6 +40,12 @@ func (m viewerModel) footerView() string {
 }
 
 func (m viewerModel) footerItems() []helpItem {
+	if m.planPicker.active {
+		return m.planPickerFooterItems()
+	}
+	if m.actionMode != viewerActionNone {
+		return m.actionFooterItems()
+	}
 	items := transcriptFooterItems(m.opts, m.content)
 	if !m.content.hasPlans {
 		return items
@@ -59,15 +64,23 @@ func (m viewerModel) footerItems() []helpItem {
 	return append(items[:insertAt], append([]helpItem{planItem}, items[insertAt:]...)...)
 }
 
-func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
-	return transcriptHelpSections(m.opts, m.content, extraActions)
-}
-
 func (m viewerModel) footerStatusParts() []string {
-	rightParts := []string{fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100)}
+	rightParts := []string{}
+	if position := viewerLineRangeStatus(m.viewport); position != "" {
+		rightParts = append(rightParts, position)
+	}
 	rightParts = appendToggleStatusParts(rightParts, m.opts, m.content)
 	if m.planExpanded && m.content.hasPlans {
 		rightParts = append(rightParts, styleToolCall.Render("[plan]"))
+	}
+	if m.actionMode != viewerActionNone {
+		rightParts = append(rightParts, styleToolCall.Render("["+m.actionMode.String()+"]"))
+	}
+	if m.planPicker.active {
+		rightParts = append(
+			rightParts,
+			styleToolCall.Render("[select "+m.planPicker.action.String()+" plan]"),
+		)
 	}
 	return appendSearchStatusPart(rightParts, m.searchQuery, m.matches, m.currentMatch)
 }

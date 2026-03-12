@@ -96,19 +96,9 @@ func openConversationCmdCachedWithStore(
 	}
 }
 
-func copyTranscriptCmd(session conv.Session, opts transcriptOptions) tea.Cmd {
+func exportTranscriptCmd(session conv.Session, opts transcriptOptions, planExpanded bool) tea.Cmd {
 	return func() tea.Msg {
-		text := renderTranscript(session, opts)
-		if err := clipboard.WriteAll(text); err != nil {
-			return errorNotification(fmt.Sprintf("copy failed: %v", err))
-		}
-		return successNotification("transcript copied to clipboard")
-	}
-}
-
-func exportTranscriptCmd(session conv.Session, opts transcriptOptions) tea.Cmd {
-	return func() tea.Msg {
-		text := renderTranscript(session, opts)
+		text := renderVisibleConversation(session, opts, planExpanded)
 		return exportText(text, session.Meta)
 	}
 }
@@ -132,12 +122,18 @@ func exportText(text string, meta conv.SessionMeta) notificationMsg {
 }
 
 func openInEditorCmd(filePath string) tea.Cmd {
+	return runEditorCmd(newEditorCmd(filePath))
+}
+
+func newEditorCmd(filePath string) *exec.Cmd {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		editor = "vim"
 	}
-	cmd := exec.Command(editor, filePath)
+	return exec.Command(editor, filePath)
+}
 
+func runEditorCmd(cmd *exec.Cmd) tea.Cmd {
 	return tea.ExecProcess(
 		cmd,
 		func(err error) tea.Msg {
@@ -147,6 +143,15 @@ func openInEditorCmd(filePath string) tea.Cmd {
 			return nil
 		},
 	)
+}
+
+func copyTextCmd(text string, successMessage string) tea.Cmd {
+	return func() tea.Msg {
+		if err := clipboard.WriteAll(text); err != nil {
+			return errorNotification(fmt.Sprintf("copy failed: %v", err))
+		}
+		return successNotification(successMessage)
+	}
 }
 
 func resumeSessionCmd(sessionID, cwd string) tea.Cmd {

@@ -10,7 +10,6 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
                 │  Complete   import finished and refreshed the local store                            │                
@@ -19,8 +18,9 @@
                 │ Projects 1  Files 1  Conversations 1                                                 │                
                 │ Copied 1  Failed 0  Elapsed 0s                                                       │                
                 │                                                                                      │                
-                │ Import complete.                                                                     │                
-                │ Press Enter to continue                                                              │                
+                │                                                                                      │                
+                │                                   Import complete.                                   │                
+                │                               Press Enter to continue                                │                
                 │                                                                                      │                
                 ╰──────────────────────────────────────────────────────────────────────────────────────╯                
                                                                                                                         
@@ -36,5 +36,5 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- enter continue  ? help  q quit                                                                                    done 
+ enter continue  ? help  q quit                                                                                         
                                                                                                                         

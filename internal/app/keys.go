@@ -9,6 +9,7 @@ type browserKeyMap struct {
 	FocusPane        key.Binding
 	DeepSearch       key.Binding
 	Resume           key.Binding
+	Resync           key.Binding
 	Editor           key.Binding
 	Help             key.Binding
 	Close            key.Binding
@@ -39,6 +40,10 @@ var browserKeys = browserKeyMap{
 	Resume: key.NewBinding(
 		key.WithKeys("r", "ctrl+r"),
 		key.WithHelp("r", "resume session"),
+	),
+	Resync: key.NewBinding(
+		key.WithKeys("R"),
+		key.WithHelp("R", "resync"),
 	),
 	Editor: key.NewBinding(
 		key.WithKeys("o", "ctrl+o"),
@@ -142,7 +147,7 @@ var viewerKeys = viewerKeyMap{
 	),
 	Editor: key.NewBinding(
 		key.WithKeys("o", "ctrl+o"),
-		key.WithHelp("o", "open in editor"),
+		key.WithHelp("o", "open"),
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "q"),

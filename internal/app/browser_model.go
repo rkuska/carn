@@ -29,31 +29,33 @@ const (
 )
 
 type browserModel struct {
-	ctx                   context.Context
-	archiveDir            string
-	store                 browserStore
-	glamourStyle          string
-	list                  list.Model
-	delegate              conversationDelegate
-	focus                 focusArea
-	transcriptMode        transcriptMode
-	allConversations      []conv.Conversation
-	width                 int
-	height                int
-	mainConversationCount int
-	notification          notification
-	searchInput           textinput.Model
-	search                browserSearchState
-	deepSearchAvailable   bool
-	sessionCache          map[string]conv.Session
-	transcriptCache       map[string]conv.Session
-	searchCancel          context.CancelFunc
-	openConversationID    string
-	loadingConversationID string
-	helpOpen              bool
-	pendingListGotoTopKey bool
-	cacheOrder            []string
-	viewer                viewerModel
+	ctx                       context.Context
+	archiveDir                string
+	store                     browserStore
+	glamourStyle              string
+	list                      list.Model
+	delegate                  conversationDelegate
+	focus                     focusArea
+	transcriptMode            transcriptMode
+	allConversations          []conv.Conversation
+	width                     int
+	height                    int
+	mainConversationCount     int
+	notification              notification
+	searchInput               textinput.Model
+	search                    browserSearchState
+	deepSearchAvailable       bool
+	sessionCache              map[string]conv.Session
+	transcriptCache           map[string]conv.Session
+	searchCancel              context.CancelFunc
+	openConversationID        string
+	loadingConversationID     string
+	helpOpen                  bool
+	pendingListGotoTopKey     bool
+	cacheOrder                []string
+	viewer                    viewerModel
+	resync                    browserResyncState
+	pendingResyncTranscriptID string
 }
 
 func newBrowserModelWithStore(

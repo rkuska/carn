@@ -81,6 +81,7 @@ func (m browserModel) applyConversationsLoaded(
 	} else {
 		m = m.refreshSearchResults(cmds)
 	}
+	m = m.reloadTranscriptAfterResync(cmds)
 	return m.syncTranscriptSelection(cmds)
 }
 
@@ -126,6 +127,7 @@ func (m browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserMo
 	if m.helpOpen {
 		if key.Matches(msg, browserKeys.Help) || key.Matches(msg, browserKeys.Close) {
 			m.helpOpen = false
+			m = m.reloadTranscriptAfterResync(cmds)
 		}
 		return m, nil
 	}
@@ -179,6 +181,14 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 		}
 	case key.Matches(msg, browserKeys.DeepSearch):
 		return m.handleDeepSearchToggle(cmds), nil
+	case key.Matches(msg, browserKeys.Quit):
+		return m, tea.Quit
+	}
+	return m.handleListActionKey(msg)
+}
+
+func (m browserModel) handleListActionKey(msg tea.KeyPressMsg) (browserModel, tea.Cmd) {
+	switch {
 	case key.Matches(msg, browserKeys.Editor):
 		if conv, ok := m.selectedConversation(); ok {
 			return m, openInEditorCmd(conv.LatestFilePath())
@@ -187,8 +197,10 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 		if conv, ok := m.selectedConversation(); ok {
 			return m, resumeSessionCmd(conv.ResumeID(), conv.ResumeCWD())
 		}
-	case key.Matches(msg, browserKeys.Quit):
-		return m, tea.Quit
+	case key.Matches(msg, browserKeys.Resync):
+		if !m.resync.active {
+			return m, m.requestResyncCmd()
+		}
 	}
 	return m, nil
 }

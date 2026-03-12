@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -307,6 +308,111 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 	})
 }
 
+func TestRenderCenteredImportActivityBlockCentersNonEmptyLines(t *testing.T) {
+	t.Parallel()
+
+	width := 80
+	got := ansi.Strip(renderCenteredImportActivityBlock(
+		[]string{
+			"No import needed. Archived files already match the source.",
+			renderKeyHint("Press ", "Enter", " to continue"),
+		},
+		width,
+	))
+
+	lines := nonEmptyLines(got)
+	require.Len(t, lines, 2)
+	assert.Equal(t, width, ansi.StringWidth(lines[0]))
+	assert.Equal(t, width, ansi.StringWidth(lines[1]))
+	assertCenteredLineContains(t, lines, "No import needed. Archived files already match the source.")
+	assertCenteredLineContains(t, lines, "Press Enter to continue")
+}
+
+func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
+	t.Parallel()
+
+	cfg := testImportOverviewConfig(t)
+
+	tests := []struct {
+		name       string
+		model      importOverviewModel
+		contains   []string
+		blockWidth int
+	}{
+		{
+			name: "ready with sync needed",
+			model: importOverviewModel{
+				phase: phaseReady,
+				analysis: arch.ImportAnalysis{
+					SourceDir:   cfg.SourceDir,
+					ArchiveDir:  cfg.ArchiveDir,
+					QueuedFiles: []string{"a.jsonl"},
+				},
+			},
+			contains: []string{
+				"Will import 1 archive files and refresh the local store after confirmation.",
+				"Press Enter to import",
+			},
+			blockWidth: 80,
+		},
+		{
+			name: "ready without sync",
+			model: importOverviewModel{
+				phase: phaseReady,
+				analysis: arch.ImportAnalysis{
+					SourceDir:  cfg.SourceDir,
+					ArchiveDir: cfg.ArchiveDir,
+					UpToDate:   1,
+				},
+			},
+			contains: []string{
+				"No import needed. Archived files already match the source.",
+				"Press Enter to continue",
+			},
+			blockWidth: 80,
+		},
+		{
+			name: "done",
+			model: importOverviewModel{
+				phase:  phaseDone,
+				result: arch.SyncResult{Copied: 1, Elapsed: time.Second},
+			},
+			contains: []string{
+				"Import complete.",
+				"Press Enter to continue",
+			},
+			blockWidth: 80,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lines := nonEmptyLines(ansi.Strip(tt.model.renderActivityBlock(tt.blockWidth)))
+			require.NotEmpty(t, lines)
+
+			for _, want := range tt.contains {
+				assertCenteredLineContains(t, lines, want)
+			}
+		})
+	}
+}
+
+func TestImportOverviewRenderActivityBlockLeavesBlockedStateLeftAligned(t *testing.T) {
+	t.Parallel()
+
+	m := importOverviewModel{
+		phase:    phaseReady,
+		analysis: arch.ImportAnalysis{Err: errors.New("permission denied")},
+	}
+
+	lines := nonEmptyLines(ansi.Strip(m.renderActivityBlock(120)))
+	require.Len(t, lines, 2)
+	assertLeftAlignedLineContains(t, lines, "Import is blocked: permission denied")
+	assertLeftAlignedLineContains(t, lines, "Press q to quit")
+}
+
 func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 	t.Parallel()
 
@@ -359,4 +465,48 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 	m, _ = m.Update(cmd())
 	assert.Equal(t, phaseDone, m.phase)
 	assert.True(t, m.result.StoreBuilt)
+}
+
+func nonEmptyLines(s string) []string {
+	lines := strings.Split(s, "\n")
+	nonEmpty := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		nonEmpty = append(nonEmpty, line)
+	}
+	return nonEmpty
+}
+
+func assertCenteredLineContains(t testing.TB, lines []string, want string) {
+	t.Helper()
+
+	for _, line := range lines {
+		index := strings.Index(line, want)
+		if index == -1 {
+			continue
+		}
+
+		assert.Greater(t, index, 0, "expected %q to be centered in %q", want, line)
+		return
+	}
+
+	t.Fatalf("expected to find centered line containing %q in %q", want, lines)
+}
+
+func assertLeftAlignedLineContains(t testing.TB, lines []string, want string) {
+	t.Helper()
+
+	for _, line := range lines {
+		index := strings.Index(line, want)
+		if index == -1 {
+			continue
+		}
+
+		assert.Equal(t, 0, index, "expected %q to be left aligned in %q", want, line)
+		return
+	}
+
+	t.Fatalf("expected to find left-aligned line containing %q in %q", want, lines)
 }
