@@ -25,7 +25,7 @@ func testBrowser(t *testing.T) browserModel {
 	b := newBrowserModel(context.Background(), t.TempDir(), "dark")
 	b.width = 120
 	b.height = 40
-	b.updateLayout()
+	b = b.updateLayout()
 	return b
 }
 
@@ -147,7 +147,7 @@ func TestBrowserSplitModeKeepsMinimumListWidthOnNarrowTerminal(t *testing.T) {
 	b := testBrowser(t)
 	b.width = 50
 	b.transcriptMode = transcriptSplit
-	b.updateLayout()
+	b = b.updateLayout()
 
 	assert.Equal(t, 32, b.listPaneWidth())
 	assert.Equal(t, 17, b.viewerWidth())
@@ -595,7 +595,7 @@ func TestBrowserSplitViewKeepsWindowHeightWithLongListItems(t *testing.T) {
 		conversation:   testConv(testConversationIDPrimary),
 		session:        testBrowserSessionLong(testConversationIDPrimary, "KEYWORD"),
 	})
-	b.updateLayout()
+	b = b.updateLayout()
 
 	view := b.View()
 	assert.Equal(t, b.height, lipgloss.Height(view))

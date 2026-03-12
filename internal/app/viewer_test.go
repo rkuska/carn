@@ -45,6 +45,11 @@ func TestScanContentFlags(t *testing.T) {
 			want:     contentFlags{hasToolResults: true},
 		},
 		{
+			name:     "has plans only",
+			messages: []conv.Message{{Role: conv.RoleAssistant, Plans: []conv.Plan{{Content: "plan"}}}},
+			want:     contentFlags{hasPlans: true},
+		},
+		{
 			name:     "has sidechain only",
 			messages: []conv.Message{{Role: conv.RoleAssistant, Text: "side", IsSidechain: true}},
 			want:     contentFlags{hasSidechain: true},
@@ -52,11 +57,16 @@ func TestScanContentFlags(t *testing.T) {
 		{
 			name: "has all",
 			messages: []conv.Message{
-				{Role: conv.RoleAssistant, Thinking: "t", ToolCalls: []conv.ToolCall{{Name: "W"}}},
+				{
+					Role:      conv.RoleAssistant,
+					Thinking:  "t",
+					ToolCalls: []conv.ToolCall{{Name: "W"}},
+					Plans:     []conv.Plan{{Content: "plan"}},
+				},
 				{Role: conv.RoleUser, ToolResults: []conv.ToolResult{{Content: "x"}}},
 				{Role: conv.RoleAssistant, Text: "side", IsSidechain: true},
 			},
-			want: contentFlags{hasThinking: true, hasToolCalls: true, hasToolResults: true, hasSidechain: true},
+			want: contentFlags{hasThinking: true, hasToolCalls: true, hasToolResults: true, hasPlans: true, hasSidechain: true},
 		},
 	}
 
@@ -191,7 +201,7 @@ func TestPerformSearchFindsMatchesBeyondViewport(t *testing.T) {
 	m := newTestViewer(testSessionLong("search-full", "UNIQUEWORD"), 120, 10)
 
 	m.searchQuery = "UNIQUEWORD"
-	m.performSearch()
+	m = m.performSearch()
 
 	assert.NotEmpty(t, m.matches)
 }
@@ -205,7 +215,7 @@ func TestPerformSearchStripsAnsiBeforeMatching(t *testing.T) {
 
 	// The rendered content will have ANSI escape codes around "hello" (glamour renders markdown).
 	m.searchQuery = testTextHello
-	m.performSearch()
+	m = m.performSearch()
 
 	assert.NotEmpty(t, m.matches)
 }
@@ -223,12 +233,12 @@ func TestPerformSearchRefreshesOnContentRerender(t *testing.T) {
 	m := newTestViewer(session, 120, 10)
 
 	m.searchQuery = "TARGETWORD"
-	m.performSearch()
+	m = m.performSearch()
 	matchesBefore := len(m.matches)
 
 	// Toggle thinking on — adds the thinking block which contains TARGETWORD.
 	m.opts.showThinking = true
-	m.renderContent()
+	m = m.renderContent()
 
 	assert.Greater(t, len(m.matches), matchesBefore)
 }
@@ -239,7 +249,7 @@ func TestFooterShowsNoMatchesWhenSearchHasZeroResults(t *testing.T) {
 	m := newTestViewer(testSession("footer-zero"), 120, 40)
 
 	m.searchQuery = "XYZNONEXISTENT"
-	m.performSearch()
+	m = m.performSearch()
 
 	footer := m.footerView()
 
@@ -253,7 +263,7 @@ func TestFooterShowsMatchCountWhenSearchHasResults(t *testing.T) {
 	m := newTestViewer(testSession("footer-match"), 120, 40)
 
 	m.searchQuery = testTextHello
-	m.performSearch()
+	m = m.performSearch()
 
 	require.NotEmpty(t, m.matches)
 
@@ -353,7 +363,7 @@ func TestViewerEscapeCancelsActiveSearch(t *testing.T) {
 
 	m := newTestViewer(testSession("viewer-search-cancel"), 120, 40)
 	m.searchQuery = testTextHello
-	m.performSearch()
+	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
 	m.searching = true
@@ -430,7 +440,7 @@ func TestViewerSearchHighlightsMatchedText(t *testing.T) {
 	baseBefore := m.viewport.GetContent()
 
 	m.searchQuery = testTextHello
-	m.performSearch()
+	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
 	contentAfter := m.paneView(colorPrimary)
@@ -455,12 +465,12 @@ func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
 	m := newTestViewer(session, 120, 10)
 
 	m.searchQuery = "JUMPWORD"
-	m.performSearch()
+	m = m.performSearch()
 	require.Greater(t, len(m.matches), 1)
 
 	contentAt0 := m.paneView(colorPrimary)
 
-	m.jumpToMatch(1)
+	m = m.jumpToMatch(1)
 	contentAt1 := m.paneView(colorPrimary)
 
 	// Different current match should produce different highlighted content.
@@ -477,11 +487,11 @@ func TestViewerSearchClearRemovesHighlights(t *testing.T) {
 	contentClean := m.paneView(colorPrimary)
 
 	m.searchQuery = testTextHello
-	m.performSearch()
+	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
 	// After clearing, content should return to the original un-highlighted state.
-	m.clearSearch()
+	m = m.clearSearch()
 	contentAfterClear := m.paneView(colorPrimary)
 
 	assert.Equal(t, contentClean, contentAfterClear)
@@ -500,13 +510,13 @@ func TestViewerSearchKeepsViewportContentStableAcrossRerender(t *testing.T) {
 
 	m := newTestViewer(session, 120, 10)
 	m.searchQuery = "TARGETWORD"
-	m.performSearch()
+	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
 	contentBefore := m.viewport.GetContent()
 
 	m.opts.showThinking = true
-	m.renderContent()
+	m = m.renderContent()
 
 	assert.Equal(t, m.baseContent, m.viewport.GetContent())
 	assert.NotEqual(t, contentBefore, m.viewport.GetContent())
@@ -519,10 +529,10 @@ func TestViewerSearchSurvivesResize(t *testing.T) {
 
 	m := newTestViewer(testSessionLong("search-resize", "RESIZEWORD"), 120, 10)
 	m.searchQuery = "RESIZEWORD"
-	m.performSearch()
+	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
-	m.SetSize(100, 12)
+	m = m.SetSize(100, 12)
 
 	assert.Equal(t, "RESIZEWORD", m.searchQuery)
 	require.NotEmpty(t, m.matches)
@@ -548,7 +558,7 @@ func TestPerformSearchCountsOccurrencesNotLines(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	m.searchQuery = "foo"
-	m.performSearch()
+	m = m.performSearch()
 
 	assert.GreaterOrEqual(t, len(m.matches), 3)
 }
@@ -569,7 +579,7 @@ func TestJumpToMatchCyclesThroughOccurrencesOnSameLine(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	m.searchQuery = "aaa"
-	m.performSearch()
+	m = m.performSearch()
 	require.GreaterOrEqual(t, len(m.matches), 3)
 
 	// Find the first 3 matches that are on the same line as matches[0].
@@ -583,9 +593,9 @@ func TestJumpToMatchCyclesThroughOccurrencesOnSameLine(t *testing.T) {
 	require.GreaterOrEqual(t, sameLineCount, 3)
 
 	assert.Equal(t, 0, m.currentMatch)
-	m.jumpToMatch(1)
+	m = m.jumpToMatch(1)
 	assert.Equal(t, 1, m.currentMatch)
-	m.jumpToMatch(1)
+	m = m.jumpToMatch(1)
 	assert.Equal(t, 2, m.currentMatch)
 }
 
@@ -607,7 +617,7 @@ func TestFooterShowsOccurrenceCount(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	m.searchQuery = "xxx"
-	m.performSearch()
+	m = m.performSearch()
 
 	require.GreaterOrEqual(t, len(m.matches), 3)
 

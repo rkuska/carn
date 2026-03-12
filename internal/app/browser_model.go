@@ -128,34 +128,36 @@ func (m browserModel) Init() tea.Cmd {
 
 func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
 	var cmds []tea.Cmd
-	m.handleMsg(msg, &cmds)
+	m = m.handleMsg(msg, &cmds)
 
 	_, isKey := msg.(tea.KeyPressMsg)
-	m.updateChildModels(msg, isKey, &cmds)
+	m = m.updateChildModels(msg, isKey, &cmds)
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m *browserModel) applyOpenViewer(msg openViewerMsg) {
+func (m browserModel) applyOpenViewer(msg openViewerMsg) browserModel {
 	if msg.conversationID == m.loadingConversationID && msg.conversationID != "" {
-		m.installViewer(msg.session, msg.conversation)
+		return m.installViewer(msg.session, msg.conversation)
 	}
+	return m
 }
 
-func (m *browserModel) clearNotifications() {
+func (m browserModel) clearNotifications() browserModel {
 	m.notification = notification{}
 	if m.viewer.notification.text != "" {
 		m.viewer.notification = notification{}
 	}
+	return m
 }
 
-func (m *browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cmd) {
+func (m browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cmd) browserModel {
 	if m.shouldUpdateList(isKey) {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		appendCmd(cmds, cmd)
-		m.updateSelectedConversationID()
-		m.syncTranscriptSelection(cmds)
+		m = m.updateSelectedConversationID()
+		m = m.syncTranscriptSelection(cmds)
 	}
 
 	if m.shouldUpdateViewer(isKey) {
@@ -167,6 +169,7 @@ func (m *browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cm
 			m.notification = m.viewer.notification
 		}
 	}
+	return m
 }
 
 func appendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {

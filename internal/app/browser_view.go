@@ -30,7 +30,7 @@ func (m browserModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, body, m.footerView())
 }
 
-func (m *browserModel) updateLayout() {
+func (m browserModel) updateLayout() browserModel {
 	listWidth := m.width
 	if m.transcriptMode == transcriptSplit {
 		listWidth = m.listPaneWidth()
@@ -38,8 +38,9 @@ func (m *browserModel) updateLayout() {
 
 	m.list.SetSize(max(listWidth-2, 1), framedBodyHeight(m.height))
 	if m.transcriptVisible() && m.viewer.session.Meta.ID != "" {
-		m.viewer.SetSize(m.viewerWidth(), m.height)
+		m.viewer = m.viewer.SetSize(m.viewerWidth(), m.height)
 	}
+	return m
 }
 
 func (m browserModel) renderListPane(width int, active bool) string {

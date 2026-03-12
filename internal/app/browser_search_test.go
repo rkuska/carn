@@ -84,7 +84,7 @@ func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
 	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
 	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
-	b.applyFullConversationList(&cmds)
+	b = b.applyFullConversationList(&cmds)
 	b.search.editing = true
 	b.searchInput.Focus()
 
@@ -116,7 +116,7 @@ func TestBrowserToggleDeepSearchWhileEditingQuerySyncsTranscriptSelection(t *tes
 	b.search.editing = true
 	b.searchInput.Focus()
 	b.searchInput.SetValue("beta")
-	b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{alpha}), &cmds)
+	b = b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{alpha}), &cmds)
 
 	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
@@ -131,7 +131,7 @@ func TestBrowserToggleDeepSearchShowsScopeNotification(t *testing.T) {
 	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
 	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
-	b.applyFullConversationList(&cmds)
+	b = b.applyFullConversationList(&cmds)
 
 	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	assert.Equal(t, "search scope: deep search", b.notification.text)
@@ -161,11 +161,11 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	b.mainConversationCount = 2
 
 	var cmds []tea.Cmd
-	b.applyFullConversationList(&cmds)
-	b.toggleSearchMode(&cmds)
+	b = b.applyFullConversationList(&cmds)
+	b = b.toggleSearchMode(&cmds)
 
 	cmds = nil
-	b.setSearchQuery("alpha", &cmds)
+	b = b.setSearchQuery("alpha", &cmds)
 	assert.Equal(t, searchStatusDebouncing, b.search.status)
 
 	b, cmd := b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
@@ -176,7 +176,7 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	assert.Equal(t, alpha.ID(), b.search.visibleConversations[0].ID())
 
 	cmds = nil
-	b.setSearchQuery("beta", &cmds)
+	b = b.setSearchQuery("beta", &cmds)
 	b, cmd = b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
 	require.NotNil(t, cmd)
 	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
@@ -195,13 +195,13 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
 	b.mainConversationCount = 2
 	var cmds []tea.Cmd
-	b.applyFullConversationList(&cmds)
+	b = b.applyFullConversationList(&cmds)
 
 	b.search.mode = searchModeDeep
 	b.search.query = "beta"
 	b.search.revision = 3
 	b.search.visibleConversations = []conv.Conversation{beta}
-	b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{beta}), &cmds)
+	b = b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{beta}), &cmds)
 
 	b, _ = b.Update(deepSearchResultMsg{
 		revision:      2,
@@ -233,19 +233,19 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	b.deepSearchAvailable = true
 
 	var cmds []tea.Cmd
-	b.setSearchQuery("beta-browser", &cmds)
+	b = b.setSearchQuery("beta-browser", &cmds)
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 
 	cmds = nil
-	b.toggleSearchMode(&cmds)
+	b = b.toggleSearchMode(&cmds)
 	require.NotEmpty(t, cmds)
 	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmds[len(cmds)-1]()))
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 
 	cmds = nil
-	b.toggleSearchMode(&cmds)
+	b = b.toggleSearchMode(&cmds)
 	assert.Equal(t, searchModeMetadata, b.search.mode)
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
@@ -257,10 +257,10 @@ func TestBrowserToggleDeepSearchWhenUnavailableShowsNotification(t *testing.T) {
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
 	var cmds []tea.Cmd
-	b.applyFullConversationList(&cmds)
+	b = b.applyFullConversationList(&cmds)
 	b.deepSearchAvailable = false
 
-	b.toggleSearchMode(&cmds)
+	b = b.toggleSearchMode(&cmds)
 
 	assert.Equal(t, searchModeMetadata, b.search.mode)
 	assert.Equal(t, searchStatusIdle, b.search.status)

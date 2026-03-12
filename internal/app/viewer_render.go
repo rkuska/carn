@@ -100,11 +100,13 @@ func appendSearchStatusPart(parts []string, query string, matches []searchOccurr
 	return append(parts, fmt.Sprintf("/%s (%d/%d)", query, currentMatch+1, len(matches)))
 }
 
-func (m *viewerModel) renderContent() {
+func (m viewerModel) renderContent() viewerModel {
 	segments := renderTranscriptSegmented(m.session, m.opts)
 	m.rawContent = flattenSegments(segments)
 
-	renderer, rendererErr := m.ensureRenderer()
+	var renderer *glamour.TermRenderer
+	var rendererErr error
+	m, renderer, rendererErr = m.ensureRenderer()
 	contentWidth := m.contentWidth()
 
 	var sb strings.Builder
@@ -119,14 +121,14 @@ func (m *viewerModel) renderContent() {
 	}
 
 	m.baseContent = sb.String()
-	m.rebuildSearchIndex(m.baseContent)
+	m = m.rebuildSearchIndex(m.baseContent)
 	m.viewport.SetContent(m.baseContent)
 
 	if m.searchQuery != "" {
-		m.performSearch()
-		return
+		return m.performSearch()
 	}
 	m.viewport.ClearHighlights()
+	return m
 }
 
 func renderSegment(
@@ -166,10 +168,10 @@ func appendMarkdownSegment(
 	sb.WriteString(text)
 }
 
-func (m *viewerModel) ensureRenderer() (*glamour.TermRenderer, error) {
+func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error) {
 	wrapWidth := m.markdownWrapWidth()
 	if m.renderer != nil && m.renderWrap == wrapWidth {
-		return m.renderer, nil
+		return m, m.renderer, nil
 	}
 
 	renderer, err := glamour.NewTermRenderer(
@@ -177,11 +179,11 @@ func (m *viewerModel) ensureRenderer() (*glamour.TermRenderer, error) {
 		glamour.WithWordWrap(wrapWidth),
 	)
 	if err != nil {
-		return nil, err
+		return m, nil, err
 	}
 	m.renderer = renderer
 	m.renderWrap = wrapWidth
-	return renderer, nil
+	return m, renderer, nil
 }
 
 func renderRoleHeader(r conv.Role, width int) string {

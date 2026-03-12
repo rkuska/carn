@@ -35,7 +35,7 @@ func BenchmarkViewerRenderContent(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		model.renderContent()
+		model = model.renderContent()
 	}
 }
 
@@ -46,6 +46,6 @@ func BenchmarkViewerSearch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		model.performSearch()
+		model = model.performSearch()
 	}
 }

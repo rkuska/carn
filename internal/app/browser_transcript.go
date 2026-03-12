@@ -12,30 +12,30 @@ func (m browserModel) canHandleTranscriptAction() bool {
 	return !m.isFiltering() && !m.viewer.searching
 }
 
-func (m *browserModel) handleTranscriptKey(msg tea.KeyPressMsg) bool {
+func (m browserModel) handleTranscriptKey(msg tea.KeyPressMsg) (browserModel, bool) {
 	switch {
 	case keyMatchesBrowserHelp(msg):
 		if m.canHandleTranscriptAction() {
 			m.helpOpen = true
 		}
-		return true
+		return m, true
 	case keyMatchesTranscriptToggle(msg):
 		if m.canHandleTranscriptAction() {
-			m.toggleTranscriptLayout()
+			m = m.toggleTranscriptLayout()
 		}
-		return true
+		return m, true
 	case keyMatchesBrowserClose(msg):
 		if m.canHandleTranscriptAction() {
-			m.closeTranscript()
+			m = m.closeTranscript()
 		}
-		return true
+		return m, true
 	case m.transcriptMode == transcriptSplit && keyMatchesBrowserFocus(msg):
 		if m.canHandleTranscriptAction() {
-			m.toggleFocus()
+			m = m.toggleFocus()
 		}
-		return true
+		return m, true
 	}
-	return false
+	return m, false
 }
 
 func keyMatchesBrowserHelp(msg tea.KeyPressMsg) bool {
@@ -58,29 +58,29 @@ func keyMatches(msg tea.KeyPressMsg, binding key.Binding) bool {
 	return key.Matches(msg, binding)
 }
 
-func (m *browserModel) toggleFocus() {
+func (m browserModel) toggleFocus() browserModel {
 	if m.focus == focusList {
 		m.focus = focusTranscript
-		return
+		return m
 	}
 	m.focus = focusList
+	return m
 }
 
-func (m *browserModel) openTranscript(conversation conv.Conversation) tea.Cmd {
+func (m browserModel) openTranscript(conversation conv.Conversation) (browserModel, tea.Cmd) {
 	if session, ok := m.transcriptCache[conversation.CacheKey()]; ok {
-		m.installViewer(session, conversation)
-		return nil
+		return m.installViewer(session, conversation), nil
 	}
 
 	m.openConversationID = ""
 	m.loadingConversationID = conversation.CacheKey()
 	if session, ok := m.sessionCache[conversation.CacheKey()]; ok {
-		return openConversationCmdCachedWithStore(m.ctx, conversation, session)
+		return m, openConversationCmdCachedWithStore(m.ctx, conversation, session)
 	}
-	return openConversationCmdWithStore(m.ctx, m.archiveDir, conversation, m.store)
+	return m, openConversationCmdWithStore(m.ctx, m.archiveDir, conversation, m.store)
 }
 
-func (m *browserModel) installViewer(session conv.Session, conversation conv.Conversation) {
+func (m browserModel) installViewer(session conv.Session, conversation conv.Conversation) browserModel {
 	key := conversation.CacheKey()
 	if key == "" {
 		key = session.Meta.ID
@@ -89,7 +89,7 @@ func (m *browserModel) installViewer(session conv.Session, conversation conv.Con
 	m.loadingConversationID = ""
 	m.transcriptCache[key] = session
 	m.sessionCache[key] = session
-	m.addToCache(key)
+	m = m.addToCache(key)
 
 	m.viewer = newViewerModel(session, conversation, m.glamourStyle, m.viewerWidth(), m.height)
 	if m.transcriptMode == transcriptClosed {
@@ -98,37 +98,40 @@ func (m *browserModel) installViewer(session conv.Session, conversation conv.Con
 	if m.transcriptMode == transcriptFullscreen {
 		m.focus = focusTranscript
 	}
+	return m
 }
 
-func (m *browserModel) syncTranscriptSelection(cmds *[]tea.Cmd) {
+func (m browserModel) syncTranscriptSelection(cmds *[]tea.Cmd) browserModel {
 	if m.transcriptMode != transcriptSplit || m.helpOpen {
-		return
+		return m
 	}
 
 	conversation, ok := m.selectedConversation()
 	if !ok || conversation.CacheKey() == m.openConversationID || conversation.CacheKey() == m.loadingConversationID {
-		return
+		return m
 	}
 
-	cmd := m.openTranscript(conversation)
+	var cmd tea.Cmd
+	m, cmd = m.openTranscript(conversation)
 	if cmd != nil {
 		*cmds = append(*cmds, cmd)
 	}
+	return m
 }
 
-func (m *browserModel) closeTranscript() {
+func (m browserModel) closeTranscript() browserModel {
 	m.transcriptMode = transcriptClosed
 	m.focus = focusList
 	m.helpOpen = false
 	m.loadingConversationID = ""
 	m.openConversationID = ""
-	m.updateLayout()
+	return m.updateLayout()
 }
 
-func (m *browserModel) toggleTranscriptLayout() {
+func (m browserModel) toggleTranscriptLayout() browserModel {
 	switch m.transcriptMode {
 	case transcriptClosed:
-		return
+		return m
 	case transcriptSplit:
 		m.transcriptMode = transcriptFullscreen
 		m.focus = focusTranscript
@@ -136,7 +139,7 @@ func (m *browserModel) toggleTranscriptLayout() {
 		m.transcriptMode = transcriptSplit
 		m.focus = focusList
 	}
-	m.updateLayout()
+	return m.updateLayout()
 }
 
 func (m browserModel) transcriptVisible() bool {
@@ -169,9 +172,9 @@ func (m browserModel) shouldUpdateViewer(isKey bool) bool {
 	return m.transcriptFocused()
 }
 
-func (m *browserModel) addToCache(id string) {
+func (m browserModel) addToCache(id string) browserModel {
 	if slices.Contains(m.cacheOrder, id) {
-		return
+		return m
 	}
 
 	m.cacheOrder = append(m.cacheOrder, id)
@@ -181,6 +184,7 @@ func (m *browserModel) addToCache(id string) {
 		delete(m.sessionCache, evictID)
 		delete(m.transcriptCache, evictID)
 	}
+	return m
 }
 
 func filterMainConversations(conversations []conv.Conversation) []conv.Conversation {
