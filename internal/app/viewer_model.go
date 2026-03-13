@@ -71,7 +71,7 @@ func scanContentFlags(messages []conv.Message) contentFlags {
 
 func (f contentFlags) accumulate(msg conv.Message) contentFlags {
 	if msg.IsVisible() {
-		f.hasThinking = f.hasThinking || msg.Thinking != ""
+		f.hasThinking = f.hasThinking || msg.HasThinking()
 		f.hasToolCalls = f.hasToolCalls || len(msg.ToolCalls) > 0
 		f.hasToolResults = f.hasToolResults || len(msg.ToolResults) > 0
 		f.hasPlans = f.hasPlans || len(msg.Plans) > 0

@@ -158,19 +158,24 @@ func (s SessionMeta) Description() string {
 }
 
 type Message struct {
-	Role           Role
-	Text           string
-	Thinking       string
-	ToolCalls      []ToolCall
-	ToolResults    []ToolResult
-	Plans          []Plan
-	Visibility     MessageVisibility
-	IsSidechain    bool
-	IsAgentDivider bool
+	Role              Role
+	Text              string
+	Thinking          string
+	HasHiddenThinking bool
+	ToolCalls         []ToolCall
+	ToolResults       []ToolResult
+	Plans             []Plan
+	Visibility        MessageVisibility
+	IsSidechain       bool
+	IsAgentDivider    bool
 }
 
 func (m Message) IsVisible() bool {
 	return m.Visibility != MessageVisibilityHiddenSystem
+}
+
+func (m Message) HasThinking() bool {
+	return m.Thinking != "" || m.HasHiddenThinking
 }
 
 type Session struct {

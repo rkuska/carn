@@ -18,11 +18,12 @@ type transcriptOptions struct {
 type segmentKind int
 
 const (
-	segmentMarkdown   segmentKind = iota
-	segmentToolResult segmentKind = iota
-	segmentRoleHeader segmentKind = iota
-	segmentThinking   segmentKind = iota
-	segmentToolCall   segmentKind = iota
+	segmentMarkdown            segmentKind = iota
+	segmentToolResult          segmentKind = iota
+	segmentRoleHeader          segmentKind = iota
+	segmentThinking            segmentKind = iota
+	segmentThinkingUnavailable segmentKind = iota
+	segmentToolCall            segmentKind = iota
 )
 
 type transcriptSegment struct {
@@ -37,6 +38,9 @@ type transcriptRenderState struct {
 	hasVisibleGroup bool
 	forceHeader     bool
 }
+
+const hiddenThinkingUnavailableText = "Codex recorded reasoning for this reply, " +
+	"but no readable thinking summary was stored."
 
 func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []transcriptSegment {
 	var segments []transcriptSegment
@@ -195,9 +199,8 @@ func appendHiddenMessageSegments(
 	msg conv.Message,
 	opts transcriptOptions,
 ) {
-	if opts.showThinking && msg.Thinking != "" {
-		flush()
-		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.Thinking})
+	if opts.showThinking {
+		appendThinkingSegments(segments, flush, msg)
 	}
 	if opts.showTools && len(msg.ToolCalls) > 0 {
 		flush()
@@ -220,7 +223,7 @@ func appendToolResultSegments(segments *[]transcriptSegment, results []conv.Tool
 
 func assistantHasContent(msg conv.Message, opts transcriptOptions) bool {
 	return msg.Text != "" ||
-		(opts.showThinking && msg.Thinking != "") ||
+		(opts.showThinking && msg.HasThinking()) ||
 		(opts.showTools && len(msg.ToolCalls) > 0)
 }
 
@@ -238,9 +241,8 @@ func appendAssistantSegments(
 	}
 
 	appendRoleHeader(segments, flush, state, conv.RoleAssistant)
-	if opts.showThinking && msg.Thinking != "" {
-		flush()
-		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.Thinking})
+	if opts.showThinking {
+		appendThinkingSegments(segments, flush, msg)
 	}
 	if msg.Text != "" {
 		md.WriteString(msg.Text)
@@ -251,6 +253,23 @@ func appendAssistantSegments(
 		appendToolCallSegments(segments, msg.ToolCalls)
 		md.WriteString("\n")
 	}
+}
+
+func appendThinkingSegments(
+	segments *[]transcriptSegment,
+	flush func(),
+	msg conv.Message,
+) {
+	if msg.Thinking != "" {
+		flush()
+		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.Thinking})
+		return
+	}
+	if !msg.HasHiddenThinking {
+		return
+	}
+	flush()
+	*segments = append(*segments, transcriptSegment{kind: segmentThinkingUnavailable})
 }
 
 func appendRoleHeader(
@@ -301,6 +320,10 @@ func flattenSegments(segments []transcriptSegment) string {
 		case segmentThinking:
 			sb.WriteString("*Thinking:*\n")
 			sb.WriteString(seg.text)
+			sb.WriteString("\n\n")
+		case segmentThinkingUnavailable:
+			sb.WriteString("*Thinking unavailable:*\n")
+			sb.WriteString(hiddenThinkingUnavailableText)
 			sb.WriteString("\n\n")
 		case segmentToolCall:
 			sb.WriteString(seg.text)

@@ -12,15 +12,16 @@ import (
 )
 
 type loadState struct {
-	meta             conv.SessionMeta
-	link             subagentLink
-	callMeta         map[string]toolEventMeta
-	messages         []parsedMessage
-	thinkingParts    []string
-	pendingCalls     []conv.ToolCall
-	pendingResults   []conv.ToolResult
-	pendingPlans     []conv.Plan
-	pendingTimestamp time.Time
+	meta                  conv.SessionMeta
+	link                  subagentLink
+	callMeta              map[string]toolEventMeta
+	messages              []parsedMessage
+	thinkingParts         []string
+	pendingHiddenThinking bool
+	pendingCalls          []conv.ToolCall
+	pendingResults        []conv.ToolResult
+	pendingPlans          []conv.Plan
+	pendingTimestamp      time.Time
 }
 
 func loadConversation(ctx context.Context, conversation conv.Conversation) (conv.Session, error) {
@@ -145,7 +146,13 @@ func (s *loadState) applyMessage(payload responseItemPayload, timestamp time.Tim
 
 func (s *loadState) applyReasoning(payload responseItemPayload, timestamp time.Time) {
 	s.markPendingTimestamp(timestamp)
-	s.appendThinking(extractReasoningText(payload.Summary))
+	if summary := extractReasoningText(payload.Summary); summary != "" {
+		s.appendThinking(summary)
+		return
+	}
+	if strings.TrimSpace(payload.EncryptedContent) != "" {
+		s.pendingHiddenThinking = true
+	}
 }
 
 func (s *loadState) applyToolCall(payload responseItemPayload, timestamp time.Time) {
@@ -261,9 +268,12 @@ func (s *loadState) applyPlan(plan conv.Plan, timestamp time.Time) {
 }
 
 func (s *loadState) flushAssistant(text string, timestamp time.Time) {
+	thinking := joinText(s.thinkingParts)
+	hasHiddenThinking := s.pendingHiddenThinking && strings.TrimSpace(thinking) == ""
 	s.messages = appendParsedAssistantMessage(
 		s.messages,
-		joinText(s.thinkingParts),
+		thinking,
+		hasHiddenThinking,
 		s.pendingCalls,
 		s.pendingResults,
 		s.pendingPlans,
@@ -271,6 +281,7 @@ func (s *loadState) flushAssistant(text string, timestamp time.Time) {
 		maxTime(s.pendingTimestamp, timestamp),
 	)
 	s.thinkingParts = s.thinkingParts[:0]
+	s.pendingHiddenThinking = false
 	s.pendingCalls = s.pendingCalls[:0]
 	s.pendingResults = s.pendingResults[:0]
 	s.pendingPlans = s.pendingPlans[:0]

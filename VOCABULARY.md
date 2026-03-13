@@ -87,6 +87,7 @@ Use these terms when referring to different parts of the project in prompts.
 | **Segment** | A visual chunk of the transcript. Types: `segmentRoleHeader`, `segmentMarkdown`, `segmentThinking`, `segmentToolCall`, `segmentToolResult`. |
 | **Role Header** | A divider line ("User" or "Assistant") separating turns. |
 | **Thinking Block** | Claude's extended thinking, rendered with a left `▎` border. |
+| **Thinking Unavailable Note** | A Codex-only transcript block shown when reasoning existed for a reply but no readable thinking summary was stored. |
 | **Initial Prompt** | The first user message, rendered with a distinctive left `▎` border. |
 | **Toggles** | Visibility controls: `t` thinking, `T` tools, `R` tool results, `m` system messages, `p` plans, `s` sidechains. |
 | **Transcript Search** | `/` within the viewer — searches the rendered transcript text. `n`/`N` to navigate matches. |

@@ -261,6 +261,28 @@ func TestRenderTranscriptToolResults(t *testing.T) {
 	})
 }
 
+func TestRenderTranscriptShowsHiddenThinkingNoteOnlyWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "Explain it"},
+			{Role: conv.RoleAssistant, Text: "Done", HasHiddenThinking: true},
+		},
+	}
+
+	hidden := renderTranscript(session, transcriptOptions{})
+	assert.NotContains(t, hidden, "Thinking unavailable")
+
+	shown := renderTranscript(session, transcriptOptions{showThinking: true})
+	assertContainsAll(
+		t,
+		shown,
+		"Thinking unavailable",
+		"Codex recorded reasoning for this reply, but no readable thinking summary was stored.",
+	)
+}
+
 func TestRenderTranscriptHideSidechain(t *testing.T) {
 	t.Parallel()
 

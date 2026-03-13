@@ -177,7 +177,7 @@ func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 2)
+	require.Len(t, conversations, 3)
 
 	var mainConversation conv.Conversation
 	for _, conversation := range conversations {
@@ -199,6 +199,44 @@ func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 	assert.Equal(t, conv.MessageVisibilityHiddenSystem, session.Messages[0].Visibility)
 	assert.Equal(t, "Inspect the parser.", session.Messages[6].Text)
 	assert.Equal(t, "Parser inspected.", session.Messages[7].Text)
+}
+
+func TestStoreCodexLoadPreservesHiddenThinkingAndDoesNotIndexViewerNote(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+
+	store := New(codex.New())
+	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+
+	var hiddenConversation conv.Conversation
+	for _, conversation := range conversations {
+		if conversation.ID() == "019cexample-hidden" {
+			hiddenConversation = conversation
+			break
+		}
+	}
+	require.NotZero(t, hiddenConversation)
+
+	session, err := store.Load(context.Background(), archiveDir, hiddenConversation)
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 4)
+	assert.True(t, session.Messages[1].HasHiddenThinking)
+	assert.Empty(t, session.Messages[1].Thinking)
+
+	results, available, err := store.DeepSearch(
+		context.Background(),
+		archiveDir,
+		"Codex recorded reasoning for this reply",
+		conversations,
+	)
+	require.NoError(t, err)
+	assert.True(t, available)
+	assert.Empty(t, results)
 }
 
 func TestStoreDeepSearchSkipsHiddenSystemMessages(t *testing.T) {

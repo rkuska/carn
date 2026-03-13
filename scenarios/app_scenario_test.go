@@ -16,13 +16,22 @@ func newScenarioHarness(
 	workspace helpers.Workspace,
 	width, height int,
 ) *programHarness {
+	return newScenarioHarnessWithSourceDirs(t, workspace, map[conv.Provider]string{
+		conv.ProviderClaude: workspace.SourceDir,
+	}, width, height)
+}
+
+func newScenarioHarnessWithSourceDirs(
+	t *testing.T,
+	workspace helpers.Workspace,
+	sourceDirs map[conv.Provider]string,
+	width, height int,
+) *programHarness {
 	t.Helper()
 	t.Setenv("HOME", workspace.RootDir)
 
 	model, err := app.NewModel(t.Context(), app.Config{
-		SourceDirs: map[conv.Provider]string{
-			conv.ProviderClaude: workspace.SourceDir,
-		},
+		SourceDirs:   sourceDirs,
 		ArchiveDir:   workspace.ArchiveDir,
 		GlamourStyle: "dark",
 	})
@@ -208,6 +217,36 @@ func TestScenarioImportOverviewDone(t *testing.T) {
 
 	harness.pressEnter()
 	harness.waitForText(t, "import finished and refreshed the local store")
+
+	harness.quit(t)
+	golden.RequireEqual(t, harness.finalView(t))
+}
+
+func TestScenarioImportCodexHiddenThinking(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	codexSourceDir := workspace.SeedCodexFixtureCorpus(t)
+
+	harness := newScenarioHarnessWithSourceDirs(t, workspace, map[conv.Provider]string{
+		conv.ProviderCodex: codexSourceDir,
+	}, 120, 40)
+	harness.waitForText(t, "Import Workspace")
+	harness.waitForText(
+		t,
+		"Will import 4 archive files and refresh the local store after confirmation.",
+	)
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+
+	harness.pressEnter()
+	harness.waitForText(t, "Explain hidden reasoning.")
+	harness.pressEnter()
+	harness.waitForText(t, "First answer without visible thinking.")
+
+	harness.program.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+	harness.pressKey('t')
+	harness.waitForText(t, "Thinking unavailable")
+	harness.waitForText(t, "Codex recorded reasoning for this reply")
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
