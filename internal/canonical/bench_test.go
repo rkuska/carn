@@ -161,8 +161,7 @@ func makeBenchCanonicalStore(
 	if err := rebuildCanonicalStore(
 		context.Background(),
 		archiveDir,
-		conv.ProviderClaude,
-		source,
+		newSourceRegistry(source),
 		nil,
 	); err != nil {
 		b.Fatalf("rebuildCanonicalStore: %v", err)
@@ -255,8 +254,7 @@ func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 		if err := rebuildCanonicalStore(
 			context.Background(),
 			archiveDir,
-			conv.ProviderClaude,
-			source,
+			newSourceRegistry(source),
 			nil,
 		); err != nil {
 			b.Fatalf("rebuildCanonicalStore: %v", err)
@@ -278,9 +276,8 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 		if err := rebuildCanonicalStore(
 			context.Background(),
 			archiveDir,
-			conv.ProviderClaude,
-			source,
-			changedPaths,
+			newSourceRegistry(source),
+			map[conv.Provider][]string{conv.ProviderClaude: changedPaths},
 		); err != nil {
 			b.Fatalf("rebuildCanonicalStore: %v", err)
 		}

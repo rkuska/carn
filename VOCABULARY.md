@@ -37,6 +37,8 @@ Use these terms when referring to different parts of the project in prompts.
 | **Search Corpus** | `search.bin` — chunked text index of all conversations for deep search. Made of `searchUnit`s (160-char chunks with 48-char overlap). |
 | **Rebuild** | Regenerating the canonical store. Can be **full** (everything from scratch) or **incremental** (reuse unchanged transcripts). |
 | **Ref** (`conversationRef`) | A stable identifier for a conversation: `provider` + `id`. Used as cache key and for loading transcripts. |
+| **Provider Backend** | A source-specific implementation for one provider (for example Claude or Codex) that owns raw scan/load logic and provider-owned actions like resume. |
+| **Resume Target** | The generic canonical data needed to reopen a session: `provider`, `id`, and `cwd`. The app passes this to a provider backend instead of constructing provider-specific CLI commands itself. |
 
 ## Import Wizard (first screen)
 
@@ -44,11 +46,12 @@ Use these terms when referring to different parts of the project in prompts.
 |---|---|
 | **Import Overview** | The initial TUI wizard that syncs files and builds the store. |
 | **Phase** | The wizard progresses through: `analyzing` → `ready` → `syncing` → `done`. |
+| **Sync Activity** | The active work inside the syncing phase: raw-file sync or local-store rebuild. |
 | **Status Pill** | The colored badge showing current phase ("Analyzing", "Ready to Import", "Importing", "Complete"). |
 | **Context Block** | Shows source and archive directory paths. |
 | **Summary Block** | Metrics: project count, file count, conversation count. |
 | **Detail Tokens** | Phase-specific stats (new/update/current counts, copied/failed/elapsed). |
-| **Activity Block** | Spinner + message + progress bar during the syncing phase. |
+| **Activity Block** | The syncing-phase status area. Raw-file sync shows a progress bar; local-store rebuild shows a spinner + message. |
 
 ## Browser (main screen)
 

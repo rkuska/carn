@@ -47,7 +47,7 @@ func TestPipelineAnalyze(t *testing.T) {
 	pipeline := New(Config{
 		SourceDir:  sourceDir,
 		ArchiveDir: archiveDir,
-	}, source, store)
+	}, store, source)
 
 	var progress []ImportProgress
 	analysis, err := pipeline.Analyze(context.Background(), func(p ImportProgress) {
@@ -74,7 +74,7 @@ func TestPipelineAnalyze(t *testing.T) {
 	assert.Equal(t, 2, last.FilesInspected)
 	assert.Equal(t, 2, last.Conversations)
 	assert.Equal(t, 2, last.NewConversations)
-	assert.Equal(t, "proj1", last.CurrentProject)
+	assert.Equal(t, "claude / proj1", last.CurrentProject)
 	assert.NoError(t, last.Err)
 }
 
@@ -87,7 +87,7 @@ func TestPipelineAnalyzeMissingSource(t *testing.T) {
 	pipeline := New(Config{
 		SourceDir:  filepath.Join(dir, "missing"),
 		ArchiveDir: filepath.Join(dir, "archive"),
-	}, source, store)
+	}, store, source)
 
 	analysis, err := pipeline.Analyze(context.Background(), nil)
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestPipelineAnalyzeContextCanceled(t *testing.T) {
 
 	source := claude.New()
 	store := canonical.New(source)
-	pipeline := New(Config{SourceDir: t.TempDir(), ArchiveDir: t.TempDir()}, source, store)
+	pipeline := New(Config{SourceDir: t.TempDir(), ArchiveDir: t.TempDir()}, store, source)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -110,6 +110,37 @@ func TestPipelineAnalyzeContextCanceled(t *testing.T) {
 	_, err := pipeline.Analyze(ctx, nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "analyze_ctx")
+}
+
+func TestPipelineRunReportsSyncActivities(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "source")
+	archiveDir := filepath.Join(dir, "archive")
+	projDir := filepath.Join(sourceDir, "proj1")
+
+	writeTestFile(t, filepath.Join(projDir, "session-1.jsonl"), makeJSONLRecord("user", "feat-a", "id1"))
+
+	source := claude.New()
+	store := canonical.New(source)
+	pipeline := New(Config{
+		SourceDir:  sourceDir,
+		ArchiveDir: archiveDir,
+	}, store, source)
+
+	var progress []SyncProgress
+	result, err := pipeline.Run(context.Background(), func(p SyncProgress) {
+		progress = append(progress, p)
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Copied)
+	assert.True(t, result.StoreBuilt)
+	require.Len(t, progress, 2)
+	assert.Equal(t, SyncActivitySyncingFiles, progress[0].Activity)
+	assert.Equal(t, "session-1.jsonl", progress[0].File)
+	assert.Equal(t, SyncActivityRebuildingStore, progress[1].Activity)
+	assert.Empty(t, progress[1].File)
 }
 
 func makeJSONLRecord(recordType, slug, sessionID string) string {

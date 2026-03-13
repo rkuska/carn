@@ -227,7 +227,7 @@ func conversationActionCmd(
 	case viewerActionCopy:
 		return copyTextCmd(text, "conversation copied to clipboard")
 	case viewerActionOpen:
-		return openTextInEditorCmd(text, conversationExportFileName(session.Meta))
+		return openTextInEditorCmd(text, conversationExportFileName(conversation, session.Meta))
 	default:
 		return nil
 	}

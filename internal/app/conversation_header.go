@@ -94,6 +94,9 @@ func renderPlanHeader(messages []conv.Message, width int, expanded bool) string 
 
 func headerSummaryChips(conversation conv.Conversation) []string {
 	var chips []string
+	if provider := conversationProviderLabel(conversation); provider != "" {
+		chips = append(chips, renderSingleChip("provider", provider))
+	}
 	if model := conversation.Model(); model != "" {
 		chips = append(chips, renderSingleChip("model", model))
 	}

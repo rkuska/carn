@@ -15,6 +15,7 @@ func TestConversationAccessors(t *testing.T) {
 	ts2 := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)
 
 	conversation := Conversation{
+		Ref:     Ref{Provider: ProviderClaude},
 		Name:    "test-slug",
 		Project: Project{DisplayName: "proj"},
 		Sessions: []SessionMeta{
@@ -54,6 +55,11 @@ func TestConversationAccessors(t *testing.T) {
 	assert.Equal(t, "first-id", conversation.CacheKey())
 	assert.Equal(t, "second-id", conversation.ResumeID())
 	assert.Equal(t, "/tmp/second", conversation.ResumeCWD())
+	assert.Equal(t, ResumeTarget{
+		Provider: ProviderClaude,
+		ID:       "second-id",
+		CWD:      "/tmp/second",
+	}, conversation.ResumeTarget())
 	assert.True(t, conversation.Timestamp().Equal(ts1))
 	assert.Equal(t, []string{"/path/first.jsonl", "/path/second.jsonl"}, conversation.FilePaths())
 	assert.Equal(t, "/path/second.jsonl", conversation.LatestFilePath())
@@ -144,6 +150,17 @@ func TestConversationDisplayNameFallbacks(t *testing.T) {
 			want: "help me with Go",
 		},
 		{
+			name: "falls back to display slug before first message",
+			conversation: Conversation{
+				Sessions: []SessionMeta{{
+					Slug:         "Import Codex sessions",
+					FirstMessage: "# Import Codex sessions\n\nImplement support for codex sessions.",
+					Timestamp:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				}},
+			},
+			want: "Import Codex sessions",
+		},
+		{
 			name: "falls back to untitled",
 			conversation: Conversation{
 				Sessions: []SessionMeta{{Timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}},
@@ -158,6 +175,14 @@ func TestConversationDisplayNameFallbacks(t *testing.T) {
 			assert.Equal(t, tt.want, tt.conversation.DisplayName())
 		})
 	}
+}
+
+func TestProviderLabel(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Claude", ProviderClaude.Label())
+	assert.Equal(t, "Codex", ProviderCodex.Label())
+	assert.Equal(t, "unknown", Provider("unknown").Label())
 }
 
 func TestFormatToolCounts(t *testing.T) {
@@ -207,4 +232,25 @@ func TestConversationCacheKeyPrefersReference(t *testing.T) {
 
 	require.Equal(t, "ref-id", conversation.ID())
 	assert.Equal(t, "claude:ref-id", conversation.CacheKey())
+}
+
+func TestConversationResumeTargetUsesReferenceProvider(t *testing.T) {
+	t.Parallel()
+
+	conversation := Conversation{
+		Ref: Ref{Provider: ProviderCodex, ID: "codex-ref"},
+		Sessions: []SessionMeta{
+			{
+				ID:        "session-1",
+				CWD:       "/tmp/project",
+				Timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	assert.Equal(t, ResumeTarget{
+		Provider: ProviderCodex,
+		ID:       "session-1",
+		CWD:      "/tmp/project",
+	}, conversation.ResumeTarget())
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const archiveMatchesSourceSubtitle = "analysis complete; archive already matches the source"
+const archiveMatchesSourceSubtitle = "analysis complete; archive already matches the configured sources"
 
 func (m importOverviewModel) viewDashboard() string {
 	boxWidth := min(max(m.width-6, 36), 88)
@@ -43,7 +43,7 @@ func (m importOverviewModel) renderDashboardHeader(width int) string {
 func (m importOverviewModel) dashboardSubtitle() string {
 	switch m.phase {
 	case phaseAnalyzing:
-		return "checking Claude projects before import"
+		return "checking configured sources before import"
 	case phaseReady:
 		if m.analysis.Err != nil {
 			return "analysis finished with errors"
@@ -104,18 +104,26 @@ func renderImportStatusPill(phase importPhase, hasFailures bool) string {
 }
 
 func (m importOverviewModel) renderContextBlock(width int) string {
-	lines := []string{
-		ansi.Truncate(
-			renderSingleChip("Source", shortenPath(m.cfg.SourceDir)),
+	lines := make([]string, 0, 3)
+	if m.cfg.SourceDir != "" {
+		lines = append(lines, ansi.Truncate(
+			renderSingleChip("Claude", shortenPath(m.cfg.SourceDir)),
 			width,
 			"…",
-		),
-		ansi.Truncate(
-			renderSingleChip("Archive", shortenPath(m.cfg.ArchiveDir)),
-			width,
-			"…",
-		),
+		))
 	}
+	if m.cfg.CodexSourceDir != "" {
+		lines = append(lines, ansi.Truncate(
+			renderSingleChip("Codex", shortenPath(m.cfg.CodexSourceDir)),
+			width,
+			"…",
+		))
+	}
+	lines = append(lines, ansi.Truncate(
+		renderSingleChip("Archive", shortenPath(m.cfg.ArchiveDir)),
+		width,
+		"…",
+	))
 
 	return strings.Join(lines, "\n")
 }
@@ -124,7 +132,7 @@ func (m importOverviewModel) renderSummaryBlock(width int) string {
 	var lines []string
 
 	headlineTokens := []string{
-		renderSingleChip("Projects", m.projectsMetric()),
+		renderSingleChip("Sources", m.sourcesMetric()),
 		renderSingleChip("Files", m.filesMetric()),
 		renderSingleChip("Conversations", m.conversationMetric()),
 	}
@@ -190,11 +198,15 @@ func (m importOverviewModel) filesMetric() string {
 	return fmt.Sprintf("%d", m.analysis.FilesInspected)
 }
 
-func (m importOverviewModel) projectsMetric() string {
-	if m.phase == phaseAnalyzing {
-		return fmt.Sprintf("%d", m.analysisProgress.ProjectsTotal)
+func (m importOverviewModel) sourcesMetric() string {
+	count := 0
+	if m.cfg.SourceDir != "" {
+		count++
 	}
-	return fmt.Sprintf("%d", m.analysis.Projects)
+	if m.cfg.CodexSourceDir != "" {
+		count++
+	}
+	return fmt.Sprintf("%d", count)
 }
 
 func (m importOverviewModel) conversationMetric() string {
@@ -202,113 +214,6 @@ func (m importOverviewModel) conversationMetric() string {
 		return fmt.Sprintf("%d", m.analysisProgress.Conversations)
 	}
 	return fmt.Sprintf("%d", m.analysis.Conversations)
-}
-
-func (m importOverviewModel) renderActivityBlock(width int) string {
-	lines := m.activityLines(width)
-	if m.shouldCenterActivityBlock() {
-		return renderCenteredImportActivityBlock(lines, width)
-	}
-	return "\n" + strings.Join(lines, "\n")
-}
-
-func (m importOverviewModel) shouldCenterActivityBlock() bool {
-	switch m.phase {
-	case phaseReady:
-		return m.analysis.Err == nil
-	case phaseDone:
-		return true
-	case phaseAnalyzing, phaseSyncing:
-		return false
-	}
-
-	return false
-}
-
-func (m importOverviewModel) activityLines(width int) []string {
-	switch m.phase {
-	case phaseAnalyzing:
-		return m.analyzingActivityLines(width)
-	case phaseReady:
-		return m.readyActivityLines(width)
-	case phaseSyncing:
-		return m.syncingActivityLines(width)
-	case phaseDone:
-		return m.doneActivityLines(width)
-	default:
-		return nil
-	}
-}
-
-func (m importOverviewModel) analyzingActivityLines(width int) []string {
-	return []string{
-		ansi.Hardwrap(fmt.Sprintf("%s Scanning Claude projects", m.spinner.View()), width, false),
-		ansi.Hardwrap("Import becomes available after analysis completes.", width, false),
-	}
-}
-
-func (m importOverviewModel) readyActivityLines(width int) []string {
-	var lines []string
-	if m.analysis.Err != nil {
-		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false))
-		lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
-		return lines
-	}
-	if m.analysis.NeedsSync() {
-		message := fmt.Sprintf(
-			"Will import %d archive files and refresh the local store after confirmation.",
-			m.analysis.QueuedFileCount(),
-		)
-		if m.analysis.QueuedFileCount() == 0 {
-			message = "Will rebuild the local store after confirmation."
-		}
-		lines = append(lines, ansi.Hardwrap(message, width, false))
-		lines = append(lines, renderKeyHint("Press ", "Enter", " to import"))
-	} else {
-		lines = append(lines, ansi.Hardwrap("No import needed. Archived files already match the source.", width, false))
-		lines = append(lines, renderKeyHint("Press ", "Enter", " to continue"))
-	}
-	return lines
-}
-
-func (m importOverviewModel) syncingActivityLines(width int) []string {
-	label := "Importing archive files"
-	if m.currentStage != "" {
-		label = m.currentStage
-	}
-	lines := []string{
-		m.renderProgressLine(width, label),
-	}
-	if m.currentFile != "" {
-		lines = append(lines, ansi.Truncate(renderSingleChip("Current file", m.currentFile), width, "…"))
-	}
-	return lines
-}
-
-func (m importOverviewModel) doneActivityLines(width int) []string {
-	message := "Import complete."
-	if m.result.Failed > 0 {
-		message = "Import complete with failures."
-	}
-	return []string{
-		ansi.Hardwrap(message, width, false),
-		renderKeyHint("Press ", "Enter", " to continue"),
-	}
-}
-
-func (m importOverviewModel) renderProgressLine(width int, label string) string {
-	if m.total == 0 {
-		return ansi.Hardwrap(label, width, false)
-	}
-
-	label = ansi.Truncate(label, max(width/3, 12), "…")
-	barWidth := max(width-lipgloss.Width(label)-11, 12)
-	pct := float64(m.current) / float64(m.total)
-
-	progressBar := m.progress
-	progressBar.SetWidth(barWidth)
-
-	return fmt.Sprintf("%s %s %d/%d", label, progressBar.ViewAs(pct), m.current, m.total)
 }
 
 func shortenPath(path string) string {
@@ -340,12 +245,4 @@ func centerImportBlock(block string, width int) string {
 		)
 	}
 	return strings.Join(centered, "\n")
-}
-
-func renderCenteredImportActivityBlock(lines []string, width int) string {
-	if len(lines) == 0 {
-		return ""
-	}
-
-	return "\n\n" + centerImportBlock(strings.Join(lines, "\n"), width)
 }

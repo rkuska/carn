@@ -18,6 +18,12 @@ type Project struct {
 	DisplayName string
 }
 
+type ResumeTarget struct {
+	Provider Provider
+	ID       string
+	CWD      string
+}
+
 type TokenUsage struct {
 	InputTokens              int
 	CacheCreationInputTokens int
@@ -70,6 +76,7 @@ type SessionMeta struct {
 }
 
 const maxSlugFromMessage = 40
+const untitledDisplayName = "untitled"
 
 func (s SessionMeta) DisplaySlug() string {
 	if s.Slug != "" {
@@ -78,7 +85,7 @@ func (s SessionMeta) DisplaySlug() string {
 	if s.FirstMessage != "" {
 		return Truncate(s.FirstMessage, maxSlugFromMessage)
 	}
-	return "untitled"
+	return untitledDisplayName
 }
 
 func (s SessionMeta) Duration() time.Duration {

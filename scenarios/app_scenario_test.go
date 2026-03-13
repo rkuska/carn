@@ -35,7 +35,7 @@ func TestScenarioEmptyWorkspaceContinuesToBrowser(t *testing.T) {
 	harness.waitForText(t, "No import needed. Archived files already match the source.")
 
 	harness.pressEnter()
-	harness.waitForText(t, "Claude Sessions")
+	harness.waitForText(t, "No items.")
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
@@ -62,7 +62,6 @@ func TestScenarioImportAndOpenTranscript(t *testing.T) {
 	harness.waitForText(t, "import finished and refreshed the local store")
 
 	harness.pressEnter()
-	harness.waitForText(t, "Claude Sessions")
 	harness.waitForText(t, "first-session")
 
 	harness.pressEnter()
@@ -88,7 +87,6 @@ func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
 	harness.waitForText(t, "import finished and refreshed the local store")
 
 	harness.pressEnter()
-	harness.waitForText(t, "Claude Sessions")
 	harness.waitForText(t, "subagent-parent")
 
 	harness.pressEnter()
@@ -106,7 +104,7 @@ func TestScenarioEmptyWorkspaceNarrowLayout(t *testing.T) {
 	harness.waitForText(t, "No import needed. Archived files already match the source.")
 
 	harness.pressEnter()
-	harness.waitForText(t, "Claude Sessions")
+	harness.waitForText(t, "No items.")
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
@@ -152,7 +150,6 @@ func TestScenarioConversationWithPlanBadge(t *testing.T) {
 
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	importFixtureCorpus(t, harness)
-	harness.waitForText(t, "Claude Sessions")
 	harness.waitForText(t, "plan-session")
 
 	// plan-session is 2nd in the list (sorted by timestamp desc: subagent-parent, plan-session, ...)
@@ -171,7 +168,6 @@ func TestScenarioConversationWithPlanToggle(t *testing.T) {
 
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	importFixtureCorpus(t, harness)
-	harness.waitForText(t, "Claude Sessions")
 	harness.waitForText(t, "plan-session")
 
 	// Navigate to plan-session (2nd item)

@@ -33,7 +33,13 @@ func newAppModelWithDeps(
 	glamourStyle string,
 	store browserStore,
 	pipeline importPipeline,
+	launchers ...sessionLauncher,
 ) appModel {
+	launcher := newDefaultSessionLauncher()
+	if len(launchers) > 0 && launchers[0] != nil {
+		launcher = launchers[0]
+	}
+
 	return appModel{
 		ctx:            ctx,
 		cfg:            cfg,
@@ -41,7 +47,7 @@ func newAppModelWithDeps(
 		pipeline:       pipeline,
 		state:          viewImportOverview,
 		importOverview: newImportOverviewModelWithPipeline(ctx, cfg, pipeline),
-		browser:        newBrowserModelWithStore(ctx, cfg.ArchiveDir, glamourStyle, store),
+		browser:        newBrowserModelWithStore(ctx, cfg.ArchiveDir, glamourStyle, store, launcher),
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -32,6 +33,7 @@ type browserModel struct {
 	ctx                       context.Context
 	archiveDir                string
 	store                     browserStore
+	launcher                  sessionLauncher
 	glamourStyle              string
 	list                      list.Model
 	delegate                  conversationDelegate
@@ -55,6 +57,7 @@ type browserModel struct {
 	cacheOrder                []string
 	viewer                    viewerModel
 	resync                    browserResyncState
+	resyncSpinner             spinner.Model
 	pendingResyncTranscriptID string
 }
 
@@ -62,6 +65,7 @@ func newBrowserModelWithStore(
 	ctx context.Context,
 	archiveDir, glamourStyle string,
 	store browserStore,
+	launchers ...sessionLauncher,
 ) browserModel {
 	delegate := newDelegate()
 	l := list.New(nil, delegate, 0, 0)
@@ -95,10 +99,20 @@ func newBrowserModelWithStore(
 	keyMap.CloseFullHelp.SetEnabled(false)
 	l.KeyMap = keyMap
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
+
+	launcher := newDefaultSessionLauncher()
+	if len(launchers) > 0 && launchers[0] != nil {
+		launcher = launchers[0]
+	}
+
 	return browserModel{
 		ctx:            ctx,
 		archiveDir:     archiveDir,
 		store:          store,
+		launcher:       launcher,
 		glamourStyle:   glamourStyle,
 		list:           l,
 		delegate:       delegate,
@@ -112,6 +126,7 @@ func newBrowserModelWithStore(
 		sessionCache:        make(map[string]conv.Session, browserCacheSize),
 		transcriptCache:     make(map[string]conv.Session, browserCacheSize),
 		deepSearchAvailable: true,
+		resyncSpinner:       s,
 	}
 }
 

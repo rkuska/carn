@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/rkuska/carn/internal/source/claude"
 )
 
 type Source interface {
@@ -18,7 +17,40 @@ type Source interface {
 	Load(ctx context.Context, conv conv.Conversation) (conv.Session, error)
 }
 
-var _ Source = claude.Source{}
+type sourceRegistry struct {
+	ordered    []Source
+	byProvider map[conversationProvider]Source
+}
+
+func newSourceRegistry(sources ...Source) sourceRegistry {
+	registry := sourceRegistry{
+		ordered:    make([]Source, 0, len(sources)),
+		byProvider: make(map[conversationProvider]Source, len(sources)),
+	}
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+
+		provider := conversationProvider(source.Provider())
+		if _, ok := registry.byProvider[provider]; ok {
+			continue
+		}
+
+		registry.byProvider[provider] = source
+		registry.ordered = append(registry.ordered, source)
+	}
+	return registry
+}
+
+func (r sourceRegistry) providers() []Source {
+	return r.ordered
+}
+
+func (r sourceRegistry) lookup(provider conversationProvider) (Source, bool) {
+	source, ok := r.byProvider[provider]
+	return source, ok
+}
 
 type storeState struct {
 	mu           sync.RWMutex
@@ -26,13 +58,13 @@ type storeState struct {
 }
 
 type Store struct {
-	source Source
-	state  *storeState
+	sources sourceRegistry
+	state   *storeState
 }
 
-func New(source Source) Store {
+func New(sources ...Source) Store {
 	return Store{
-		source: source,
+		sources: newSourceRegistry(sources...),
 		state: &storeState{
 			searchCorpus: make(map[string]searchCorpus),
 		},
@@ -49,8 +81,19 @@ func (s Store) Rebuild(
 	provider conv.Provider,
 	changedRawPaths []string,
 ) error {
+	if provider == "" {
+		return s.RebuildAll(ctx, archiveDir, nil)
+	}
+	return s.RebuildAll(ctx, archiveDir, map[conv.Provider][]string{provider: changedRawPaths})
+}
+
+func (s Store) RebuildAll(
+	ctx context.Context,
+	archiveDir string,
+	changedRawPaths map[conv.Provider][]string,
+) error {
 	s.invalidateSearchCorpus(archiveDir)
-	return rebuildCanonicalStore(ctx, archiveDir, provider, s.source, changedRawPaths)
+	return rebuildCanonicalStore(ctx, archiveDir, s.sources, changedRawPaths)
 }
 
 func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation, error) {

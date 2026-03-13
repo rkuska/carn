@@ -20,10 +20,15 @@ func (c Conversation) DisplayName() string {
 	if c.Name != "" {
 		return c.Name
 	}
+	if len(c.Sessions) > 0 {
+		if slug := c.Sessions[0].DisplaySlug(); slug != "" && slug != untitledDisplayName {
+			return slug
+		}
+	}
 	if fm := c.FirstMessage(); fm != "" {
 		return Truncate(fm, maxSlugFromMessage)
 	}
-	return "untitled"
+	return untitledDisplayName
 }
 
 func (c Conversation) FilterValue() string {
@@ -92,6 +97,14 @@ func (c Conversation) ResumeID() string {
 
 func (c Conversation) ResumeCWD() string {
 	return c.Sessions[len(c.Sessions)-1].CWD
+}
+
+func (c Conversation) ResumeTarget() ResumeTarget {
+	return ResumeTarget{
+		Provider: c.Ref.Provider,
+		ID:       c.ResumeID(),
+		CWD:      c.ResumeCWD(),
+	}
 }
 
 func (c Conversation) Timestamp() time.Time {

@@ -11,14 +11,16 @@ import (
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
 	"github.com/rkuska/carn/internal/source/claude"
+	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/rs/zerolog"
 )
 
 // Config defines the minimal app inputs needed to build the UI model.
 type Config struct {
-	SourceDir    string
-	ArchiveDir   string
-	GlamourStyle string
+	SourceDir      string
+	CodexSourceDir string
+	ArchiveDir     string
+	GlamourStyle   string
 }
 
 // Run starts the CLI application with environment-derived configuration.
@@ -48,9 +50,10 @@ func Run() error {
 	}
 
 	model, err := NewModel(ctx, Config{
-		SourceDir:    cfg.SourceDir,
-		ArchiveDir:   cfg.ArchiveDir,
-		GlamourStyle: glamourStyle,
+		SourceDir:      cfg.SourceDir,
+		CodexSourceDir: cfg.CodexSourceDir,
+		ArchiveDir:     cfg.ArchiveDir,
+		GlamourStyle:   glamourStyle,
 	})
 	if err != nil {
 		return fmt.Errorf("NewModel: %w", err)
@@ -66,8 +69,8 @@ func Run() error {
 
 // NewModel builds the root model with deterministic inputs for callers.
 func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
-	if cfg.SourceDir == "" {
-		return nil, errors.New("newModel: source dir is required")
+	if cfg.SourceDir == "" && cfg.CodexSourceDir == "" {
+		return nil, errors.New("newModel: at least one source dir is required")
 	}
 	if cfg.ArchiveDir == "" {
 		return nil, errors.New("newModel: archive dir is required")
@@ -84,27 +87,33 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 
 	initPalette(glamourStyle != "light")
 
-	source := claude.New()
-	store := canonical.New(source)
+	claudeBackend := claude.New()
+	codexBackend := codex.New()
+	store := canonical.New(claudeBackend, codexBackend)
 	browserStore := newBrowserStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{
-			SourceDir:  cfg.SourceDir,
-			ArchiveDir: cfg.ArchiveDir,
+			SourceDir:      cfg.SourceDir,
+			CodexSourceDir: cfg.CodexSourceDir,
+			ArchiveDir:     cfg.ArchiveDir,
 		},
-		source,
 		store,
+		claudeBackend,
+		codexBackend,
 	)
+	launcher := newSessionLauncher(claudeBackend, codexBackend)
 
 	model := newAppModelWithDeps(
 		ctx,
 		arch.Config{
-			SourceDir:  cfg.SourceDir,
-			ArchiveDir: cfg.ArchiveDir,
+			SourceDir:      cfg.SourceDir,
+			CodexSourceDir: cfg.CodexSourceDir,
+			ArchiveDir:     cfg.ArchiveDir,
 		},
 		glamourStyle,
 		browserStore,
 		pipeline,
+		launcher,
 	)
 
 	return model, nil

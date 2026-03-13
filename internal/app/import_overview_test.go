@@ -234,8 +234,8 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		view := ansi.Strip(m.View())
 		assertContainsAll(t, view,
 			"Import Workspace",
-			"Scanning Claude projects",
-			"Projects",
+			"Scanning configured sources",
+			"Sources",
 			"Files",
 			"Conversations",
 		)
@@ -285,6 +285,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.width = 120
 		m.height = 40
 		m.phase = phaseSyncing
+		m.syncActivity = arch.SyncActivitySyncingFiles
 		m.total = 5
 		m.current = 2
 		m.result = arch.SyncResult{Copied: 1, Failed: 1}
@@ -292,6 +293,24 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 		view := ansi.Strip(m.View())
 		assertContainsAll(t, view, "Importing", "2/5", "Copied", "Failed", "test.jsonl")
+	})
+
+	t.Run("rebuilding store", func(t *testing.T) {
+		t.Parallel()
+		m := newImportOverviewModel(context.Background(), cfg)
+		m.width = 120
+		m.height = 40
+		m.phase = phaseSyncing
+		m.syncActivity = arch.SyncActivityRebuildingStore
+		m.total = 5
+		m.current = 5
+		m.result = arch.SyncResult{Copied: 5}
+		m.currentFile = "stale.jsonl"
+
+		view := ansi.Strip(m.View())
+		assertContainsAll(t, view, "Importing", "Rebuilding local store", "Copied")
+		assert.NotContains(t, view, "5/5")
+		assert.NotContains(t, view, "stale.jsonl")
 	})
 
 	t.Run("done", func(t *testing.T) {
@@ -413,6 +432,19 @@ func TestImportOverviewRenderActivityBlockLeavesBlockedStateLeftAligned(t *testi
 	assertLeftAlignedLineContains(t, lines, "Press q to quit")
 }
 
+func TestImportOverviewRenderActivityBlockCentersRebuildSpinner(t *testing.T) {
+	t.Parallel()
+
+	m := importOverviewModel{
+		phase:        phaseSyncing,
+		syncActivity: arch.SyncActivityRebuildingStore,
+	}
+
+	lines := nonEmptyLines(ansi.Strip(m.renderActivityBlock(80)))
+	require.Len(t, lines, 1)
+	assertCenteredLineContains(t, lines, "Rebuilding local store")
+}
+
 func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 	t.Parallel()
 
@@ -433,11 +465,10 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 		},
 		runFn: func(_ context.Context, onProgress func(arch.SyncProgress)) (arch.SyncResult, error) {
 			onProgress(arch.SyncProgress{
-				Current: 1,
-				Total:   1,
-				File:    "a.jsonl",
-				Copied:  1,
-				Stage:   "building local store",
+				Current:  1,
+				Total:    1,
+				Copied:   1,
+				Activity: arch.SyncActivityRebuildingStore,
 			})
 			return arch.SyncResult{Copied: 1, StoreBuilt: true}, nil
 		},
@@ -461,10 +492,51 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 	require.NotNil(t, cmd)
 	m, cmd = m.Update(cmd())
 	require.NotNil(t, cmd)
-	assert.Equal(t, "building local store", m.currentStage)
+	assert.Equal(t, arch.SyncActivityRebuildingStore, m.syncActivity)
+	assert.Empty(t, m.currentFile)
 	m, _ = m.Update(cmd())
 	assert.Equal(t, phaseDone, m.phase)
 	assert.True(t, m.result.StoreBuilt)
+}
+
+func TestImportOverviewStoreRebuildOnlyShowsSpinnerState(t *testing.T) {
+	t.Parallel()
+
+	cfg := testImportOverviewConfig(t)
+	pipeline := stubImportPipeline{
+		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
+			return arch.ImportAnalysis{
+				SourceDir:       cfg.SourceDir,
+				ArchiveDir:      cfg.ArchiveDir,
+				StoreNeedsBuild: true,
+			}, nil
+		},
+		runFn: func(_ context.Context, onProgress func(arch.SyncProgress)) (arch.SyncResult, error) {
+			onProgress(arch.SyncProgress{Activity: arch.SyncActivityRebuildingStore})
+			return arch.SyncResult{StoreBuilt: true}, nil
+		},
+	}
+
+	m := newImportOverviewModelWithPipeline(context.Background(), cfg, pipeline)
+	m.width = 120
+	m.height = 40
+
+	analysisMsg := requireMsgType[importAnalysisStartedMsg](t, startImportAnalysisCmd(context.Background(), pipeline)())
+	m, cmd := m.Update(analysisMsg)
+	require.NotNil(t, cmd)
+	m, _ = m.Update(cmd())
+	require.Equal(t, phaseReady, m.phase)
+
+	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	syncStarted := requireMsgType[importSyncStartedMsg](t, cmd())
+	m, cmd = m.Update(syncStarted)
+	require.NotNil(t, cmd)
+	m, _ = m.Update(cmd())
+
+	view := ansi.Strip(m.View())
+	assert.Contains(t, view, "Rebuilding local store")
+	assert.NotContains(t, view, "0/0")
 }
 
 func nonEmptyLines(s string) []string {

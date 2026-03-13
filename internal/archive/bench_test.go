@@ -134,8 +134,8 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 			SourceDir:  sourceDir,
 			ArchiveDir: archiveDir,
 		},
-		source,
 		store,
+		source,
 	)
 
 	b.ResetTimer()

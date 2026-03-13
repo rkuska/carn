@@ -13,9 +13,9 @@
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
                 │  Complete   import finished and refreshed the local store                            │                
-                │ Source ~/source                                                                      │                
+                │ Claude ~/source                                                                      │                
                 │ Archive ~/archive                                                                    │                
-                │ Projects 1  Files 1  Conversations 1                                                 │                
+                │ Sources 1  Files 1  Conversations 1                                                  │                
                 │ Copied 1  Failed 0  Elapsed 0s                                                       │                
                 │                                                                                      │                
                 │                                                                                      │                
