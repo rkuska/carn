@@ -10,8 +10,16 @@ type Role string
 const (
 	RoleUser      Role = "user"
 	RoleAssistant Role = "assistant"
+	RoleSystem    Role = "system"
 
 	ContentTypeToolResult = "tool_result"
+)
+
+type MessageVisibility string
+
+const (
+	MessageVisibilityVisible      MessageVisibility = ""
+	MessageVisibilityHiddenSystem MessageVisibility = "hidden_system"
 )
 
 type Project struct {
@@ -156,8 +164,13 @@ type Message struct {
 	ToolCalls      []ToolCall
 	ToolResults    []ToolResult
 	Plans          []Plan
+	Visibility     MessageVisibility
 	IsSidechain    bool
 	IsAgentDivider bool
+}
+
+func (m Message) IsVisible() bool {
+	return m.Visibility != MessageVisibilityHiddenSystem
 }
 
 type Session struct {

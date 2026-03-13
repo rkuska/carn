@@ -94,7 +94,6 @@ func scanMetadataLine(
 	stats *scanStats,
 ) {
 	recRole := role(extractType(line))
-	accumulateRecordCounts(line, recRole, stats)
 
 	switch recRole {
 	case roleUser:
@@ -106,7 +105,11 @@ func scanMetadataLine(
 		if !result.hasConversationContent && hasContent {
 			result.hasConversationContent = true
 		}
+		if hasContent {
+			accumulateRecordCounts(line, recRole, stats)
+		}
 	case roleAssistant:
+		accumulateRecordCounts(line, recRole, stats)
 		hasContent, err := parseAssistantRecord(
 			line, &result.meta, foundAssistant, result.hasConversationContent,
 		)

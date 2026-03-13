@@ -35,7 +35,6 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 	}
 
 	analysis := ImportAnalysis{
-		SourceDir:  p.cfg.SourceDir,
 		ArchiveDir: p.cfg.ArchiveDir,
 	}
 

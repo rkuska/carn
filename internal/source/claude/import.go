@@ -1,10 +1,13 @@
 package claude
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type ProjectAnalysis struct {
@@ -26,6 +29,7 @@ type classifiedFile struct {
 	needsSync bool
 	dstExists bool
 	srcPath   string
+	dstPath   string
 }
 
 func ListProjectDirs(sourceDir string) ([]string, error) {
@@ -47,6 +51,35 @@ func ListProjectDirs(sourceDir string) ([]string, error) {
 	return dirs, nil
 }
 
+func (Source) SyncCandidates(
+	ctx context.Context,
+	sourceDir string,
+	rawDir string,
+) ([]src.SyncCandidate, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("syncCandidates_ctx: %w", err)
+	}
+
+	projectDirs, err := ListProjectDirs(sourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("listProjectDirs: %w", err)
+	}
+
+	candidates := make([]src.SyncCandidate, 0)
+	for _, projectDir := range projectDirs {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("syncCandidates_ctx: %w", err)
+		}
+
+		projectCandidates, err := projectSyncCandidates(sourceDir, rawDir, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("projectSyncCandidates_%s: %w", filepath.Base(projectDir), err)
+		}
+		candidates = append(candidates, projectCandidates...)
+	}
+	return candidates, nil
+}
+
 func AnalyzeProject(sourceDir, rawDir, projDir string) (ProjectAnalysis, error) {
 	seen := make(map[groupKey]*conversationState)
 	var syncCandidates []string
@@ -66,6 +99,32 @@ func AnalyzeProject(sourceDir, rawDir, projDir string) (ProjectAnalysis, error) 
 	}, nil
 }
 
+func projectSyncCandidates(sourceDir, rawDir, projDir string) ([]src.SyncCandidate, error) {
+	dirName := filepath.Base(projDir)
+	files, err := discoverProjectSessionFiles(
+		projDir,
+		project{DisplayName: projectFromDirName(dirName).displayName},
+		dirName,
+		sourceDir,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("discoverProjectSessionFiles: %w", err)
+	}
+
+	candidates := make([]src.SyncCandidate, 0, len(files))
+	for _, file := range files {
+		classified, ok := classifyProjectFile(file, sourceDir, rawDir, dirName)
+		if !ok || !classified.needsSync {
+			continue
+		}
+		candidates = append(candidates, src.SyncCandidate{
+			SourcePath: classified.srcPath,
+			DestPath:   classified.dstPath,
+		})
+	}
+	return candidates, nil
+}
+
 func analyzeProjectDir(
 	projDir, sourceDir, rawDir string,
 	seen map[groupKey]*conversationState,
@@ -76,6 +135,7 @@ func analyzeProjectDir(
 		projDir,
 		project{DisplayName: projectFromDirName(dirName).displayName},
 		dirName,
+		sourceDir,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("discoverProjectSessionFiles: %w", err)
@@ -143,6 +203,7 @@ func classifyProjectFile(file sessionFile, sourceDir, rawDir, dirName string) (c
 		needsSync: fileNeedsSync(info, dstPath),
 		dstExists: dstExists,
 		srcPath:   file.path,
+		dstPath:   dstPath,
 	}, true
 }
 

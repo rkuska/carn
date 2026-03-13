@@ -30,6 +30,13 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 			on:     !opts.hideSidechain,
 			glow:   opts.hideSidechain && content.hasSidechain,
 		},
+		{
+			key:    "m",
+			desc:   "system",
+			toggle: true,
+			on:     opts.showSystem,
+			glow:   !opts.showSystem && content.hasSystem,
+		},
 	}
 }
 

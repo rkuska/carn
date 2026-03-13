@@ -140,7 +140,7 @@ func (s *loadState) applyMessage(payload responseItemPayload, timestamp time.Tim
 	if !ok {
 		return
 	}
-	s.applyVisibleMessage(message, timestamp)
+	s.applyClassifiedMessage(message, timestamp)
 }
 
 func (s *loadState) applyReasoning(payload responseItemPayload, timestamp time.Time) {
@@ -198,17 +198,17 @@ func (s *loadState) applyEventMessage(payload eventPayload, timestamp time.Time)
 	switch payload.Type {
 	case eventTypeUserMessage:
 		if message, ok := classifyEventUserMessage(payload.Message); ok {
-			s.applyVisibleMessage(message, timestamp)
+			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true
 	case eventTypeAgentMessage:
 		if message, ok := classifyEventAssistantMessage(payload.Message); ok {
-			s.applyVisibleMessage(message, timestamp)
+			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true
 	case eventTypeTaskComplete:
 		if message, ok := classifyTaskCompleteMessage(payload.LastAgentMessage); ok {
-			s.applyVisibleMessage(message, timestamp)
+			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true
 	default:
@@ -216,11 +216,14 @@ func (s *loadState) applyEventMessage(payload eventPayload, timestamp time.Time)
 	}
 }
 
-func (s *loadState) applyVisibleMessage(message visibleMessage, timestamp time.Time) {
+func (s *loadState) applyClassifiedMessage(message visibleMessage, timestamp time.Time) {
 	switch {
 	case message.isAgentDivider:
 		s.flushAssistant("", time.Time{})
 		s.messages = appendParsedDividerMessage(s.messages, message.text, timestamp)
+	case message.role == conv.RoleSystem:
+		s.flushAssistant("", time.Time{})
+		s.messages = appendParsedSystemMessage(s.messages, message.text, message.visibility, timestamp)
 	case message.role == conv.RoleUser:
 		s.flushAssistant("", time.Time{})
 		s.messages = appendParsedUserMessage(s.messages, message.text, timestamp)

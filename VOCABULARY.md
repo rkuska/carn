@@ -11,6 +11,8 @@ Use these terms when referring to different parts of the project in prompts.
 | **Slug** | User-assigned name for a session (from the JSONL). Used to group sessions into conversations. Falls back to first message or "untitled". |
 | **Project** | The source directory a session was started from. Derived from the encoded path under `~/.claude/projects/`. |
 | **Message** | A single turn in the transcript — either `user` or `assistant` role. Contains text, thinking, tool calls, tool results, and plans. |
+| **Message Visibility** | Canonical visibility state for a message. Visible messages participate in default rendering, counts, and search; hidden system messages are preserved but suppressed by default. |
+| **Hidden System Message** | A provider bootstrap or transport record preserved in canonical transcripts with hidden visibility. It can be shown with the viewer system toggle but does not affect default previews or search. |
 | **Sidechain** | A background message stream (marked `isSidechain`). Not part of the main conversation flow. Counted separately in `mainMessageCount`. Can be hidden in the viewer. |
 | **Subagent** | A spawned child session (`isSubagent: true`). May be shown standalone or grouped into the parent conversation, depending on provider-owned projection. |
 | **Agent Divider** | A synthetic message (`isAgentDivider`) injected when subagent transcripts are merged into the parent via **projection**. Renders as a horizontal rule. |
@@ -86,7 +88,7 @@ Use these terms when referring to different parts of the project in prompts.
 | **Role Header** | A divider line ("User" or "Assistant") separating turns. |
 | **Thinking Block** | Claude's extended thinking, rendered with a left `▎` border. |
 | **Initial Prompt** | The first user message, rendered with a distinctive left `▎` border. |
-| **Toggles** | Visibility controls: `t` thinking, `T` tools, `R` tool results, `p` plans, `s` sidechains. |
+| **Toggles** | Visibility controls: `t` thinking, `T` tools, `R` tool results, `m` system messages, `p` plans, `s` sidechains. |
 | **Transcript Search** | `/` within the viewer — searches the rendered transcript text. `n`/`N` to navigate matches. |
 
 ## Conversation Header (top of transcript)

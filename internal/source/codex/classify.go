@@ -9,6 +9,7 @@ import (
 type visibleMessage struct {
 	role           conv.Role
 	text           string
+	visibility     conv.MessageVisibility
 	isAgentDivider bool
 }
 
@@ -36,11 +37,8 @@ func classifyTextMessage(role string, text string) (visibleMessage, bool) {
 
 	switch role {
 	case responseRoleDeveloper:
-		return visibleMessage{}, false
+		return hiddenSystemMessage(text), true
 	case responseRoleUser:
-		if isCodexBootstrapMessage(text) {
-			return visibleMessage{}, false
-		}
 		if notification, ok := unwrapTagText(text, "subagent_notification"); ok {
 			return visibleMessage{
 				role:           conv.RoleUser,
@@ -48,11 +46,22 @@ func classifyTextMessage(role string, text string) (visibleMessage, bool) {
 				isAgentDivider: true,
 			}, true
 		}
+		if isCodexBootstrapMessage(text) {
+			return hiddenSystemMessage(text), true
+		}
 		return visibleMessage{role: conv.RoleUser, text: text}, true
 	case responseRoleAssistant:
 		return visibleMessage{role: conv.RoleAssistant, text: text}, true
 	default:
 		return visibleMessage{}, false
+	}
+}
+
+func hiddenSystemMessage(text string) visibleMessage {
+	return visibleMessage{
+		role:       conv.RoleSystem,
+		text:       text,
+		visibility: conv.MessageVisibilityHiddenSystem,
 	}
 }
 

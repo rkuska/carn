@@ -104,14 +104,16 @@ func BenchmarkCollectFilesToSync(b *testing.B) {
 		}
 	}
 
-	cfg := syncRootsConfig{
-		sourceDir: sourceDir,
-		destDir:   providerRawDir(archiveDir, conv.ProviderClaude),
-	}
+	backend := claude.New()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		files, err := collectSyncCandidates(cfg)
+		files, err := collectSyncCandidates(
+			context.Background(),
+			backend,
+			sourceDir,
+			providerRawDir(archiveDir, conv.ProviderClaude),
+		)
 		if err != nil {
 			b.Fatalf("collectSyncCandidates: %v", err)
 		}
@@ -131,7 +133,7 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 	store := canonical.New(source)
 	pipeline := New(
 		Config{
-			SourceDir:  sourceDir,
+			SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
 			ArchiveDir: archiveDir,
 		},
 		store,

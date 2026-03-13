@@ -429,7 +429,7 @@ func TestBrowserSplitTranscriptFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"/", "n/N", "t", "T", "R", "s", "y", "o", "e", "tab", "O", "?", "q/esc"},
+		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "o", "e", "tab", "O", "?", "q/esc"},
 		helpItemKeys(b.transcriptFooterItems()),
 	)
 

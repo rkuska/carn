@@ -22,6 +22,7 @@ type parsedMessage struct {
 	toolResults    []parsedToolResult
 	plans          []plan
 	usage          tokenUsage
+	visibility     messageVisibility
 	isSidechain    bool
 	isAgentDivider bool
 }
@@ -64,6 +65,7 @@ func projectParsedMessage(msg parsedMessage) message {
 		ToolCalls:      projectParsedToolCalls(msg.toolCalls),
 		ToolResults:    projectParsedToolResults(msg.toolResults),
 		Plans:          msg.plans,
+		Visibility:     msg.visibility,
 		IsSidechain:    msg.isSidechain,
 		IsAgentDivider: msg.isAgentDivider,
 	}

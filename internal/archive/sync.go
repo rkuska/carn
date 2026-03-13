@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -39,78 +39,43 @@ type syncCandidate struct {
 	status     syncFileStatus
 }
 
-type syncRootsConfig struct {
-	provider  conv.Provider
-	sourceDir string
-	destDir   string
-}
-
 func providerRawDir(archiveDir string, provider conv.Provider) string {
 	return filepath.Join(archiveDir, string(provider), "raw")
 }
 
-func buildSyncCandidate(path string, d os.DirEntry, cfg syncRootsConfig) (syncCandidate, bool) {
-	info, err := d.Info()
-	if err != nil {
-		return syncCandidate{}, false
-	}
-
-	rel, err := filepath.Rel(cfg.sourceDir, path)
-	if err != nil {
-		return syncCandidate{}, false
-	}
-
-	destPath := filepath.Join(cfg.destDir, rel)
-	if !fileNeedsSync(info, destPath) {
-		return syncCandidate{}, false
-	}
-
+func buildSyncCandidate(provider conv.Provider, plan src.SyncCandidate) syncCandidate {
 	status := syncStatusUpdated
-	if _, err := os.Stat(destPath); os.IsNotExist(err) {
+	if _, err := os.Stat(plan.DestPath); os.IsNotExist(err) {
 		status = syncStatusNew
 	}
 
 	return syncCandidate{
-		provider:   cfg.provider,
-		sourcePath: path,
-		destPath:   destPath,
+		provider:   provider,
+		sourcePath: plan.SourcePath,
+		destPath:   plan.DestPath,
 		status:     status,
-	}, true
+	}
 }
 
-func syncWalkEntry(path string, d os.DirEntry, cfg syncRootsConfig, candidates *[]syncCandidate) error {
-	rel, err := filepath.Rel(cfg.sourceDir, path)
-	if err != nil || rel == "." {
-		return nil
-	}
-
-	if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
-		return nil
-	}
-
-	if candidate, ok := buildSyncCandidate(path, d, cfg); ok {
-		*candidates = append(*candidates, candidate)
-	}
-
-	return nil
-}
-
-func collectSyncCandidates(cfg syncRootsConfig) ([]syncCandidate, error) {
-	if _, err := statDir(cfg.sourceDir); err != nil {
+func collectSyncCandidates(
+	ctx context.Context,
+	backend src.Backend,
+	sourceDir string,
+	destDir string,
+) ([]syncCandidate, error) {
+	if _, err := statDir(sourceDir); err != nil {
 		return nil, nil
 	}
 
-	var candidates []syncCandidate
-	err := filepath.WalkDir(cfg.sourceDir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return nil
-		}
-		return syncWalkEntry(path, d, cfg, &candidates)
-	})
+	planned, err := backend.SyncCandidates(ctx, sourceDir, destDir)
 	if err != nil {
-		return nil, fmt.Errorf("collectSyncCandidates_filepath.WalkDir: %w", err)
+		return nil, fmt.Errorf("backend.SyncCandidates: %w", err)
 	}
 
+	candidates := make([]syncCandidate, 0, len(planned))
+	for _, candidate := range planned {
+		candidates = append(candidates, buildSyncCandidate(backend.Provider(), candidate))
+	}
 	return candidates, nil
 }
 

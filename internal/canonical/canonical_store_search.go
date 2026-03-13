@@ -13,6 +13,9 @@ func setPlanCounts(conversations []conversation, transcripts map[string]sessionF
 func buildSearchUnits(conversationID string, session sessionFull) []searchUnit {
 	var units []searchUnit
 	for _, msg := range session.Messages {
+		if !msg.IsVisible() {
+			continue
+		}
 		units = appendSearchUnits(units, conversationID, msg.Text)
 		for _, call := range msg.ToolCalls {
 			units = appendSearchUnits(units, conversationID, call.Summary)

@@ -85,31 +85,35 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 
 	mainSession, err := New().Load(context.Background(), byID["019cexample-main"])
 	require.NoError(t, err)
-	require.Len(t, mainSession.Messages, 5)
-	assert.Equal(t, conv.RoleUser, mainSession.Messages[0].Role)
-	assert.Equal(t, "# Import Codex sessions\n\nImplement support for codex sessions.", mainSession.Messages[0].Text)
-	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[1].Role)
-	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[1].Thinking)
-	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[1].Text)
-	require.Len(t, mainSession.Messages[1].ToolCalls, 1)
-	assert.Equal(t, "exec_command", mainSession.Messages[1].ToolCalls[0].Name)
-	require.Len(t, mainSession.Messages[1].ToolResults, 1)
-	assert.Contains(t, mainSession.Messages[1].ToolResults[0].Content, "Exit code: 0")
-	require.Len(t, mainSession.Messages[1].Plans, 1)
-	assert.Equal(t, "codex-import-plan.md", mainSession.Messages[1].Plans[0].FilePath)
-	assert.Equal(t, "- inspect wrappers\n- map visible messages", mainSession.Messages[1].Plans[0].Content)
-	assert.Equal(t, conv.RoleUser, mainSession.Messages[2].Role)
-	assert.True(t, mainSession.Messages[2].IsAgentDivider)
-	assert.Equal(t, "Planck is inspecting the parser.", mainSession.Messages[2].Text)
+	require.Len(t, mainSession.Messages, 8)
+	assert.Equal(t, conv.RoleSystem, mainSession.Messages[0].Role)
+	assert.Equal(t, conv.MessageVisibilityHiddenSystem, mainSession.Messages[0].Visibility)
+	assert.Contains(t, mainSession.Messages[0].Text, "Filesystem sandboxing defines which files can be read.")
+	assert.Equal(t, conv.RoleSystem, mainSession.Messages[1].Role)
+	assert.Equal(t, conv.MessageVisibilityHiddenSystem, mainSession.Messages[1].Visibility)
+	assert.Contains(t, mainSession.Messages[1].Text, "AGENTS.md instructions for /workspace/project")
+	assert.Equal(t, conv.RoleSystem, mainSession.Messages[2].Role)
+	assert.Equal(t, conv.MessageVisibilityHiddenSystem, mainSession.Messages[2].Visibility)
+	assert.Contains(t, mainSession.Messages[2].Text, "<cwd>/workspace/project</cwd>")
 	assert.Equal(t, conv.RoleUser, mainSession.Messages[3].Role)
-	assert.Equal(t, "Inspect the parser.", mainSession.Messages[3].Text)
+	assert.Equal(t, "# Import Codex sessions\n\nImplement support for codex sessions.", mainSession.Messages[3].Text)
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[4].Role)
-	assert.Equal(t, "Parser inspected.", mainSession.Messages[4].Text)
-	for _, msg := range mainSession.Messages {
-		assert.NotContains(t, msg.Text, "AGENTS.md instructions")
-		assert.NotContains(t, msg.Text, "<environment_context>")
-		assert.NotContains(t, msg.Text, "<permissions instructions>")
-	}
+	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[4].Thinking)
+	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[4].Text)
+	require.Len(t, mainSession.Messages[4].ToolCalls, 1)
+	assert.Equal(t, "exec_command", mainSession.Messages[4].ToolCalls[0].Name)
+	require.Len(t, mainSession.Messages[4].ToolResults, 1)
+	assert.Contains(t, mainSession.Messages[4].ToolResults[0].Content, "Exit code: 0")
+	require.Len(t, mainSession.Messages[4].Plans, 1)
+	assert.Equal(t, "codex-import-plan.md", mainSession.Messages[4].Plans[0].FilePath)
+	assert.Equal(t, "- inspect wrappers\n- map visible messages", mainSession.Messages[4].Plans[0].Content)
+	assert.Equal(t, conv.RoleUser, mainSession.Messages[5].Role)
+	assert.True(t, mainSession.Messages[5].IsAgentDivider)
+	assert.Equal(t, "Planck is inspecting the parser.", mainSession.Messages[5].Text)
+	assert.Equal(t, conv.RoleUser, mainSession.Messages[6].Role)
+	assert.Equal(t, "Inspect the parser.", mainSession.Messages[6].Text)
+	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[7].Role)
+	assert.Equal(t, "Parser inspected.", mainSession.Messages[7].Text)
 
 	legacySession, err := New().Load(context.Background(), byID["019cexample-legacy"])
 	require.NoError(t, err)
@@ -139,9 +143,12 @@ func TestLoadKeepsDividerWhenLinkedSubagentTranscriptIsUnavailable(t *testing.T)
 	main.Sessions = main.Sessions[:1]
 	session, err := New().Load(context.Background(), main)
 	require.NoError(t, err)
-	require.Len(t, session.Messages, 3)
-	assert.True(t, session.Messages[1].IsAgentDivider)
-	assert.Equal(t, "Planck is inspecting the parser.", session.Messages[1].Text)
+	require.Len(t, session.Messages, 6)
+	assert.Equal(t, conv.RoleSystem, session.Messages[0].Role)
+	assert.Equal(t, conv.RoleSystem, session.Messages[1].Role)
+	assert.Equal(t, conv.RoleSystem, session.Messages[2].Role)
+	assert.True(t, session.Messages[4].IsAgentDivider)
+	assert.Equal(t, "Planck is inspecting the parser.", session.Messages[4].Text)
 }
 
 func TestAnalyzeReportsSyncCandidates(t *testing.T) {
@@ -163,6 +170,33 @@ func TestAnalyzeReportsSyncCandidates(t *testing.T) {
 	require.Len(t, progresses, 1)
 	assert.Equal(t, conv.ProviderCodex, progresses[0].Provider)
 	assert.Equal(t, "sessions", progresses[0].CurrentUnit)
+}
+
+func TestSourceOwnsCodexSourceConfigAndSyncCandidates(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := copyCodexFixtureDir(t)
+	rawDir := t.TempDir()
+	backend := New()
+
+	assert.Equal(t, []string{"CARN_CODEX_SOURCE_DIR"}, backend.SourceEnvVars())
+	assert.Equal(t, filepath.Join("/home/test", ".codex", "sessions"), backend.DefaultSourceDir("/home/test"))
+
+	candidates, err := backend.SyncCandidates(context.Background(), sourceDir, rawDir)
+	require.NoError(t, err)
+	require.Len(t, candidates, 3)
+	assert.Equal(t,
+		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-00-00-019cexample-main.jsonl"),
+		candidates[0].DestPath,
+	)
+	assert.Equal(t,
+		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-05-00-019cexample-legacy.jsonl"),
+		candidates[1].DestPath,
+	)
+	assert.Equal(t,
+		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-10-00-019cexample-child.jsonl"),
+		candidates[2].DestPath,
+	)
 }
 
 func TestResumeCommand(t *testing.T) {

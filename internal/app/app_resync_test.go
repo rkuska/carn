@@ -32,7 +32,6 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
 			return arch.ImportAnalysis{
-				SourceDir:  cfg.SourceDir,
 				ArchiveDir: cfg.ArchiveDir,
 			}, nil
 		},
@@ -143,7 +142,6 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
 			return arch.ImportAnalysis{
-				SourceDir:        cfg.SourceDir,
 				ArchiveDir:       cfg.ArchiveDir,
 				QueuedFiles:      []string{newPath},
 				NewConversations: 1,
@@ -284,7 +282,6 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
 			return arch.ImportAnalysis{
-				SourceDir:        cfg.SourceDir,
 				ArchiveDir:       cfg.ArchiveDir,
 				QueuedFiles:      []string{alphaPath},
 				NewConversations: 1,
@@ -406,7 +403,6 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
 			return arch.ImportAnalysis{
-				SourceDir:        cfg.SourceDir,
 				ArchiveDir:       cfg.ArchiveDir,
 				QueuedFiles:      []string{alphaPath},
 				NewConversations: 1,

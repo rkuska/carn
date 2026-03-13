@@ -90,6 +90,7 @@ type viewerKeyMap struct {
 	ToggleToolResults key.Binding
 	TogglePlan        key.Binding
 	ToggleSidechain   key.Binding
+	ToggleSystem      key.Binding
 	Search            key.Binding
 	NextMatch         key.Binding
 	PrevMatch         key.Binding
@@ -120,6 +121,10 @@ var viewerKeys = viewerKeyMap{
 	ToggleSidechain: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "sidechain"),
+	),
+	ToggleSystem: key.NewBinding(
+		key.WithKeys("m"),
+		key.WithHelp("m", "system"),
 	),
 	Search: key.NewBinding(
 		key.WithKeys("/"),

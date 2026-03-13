@@ -138,12 +138,6 @@ func makeBenchConversations(
 	if err != nil {
 		b.Fatalf("source.Scan: %v", err)
 	}
-	for i := range conversations {
-		conversations[i].Ref = conversationRef{
-			Provider: conv.ProviderClaude,
-			ID:       buildConversationStoreKey(rawDir, conv.ProviderClaude, conversations[i]),
-		}
-	}
 
 	return archiveDir, conversations, source
 }

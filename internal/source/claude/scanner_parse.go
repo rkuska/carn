@@ -153,6 +153,7 @@ func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 	if content == "" && len(toolResults) == 0 {
 		return parsedMessage{}, false
 	}
+	messageRole, visibility := classifyUserText(content)
 
 	var ts time.Time
 	if rec.Timestamp != "" {
@@ -172,11 +173,12 @@ func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 	}
 
 	return parsedMessage{
-		role:        roleUser,
+		role:        messageRole,
 		timestamp:   ts,
 		text:        content,
 		toolResults: toolResults,
 		plans:       plans,
+		visibility:  visibility,
 		isSidechain: rec.IsSidechain,
 	}, true
 }
