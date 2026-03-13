@@ -57,7 +57,20 @@ func TestConversationMetadataDescriptionIncludesProviderLabel(t *testing.T) {
 	assert.Contains(t, desc, "0 msgs")
 }
 
-func TestBuildDeepSearchItemsHighlightsDescriptionMatches(t *testing.T) {
+func TestBuildPlainConversationItemsSeparatesMetadataAndPreview(t *testing.T) {
+	t.Parallel()
+
+	conversation := testConv("one")
+	conversation.Sessions[0].FirstMessage = "first user prompt"
+
+	items := buildPlainConversationItems([]conv.Conversation{conversation})
+	require.Len(t, items, 1)
+	assert.Contains(t, items[0].metadata, "Claude")
+	assert.NotContains(t, items[0].metadata, "first user prompt")
+	assert.Equal(t, "first user prompt", items[0].preview)
+}
+
+func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
 	t.Parallel()
 
 	conversation := testConv("one")
@@ -65,8 +78,10 @@ func TestBuildDeepSearchItemsHighlightsDescriptionMatches(t *testing.T) {
 
 	items := buildDeepSearchItems("archive", []conv.Conversation{conversation})
 	require.Len(t, items, 1)
-	assert.Contains(t, items[0].description, "Claude")
-	assert.NotEmpty(t, items[0].matchRanges.desc)
+	assert.Contains(t, items[0].metadata, "Claude")
+	assert.Equal(t, "found the archive needle here", items[0].preview)
+	assert.Empty(t, items[0].matchRanges.metadata)
+	assert.NotEmpty(t, items[0].matchRanges.preview)
 }
 
 func TestBuildDeepSearchItemsNoMatchWhenQueryAbsent(t *testing.T) {
@@ -77,7 +92,8 @@ func TestBuildDeepSearchItemsNoMatchWhenQueryAbsent(t *testing.T) {
 
 	items := buildDeepSearchItems("", []conv.Conversation{conversation})
 	require.Len(t, items, 1)
-	assert.Empty(t, items[0].matchRanges.desc)
+	assert.Empty(t, items[0].matchRanges.metadata)
+	assert.Empty(t, items[0].matchRanges.preview)
 }
 
 func TestBrowserSearchBindingUsesSlash(t *testing.T) {

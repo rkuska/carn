@@ -15,6 +15,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	glamourStyleDark  = "dark"
+	glamourStyleLight = "light"
+)
+
 // Config defines the minimal app inputs needed to build the UI model.
 type Config struct {
 	SourceDir      string
@@ -44,9 +49,9 @@ func Run() error {
 	// response bytes get misinterpreted as KeyPressMsg by Bubble Tea's
 	// input parser. Detecting once here avoids the issue entirely.
 	hasDarkBG := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
-	glamourStyle := "dark"
+	glamourStyle := glamourStyleDark
 	if !hasDarkBG {
-		glamourStyle = "light"
+		glamourStyle = glamourStyleLight
 	}
 
 	model, err := NewModel(ctx, Config{
@@ -82,10 +87,10 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 
 	glamourStyle := cfg.GlamourStyle
 	if glamourStyle == "" {
-		glamourStyle = "dark"
+		glamourStyle = glamourStyleDark
 	}
 
-	initPalette(glamourStyle != "light")
+	initPalette(glamourStyle != glamourStyleLight)
 
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
