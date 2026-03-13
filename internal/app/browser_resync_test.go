@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,6 +55,7 @@ func TestBrowserListFooterShowsResyncProgressStatus(t *testing.T) {
 	b := testBrowser(t)
 	b.resync.active = true
 	b.resync.phase = resyncPhaseSyncing
+	b.resync.activity = arch.SyncActivitySyncingFiles
 	b.resync.current = 2
 	b.resync.total = 5
 
@@ -61,4 +64,35 @@ func TestBrowserListFooterShowsResyncProgressStatus(t *testing.T) {
 	assert.Contains(t, footer, "+R resync")
 	assert.Contains(t, footer, "[resync]")
 	assert.Contains(t, footer, "2/5")
+}
+
+func TestBrowserListFooterShowsResyncRebuildStatusWithoutCounts(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.resync.active = true
+	b.resync.phase = resyncPhaseSyncing
+	b.resync.activity = arch.SyncActivityRebuildingStore
+	b.resync.current = 2
+	b.resync.total = 5
+
+	footer := ansi.Strip(b.footerView())
+
+	assert.Contains(t, footer, "[resync]")
+	assert.Contains(t, footer, "rebuilding local store")
+	assert.NotContains(t, footer, "2/5")
+}
+
+func TestBrowserResyncSpinnerTickSchedulesNextFrameDuringRebuild(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.resync.active = true
+	b.resync.phase = resyncPhaseSyncing
+	b.resync.activity = arch.SyncActivityRebuildingStore
+
+	updated, cmd := b.Update(spinner.TickMsg{})
+
+	require.NotNil(t, cmd)
+	assert.Equal(t, arch.SyncActivityRebuildingStore, updated.resync.activity)
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/rkuska/carn/internal/source/claude"
 )
 
 type browserStore interface {
@@ -24,8 +23,7 @@ type canonicalBrowserStore struct {
 }
 
 func newDefaultBrowserStore() browserStore {
-	source := claude.New()
-	return newBrowserStore(canonical.New(source))
+	return newBrowserStore(canonical.New())
 }
 
 func newBrowserStore(store canonical.Store) browserStore {

@@ -45,6 +45,18 @@ func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
 	assert.Empty(t, items)
 }
 
+func TestConversationMetadataDescriptionIncludesProviderLabel(t *testing.T) {
+	t.Parallel()
+
+	conversation := testNamedConversation("codex-one", "import-codex")
+	conversation.Ref.Provider = conv.ProviderCodex
+
+	desc := conversationMetadataDescription(conversation)
+
+	assert.Contains(t, desc, "Codex")
+	assert.Contains(t, desc, "0 msgs")
+}
+
 func TestBuildDeepSearchItemsHighlightsDescriptionMatches(t *testing.T) {
 	t.Parallel()
 
@@ -53,6 +65,7 @@ func TestBuildDeepSearchItemsHighlightsDescriptionMatches(t *testing.T) {
 
 	items := buildDeepSearchItems("archive", []conv.Conversation{conversation})
 	require.Len(t, items, 1)
+	assert.Contains(t, items[0].description, "Claude")
 	assert.NotEmpty(t, items[0].matchRanges.desc)
 }
 
@@ -112,11 +125,14 @@ func TestBrowserToggleDeepSearchWhileEditingQuerySyncsTranscriptSelection(t *tes
 
 	var cmds []tea.Cmd
 	b.search.mode = searchModeDeep
-	b.search.query = "beta"
+	b.search.query = testResyncBetaSlug
 	b.search.editing = true
 	b.searchInput.Focus()
-	b.searchInput.SetValue("beta")
-	b = b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{alpha}), &cmds)
+	b.searchInput.SetValue(testResyncBetaSlug)
+	b = b.setSearchItems(
+		buildDeepSearchItems(testResyncBetaSlug, []conv.Conversation{alpha}),
+		&cmds,
+	)
 
 	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
@@ -213,6 +229,39 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 }
 
+func TestBrowserIgnoresStaleUnavailableDeepSearchResults(t *testing.T) {
+	t.Parallel()
+
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	beta := testNamedConversation("beta-id", "beta-session")
+
+	b := testBrowser(t)
+	b.search.baseConversations = []conv.Conversation{alpha, beta}
+	b.mainConversationCount = 2
+	b.deepSearchAvailable = true
+	var cmds []tea.Cmd
+	b = b.applyFullConversationList(&cmds)
+
+	b.search.mode = searchModeDeep
+	b.search.query = "beta"
+	b.search.revision = 3
+	b.search.status = searchStatusSearching
+	b.search.visibleConversations = []conv.Conversation{beta}
+	b = b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{beta}), &cmds)
+
+	b, _ = b.Update(deepSearchResultMsg{
+		revision:  2,
+		query:     "alpha",
+		available: false,
+	})
+
+	assert.True(t, b.deepSearchAvailable)
+	assert.Equal(t, searchModeDeep, b.search.mode)
+	assert.Equal(t, searchStatusSearching, b.search.status)
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
+}
+
 func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	t.Parallel()
 
@@ -273,6 +322,7 @@ func TestBrowserToggleDeepSearchWhenUnavailableShowsNotification(t *testing.T) {
 
 func testNamedConversation(id, slug string) conv.Conversation {
 	return conv.Conversation{
+		Ref:     conv.Ref{Provider: conv.ProviderClaude, ID: id},
 		Name:    slug,
 		Project: conv.Project{DisplayName: "test"},
 		Sessions: []conv.SessionMeta{

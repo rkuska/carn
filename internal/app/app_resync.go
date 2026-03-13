@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	arch "github.com/rkuska/carn/internal/archive"
 )
 
 func (m appModel) updateBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,12 +95,17 @@ func (m appModel) handleResyncSyncProgress(msg importSyncProgressMsg) (appModel,
 	if !m.browser.resync.active {
 		return m, nil, false
 	}
+	startSpinner := !m.browser.resyncSpinnerActive() &&
+		msg.progress.Activity == arch.SyncActivityRebuildingStore
 	m.browser.resync.phase = resyncPhaseSyncing
 	m.browser.resync.current = msg.progress.Current
 	m.browser.resync.total = msg.progress.Total
-	m.browser.resync.stage = msg.progress.Stage
-	m.browser.resync.currentFile = msg.progress.File
-	return m, waitForAsyncImportMsg(m.resyncEvents), true
+	m.browser.resync.activity = msg.progress.Activity
+	waitCmd := waitForAsyncImportMsg(m.resyncEvents)
+	if startSpinner {
+		return m, tea.Batch(waitCmd, m.browser.resyncSpinner.Tick), true
+	}
+	return m, waitCmd, true
 }
 
 func (m appModel) handleResyncSyncFinished(msg importSyncFinishedMsg) (appModel, tea.Cmd, bool) {

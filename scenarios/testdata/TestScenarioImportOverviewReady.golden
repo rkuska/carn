@@ -13,9 +13,9 @@
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
                 │  Ready to Import   review complete; import and store build are ready                 │                
-                │ Source ~/source                                                                      │                
+                │ Claude ~/source                                                                      │                
                 │ Archive ~/archive                                                                    │                
-                │ Projects 1  Files 1  Conversations 1                                                 │                
+                │ Sources 1  Files 1  Conversations 1                                                  │                
                 │ New 1  Update 0  Current 0                                                           │                
                 │                                                                                      │                
                 │                                                                                      │                

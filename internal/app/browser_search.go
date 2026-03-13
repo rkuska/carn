@@ -116,7 +116,7 @@ func buildMetadataSearchItems(query string, conversations []conv.Conversation) [
 func buildDeepSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(conversations))
 	for _, conversation := range conversations {
-		desc := conversation.Description()
+		desc := providerPrefixedDescription(conversation, conversation.Description())
 		var ranges itemMatchRanges
 		if query != "" {
 			ranges.desc = findQueryMatchIndices(desc, query)
@@ -162,5 +162,5 @@ func conversationMetadataDescription(conversation conv.Conversation) string {
 	if fm := conversation.FirstMessage(); fm != "" {
 		desc += "\n" + fm
 	}
-	return desc
+	return providerPrefixedDescription(conversation, desc)
 }

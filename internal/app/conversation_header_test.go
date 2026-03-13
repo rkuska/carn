@@ -16,6 +16,7 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 	t.Parallel()
 
 	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
 		Name:    "cheerful-ocean",
 		Project: conversation.Project{DisplayName: "work/claude-search"},
 		Sessions: []conversation.SessionMeta{
@@ -59,6 +60,7 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 	got := ansi.Strip(renderConversationHeader(conv, 90))
 
 	assertContainsAll(t, got,
+		"provider Codex",
 		"2 parts",
 		"claude-sonnet-4",
 		"1.1.0",
@@ -83,6 +85,7 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 	t.Parallel()
 
 	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderClaude},
 		Name:    "untitled",
 		Project: conversation.Project{DisplayName: "work/app"},
 		Sessions: []conversation.SessionMeta{
@@ -111,12 +114,14 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 	for _, unwanted := range unwanted {
 		assert.NotContains(t, gotLower, unwanted)
 	}
+	assert.Contains(t, got, "provider Claude")
 }
 
 func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	t.Parallel()
 
 	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
 		Name:    "very-long-conversation-name-for-wrapping",
 		Project: conversation.Project{DisplayName: "work/claude-search"},
 		Sessions: []conversation.SessionMeta{
@@ -150,6 +155,7 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 	t.Parallel()
 
 	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
 		Name:    "test-slug",
 		Project: conversation.Project{DisplayName: "test"},
 		Sessions: []conversation.SessionMeta{
@@ -177,15 +183,18 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 	m := newViewerModel(session, conv, "dark", 120, 40)
 
 	assert.Equal(t, "/tmp/second.jsonl", m.editorFilePath())
-	id, cwd := m.resumeTarget()
-	assert.Equal(t, "second-id", id)
-	assert.Equal(t, "/tmp/second", cwd)
+	assert.Equal(t, conversation.ResumeTarget{
+		ID:       "second-id",
+		CWD:      "/tmp/second",
+		Provider: conversation.ProviderCodex,
+	}, m.resumeTarget())
 }
 
 func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 	t.Parallel()
 
 	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
 		Name:    "test-slug",
 		Project: conversation.Project{DisplayName: "test"},
 		Sessions: []conversation.SessionMeta{
@@ -212,8 +221,11 @@ func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 	got := ansi.Strip(m.viewport.View())
 
 	headerIdx := strings.Index(got, "model")
+	providerIdx := strings.Index(got, "provider")
 	userIdx := strings.Index(got, "User")
 	require.NotEqual(t, -1, headerIdx)
+	require.NotEqual(t, -1, providerIdx)
 	require.NotEqual(t, -1, userIdx)
+	assert.Less(t, providerIdx, userIdx)
 	assert.Less(t, headerIdx, userIdx)
 }

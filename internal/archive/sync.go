@@ -26,18 +26,21 @@ const (
 )
 
 type syncFileResult struct {
+	provider   conv.Provider
 	sourcePath string
 	destPath   string
 	status     syncFileStatus
 }
 
 type syncCandidate struct {
+	provider   conv.Provider
 	sourcePath string
 	destPath   string
 	status     syncFileStatus
 }
 
 type syncRootsConfig struct {
+	provider  conv.Provider
 	sourceDir string
 	destDir   string
 }
@@ -68,6 +71,7 @@ func buildSyncCandidate(path string, d os.DirEntry, cfg syncRootsConfig) (syncCa
 	}
 
 	return syncCandidate{
+		provider:   cfg.provider,
 		sourcePath: path,
 		destPath:   destPath,
 		status:     status,
@@ -149,11 +153,12 @@ func syncCandidates(
 				failed.Add(1)
 				if onProgress != nil {
 					progress := SyncProgress{
-						Current: int(completed.Add(1)),
-						Total:   total,
-						File:    filepath.Base(candidate.sourcePath),
-						Copied:  int(copied.Load()),
-						Failed:  int(failed.Load()),
+						Provider: candidate.provider,
+						Current:  int(completed.Add(1)),
+						Total:    total,
+						File:     filepath.Base(candidate.sourcePath),
+						Copied:   int(copied.Load()),
+						Failed:   int(failed.Load()),
 					}
 					progressMu.Lock()
 					onProgress(progress)
@@ -165,11 +170,12 @@ func syncCandidates(
 			copied.Add(1)
 			if onProgress != nil {
 				progress := SyncProgress{
-					Current: int(completed.Add(1)),
-					Total:   total,
-					File:    filepath.Base(candidate.sourcePath),
-					Copied:  int(copied.Load()),
-					Failed:  int(failed.Load()),
+					Provider: candidate.provider,
+					Current:  int(completed.Add(1)),
+					Total:    total,
+					File:     filepath.Base(candidate.sourcePath),
+					Copied:   int(copied.Load()),
+					Failed:   int(failed.Load()),
 				}
 				progressMu.Lock()
 				onProgress(progress)

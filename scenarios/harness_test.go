@@ -93,6 +93,7 @@ type programHarness struct {
 	mu       sync.Mutex
 	finished bool
 	result   runResult
+	view     string
 }
 
 func newProgramHarness(tb testing.TB, model tea.Model, width, height int) *programHarness {
@@ -157,6 +158,9 @@ func (h *programHarness) pressKey(r rune) {
 
 func (h *programHarness) quit(tb testing.TB) {
 	tb.Helper()
+	h.mu.Lock()
+	h.view = h.currentView()
+	h.mu.Unlock()
 	h.program.Quit()
 	h.wait(tb, 2*time.Second)
 	h.cancel()
@@ -168,6 +172,13 @@ func (h *programHarness) finalView(tb testing.TB) string {
 
 	require.NoError(tb, h.result.err)
 	require.NotNil(tb, h.result.model)
+
+	h.mu.Lock()
+	if h.view != "" {
+		defer h.mu.Unlock()
+		return h.view
+	}
+	h.mu.Unlock()
 
 	return h.currentView()
 }

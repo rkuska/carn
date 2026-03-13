@@ -116,31 +116,6 @@ func writeTempEditorFile(text string, fileName string) (string, error) {
 	return f.Name(), nil
 }
 
-func conversationExportFileName(meta conv.SessionMeta) string {
-	name := meta.Slug
-	if name == "" && len(meta.ID) >= 8 {
-		name = meta.ID[:8]
-	}
-	if name == "" {
-		name = "conversation"
-	}
-	return fmt.Sprintf("claude-session-%s.md", name)
-}
-
-func rawExportFileName(conversation conv.Conversation, session conv.Session) string {
-	name := conversation.Name
-	if name == "" {
-		name = session.Meta.Slug
-	}
-	if name == "" && len(session.Meta.ID) >= 8 {
-		name = session.Meta.ID[:8]
-	}
-	if name == "" {
-		name = "conversation"
-	}
-	return fmt.Sprintf("claude-session-%s.raw.jsonl", name)
-}
-
 func planFileName(plan conv.Plan) string {
 	if name := filepath.Base(plan.FilePath); name != "" {
 		return name

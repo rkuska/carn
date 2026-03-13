@@ -30,6 +30,7 @@ type viewerModel struct {
 	viewport             viewport.Model
 	conversation         conv.Conversation
 	session              conv.Session
+	launcher             sessionLauncher
 	opts                 transcriptOptions
 	content              contentFlags
 	glamourStyle         string
@@ -86,6 +87,23 @@ func newViewerModel(
 	glamourStyle string,
 	width, height int,
 ) viewerModel {
+	return newViewerModelWithLauncher(
+		session,
+		conversation,
+		glamourStyle,
+		width,
+		height,
+		newDefaultSessionLauncher(),
+	)
+}
+
+func newViewerModelWithLauncher(
+	session conv.Session,
+	conversation conv.Conversation,
+	glamourStyle string,
+	width, height int,
+	launcher sessionLauncher,
+) viewerModel {
 	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
 	vp.HighlightStyle = styleSearchMatch
@@ -108,6 +126,7 @@ func newViewerModel(
 		viewport:     vp,
 		conversation: conversation,
 		session:      session,
+		launcher:     launcher,
 		opts:         transcriptOptions{},
 		content:      scanContentFlags(session.Messages),
 		glamourStyle: glamourStyle,
@@ -221,12 +240,11 @@ func (m viewerModel) handleViewerCmd(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 	case key.Matches(msg, viewerKeys.Copy):
 		return m.startActionMode(viewerActionCopy), nil
 	case key.Matches(msg, viewerKeys.Export):
-		return m, exportTranscriptCmd(m.session, m.opts, m.planExpanded)
+		return m, exportTranscriptCmd(m.conversation, m.session, m.opts, m.planExpanded)
 	case key.Matches(msg, viewerKeys.Editor):
 		return m.startActionMode(viewerActionOpen), nil
 	case key.Matches(msg, viewerKeys.Resume):
-		id, cwd := m.resumeTarget()
-		return m, resumeSessionCmd(id, cwd)
+		return m, resumeSessionCmd(m.resumeTarget(), m.launcher)
 	}
 	return m, nil
 }
@@ -285,11 +303,16 @@ func (m viewerModel) editorFilePath() string {
 	return m.session.Meta.FilePath
 }
 
-func (m viewerModel) resumeTarget() (string, string) {
-	if id := m.conversation.ResumeID(); id != "" {
-		return id, m.conversation.ResumeCWD()
+func (m viewerModel) resumeTarget() conv.ResumeTarget {
+	target := m.conversation.ResumeTarget()
+	if target.ID != "" {
+		return target
 	}
-	return m.session.Meta.ID, m.session.Meta.CWD
+	return conv.ResumeTarget{
+		Provider: m.conversation.Ref.Provider,
+		ID:       m.session.Meta.ID,
+		CWD:      m.session.Meta.CWD,
+	}
 }
 
 func (m viewerModel) viewportWidth() int {

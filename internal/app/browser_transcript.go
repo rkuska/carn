@@ -115,7 +115,14 @@ func (m browserModel) installViewer(session conv.Session, conversation conv.Conv
 	m.sessionCache[key] = session
 	m = m.addToCache(key)
 
-	m.viewer = newViewerModel(session, conversation, m.glamourStyle, m.viewerWidth(), m.height)
+	m.viewer = newViewerModelWithLauncher(
+		session,
+		conversation,
+		m.glamourStyle,
+		m.viewerWidth(),
+		m.height,
+		m.launcher,
+	)
 	if m.transcriptMode == transcriptClosed {
 		m.transcriptMode = transcriptSplit
 	}

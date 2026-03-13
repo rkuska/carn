@@ -61,7 +61,7 @@ type importOverviewModel struct {
 	current      int
 	total        int
 	currentFile  string
-	currentStage string
+	syncActivity arch.SyncActivity
 	result       arch.SyncResult
 	syncEvents   <-chan tea.Msg
 
@@ -188,7 +188,7 @@ func (m importOverviewModel) handleEnterKey() (importOverviewModel, tea.Cmd) {
 		m.current = 0
 		m.total = len(m.files)
 		m.currentFile = ""
-		m.currentStage = ""
+		m.syncActivity = initialImportSyncActivity(m.analysis)
 		m.result = arch.SyncResult{}
 		return m, startImportSyncCmd(m.ctx, m.pipeline)
 	case phaseDone:
@@ -214,8 +214,12 @@ func (m importOverviewModel) handleAnalysisFinished(msg analysisFinishedMsg) (im
 func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (importOverviewModel, tea.Cmd) {
 	m.current = msg.progress.Current
 	m.total = msg.progress.Total
-	m.currentFile = msg.progress.File
-	m.currentStage = msg.progress.Stage
+	m.syncActivity = msg.progress.Activity
+	if syncActivityShowsCurrentFile(m.syncActivity) {
+		m.currentFile = msg.progress.File
+	} else {
+		m.currentFile = ""
+	}
 	m.result.Copied = msg.progress.Copied
 	m.result.Failed = msg.progress.Failed
 	return m, waitForAsyncImportMsg(m.syncEvents)
@@ -225,7 +229,8 @@ func (m importOverviewModel) handleSyncFinished(msg importSyncFinishedMsg) (impo
 	m.phase = phaseDone
 	m.result = msg.result
 	m.current = m.total
-	m.currentStage = ""
+	m.currentFile = ""
+	m.syncActivity = ""
 	m.syncEvents = nil
 	return m, nil
 }

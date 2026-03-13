@@ -1,0 +1,29 @@
+package codex
+
+const (
+	codexScanBufferSize = 1024 * 1024
+
+	recordTypeSessionMeta  = "session_meta"
+	recordTypeTurnContext  = "turn_context"
+	recordTypeResponseItem = "response_item"
+	recordTypeEventMsg     = "event_msg"
+
+	responseTypeMessage              = "message"
+	responseTypeReasoning            = "reasoning"
+	responseTypeFunctionCall         = "function_call"
+	responseTypeCustomToolCall       = "custom_tool_call"
+	responseTypeWebSearchCall        = "web_search_call"
+	responseTypeFunctionCallOutput   = "function_call_output"
+	responseTypeCustomToolCallOutput = "custom_tool_call_output"
+	responseRoleUser                 = "user"
+	responseRoleAssistant            = "assistant"
+	responseRoleDeveloper            = "developer"
+	eventTypeTokenCount              = "token_count"
+	eventTypeUserMessage             = "user_message"
+	eventTypeAgentMessage            = "agent_message"
+	eventTypeAgentReasoning          = "agent_reasoning"
+	eventTypeItemCompleted           = "item_completed"
+	eventTypeTaskComplete            = "task_complete"
+	eventItemTypePlan                = "Plan"
+	toolNameApplyPatch               = "apply_patch"
+)

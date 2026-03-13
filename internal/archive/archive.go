@@ -4,23 +4,28 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/rkuska/carn/internal/canonical"
-	"github.com/rkuska/carn/internal/source/claude"
+	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type Pipeline struct {
-	cfg    Config
-	source claude.Source
-	store  canonical.Store
+	cfg      Config
+	backends []src.Backend
+	store    canonical.Store
 }
 
-func New(cfg Config, source claude.Source, store canonical.Store) Pipeline {
+type configuredBackend struct {
+	sourceDir string
+	backend   src.Backend
+}
+
+func New(cfg Config, store canonical.Store, backends ...src.Backend) Pipeline {
 	return Pipeline{
-		cfg:    cfg,
-		source: source,
-		store:  store,
+		cfg:      cfg,
+		backends: backends,
+		store:    store,
 	}
 }
 
@@ -29,22 +34,34 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 		return ImportAnalysis{}, fmt.Errorf("analyze_ctx: %w", err)
 	}
 
-	projectDirs, err := claude.ListProjectDirs(p.cfg.SourceDir)
-	if err != nil {
-		return ImportAnalysis{}, fmt.Errorf("analyze_listProjectDirs: %w", err)
-	}
-
 	analysis := ImportAnalysis{
 		SourceDir:  p.cfg.SourceDir,
 		ArchiveDir: p.cfg.ArchiveDir,
-		Projects:   len(projectDirs),
 	}
 
-	queued, firstErr, err := p.analyzeProjects(ctx, projectDirs, &analysis, onProgress)
-	if err != nil {
-		return analysis, err
+	var firstErr error
+	for _, configured := range p.configuredBackends() {
+		providerAnalysis, err := configured.backend.Analyze(
+			ctx,
+			configured.sourceDir,
+			p.rawDir(configured.backend.Provider()),
+			func(progress src.Progress) {
+				p.reportProviderProgress(progress, analysis, onProgress)
+			},
+		)
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("analyze_%s: %w", configured.backend.Provider(), err)
+		}
+
+		analysis.FilesInspected += providerAnalysis.FilesInspected
+		analysis.Projects += providerAnalysis.UnitsTotal
+		analysis.Conversations += providerAnalysis.Conversations
+		analysis.NewConversations += providerAnalysis.NewConversations
+		analysis.ToUpdate += providerAnalysis.ToUpdate
+		analysis.UpToDate += providerAnalysis.UpToDate
+		analysis.QueuedFiles = append(analysis.QueuedFiles, providerAnalysis.SyncCandidates...)
 	}
-	analysis.QueuedFiles = dedupeStrings(queued)
+	analysis.QueuedFiles = dedupeStrings(analysis.QueuedFiles)
 
 	storeNeedsBuild, err := p.storeNeedsBuild(analysis)
 	if err != nil && firstErr == nil {
@@ -55,8 +72,28 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 	return analysis, nil
 }
 
-func (p Pipeline) rawDir() string {
-	return providerRawDir(p.cfg.ArchiveDir, p.source.Provider())
+func (p Pipeline) configuredBackends() []configuredBackend {
+	configured := make([]configuredBackend, 0, len(p.backends))
+	for _, backend := range p.backends {
+		if backend == nil {
+			continue
+		}
+
+		sourceDir := p.cfg.SourceDirFor(backend.Provider())
+		if sourceDir == "" {
+			continue
+		}
+
+		configured = append(configured, configuredBackend{
+			sourceDir: sourceDir,
+			backend:   backend,
+		})
+	}
+	return configured
+}
+
+func (p Pipeline) rawDir(provider conv.Provider) string {
+	return providerRawDir(p.cfg.ArchiveDir, provider)
 }
 
 func dedupeStrings(values []string) []string {
@@ -76,70 +113,8 @@ func dedupeStrings(values []string) []string {
 	return deduped
 }
 
-func (p Pipeline) analyzeProjects(
-	ctx context.Context,
-	projectDirs []string,
-	analysis *ImportAnalysis,
-	onProgress func(ImportProgress),
-) ([]string, error, error) {
-	queued := make([]string, 0)
-	var firstErr error
-
-	for i, projectDir := range projectDirs {
-		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("analyze_ctx: %w", err)
-		}
-
-		projectAnalysis, err := claude.AnalyzeProject(
-			p.cfg.SourceDir,
-			p.rawDir(),
-			projectDir,
-		)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("analyzeProject_%s: %w", filepath.Base(projectDir), err)
-			}
-			p.reportProjectError(i, projectDirs, projectDir, err, onProgress)
-			continue
-		}
-
-		analysis.FilesInspected += projectAnalysis.FilesInspected
-		analysis.NewConversations += projectAnalysis.NewConversations
-		analysis.ToUpdate += projectAnalysis.ToUpdate
-		analysis.UpToDate += projectAnalysis.UpToDate
-		analysis.Conversations += projectAnalysis.NewConversations +
-			projectAnalysis.ToUpdate +
-			projectAnalysis.UpToDate
-		queued = append(queued, projectAnalysis.SyncCandidates...)
-		p.reportProjectProgress(i, projectDirs, projectDir, *analysis, onProgress)
-	}
-
-	return queued, firstErr, nil
-}
-
-func (p Pipeline) reportProjectError(
-	index int,
-	projectDirs []string,
-	projectDir string,
-	err error,
-	onProgress func(ImportProgress),
-) {
-	if onProgress == nil {
-		return
-	}
-
-	onProgress(ImportProgress{
-		ProjectsCompleted: index + 1,
-		ProjectsTotal:     len(projectDirs),
-		CurrentProject:    filepath.Base(projectDir),
-		Err:               err,
-	})
-}
-
-func (p Pipeline) reportProjectProgress(
-	index int,
-	projectDirs []string,
-	projectDir string,
+func (p Pipeline) reportProviderProgress(
+	progress src.Progress,
 	analysis ImportAnalysis,
 	onProgress func(ImportProgress),
 ) {
@@ -148,26 +123,39 @@ func (p Pipeline) reportProjectProgress(
 	}
 
 	onProgress(ImportProgress{
-		ProjectsCompleted: index + 1,
-		ProjectsTotal:     len(projectDirs),
-		FilesInspected:    analysis.FilesInspected,
-		Conversations:     analysis.Conversations,
-		NewConversations:  analysis.NewConversations,
-		ToUpdate:          analysis.ToUpdate,
-		CurrentProject:    filepath.Base(projectDir),
+		Provider:          progress.Provider,
+		ProjectsCompleted: progress.UnitsCompleted,
+		ProjectsTotal:     progress.UnitsTotal,
+		FilesInspected:    analysis.FilesInspected + progress.FilesInspected,
+		Conversations:     analysis.Conversations + progress.Conversations,
+		NewConversations:  analysis.NewConversations + progress.NewConversations,
+		ToUpdate:          analysis.ToUpdate + progress.ToUpdate,
+		CurrentProject:    formatProgressUnit(progress.Provider, progress.CurrentUnit),
+		Err:               progress.Err,
 	})
 }
 
-func (p Pipeline) storeNeedsBuild(analysis ImportAnalysis) (bool, error) {
-	rawDirExists := false
-	if _, err := os.Stat(p.rawDir()); err == nil {
-		rawDirExists = true
+func formatProgressUnit(provider conv.Provider, unit string) string {
+	if unit == "" {
+		return string(provider)
 	}
+	return string(provider) + " / " + unit
+}
 
+func (p Pipeline) hasAnyRawFiles() bool {
+	for _, configured := range p.configuredBackends() {
+		if _, err := os.Stat(p.rawDir(configured.backend.Provider())); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (p Pipeline) storeNeedsBuild(analysis ImportAnalysis) (bool, error) {
 	storeNeedsBuild, err := p.store.NeedsRebuild(p.cfg.ArchiveDir)
 	if err != nil {
 		return false, fmt.Errorf("analyze_store.NeedsRebuild: %w", err)
 	}
-	hasFiles := rawDirExists || len(analysis.QueuedFiles) > 0
+	hasFiles := p.hasAnyRawFiles() || len(analysis.QueuedFiles) > 0
 	return hasFiles && storeNeedsBuild, nil
 }

@@ -49,7 +49,7 @@ func (m browserModel) renderListPane(width int, active bool) string {
 		borderColor = colorAccent
 	}
 	return renderFramedPane(
-		"Claude Sessions",
+		"Conversations",
 		width,
 		framedBodyHeight(m.height),
 		borderColor,

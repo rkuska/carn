@@ -4,37 +4,64 @@ import (
 	"fmt"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func (m browserModel) handleMsg(msg tea.Msg, cmds *[]tea.Cmd) browserModel {
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		return m.handleKeyMsg(keyMsg, cmds)
+	}
+
+	if next, handled := m.handleViewMsg(msg, cmds); handled {
+		return next
+	}
+	if next, handled := m.handleAsyncMsg(msg, cmds); handled {
+		return next
+	}
+	return m
+}
+
+func (m browserModel) handleViewMsg(msg tea.Msg, cmds *[]tea.Cmd) (browserModel, bool) {
 	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		return m.handleKeyMsg(msg, cmds)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m.updateLayout()
+		return m.updateLayout(), true
+	case notificationMsg:
+		return m.setNotification(msg.notification, cmds), true
+	case clearNotificationMsg:
+		return m.clearNotifications(), true
+	case spinner.TickMsg:
+		if !m.resyncSpinnerActive() {
+			return m, true
+		}
+		var cmd tea.Cmd
+		m.resyncSpinner, cmd = m.resyncSpinner.Update(msg)
+		appendCmd(cmds, cmd)
+		return m, true
+	}
+	return m, false
+}
+
+func (m browserModel) handleAsyncMsg(msg tea.Msg, cmds *[]tea.Cmd) (browserModel, bool) {
+	switch msg := msg.(type) {
 	case conversationsLoadedMsg:
-		return m.applyConversationsLoaded(msg, cmds)
+		return m.applyConversationsLoaded(msg, cmds), true
 	case sessionsLoadErrorMsg:
 		return m.setNotification(
 			errorNotification(fmt.Sprintf("load sessions failed: %v", msg.err)).notification,
 			cmds,
-		)
+		), true
 	case openViewerMsg:
-		return m.applyOpenViewer(msg)
+		return m.applyOpenViewer(msg), true
 	case deepSearchDebounceMsg:
-		return m.applyDeepSearchDebounce(msg, cmds)
+		return m.applyDeepSearchDebounce(msg, cmds), true
 	case deepSearchResultMsg:
-		return m.applyDeepSearchResult(msg, cmds)
-	case notificationMsg:
-		return m.setNotification(msg.notification, cmds)
-	case clearNotificationMsg:
-		return m.clearNotifications()
+		return m.applyDeepSearchResult(msg, cmds), true
 	}
-	return m
+	return m, false
 }
 
 func (m browserModel) handleKeyMsg(msg tea.KeyPressMsg, cmds *[]tea.Cmd) browserModel {
@@ -89,6 +116,9 @@ func (m browserModel) applyDeepSearchResult(
 	msg deepSearchResultMsg,
 	cmds *[]tea.Cmd,
 ) browserModel {
+	if !m.matchesActiveDeepSearch(msg) {
+		return m
+	}
 	if msg.err != nil {
 		m.search.status = searchStatusIdle
 		m.searchCancel = nil
@@ -110,17 +140,18 @@ func (m browserModel) applyDeepSearchResult(
 			cmds,
 		)
 	}
-	if m.search.mode == searchModeDeep &&
+	m.search.appliedRevision = msg.revision
+	m.search.status = searchStatusIdle
+	m.searchCancel = nil
+	m = m.setDelegateHeight(delegateHeightDeepSearch)
+	m = m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), cmds)
+	return m.syncTranscriptSelection(cmds)
+}
+
+func (m browserModel) matchesActiveDeepSearch(msg deepSearchResultMsg) bool {
+	return m.search.mode == searchModeDeep &&
 		msg.revision == m.search.revision &&
-		msg.query == m.search.query {
-		m.search.appliedRevision = msg.revision
-		m.search.status = searchStatusIdle
-		m.searchCancel = nil
-		m = m.setDelegateHeight(delegateHeightDeepSearch)
-		m = m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), cmds)
-		return m.syncTranscriptSelection(cmds)
-	}
-	return m
+		msg.query == m.search.query
 }
 
 func (m browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
@@ -195,7 +226,7 @@ func (m browserModel) handleListActionKey(msg tea.KeyPressMsg) (browserModel, te
 		}
 	case key.Matches(msg, browserKeys.Resume):
 		if conv, ok := m.selectedConversation(); ok {
-			return m, resumeSessionCmd(conv.ResumeID(), conv.ResumeCWD())
+			return m, resumeSessionCmd(conv.ResumeTarget(), m.launcher)
 		}
 	case key.Matches(msg, browserKeys.Resync):
 		if !m.resync.active {

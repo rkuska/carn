@@ -2,7 +2,9 @@ package canonical
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"runtime"
@@ -54,29 +56,18 @@ func (c searchCorpus) String(i int) string {
 func rebuildCanonicalStore(
 	ctx context.Context,
 	archiveDir string,
-	provider conversationProvider,
-	source Source,
-	changedRawPaths []string,
+	sources sourceRegistry,
+	changedRawPaths map[conversationProvider][]string,
 ) error {
-	rawDir := providerRawDir(archiveDir, provider)
-	if _, err := statDir(rawDir); err != nil {
-		return fmt.Errorf("statDir_raw: %w", err)
-	}
-
-	conversations, err := source.Scan(ctx, rawDir)
+	conversations, err := scanRegisteredConversations(ctx, archiveDir, sources)
 	if err != nil {
-		return fmt.Errorf("source.Scan: %w", err)
-	}
-	for i := range conversations {
-		conversations[i].Ref = conversationRef{
-			Provider: provider,
-			ID:       buildConversationStoreKey(rawDir, provider, conversations[i]),
-		}
+		return fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
-	if len(changedRawPaths) > 0 {
-		transcripts, corpus, err := tryIncrementalRebuild(
-			ctx, archiveDir, source, conversations, changedRawPaths,
+	flattenedChangedPaths := flattenChangedPaths(changedRawPaths)
+	if len(flattenedChangedPaths) > 0 {
+		transcripts, corpus, err := tryIncrementalRebuildWithSources(
+			ctx, archiveDir, sources, conversations, flattenedChangedPaths,
 		)
 		if err == nil {
 			setPlanCounts(conversations, transcripts)
@@ -85,9 +76,9 @@ func rebuildCanonicalStore(
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
 
-	transcripts, corpus, err := fullRebuild(ctx, source, conversations)
+	transcripts, corpus, err := fullRebuildWithSources(ctx, sources, conversations)
 	if err != nil {
-		return fmt.Errorf("fullRebuild: %w", err)
+		return fmt.Errorf("fullRebuildWithSources: %w", err)
 	}
 
 	setPlanCounts(conversations, transcripts)
@@ -102,12 +93,63 @@ func rebuildCanonicalStore(
 	return nil
 }
 
-func fullRebuild(
+func scanRegisteredConversations(
 	ctx context.Context,
-	source Source,
+	archiveDir string,
+	sources sourceRegistry,
+) ([]conversation, error) {
+	conversations := make([]conversation, 0)
+	for _, source := range sources.providers() {
+		provider := conversationProvider(source.Provider())
+		rawDir := providerRawDir(archiveDir, provider)
+		if _, err := statDir(rawDir); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("statDir_%s: %w", provider, err)
+		}
+
+		scanned, err := source.Scan(ctx, rawDir)
+		if err != nil {
+			return nil, fmt.Errorf("source.Scan_%s: %w", provider, err)
+		}
+
+		for i := range scanned {
+			scanned[i].Ref = conversationRef{
+				Provider: provider,
+				ID:       buildConversationStoreKey(rawDir, provider, scanned[i]),
+			}
+		}
+		conversations = append(conversations, scanned...)
+	}
+	return conversations, nil
+}
+
+func flattenChangedPaths(changedRawPaths map[conversationProvider][]string) []string {
+	if len(changedRawPaths) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	flattened := make([]string, 0)
+	for _, paths := range changedRawPaths {
+		for _, path := range paths {
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			flattened = append(flattened, path)
+		}
+	}
+	return flattened
+}
+
+func fullRebuildWithSources(
+	ctx context.Context,
+	sources sourceRegistry,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
-	transcripts, corpus, err := parseConversationsParallel(ctx, source, conversations)
+	transcripts, corpus, err := parseConversationsParallelWithSources(ctx, sources, conversations)
 	if err != nil {
 		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallel: %w", err)
 	}
@@ -117,6 +159,14 @@ func fullRebuild(
 func parseConversationsParallel(
 	ctx context.Context,
 	source Source,
+	conversations []conversation,
+) (map[string]sessionFull, searchCorpus, error) {
+	return parseConversationsParallelWithSources(ctx, newSourceRegistry(source), conversations)
+}
+
+func parseConversationsParallelWithSources(
+	ctx context.Context,
+	sources sourceRegistry,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
 	transcripts := make(map[string]sessionFull, len(conversations))
@@ -138,9 +188,9 @@ func parseConversationsParallel(
 			}
 			defer sem.Release(1)
 
-			session, err := source.Load(groupCtx, conv)
+			session, err := loadConversationSession(groupCtx, sources, conv)
 			if err != nil {
-				return fmt.Errorf("source.Load_%s: %w", conv.CacheKey(), err)
+				return fmt.Errorf("loadConversationSession_%s: %w", conv.CacheKey(), err)
 			}
 
 			key := conv.CacheKey()
@@ -169,10 +219,27 @@ func parseConversationsParallel(
 	return transcripts, corpus, nil
 }
 
-func tryIncrementalRebuild(
+func loadConversationSession(
+	ctx context.Context,
+	sources sourceRegistry,
+	conv conversation,
+) (sessionFull, error) {
+	source, ok := sources.lookup(conversationProvider(conv.Ref.Provider))
+	if !ok {
+		return sessionFull{}, fmt.Errorf("loadConversationSession: %w", errors.New("provider is not registered"))
+	}
+
+	session, err := source.Load(ctx, conv)
+	if err != nil {
+		return sessionFull{}, fmt.Errorf("source.Load: %w", err)
+	}
+	return session, nil
+}
+
+func tryIncrementalRebuildWithSources(
 	ctx context.Context,
 	archiveDir string,
-	source Source,
+	sources sourceRegistry,
 	conversations []conversation,
 	changedRawPaths []string,
 ) (map[string]sessionFull, searchCorpus, error) {
@@ -203,9 +270,9 @@ func tryIncrementalRebuild(
 		session, err := readTranscriptFile(storeTranscriptPath(storeDir, key))
 		if err != nil {
 			log.Debug().Err(err).Msgf("incremental rebuild: cannot read transcript %s, re-parsing", key)
-			session, err = source.Load(ctx, conv)
+			session, err = loadConversationSession(ctx, sources, conv)
 			if err != nil {
-				return nil, searchCorpus{}, fmt.Errorf("source.Load_fallback: %w", err)
+				return nil, searchCorpus{}, fmt.Errorf("loadConversationSession_fallback: %w", err)
 			}
 			transcripts[key] = session
 			corpus.units = append(corpus.units, buildSearchUnits(key, session)...)
@@ -219,7 +286,7 @@ func tryIncrementalRebuild(
 	toParse = append(toParse, plan.changed...)
 	toParse = append(toParse, plan.added...)
 
-	parsedTranscripts, parsedCorpus, err := parseConversationsParallel(ctx, source, toParse)
+	parsedTranscripts, parsedCorpus, err := parseConversationsParallelWithSources(ctx, sources, toParse)
 	if err != nil {
 		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallel: %w", err)
 	}

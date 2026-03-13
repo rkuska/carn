@@ -66,6 +66,7 @@ func testBrowserSessionLong(id string, keyword string) conv.Session {
 
 func testConv(id string) conv.Conversation {
 	return conv.Conversation{
+		Ref:     conv.Ref{Provider: conv.ProviderClaude, ID: id},
 		Name:    "test-slug",
 		Project: conv.Project{DisplayName: "test"},
 		Sessions: []conv.SessionMeta{
@@ -81,6 +82,7 @@ func testConv(id string) conv.Conversation {
 
 func testLongConv(id string) conv.Conversation {
 	return conv.Conversation{
+		Ref:  conv.Ref{Provider: conv.ProviderClaude, ID: id},
 		Name: "very-long-conversation-name-that-should-wrap-in-the-split-pane-because-the-list-is-narrow",
 		Project: conv.Project{
 			DisplayName: "Projects/claude-search/with-a-very-long-project-name",

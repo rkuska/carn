@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	arch "github.com/rkuska/carn/internal/archive"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -18,12 +19,11 @@ const (
 )
 
 type browserResyncState struct {
-	active      bool
-	phase       resyncPhase
-	current     int
-	total       int
-	stage       string
-	currentFile string
+	active   bool
+	phase    resyncPhase
+	current  int
+	total    int
+	activity arch.SyncActivity
 }
 
 func (m browserModel) requestResyncCmd() tea.Cmd {
@@ -77,12 +77,19 @@ func (m browserModel) resyncStatusParts() []string {
 	case resyncPhaseAnalyzing:
 		parts = append(parts, "analyzing")
 	case resyncPhaseSyncing:
-		if m.resync.stage != "" {
-			parts = append(parts, m.resync.stage)
+		if m.resync.activity == arch.SyncActivityRebuildingStore {
+			parts = append(parts, m.resyncSpinner.View(), resyncSyncActivityLabel(m.resync.activity))
+			return parts
 		}
 		if m.resync.total > 0 {
 			parts = append(parts, fmt.Sprintf("%d/%d", m.resync.current, m.resync.total))
 		}
 	}
 	return parts
+}
+
+func (m browserModel) resyncSpinnerActive() bool {
+	return m.resync.active &&
+		m.resync.phase == resyncPhaseSyncing &&
+		m.resync.activity == arch.SyncActivityRebuildingStore
 }

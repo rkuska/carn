@@ -96,18 +96,20 @@ func openConversationCmdCachedWithStore(
 	}
 }
 
-func exportTranscriptCmd(session conv.Session, opts transcriptOptions, planExpanded bool) tea.Cmd {
+func exportTranscriptCmd(
+	conversation conv.Conversation,
+	session conv.Session,
+	opts transcriptOptions,
+	planExpanded bool,
+) tea.Cmd {
 	return func() tea.Msg {
 		text := renderVisibleConversation(session, opts, planExpanded)
-		return exportText(text, session.Meta)
+		return exportText(text, conversation, session.Meta)
 	}
 }
 
-func exportText(text string, meta conv.SessionMeta) notificationMsg {
-	name := fmt.Sprintf("claude-session-%s.md", meta.Slug)
-	if meta.Slug == "" {
-		name = fmt.Sprintf("claude-session-%s.md", meta.ID[:8])
-	}
+func exportText(text string, conversation conv.Conversation, meta conv.SessionMeta) notificationMsg {
+	name := conversationExportFileName(conversation, meta)
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -154,17 +156,17 @@ func copyTextCmd(text string, successMessage string) tea.Cmd {
 	}
 }
 
-func resumeSessionCmd(sessionID, cwd string) tea.Cmd {
-	cmd, err := newResumeExecCmd(sessionID, cwd)
+func resumeSessionCmd(target conv.ResumeTarget, launcher sessionLauncher) tea.Cmd {
+	cmd, err := launcher.ResumeCommand(target)
 	if err != nil {
-		return notificationCmd(resumeErrorNotification(err, cwd))
+		return notificationCmd(resumeErrorNotification(err, target.CWD))
 	}
 
 	return tea.ExecProcess(
 		cmd,
 		func(err error) tea.Msg {
 			if err != nil {
-				return resumeErrorNotification(err, cwd)
+				return resumeErrorNotification(err, target.CWD)
 			}
 			return nil
 		},

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type notificationKind string
@@ -29,11 +29,6 @@ type notificationMsg struct {
 }
 
 type clearNotificationMsg struct{}
-
-var (
-	errResumeDirEmpty        = errors.New("resume directory is empty")
-	errResumeDirNotDirectory = errors.New("resume directory is not a directory")
-)
 
 func newNotification(kind notificationKind, text string) notificationMsg {
 	return notificationMsg{
@@ -98,32 +93,18 @@ func renderNotification(n notification) string {
 	return style.Render(n.text)
 }
 
-func newResumeExecCmd(sessionID, cwd string) (*exec.Cmd, error) {
-	if cwd == "" {
-		return nil, fmt.Errorf("newResumeExecCmd: %w", errResumeDirEmpty)
-	}
-
-	info, err := os.Stat(cwd)
-	if err != nil {
-		return nil, fmt.Errorf("newResumeExecCmd_osStat: %w", err)
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("newResumeExecCmd: %w", errResumeDirNotDirectory)
-	}
-
-	cmd := exec.Command("claude", "--resume", sessionID)
-	cmd.Dir = cwd
-	return cmd, nil
-}
-
 func resumeErrorNotification(err error, cwd string) notificationMsg {
 	switch {
-	case errors.Is(err, errResumeDirEmpty):
+	case errors.Is(err, src.ErrResumeDirEmpty):
 		return errorNotification("resume failed: session working directory is unavailable")
+	case errors.Is(err, src.ErrResumeTargetIDEmpty):
+		return errorNotification("resume failed: session id is unavailable")
 	case errors.Is(err, os.ErrNotExist):
 		return errorNotification(fmt.Sprintf("resume failed: directory not found: %s", cwd))
-	case errors.Is(err, errResumeDirNotDirectory):
+	case errors.Is(err, src.ErrResumeDirNotDir):
 		return errorNotification(fmt.Sprintf("resume failed: not a directory: %s", cwd))
+	case errors.Is(err, errResumeProviderUnavailable):
+		return errorNotification("resume failed: provider is unavailable")
 	default:
 		return errorNotification(fmt.Sprintf("resume failed: %v", err))
 	}

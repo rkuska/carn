@@ -9,6 +9,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,24 +62,85 @@ func TestExportTextReturnsSuccessNotification(t *testing.T) {
 	require.NoError(t, os.Mkdir(desktopDir, 0o755))
 	t.Setenv("HOME", homeDir)
 
-	msg := exportText("hello export", conv.SessionMeta{
-		ID:   "session-12345678",
-		Slug: "demo-session",
-	})
+	conversation := conv.Conversation{
+		Ref: conv.Ref{Provider: conv.ProviderClaude, ID: "session-12345678"},
+		Sessions: []conv.SessionMeta{{
+			ID:       "session-12345678",
+			Slug:     "demo-session",
+			FilePath: "/tmp/demo.jsonl",
+		}},
+	}
+	msg := exportText("hello export", conversation, conversation.Sessions[0])
 
 	assert.Equal(t, notificationSuccess, msg.notification.kind)
 	assert.Contains(t, msg.notification.text, "exported to ")
 
-	outPath := filepath.Join(desktopDir, "claude-session-demo-session.md")
+	outPath := filepath.Join(desktopDir, "conversation-claude-demo-session.md")
 	content, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 	assert.Equal(t, "hello export", string(content))
 }
 
+func TestConversationExportFileNameUsesProviderAwareGenericName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "conversation-codex-import-codex-sessions.md", conversationExportFileName(
+		conv.Conversation{
+			Ref: conv.Ref{Provider: conv.ProviderCodex},
+			Sessions: []conv.SessionMeta{{
+				ID:       "session-12345678",
+				Slug:     "Import Codex sessions",
+				FilePath: "/tmp/codex-session.jsonl",
+			}},
+		},
+		conv.SessionMeta{
+			ID:       "session-12345678",
+			Slug:     "Import Codex sessions",
+			FilePath: "/tmp/codex-session.jsonl",
+		},
+	))
+	assert.Equal(t, "conversation-claude-session.md", conversationExportFileName(
+		conv.Conversation{
+			Ref: conv.Ref{Provider: conv.ProviderClaude},
+			Sessions: []conv.SessionMeta{{
+				ID:       "session-12345678",
+				FilePath: "/tmp/claude/session-12.jsonl",
+			}},
+		},
+		conv.SessionMeta{
+			ID:       "session-12345678",
+			FilePath: "/tmp/claude/session-12.jsonl",
+		},
+	))
+}
+
+func TestRawExportFileNameUsesProviderAwareGenericName(t *testing.T) {
+	t.Parallel()
+
+	conversation := conv.Conversation{
+		Ref: conv.Ref{Provider: conv.ProviderCodex},
+		Sessions: []conv.SessionMeta{{
+			ID:       "session-12345678",
+			Slug:     "Import Codex sessions",
+			FilePath: "/tmp/codex/session-12.jsonl",
+		}},
+	}
+	session := conv.Session{Meta: conversation.Sessions[0]}
+
+	assert.Equal(
+		t,
+		"conversation-codex-import-codex-sessions.raw.jsonl",
+		rawExportFileName(conversation, session),
+	)
+}
+
 func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
 	t.Parallel()
 
-	cmd := resumeSessionCmd("session-123", "")
+	cmd := resumeSessionCmd(conv.ResumeTarget{
+		Provider: conv.ProviderClaude,
+		ID:       "session-123",
+	}, newSessionLauncher(claude.New()))
 	msg := cmd()
 
 	notification := requireMsgType[notificationMsg](t, msg)

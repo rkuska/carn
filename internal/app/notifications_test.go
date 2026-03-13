@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
+	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +60,7 @@ func TestResumeErrorNotification(t *testing.T) {
 	}{
 		{
 			name: "empty cwd",
-			err:  errResumeDirEmpty,
+			err:  src.ErrResumeDirEmpty,
 			want: "resume failed: session working directory is unavailable",
 		},
 		{
@@ -68,7 +71,7 @@ func TestResumeErrorNotification(t *testing.T) {
 		},
 		{
 			name: "path is not directory",
-			err:  errResumeDirNotDirectory,
+			err:  src.ErrResumeDirNotDir,
 			cwd:  "/tmp/file.txt",
 			want: "resume failed: not a directory: /tmp/file.txt",
 		},
@@ -93,12 +96,18 @@ func TestResumeErrorNotification(t *testing.T) {
 func TestNewResumeExecCmd(t *testing.T) {
 	t.Parallel()
 
+	launcher := newSessionLauncher(claude.New())
+
 	t.Run("valid directory configures command", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
 
-		cmd, err := newResumeExecCmd("session-123", dir)
+		cmd, err := launcher.ResumeCommand(conv.ResumeTarget{
+			Provider: conv.ProviderClaude,
+			ID:       "session-123",
+			CWD:      dir,
+		})
 		require.NoError(t, err)
 		assert.Equal(t, dir, cmd.Dir)
 
@@ -110,9 +119,12 @@ func TestNewResumeExecCmd(t *testing.T) {
 	t.Run("empty cwd fails", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := newResumeExecCmd("session-123", "")
+		_, err := launcher.ResumeCommand(conv.ResumeTarget{
+			Provider: conv.ProviderClaude,
+			ID:       "session-123",
+		})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errResumeDirEmpty)
+		assert.ErrorIs(t, err, src.ErrResumeDirEmpty)
 	})
 
 	t.Run("missing directory fails", func(t *testing.T) {
@@ -120,7 +132,11 @@ func TestNewResumeExecCmd(t *testing.T) {
 
 		missingDir := filepath.Join(t.TempDir(), "missing")
 
-		_, err := newResumeExecCmd("session-123", missingDir)
+		_, err := launcher.ResumeCommand(conv.ResumeTarget{
+			Provider: conv.ProviderClaude,
+			ID:       "session-123",
+			CWD:      missingDir,
+		})
 		require.Error(t, err)
 		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
@@ -132,8 +148,12 @@ func TestNewResumeExecCmd(t *testing.T) {
 		filePath := filepath.Join(dir, "session.txt")
 		require.NoError(t, os.WriteFile(filePath, []byte("x"), 0o644))
 
-		_, err := newResumeExecCmd("session-123", filePath)
+		_, err := launcher.ResumeCommand(conv.ResumeTarget{
+			Provider: conv.ProviderClaude,
+			ID:       "session-123",
+			CWD:      filePath,
+		})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, errResumeDirNotDirectory)
+		assert.ErrorIs(t, err, src.ErrResumeDirNotDir)
 	})
 }
