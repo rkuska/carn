@@ -3,7 +3,6 @@ package archive
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -45,7 +44,7 @@ func providerRawDir(archiveDir string, provider conv.Provider) string {
 
 func buildSyncCandidate(provider conv.Provider, plan src.SyncCandidate) syncCandidate {
 	status := syncStatusUpdated
-	if _, err := os.Stat(plan.DestPath); os.IsNotExist(err) {
+	if !plan.DestExists {
 		status = syncStatusNew
 	}
 

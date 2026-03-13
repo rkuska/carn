@@ -124,16 +124,6 @@ func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 	}, conversations[1].Ref.ID)
 }
 
-func TestStoreTranscriptPathHashesConversationCacheKey(t *testing.T) {
-	t.Parallel()
-
-	storeDir := t.TempDir()
-	path := storeTranscriptPath(storeDir, "claude:path:project-a/session-with-subagent/subagents/agent-1.jsonl")
-	assert.Equal(t, "transcripts", filepath.Base(filepath.Dir(path)))
-	assert.NotContains(t, path, "session-with-subagent/subagents")
-	assert.Regexp(t, `transcripts/[0-9a-f]+\.bin$`, filepath.ToSlash(path))
-}
-
 func testProviderConversation(
 	provider conversationProvider,
 	sessionID string,

@@ -31,6 +31,7 @@ type Analysis struct {
 type SyncCandidate struct {
 	SourcePath string
 	DestPath   string
+	DestExists bool
 }
 
 // Progress reports provider-local analysis progress using provider-neutral terms.
@@ -56,6 +57,32 @@ type Backend interface {
 	Analyze(ctx context.Context, sourceDir, rawDir string, onProgress func(Progress)) (Analysis, error)
 	SyncCandidates(ctx context.Context, sourceDir, rawDir string) ([]SyncCandidate, error)
 	ResumeCommand(target conv.ResumeTarget) (*exec.Cmd, error)
+}
+
+// IncrementalLookup provides canonical-store conversation lookups for
+// provider-local targeted rebuild resolution.
+type IncrementalLookup interface {
+	ConversationByFilePath(ctx context.Context, provider conv.Provider, filePath string) (conv.Conversation, bool, error)
+	ConversationBySessionID(ctx context.Context, provider conv.Provider, sessionID string) (conv.Conversation, bool, error)
+	ConversationByCacheKey(ctx context.Context, cacheKey string) (conv.Conversation, bool, error)
+}
+
+// IncrementalResolution describes the exact conversations that should be
+// replaced during a targeted canonical rebuild.
+type IncrementalResolution struct {
+	Conversations    []conv.Conversation
+	ReplaceCacheKeys []string
+}
+
+// IncrementalResolver is an optional provider hook for targeted canonical
+// rebuilds driven by changed raw paths.
+type IncrementalResolver interface {
+	ResolveIncremental(
+		ctx context.Context,
+		rawDir string,
+		changedRawPaths []string,
+		lookup IncrementalLookup,
+	) (IncrementalResolution, error)
 }
 
 // ValidateResumeTarget applies the shared strict resume policy.

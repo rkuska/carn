@@ -187,6 +187,7 @@ func TestCollectSyncCandidatesUsesBackendPlan(t *testing.T) {
 			syncCandidates: []src.SyncCandidate{{
 				SourcePath: filepath.Join(sourceDir, "proj", "a.jsonl"),
 				DestPath:   filepath.Join(destDir, "proj", "a.jsonl"),
+				DestExists: false,
 			}},
 		},
 		sourceDir,

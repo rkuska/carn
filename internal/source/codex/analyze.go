@@ -69,7 +69,7 @@ func (Source) SyncCandidates(
 			return nil, fmt.Errorf("syncCandidates_ctx: %w", err)
 		}
 
-		destPath, needsSync, err := codexDestPathIfStale(sourceDir, rawDir, path)
+		destPath, needsSync, exists, err := codexDestPathIfStale(sourceDir, rawDir, path)
 		if err != nil {
 			return nil, fmt.Errorf("codexDestPathIfStale_%s: %w", filepath.Base(path), err)
 		}
@@ -79,6 +79,7 @@ func (Source) SyncCandidates(
 		candidates = append(candidates, src.SyncCandidate{
 			SourcePath: path,
 			DestPath:   destPath,
+			DestExists: exists,
 		})
 	}
 	return candidates, nil
@@ -115,12 +116,12 @@ func analyzePath(sourceDir, rawDir, path string, analysis *src.Analysis) error {
 	return nil
 }
 
-func codexDestPathIfStale(sourceDir, rawDir, path string) (string, bool, error) {
-	destPath, needsSync, _, err := codexSyncStatus(sourceDir, rawDir, path)
+func codexDestPathIfStale(sourceDir, rawDir, path string) (string, bool, bool, error) {
+	destPath, needsSync, exists, err := codexSyncStatus(sourceDir, rawDir, path)
 	if err != nil {
-		return "", false, err
+		return "", false, false, err
 	}
-	return destPath, needsSync, nil
+	return destPath, needsSync, exists, nil
 }
 
 func codexSyncStatus(sourceDir, rawDir, path string) (string, bool, bool, error) {

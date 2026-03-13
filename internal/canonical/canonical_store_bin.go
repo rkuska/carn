@@ -75,14 +75,6 @@ func readString(r *bufio.Reader) (string, error) {
 	return string(buf), nil
 }
 
-func readFixedString(r *bufio.Reader, length int) (string, error) {
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return "", fmt.Errorf("io.ReadFull: %w", err)
-	}
-	return string(buf), nil
-}
-
 func writeUint(w *bufio.Writer, value uint64) error {
 	var buf [binary.MaxVarintLen64]byte
 	n := binary.PutUvarint(buf[:], value)
@@ -256,8 +248,4 @@ func (bw *binWriter) writeStringIntMap(value map[string]int) {
 
 func unixTime(value int64) time.Time {
 	return time.Unix(0, value).UTC()
-}
-
-func errInvalidMagic(name string) error {
-	return fmt.Errorf("invalid %s magic", name)
 }

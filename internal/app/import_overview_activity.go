@@ -9,24 +9,11 @@ import (
 )
 
 func (m importOverviewModel) renderActivityBlock(width int) string {
-	lines := m.activityLines(width)
-	if m.shouldCenterActivityBlock() {
-		return renderCenteredImportActivityBlock(lines, width)
+	lines := m.activityLines(importActivityContentWidth(width))
+	if len(lines) == 0 {
+		return ""
 	}
-	return "\n" + strings.Join(lines, "\n")
-}
-
-func (m importOverviewModel) shouldCenterActivityBlock() bool {
-	switch m.phase {
-	case phaseReady:
-		return m.analysis.Err == nil
-	case phaseDone:
-		return true
-	case phaseAnalyzing, phaseSyncing:
-		return false
-	}
-
-	return false
+	return "\n\n" + renderCenteredImportActivityBlock(lines, width)
 }
 
 func (m importOverviewModel) activityLines(width int) []string {
@@ -115,10 +102,7 @@ func (m importOverviewModel) renderProgressLine(width int, label string) string 
 }
 
 func (m importOverviewModel) renderSpinnerLine(width int, label string) string {
-	return centerImportBlock(
-		ansi.Hardwrap(fmt.Sprintf("%s %s", m.spinner.View(), label), width, false),
-		width,
-	)
+	return ansi.Hardwrap(fmt.Sprintf("%s %s", m.spinner.View(), label), width, false)
 }
 
 func renderCenteredImportActivityBlock(lines []string, width int) string {
@@ -126,5 +110,9 @@ func renderCenteredImportActivityBlock(lines []string, width int) string {
 		return ""
 	}
 
-	return "\n\n" + centerImportBlock(strings.Join(lines, "\n"), width)
+	return centerImportBlock(strings.Join(lines, "\n"), width)
+}
+
+func importActivityContentWidth(width int) int {
+	return max(width-4, min(width, 12))
 }
