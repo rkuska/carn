@@ -1,6 +1,7 @@
 # càrn
 
-càrn is a tool that provides additional functionality over ~/.claude/projects files that hold sessions from claude locally.
+càrn is a tool that provides additional functionality over local Claude and
+Codex session archives.
 
 
 ## Architecture
@@ -11,22 +12,33 @@ Code is split by ownership under `internal/`.
 - `internal/conversation/` owns shared conversation/session/message/plan types
   and presentation helpers.
 - `internal/source/claude/` owns Claude raw-source scan, parse, grouping,
-  projection, and source-side import analysis.
-- `internal/canonical/` owns the Canonical Store, rebuild/load logic, codecs,
-  transcript persistence, and deep search.
+  projection, source-side import analysis, and targeted incremental rebuild
+  resolution.
+- `internal/source/codex/` owns Codex raw-source scan, parse, grouping,
+  projection, source-side import analysis, and targeted incremental rebuild
+  resolution.
+- `internal/source/` owns the provider-neutral backend contract shared by app,
+  archive, and canonical.
+- `internal/canonical/` owns the SQLite Canonical Store, rebuild/load logic,
+  transcript codecs, transcript persistence, targeted incremental rebuilds,
+  and FTS deep search.
 - `internal/archive/` owns sync, import analysis, and pipeline orchestration.
 
-Source: `~/.claude/projects/`, archive: `~/.local/share/carn/`.
+Sources: `~/.claude/projects/`, `~/.codex/sessions/`, archive:
+`~/.local/share/carn/`.
 
 ### Data pipeline
 
 ```
-~/.claude/projects/**/*.jsonl (raw sessions)
-  → source/claude.Scan()          raw scan, metadata extraction, grouping
-  → canonical.Store.Rebuild()     binary cache with transcript + search data
-  → canonical.Store.List/Load()   browser list and transcript open
-  → canonical.Store.DeepSearch()  canonical deep search
-  → archive.Pipeline.Analyze/Run() import analysis and sync flow
+<provider raw sessions>
+  → source.Backend.Scan()/ResolveIncremental()
+                                 raw scan, metadata extraction, grouping
+  → canonical.Store.RebuildAll() SQLite canonical store with transcript blobs
+                                 and FTS search data
+  → canonical.Store.List/Load()  browser list and transcript open
+  → canonical.Store.DeepSearch() canonical deep search
+  → archive.Pipeline.Analyze/Run()
+                                 provider-aware import analysis and sync flow
   → app browser/viewer/transcript TUI
 ```
 
@@ -46,6 +58,10 @@ Source: `~/.claude/projects/`, archive: `~/.local/share/carn/`.
 **Shared conversation model**: `internal/conversation/*.go`
 
 **Claude source backend**: `internal/source/claude/*.go`
+
+**Codex source backend**: `internal/source/codex/*.go`
+
+**Provider-neutral source contract**: `internal/source/source.go`
 
 **Canonical Store backend**: `internal/canonical/*.go`
 
@@ -224,7 +240,7 @@ go fix ./...
 Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
 go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents)$' -benchmem ./internal/source/claude
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
+go test -run '^$' -bench 'Benchmark(LoadCatalogCold|LoadCatalogWarm|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
 go test -run '^$' -bench 'Benchmark(ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
 ```
@@ -267,7 +283,7 @@ We write unit tests to test small (but complex) functions (both private and publ
 * avoid if's in tests (most common: `if testCase.ExpectError`) instead write separate tests
 * use t.Run and t.Parallel
 
-### Scenarions
+### Scenarios
 
 We write scenarios as tests to test overall architecture. The test are written to test the whole flow of business
 logic. They exist in scenarios/ folder. 
@@ -278,12 +294,12 @@ logic. They exist in scenarios/ folder.
 
 ### Test data and fixtures
 
-* tests must not read pre-existing files from `~/.claude/projects`, the current home directory, or any other host-specific location
+* tests must not read pre-existing files from `~/.claude/projects`, `~/.codex/sessions`, the current home directory, or any other host-specific location
 * use committed sanitized fixtures under `testdata/` when you need raw session coverage
 * `t.TempDir()` is allowed for scratch space, but the source data copied into it must come from the repository
 * test fixtures and goldens must not contain author-specific usernames, local project names, private transcript content, or machine-specific temp paths
 * when snapshotting UI output, normalize unstable paths so golden files stay portable across machines
-* write generators for objects in `helpers/generators.go` when you need various objects for tests
+* write generators for objects in `scenarios/helpers/generators.go` when you need various objects for tests
 
 
 ## Commit messages
