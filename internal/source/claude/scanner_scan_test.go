@@ -76,3 +76,16 @@ func TestSourceOwnsClaudeSourceConfigAndSyncCandidates(t *testing.T) {
 		candidates[0].DestPath,
 	)
 }
+
+func TestSourceScanSkipsCommandOnlySession(t *testing.T) {
+	t.Parallel()
+
+	baseDir := copyScannerFixtureCorpus(t)
+
+	conversations, err := New().Scan(context.Background(), baseDir)
+	require.NoError(t, err)
+
+	for _, conversation := range conversations {
+		assert.NotEqual(t, "command-only", conversation.Name)
+	}
+}
