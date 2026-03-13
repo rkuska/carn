@@ -190,6 +190,85 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 	}, m.resumeTarget())
 }
 
+func TestViewerUsesMainTargetsWhenConversationContainsGroupedSubagent(t *testing.T) {
+	t.Parallel()
+
+	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
+		Name:    "test-slug",
+		Project: conversation.Project{DisplayName: "test"},
+		Sessions: []conversation.SessionMeta{
+			{
+				ID:        "main-id",
+				Project:   conversation.Project{DisplayName: "test"},
+				Timestamp: time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				FilePath:  "/tmp/main.jsonl",
+				CWD:       "/tmp/main",
+			},
+			{
+				ID:         "child-id",
+				Project:    conversation.Project{DisplayName: "test"},
+				Timestamp:  time.Date(2026, 3, 6, 14, 31, 0, 0, time.UTC),
+				FilePath:   "/tmp/child.jsonl",
+				CWD:        "/tmp/child",
+				IsSubagent: true,
+			},
+		},
+	}
+	session := conversation.Session{
+		Meta:     conv.Sessions[0],
+		Messages: []conversation.Message{{Role: conversation.RoleUser, Text: "hello"}},
+	}
+
+	m := newViewerModel(session, conv, "dark", 120, 40)
+
+	assert.Equal(t, "/tmp/main.jsonl", m.editorFilePath())
+	assert.Equal(t, conversation.ResumeTarget{
+		ID:       "main-id",
+		CWD:      "/tmp/main",
+		Provider: conversation.ProviderCodex,
+	}, m.resumeTarget())
+}
+
+func TestRenderConversationHeaderDoesNotCountGroupedSubagentAsPart(t *testing.T) {
+	t.Parallel()
+
+	conv := conversation.Conversation{
+		Ref:     conversation.Ref{Provider: conversation.ProviderCodex},
+		Name:    "test-slug",
+		Project: conversation.Project{DisplayName: "test"},
+		Sessions: []conversation.SessionMeta{
+			{
+				ID:            "main-id",
+				Project:       conversation.Project{DisplayName: "test"},
+				Timestamp:     time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC),
+				LastTimestamp: time.Date(2026, 3, 6, 14, 35, 0, 0, time.UTC),
+				FilePath:      "/tmp/main.jsonl",
+				CWD:           "/tmp/main",
+				Model:         "gpt-5.4",
+				MessageCount:  2,
+			},
+			{
+				ID:               "child-id",
+				Project:          conversation.Project{DisplayName: "test"},
+				Timestamp:        time.Date(2026, 3, 6, 14, 36, 0, 0, time.UTC),
+				LastTimestamp:    time.Date(2026, 3, 6, 14, 37, 0, 0, time.UTC),
+				FilePath:         "/tmp/child.jsonl",
+				CWD:              "/tmp/child",
+				Model:            "openai",
+				MessageCount:     2,
+				MainMessageCount: 0,
+				IsSubagent:       true,
+			},
+		},
+	}
+
+	got := ansi.Strip(renderConversationHeader(conv, 90))
+
+	assert.NotContains(t, got, "2 parts")
+	assert.NotContains(t, got, "resume child-id")
+}
+
 func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 	t.Parallel()
 

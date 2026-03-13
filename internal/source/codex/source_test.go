@@ -19,7 +19,7 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	rawDir := copyCodexFixtureDir(t)
 	conversations, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 3)
+	require.Len(t, conversations, 2)
 
 	byID := make(map[string]conv.Conversation, len(conversations))
 	for _, conversation := range conversations {
@@ -37,17 +37,16 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	assert.Equal(t, "gpt-5.4", main.Model())
 	assert.Equal(t, "0.114.0", main.Version())
 	assert.Equal(t, "main", main.GitBranch())
-	assert.Equal(t, 2, main.TotalMessageCount())
+	require.Len(t, main.Sessions, 2)
+	assert.Equal(t, "019cexample-child", main.Sessions[1].ID)
+	assert.True(t, main.Sessions[1].IsSubagent)
+	assert.Equal(t, "019cexample-main", main.ResumeID())
+	assert.Equal(t, 4, main.TotalMessageCount())
+	assert.Equal(t, 2, main.MainMessageCount())
 	assert.Equal(t, 20, main.TotalTokenUsage().TotalTokens())
 	assert.Equal(t, 1, main.TotalToolCounts()["exec_command"])
 	assert.NotContains(t, main.FirstMessage(), "AGENTS.md instructions")
 	assert.NotContains(t, main.FirstMessage(), "<environment_context>")
-
-	child := byID["019cexample-child"]
-	assert.True(t, child.IsSubagent())
-	assert.Equal(t, "Inspect the parser.", child.FirstMessage())
-	assert.Equal(t, "019cexample-", child.Sessions[0].Slug)
-	assert.Equal(t, "openai", child.Model())
 }
 
 func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
@@ -56,7 +55,7 @@ func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 	rawDir := copyCodexFixtureDir(t)
 	conversations, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 3)
+	require.Len(t, conversations, 2)
 
 	colliding := make([]conv.Conversation, 0, len(conversations))
 	for _, conversation := range conversations {
@@ -65,10 +64,10 @@ func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 		}
 	}
 
-	require.Len(t, colliding, 3)
+	require.Len(t, colliding, 2)
 	assert.ElementsMatch(t,
-		[]string{"019cexample-main", "019cexample-legacy", "019cexample-child"},
-		[]string{colliding[0].ID(), colliding[1].ID(), colliding[2].ID()},
+		[]string{"019cexample-main", "019cexample-legacy"},
+		[]string{colliding[0].ID(), colliding[1].ID()},
 	)
 }
 
@@ -86,22 +85,26 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 
 	mainSession, err := New().Load(context.Background(), byID["019cexample-main"])
 	require.NoError(t, err)
-	require.Len(t, mainSession.Messages, 3)
+	require.Len(t, mainSession.Messages, 5)
 	assert.Equal(t, conv.RoleUser, mainSession.Messages[0].Role)
 	assert.Equal(t, "# Import Codex sessions\n\nImplement support for codex sessions.", mainSession.Messages[0].Text)
-	assert.Equal(t, conv.RoleUser, mainSession.Messages[1].Role)
-	assert.True(t, mainSession.Messages[1].IsAgentDivider)
-	assert.Equal(t, "Planck is inspecting the parser.", mainSession.Messages[1].Text)
-	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[2].Role)
-	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[2].Thinking)
-	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[2].Text)
-	require.Len(t, mainSession.Messages[2].ToolCalls, 1)
-	assert.Equal(t, "exec_command", mainSession.Messages[2].ToolCalls[0].Name)
-	require.Len(t, mainSession.Messages[2].ToolResults, 1)
-	assert.Contains(t, mainSession.Messages[2].ToolResults[0].Content, "Exit code: 0")
-	require.Len(t, mainSession.Messages[2].Plans, 1)
-	assert.Equal(t, "codex-import-plan.md", mainSession.Messages[2].Plans[0].FilePath)
-	assert.Equal(t, "- inspect wrappers\n- map visible messages", mainSession.Messages[2].Plans[0].Content)
+	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[1].Role)
+	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[1].Thinking)
+	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[1].Text)
+	require.Len(t, mainSession.Messages[1].ToolCalls, 1)
+	assert.Equal(t, "exec_command", mainSession.Messages[1].ToolCalls[0].Name)
+	require.Len(t, mainSession.Messages[1].ToolResults, 1)
+	assert.Contains(t, mainSession.Messages[1].ToolResults[0].Content, "Exit code: 0")
+	require.Len(t, mainSession.Messages[1].Plans, 1)
+	assert.Equal(t, "codex-import-plan.md", mainSession.Messages[1].Plans[0].FilePath)
+	assert.Equal(t, "- inspect wrappers\n- map visible messages", mainSession.Messages[1].Plans[0].Content)
+	assert.Equal(t, conv.RoleUser, mainSession.Messages[2].Role)
+	assert.True(t, mainSession.Messages[2].IsAgentDivider)
+	assert.Equal(t, "Planck is inspecting the parser.", mainSession.Messages[2].Text)
+	assert.Equal(t, conv.RoleUser, mainSession.Messages[3].Role)
+	assert.Equal(t, "Inspect the parser.", mainSession.Messages[3].Text)
+	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[4].Role)
+	assert.Equal(t, "Parser inspected.", mainSession.Messages[4].Text)
 	for _, msg := range mainSession.Messages {
 		assert.NotContains(t, msg.Text, "AGENTS.md instructions")
 		assert.NotContains(t, msg.Text, "<environment_context>")
@@ -115,6 +118,30 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	require.Len(t, legacySession.Messages[1].ToolResults[0].StructuredPatch, 1)
 	assert.Equal(t, 1, legacySession.Messages[1].ToolResults[0].StructuredPatch[0].OldStart)
 	assert.Equal(t, 1, legacySession.Messages[1].ToolResults[0].StructuredPatch[0].NewStart)
+}
+
+func TestLoadKeepsDividerWhenLinkedSubagentTranscriptIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	rawDir := copyCodexFixtureDir(t)
+	conversations, err := New().Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+
+	var main conv.Conversation
+	for _, conversation := range conversations {
+		if conversation.ID() == "019cexample-main" {
+			main = conversation
+			break
+		}
+	}
+	require.NotEmpty(t, main.Sessions)
+
+	main.Sessions = main.Sessions[:1]
+	session, err := New().Load(context.Background(), main)
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 3)
+	assert.True(t, session.Messages[1].IsAgentDivider)
+	assert.Equal(t, "Planck is inspecting the parser.", session.Messages[1].Text)
 }
 
 func TestAnalyzeReportsSyncCandidates(t *testing.T) {

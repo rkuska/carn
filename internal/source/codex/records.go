@@ -158,24 +158,6 @@ func usageFromEvent(payload eventPayload) conv.TokenUsage {
 	}
 }
 
-func sourceIsSubagent(raw json.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-
-	var plain string
-	if err := json.Unmarshal(raw, &plain); err == nil {
-		return false
-	}
-
-	var source map[string]any
-	if err := json.Unmarshal(raw, &source); err != nil {
-		return false
-	}
-	_, ok := source["subagent"]
-	return ok
-}
-
 func buildToolCall(payload responseItemPayload) conv.ToolCall {
 	name := payload.Name
 	if payload.Type == responseTypeWebSearchCall {
@@ -228,13 +210,6 @@ func isCodexToolError(output string) bool {
 	return strings.Contains(lower, "aborted by user") ||
 		strings.Contains(lower, "patch rejected") ||
 		strings.Contains(lower, "verification failed")
-}
-
-func firstSessionPath(conversation conv.Conversation) string {
-	if len(conversation.Sessions) == 0 {
-		return ""
-	}
-	return conversation.Sessions[0].FilePath
 }
 
 func isJSONLExt(path string) bool {

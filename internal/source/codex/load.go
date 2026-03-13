@@ -6,58 +6,82 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type loadState struct {
-	meta           conv.SessionMeta
-	callMeta       map[string]toolEventMeta
-	messages       []conv.Message
-	thinkingParts  []string
-	pendingCalls   []conv.ToolCall
-	pendingResults []conv.ToolResult
-	pendingPlans   []conv.Plan
+	meta             conv.SessionMeta
+	link             subagentLink
+	callMeta         map[string]toolEventMeta
+	messages         []parsedMessage
+	thinkingParts    []string
+	pendingCalls     []conv.ToolCall
+	pendingResults   []conv.ToolResult
+	pendingPlans     []conv.Plan
+	pendingTimestamp time.Time
 }
 
 func loadConversation(ctx context.Context, conversation conv.Conversation) (conv.Session, error) {
-	path := firstSessionPath(conversation)
-	if path == "" {
+	if len(conversation.Sessions) == 0 {
 		return conv.Session{}, fmt.Errorf("loadConversation: %w", errMissingPath)
+	}
+
+	parent, err := loadRollout(ctx, conversation.Sessions[0])
+	if err != nil {
+		return conv.Session{}, fmt.Errorf("loadRollout_parent: %w", err)
+	}
+
+	linked, err := loadLinkedTranscripts(ctx, conversation.Sessions[1:])
+	if err != nil {
+		return conv.Session{}, fmt.Errorf("loadLinkedTranscripts: %w", err)
+	}
+
+	return conv.Session{
+		Meta:     parent.meta,
+		Messages: projectParsedMessages(mergeSubagentTranscripts(parent, linked)),
+	}, nil
+}
+
+func loadRollout(ctx context.Context, meta conv.SessionMeta) (rolloutTranscript, error) {
+	path := meta.FilePath
+	if path == "" {
+		return rolloutTranscript{}, fmt.Errorf("loadRollout: %w", errMissingPath)
 	}
 
 	file, scanner, err := openScanner(path)
 	if err != nil {
-		return conv.Session{}, err
+		return rolloutTranscript{}, err
 	}
 	defer func() { _ = file.Close() }()
 
-	state := newLoadState(conversation.Sessions[0])
+	state := newLoadState(meta)
 	for scanner.Scan() {
 		if err := ctx.Err(); err != nil {
-			return conv.Session{}, fmt.Errorf("loadConversation_ctx: %w", err)
+			return rolloutTranscript{}, fmt.Errorf("loadConversation_ctx: %w", err)
 		}
 
 		envelope, err := parseEnvelope(scanner.Bytes())
 		if err != nil {
-			return conv.Session{}, err
+			return rolloutTranscript{}, err
 		}
 		if err := state.applyEnvelope(envelope); err != nil {
-			return conv.Session{}, err
+			return rolloutTranscript{}, err
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return conv.Session{}, fmt.Errorf("scanner.Err: %w", err)
+		return rolloutTranscript{}, fmt.Errorf("scanner.Err: %w", err)
 	}
 
-	return state.session(), nil
+	return state.transcript(), nil
 }
 
 func newLoadState(meta conv.SessionMeta) loadState {
 	return loadState{
 		meta:           meta,
 		callMeta:       make(map[string]toolEventMeta),
-		messages:       make([]conv.Message, 0),
+		messages:       make([]parsedMessage, 0),
 		thinkingParts:  make([]string, 0),
 		pendingCalls:   make([]conv.ToolCall, 0),
 		pendingResults: make([]conv.ToolResult, 0),
@@ -67,8 +91,10 @@ func newLoadState(meta conv.SessionMeta) loadState {
 
 func (s *loadState) applyEnvelope(envelope recordEnvelope) error {
 	switch envelope.Type {
+	case recordTypeSessionMeta:
+		return s.applySessionMeta(envelope.Payload)
 	case recordTypeResponseItem:
-		return s.applyResponseItem(envelope.Payload)
+		return s.applyResponseItem(envelope.Payload, parseTimestamp(envelope.Timestamp))
 	case recordTypeEventMsg:
 		return s.applyEvent(envelope.Payload, envelope.Timestamp)
 	default:
@@ -76,7 +102,21 @@ func (s *loadState) applyEnvelope(envelope recordEnvelope) error {
 	}
 }
 
-func (s *loadState) applyResponseItem(raw json.RawMessage) error {
+func (s *loadState) applySessionMeta(raw json.RawMessage) error {
+	var payload sessionMetaPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("json.Unmarshal_sessionMeta: %w", err)
+	}
+	if payload.ID != "" && payload.ID != s.meta.ID {
+		return nil
+	}
+	if link, ok := parseSubagentLink(payload.Source); ok {
+		s.link = link
+	}
+	return nil
+}
+
+func (s *loadState) applyResponseItem(raw json.RawMessage, timestamp time.Time) error {
 	var payload responseItemPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return fmt.Errorf("json.Unmarshal_responseItem: %w", err)
@@ -84,35 +124,37 @@ func (s *loadState) applyResponseItem(raw json.RawMessage) error {
 
 	switch payload.Type {
 	case responseTypeMessage:
-		s.applyMessage(payload)
+		s.applyMessage(payload, timestamp)
 	case responseTypeReasoning:
-		s.applyReasoning(payload)
+		s.applyReasoning(payload, timestamp)
 	case responseTypeFunctionCall, responseTypeCustomToolCall, responseTypeWebSearchCall:
-		s.applyToolCall(payload)
+		s.applyToolCall(payload, timestamp)
 	case responseTypeFunctionCallOutput, responseTypeCustomToolCallOutput:
-		s.applyToolResult(payload)
+		s.applyToolResult(payload, timestamp)
 	}
 	return nil
 }
 
-func (s *loadState) applyMessage(payload responseItemPayload) {
+func (s *loadState) applyMessage(payload responseItemPayload, timestamp time.Time) {
 	message, ok := classifyResponseMessage(payload.Role, payload.Content)
 	if !ok {
 		return
 	}
-	s.applyVisibleMessage(message)
+	s.applyVisibleMessage(message, timestamp)
 }
 
-func (s *loadState) applyReasoning(payload responseItemPayload) {
+func (s *loadState) applyReasoning(payload responseItemPayload, timestamp time.Time) {
+	s.markPendingTimestamp(timestamp)
 	s.appendThinking(extractReasoningText(payload.Summary))
 }
 
-func (s *loadState) applyToolCall(payload responseItemPayload) {
+func (s *loadState) applyToolCall(payload responseItemPayload, timestamp time.Time) {
 	call := buildToolCall(payload)
 	if call.Name == "" {
 		return
 	}
 
+	s.markPendingTimestamp(timestamp)
 	s.pendingCalls = append(s.pendingCalls, call)
 	s.callMeta[payload.CallID] = toolEventMeta{
 		call:  call,
@@ -120,11 +162,12 @@ func (s *loadState) applyToolCall(payload responseItemPayload) {
 	}
 }
 
-func (s *loadState) applyToolResult(payload responseItemPayload) {
+func (s *loadState) applyToolResult(payload responseItemPayload, timestamp time.Time) {
 	meta := s.callMeta[payload.CallID]
 	if meta.call.Name == "" {
 		meta.call.Name = payload.CallID
 	}
+	s.markPendingTimestamp(timestamp)
 	s.pendingResults = append(s.pendingResults, buildToolResult(payload, meta))
 }
 
@@ -134,36 +177,38 @@ func (s *loadState) applyEvent(raw json.RawMessage, timestamp string) error {
 		return fmt.Errorf("json.Unmarshal_event: %w", err)
 	}
 
-	if s.applyEventMessage(payload) {
+	ts := parseTimestamp(timestamp)
+	if s.applyEventMessage(payload, ts) {
 		return nil
 	}
 
 	switch payload.Type {
 	case eventTypeAgentReasoning:
+		s.markPendingTimestamp(ts)
 		s.appendThinking(payload.Text)
 	case eventTypeItemCompleted:
-		if plan, ok := extractCompletedPlan(payload.Item, parseTimestamp(timestamp)); ok {
-			s.applyPlan(plan)
+		if plan, ok := extractCompletedPlan(payload.Item, ts); ok {
+			s.applyPlan(plan, ts)
 		}
 	}
 	return nil
 }
 
-func (s *loadState) applyEventMessage(payload eventPayload) bool {
+func (s *loadState) applyEventMessage(payload eventPayload, timestamp time.Time) bool {
 	switch payload.Type {
 	case eventTypeUserMessage:
 		if message, ok := classifyEventUserMessage(payload.Message); ok {
-			s.applyVisibleMessage(message)
+			s.applyVisibleMessage(message, timestamp)
 		}
 		return true
 	case eventTypeAgentMessage:
 		if message, ok := classifyEventAssistantMessage(payload.Message); ok {
-			s.applyVisibleMessage(message)
+			s.applyVisibleMessage(message, timestamp)
 		}
 		return true
 	case eventTypeTaskComplete:
 		if message, ok := classifyTaskCompleteMessage(payload.LastAgentMessage); ok {
-			s.applyVisibleMessage(message)
+			s.applyVisibleMessage(message, timestamp)
 		}
 		return true
 	default:
@@ -171,16 +216,16 @@ func (s *loadState) applyEventMessage(payload eventPayload) bool {
 	}
 }
 
-func (s *loadState) applyVisibleMessage(message visibleMessage) {
+func (s *loadState) applyVisibleMessage(message visibleMessage, timestamp time.Time) {
 	switch {
 	case message.isAgentDivider:
-		s.flushAssistant("")
-		s.messages = appendDividerMessage(s.messages, message.text)
+		s.flushAssistant("", time.Time{})
+		s.messages = appendParsedDividerMessage(s.messages, message.text, timestamp)
 	case message.role == conv.RoleUser:
-		s.flushAssistant("")
-		s.messages = appendUserMessage(s.messages, message.text)
+		s.flushAssistant("", time.Time{})
+		s.messages = appendParsedUserMessage(s.messages, message.text, timestamp)
 	case message.role == conv.RoleAssistant:
-		s.flushAssistant(message.text)
+		s.flushAssistant(message.text, timestamp)
 	}
 }
 
@@ -195,73 +240,60 @@ func (s *loadState) appendThinking(text string) {
 	s.thinkingParts = append(s.thinkingParts, text)
 }
 
-func (s *loadState) applyPlan(plan conv.Plan) {
+func (s *loadState) applyPlan(plan conv.Plan, timestamp time.Time) {
 	if len(s.messages) > 0 &&
-		s.messages[len(s.messages)-1].Role == conv.RoleAssistant &&
+		s.messages[len(s.messages)-1].role == conv.RoleAssistant &&
 		len(s.thinkingParts) == 0 &&
 		len(s.pendingCalls) == 0 &&
 		len(s.pendingResults) == 0 &&
 		len(s.pendingPlans) == 0 {
-		s.messages[len(s.messages)-1].Plans = appendUniquePlans(
-			s.messages[len(s.messages)-1].Plans,
+		s.messages[len(s.messages)-1].plans = appendUniquePlans(
+			s.messages[len(s.messages)-1].plans,
 			[]conv.Plan{plan},
 		)
 		return
 	}
+	s.markPendingTimestamp(timestamp)
 	s.pendingPlans = appendUniquePlans(s.pendingPlans, []conv.Plan{plan})
 }
 
-func (s *loadState) flushAssistant(text string) {
-	s.messages = appendAssistantMessage(
+func (s *loadState) flushAssistant(text string, timestamp time.Time) {
+	s.messages = appendParsedAssistantMessage(
 		s.messages,
 		joinText(s.thinkingParts),
 		s.pendingCalls,
 		s.pendingResults,
 		s.pendingPlans,
 		text,
+		maxTime(s.pendingTimestamp, timestamp),
 	)
 	s.thinkingParts = s.thinkingParts[:0]
 	s.pendingCalls = s.pendingCalls[:0]
 	s.pendingResults = s.pendingResults[:0]
 	s.pendingPlans = s.pendingPlans[:0]
+	s.pendingTimestamp = time.Time{}
 }
 
-func (s *loadState) session() conv.Session {
-	s.flushAssistant("")
-	return conv.Session{
-		Meta:     s.meta,
-		Messages: s.messages,
+func (s *loadState) transcript() rolloutTranscript {
+	s.flushAssistant("", time.Time{})
+	return rolloutTranscript{
+		meta:     s.meta,
+		link:     s.link,
+		messages: s.messages,
 	}
 }
 
 var errMissingPath = errors.New("missing conversation file path")
 
-func appendUserMessage(messages []conv.Message, text string) []conv.Message {
-	if text == "" {
-		return messages
+func (s *loadState) markPendingTimestamp(timestamp time.Time) {
+	if timestamp.After(s.pendingTimestamp) {
+		s.pendingTimestamp = timestamp
 	}
-	if len(messages) > 0 {
-		last := messages[len(messages)-1]
-		if last.Role == conv.RoleUser && !last.IsAgentDivider && last.Text == text {
-			return messages
-		}
-	}
-	return append(messages, conv.Message{Role: conv.RoleUser, Text: text})
 }
 
-func appendDividerMessage(messages []conv.Message, text string) []conv.Message {
-	if text == "" {
-		return messages
+func maxTime(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
 	}
-	if len(messages) > 0 {
-		last := messages[len(messages)-1]
-		if last.IsAgentDivider && last.Text == text {
-			return messages
-		}
-	}
-	return append(messages, conv.Message{
-		Role:           conv.RoleUser,
-		Text:           text,
-		IsAgentDivider: true,
-	})
+	return a
 }

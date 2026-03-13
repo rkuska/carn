@@ -54,6 +54,27 @@ func TestParseConversationsParallelBuildsTranscriptsAndSearchUnits(t *testing.T)
 	assert.Equal(t, buildSearchUnits(convValue.CacheKey(), transcripts[convValue.CacheKey()]), corpus.units)
 }
 
+func TestBuildSearchUnitsIncludesLinkedSubagentMessages(t *testing.T) {
+	t.Parallel()
+
+	units := buildSearchUnits("codex:main", sessionFull{
+		Messages: []message{
+			{Role: role("assistant"), Text: "Implemented support for codex sessions."},
+			{Role: role("user"), Text: "Planck is inspecting the parser.", IsAgentDivider: true},
+			{Role: role("user"), Text: "Inspect the parser."},
+			{Role: role("assistant"), Text: "Parser inspected."},
+		},
+	})
+
+	texts := make([]string, 0, len(units))
+	for _, unit := range units {
+		texts = append(texts, unit.text)
+	}
+
+	assert.Contains(t, texts, "Inspect the parser.")
+	assert.Contains(t, texts, "Parser inspected.")
+}
+
 func writeTestConversation(
 	t *testing.T,
 	dir, projectName, sessionID, slug string,

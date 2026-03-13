@@ -16,10 +16,11 @@ type scanState struct {
 	firstRecordTS time.Time
 	lastRole      conv.Role
 	lastText      string
+	link          subagentLink
 }
 
 func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, error) {
-	conversations := make([]conv.Conversation, 0)
+	rollouts := make([]scannedRollout, 0)
 
 	err := filepath.WalkDir(rawDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil || d.IsDir() || !isJSONLExt(path) {
@@ -29,12 +30,12 @@ func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, erro
 			return err
 		}
 
-		conversation, ok, err := scanRollout(path)
+		rollout, ok, err := scanRollout(path)
 		if err != nil {
 			return fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if ok {
-			conversations = append(conversations, conversation)
+			rollouts = append(rollouts, rollout)
 		}
 		return nil
 	})
@@ -42,13 +43,13 @@ func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, erro
 		return nil, fmt.Errorf("filepath.WalkDir: %w", err)
 	}
 
-	return conversations, nil
+	return groupRollouts(rollouts), nil
 }
 
-func scanRollout(path string) (conv.Conversation, bool, error) {
+func scanRollout(path string) (scannedRollout, bool, error) {
 	file, scanner, err := openScanner(path)
 	if err != nil {
-		return conv.Conversation{}, false, err
+		return scannedRollout{}, false, err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -56,17 +57,17 @@ func scanRollout(path string) (conv.Conversation, bool, error) {
 	for scanner.Scan() {
 		envelope, err := parseEnvelope(scanner.Bytes())
 		if err != nil {
-			return conv.Conversation{}, false, err
+			return scannedRollout{}, false, err
 		}
 		if err := state.applyEnvelope(envelope); err != nil {
-			return conv.Conversation{}, false, err
+			return scannedRollout{}, false, err
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return conv.Conversation{}, false, fmt.Errorf("scanner.Err: %w", err)
+		return scannedRollout{}, false, fmt.Errorf("scanner.Err: %w", err)
 	}
 
-	return state.conversation()
+	return state.rollout()
 }
 
 func newScanState(path string) scanState {
@@ -135,7 +136,10 @@ func (s *scanState) applySessionMeta(raw json.RawMessage) error {
 	if s.meta.GitBranch == "" {
 		s.meta.GitBranch = payload.Git.Branch
 	}
-	s.meta.IsSubagent = s.meta.IsSubagent || sourceIsSubagent(payload.Source)
+	if link, ok := parseSubagentLink(payload.Source); ok {
+		s.link = link
+		s.meta.IsSubagent = true
+	}
 	return nil
 }
 
@@ -211,9 +215,9 @@ func (s *scanState) applyEvent(raw json.RawMessage) error {
 	return nil
 }
 
-func (s *scanState) conversation() (conv.Conversation, bool, error) {
+func (s *scanState) rollout() (scannedRollout, bool, error) {
 	if s.meta.ID == "" {
-		return conv.Conversation{}, false, nil
+		return scannedRollout{}, false, nil
 	}
 
 	meta := s.meta
@@ -231,12 +235,5 @@ func (s *scanState) conversation() (conv.Conversation, bool, error) {
 		meta.Slug = slugFromThreadID(meta.ID)
 	}
 
-	return conv.Conversation{
-		Ref: conv.Ref{
-			Provider: conv.ProviderCodex,
-			ID:       meta.ID,
-		},
-		Project:  meta.Project,
-		Sessions: []conv.SessionMeta{meta},
-	}, true, nil
+	return scannedRollout{meta: meta, link: s.link}, true, nil
 }

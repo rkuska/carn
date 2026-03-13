@@ -254,3 +254,56 @@ func TestConversationResumeTargetUsesReferenceProvider(t *testing.T) {
 		CWD:      "/tmp/project",
 	}, conversation.ResumeTarget())
 }
+
+func TestConversationGroupedSubagentsDoNotAffectMainTargets(t *testing.T) {
+	t.Parallel()
+
+	conversation := Conversation{
+		Name:    "test-slug",
+		Project: Project{DisplayName: "proj"},
+		Sessions: []SessionMeta{
+			{
+				ID:               "main-1",
+				Slug:             "test-slug",
+				Timestamp:        time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+				CWD:              "/tmp/main-1",
+				FilePath:         "/path/main-1.jsonl",
+				Version:          "1.0.0",
+				GitBranch:        "main",
+				Project:          Project{DisplayName: "proj"},
+				MessageCount:     2,
+				MainMessageCount: 2,
+			},
+			{
+				ID:               "child-1",
+				Slug:             "test-slug",
+				Timestamp:        time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC),
+				CWD:              "/tmp/child-1",
+				FilePath:         "/path/child-1.jsonl",
+				Version:          "9.9.9",
+				IsSubagent:       true,
+				Project:          Project{DisplayName: "proj"},
+				MessageCount:     2,
+				MainMessageCount: 0,
+			},
+			{
+				ID:               "main-2",
+				Slug:             "test-slug",
+				Timestamp:        time.Date(2024, 1, 1, 10, 10, 0, 0, time.UTC),
+				CWD:              "/tmp/main-2",
+				FilePath:         "/path/main-2.jsonl",
+				Version:          "1.1.0",
+				Project:          Project{DisplayName: "proj"},
+				MessageCount:     3,
+				MainMessageCount: 3,
+			},
+		},
+	}
+
+	assert.Equal(t, "main-2", conversation.ResumeID())
+	assert.Equal(t, "/tmp/main-2", conversation.ResumeCWD())
+	assert.Equal(t, "/path/main-2.jsonl", conversation.LatestFilePath())
+	assert.Equal(t, "1.1.0", conversation.Version())
+	assert.Contains(t, conversation.Title(), "(2 parts)")
+	assert.NotContains(t, conversation.Title(), "(3 parts)")
+}
