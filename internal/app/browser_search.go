@@ -38,7 +38,8 @@ type conversationListItem struct {
 	conversation conv.Conversation
 	matchRanges  itemMatchRanges
 	title        string
-	description  string
+	metadata     string
+	preview      string
 }
 
 func (i conversationListItem) FilterValue() string {
@@ -53,14 +54,27 @@ func (i conversationListItem) Title() string {
 }
 
 func (i conversationListItem) Description() string {
-	if i.description != "" {
-		return i.description
-	}
-	return i.conversation.Description()
+	return joinConversationDescription(i.Metadata(), i.Preview())
 }
 
 func (i conversationListItem) MatchRanges() itemMatchRanges {
 	return i.matchRanges
+}
+
+func (i conversationListItem) Metadata() string {
+	if i.metadata != "" || i.preview != "" {
+		return i.metadata
+	}
+	metadata, _ := splitConversationDescription(i.conversation.Description())
+	return metadata
+}
+
+func (i conversationListItem) Preview() string {
+	if i.metadata != "" || i.preview != "" {
+		return i.preview
+	}
+	_, preview := splitConversationDescription(i.conversation.Description())
+	return preview
 }
 
 func conversationFromItem(item list.Item) (conv.Conversation, bool) {
@@ -77,10 +91,13 @@ func conversationFromItem(item list.Item) (conv.Conversation, bool) {
 func buildPlainConversationItems(conversations []conv.Conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(conversations))
 	for _, conversation := range conversations {
+		metadata := conversationMetadataDescription(conversation)
+		preview := conversationFirstMessagePreview(conversation)
 		items = append(items, conversationListItem{
 			conversation: conversation,
 			title:        conversation.Title(),
-			description:  conversationMetadataDescription(conversation),
+			metadata:     metadata,
+			preview:      preview,
 		})
 	}
 	return items
@@ -101,12 +118,14 @@ func buildMetadataSearchItems(query string, conversations []conv.Conversation) [
 	for _, rank := range ranks {
 		conversation := conversations[rank.Index]
 		title := conversation.Title()
-		desc := conversationMetadataDescription(conversation)
+		metadata := conversationMetadataDescription(conversation)
+		preview := conversationFirstMessagePreview(conversation)
 		items = append(items, conversationListItem{
 			conversation: conversation,
 			title:        title,
-			description:  desc,
-			matchRanges:  splitItemMatches(title, desc, rank.MatchedIndexes),
+			metadata:     metadata,
+			preview:      preview,
+			matchRanges:  splitItemMatches(title, metadata, preview, rank.MatchedIndexes),
 		})
 	}
 
@@ -116,15 +135,22 @@ func buildMetadataSearchItems(query string, conversations []conv.Conversation) [
 func buildDeepSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(conversations))
 	for _, conversation := range conversations {
-		desc := providerPrefixedDescription(conversation, conversation.Description())
+		metadata := conversationMetadataDescription(conversation)
+		preview := conversationDeepSearchPreview(conversation)
 		var ranges itemMatchRanges
 		if query != "" {
-			ranges.desc = findQueryMatchIndices(desc, query)
+			ranges = splitItemMatches(
+				"",
+				metadata,
+				preview,
+				findQueryMatchIndices(joinConversationDescription(metadata, preview), query),
+			)
 		}
 		items = append(items, conversationListItem{
 			conversation: conversation,
 			title:        conversation.Title(),
-			description:  desc,
+			metadata:     metadata,
+			preview:      preview,
 			matchRanges:  ranges,
 		})
 	}
@@ -133,11 +159,9 @@ func buildDeepSearchItems(query string, conversations []conv.Conversation) []con
 
 func conversationMetadataSearchText(conversation conv.Conversation) string {
 	title := conversation.Title()
-	desc := conversationMetadataDescription(conversation)
-	if desc == "" {
-		return title
-	}
-	return title + "\n" + desc
+	metadata := conversationMetadataDescription(conversation)
+	preview := conversationFirstMessagePreview(conversation)
+	return joinConversationRowText(title, metadata, preview)
 }
 
 func conversationMetadataDescription(conversation conv.Conversation) string {
@@ -159,8 +183,16 @@ func conversationMetadataDescription(conversation conv.Conversation) string {
 	if counts := conversation.TotalToolCounts(); len(counts) > 0 {
 		desc += "  " + conv.FormatToolCounts(counts)
 	}
-	if fm := conversation.FirstMessage(); fm != "" {
-		desc += "\n" + fm
-	}
 	return providerPrefixedDescription(conversation, desc)
+}
+
+func conversationFirstMessagePreview(conversation conv.Conversation) string {
+	return conversation.FirstMessage()
+}
+
+func conversationDeepSearchPreview(conversation conv.Conversation) string {
+	if preview := conversation.SearchPreview; preview != "" {
+		return preview
+	}
+	return conversationFirstMessagePreview(conversation)
 }

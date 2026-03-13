@@ -22,7 +22,7 @@ type matchRangeItem interface {
 }
 
 func hasMatchRanges(ranges itemMatchRanges) bool {
-	return len(ranges.title) > 0 || len(ranges.desc) > 0
+	return len(ranges.title) > 0 || len(ranges.metadata) > 0 || len(ranges.preview) > 0
 }
 
 func newDelegate() conversationDelegate {
@@ -32,7 +32,7 @@ func newDelegate() conversationDelegate {
 	d.SetHeight(3)
 
 	d.Styles.NormalTitle = lipgloss.NewStyle().
-		Foreground(colorNormalTitle).
+		Foreground(colorNormalDesc).
 		Padding(0, 0, 0, 2)
 
 	d.Styles.NormalDesc = lipgloss.NewStyle().
@@ -46,7 +46,7 @@ func newDelegate() conversationDelegate {
 	d.Styles.SelectedTitle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
 		BorderForeground(colorAccent).
-		Foreground(colorSecondary).
+		Foreground(colorSelectedFg).
 		Padding(0, 0, 0, 1)
 
 	d.Styles.SelectedDesc = lipgloss.NewStyle().
@@ -73,28 +73,47 @@ func (d conversationDelegate) Render(w io.Writer, m list.Model, index int, item 
 	}
 
 	title := defaultItem.Title()
-	desc := defaultItem.Description()
-	matchRanges := splitItemMatches(title, desc, m.MatchesForItem(index))
+	metadata, preview := splitConversationDescription(defaultItem.Description())
+	if structured, ok := item.(interface {
+		Metadata() string
+		Preview() string
+	}); ok {
+		metadata = structured.Metadata()
+		preview = structured.Preview()
+	}
+
+	matchRanges := splitItemMatches(title, metadata, preview, m.MatchesForItem(index))
 	if highlighted, ok := item.(matchRangeItem); ok {
 		matchRanges = highlighted.MatchRanges()
 	}
 
 	title, titleMatches := truncateLineWithMatches(title, matchRanges.title, textWidth)
-	desc, descMatches := truncateDescriptionWithMatches(
-		desc,
-		matchRanges.desc,
-		max(d.Height()-1, 0),
+	metadataLine, metadataMatches := truncateLineWithMatches(metadata, matchRanges.metadata, textWidth)
+	previewLineLimit := max(d.Height()-1, 0)
+	if metadataLine != "" && previewLineLimit > 0 {
+		previewLineLimit--
+	}
+	previewText, previewMatches := truncateDescriptionWithMatches(
+		preview,
+		matchRanges.preview,
+		previewLineLimit,
 		textWidth,
 	)
 
-	title, desc = d.styledTitleDesc(
-		title, desc,
-		titleMatches, descMatches,
+	title, metadataLine, previewText = d.styledLines(
+		title,
+		metadataLine,
+		previewText,
+		titleMatches,
+		metadataMatches,
+		previewMatches,
 		index == m.Index(),
 		m.FilterState(),
 		m.FilterValue(),
 		hasMatchRanges(matchRanges),
 	)
+
+	desc := joinConversationDescription(metadataLine, previewText)
 
 	if d.ShowDescription {
 		fmt.Fprintf(w, "%s\n%s", title, desc) //nolint:errcheck
@@ -103,37 +122,51 @@ func (d conversationDelegate) Render(w io.Writer, m list.Model, index int, item 
 	fmt.Fprintf(w, "%s", title) //nolint:errcheck
 }
 
-func (d conversationDelegate) styledTitleDesc(
-	title, desc string,
-	titleMatches, descMatches []int,
+func (d conversationDelegate) styledLines(
+	title, metadata, preview string,
+	titleMatches, metadataMatches, previewMatches []int,
 	isSelected bool,
 	filterState list.FilterState,
 	filterValue string,
 	hasMatches bool,
-) (string, string) {
+) (string, string, string) {
 	s := &d.Styles
 	emptyFilter := filterState == list.Filtering && filterValue == ""
 	isFiltered := filterState == list.Filtering ||
 		filterState == list.FilterApplied ||
 		hasMatches
+	selectedPreview := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(colorAccent).
+		Foreground(colorSelectedFg).
+		Padding(0, 0, 0, 1)
+	normalPreview := lipgloss.NewStyle().
+		Foreground(colorNormalTitle).
+		Bold(true).
+		Padding(0, 0, 0, 2)
+	dimmedPreview := lipgloss.NewStyle().
+		Foreground(colorNormalDesc).
+		Padding(0, 0, 0, 2)
 
 	switch {
 	case emptyFilter:
-		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(desc)
+		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(metadata), dimmedPreview.Render(preview)
 
 	case isSelected && filterState != list.Filtering:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.SelectedTitle, s.FilterMatch)
-			desc = renderMatchedText(desc, descMatches, s.SelectedDesc, s.FilterMatch)
+			metadata = renderMatchedText(metadata, metadataMatches, s.SelectedDesc, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, selectedPreview, s.FilterMatch)
 		}
-		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(desc)
+		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(metadata), selectedPreview.Render(preview)
 
 	default:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.NormalTitle, s.FilterMatch)
-			desc = renderMatchedText(desc, descMatches, s.NormalDesc, s.FilterMatch)
+			metadata = renderMatchedText(metadata, metadataMatches, s.NormalDesc, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, normalPreview, s.FilterMatch)
 		}
-		return s.NormalTitle.Render(title), s.NormalDesc.Render(desc)
+		return s.NormalTitle.Render(title), s.NormalDesc.Render(metadata), normalPreview.Render(preview)
 	}
 }
 

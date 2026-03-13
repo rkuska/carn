@@ -11,12 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	ansiColorBright = "38;5;249m"
+	ansiColorGrey   = "38;5;243m"
+	ansiColorGreen  = "38;5;156m"
+)
+
 func TestSplitItemMatches(t *testing.T) {
 	t.Parallel()
 
 	title := "my/project / cheerful-ocean  2024-06-15 14:30"
-	desc := "claude-3  25 msgs\n" + archiveMatchesSourceSubtitle
-	full := title + "\n" + desc
+	metadata := "claude-3  25 msgs"
+	preview := archiveMatchesSourceSubtitle
+	full := title + "\n" + metadata + "\n" + preview
 	matchAt := strings.Index(full, "archive")
 	require.GreaterOrEqual(t, matchAt, 0)
 
@@ -25,12 +32,13 @@ func TestSplitItemMatches(t *testing.T) {
 		matches[i] = matchAt + i
 	}
 
-	got := splitItemMatches(title, desc, matches)
+	got := splitItemMatches(title, metadata, preview, matches)
 	assert.Empty(t, got.title)
+	assert.Empty(t, got.metadata)
 
-	descRunes := []rune(desc)
+	descRunes := []rune(preview)
 	var highlighted strings.Builder
-	for _, idx := range got.desc {
+	for _, idx := range got.preview {
 		highlighted.WriteRune(descRunes[idx])
 	}
 
@@ -56,6 +64,34 @@ func renderDeepSearchView(t *testing.T, query string, conversation conv.Conversa
 	b.list.SetItems(listItems)
 
 	return b.list.View()
+}
+
+func renderConversationItem(
+	t *testing.T,
+	item conversationListItem,
+	height int,
+	selected bool,
+) string {
+	t.Helper()
+
+	d := newDelegate()
+	d.SetHeight(height)
+
+	items := []list.Item{
+		conversationListItem{title: "other", metadata: "other metadata", preview: "other preview"},
+		item,
+	}
+
+	l := list.New(items, d, 120, 10)
+	if selected {
+		l.Select(1)
+	} else {
+		l.Select(0)
+	}
+
+	var rendered strings.Builder
+	d.Render(&rendered, l, 1, item)
+	return rendered.String()
 }
 
 func TestDeepSearchRenderHighlightsMultiWordQuery(t *testing.T) {
@@ -125,4 +161,49 @@ func TestDeepSearchRenderNoHighlightWhenQueryAbsent(t *testing.T) {
 	// be identical to the unhighlighted (empty query) rendering.
 	assert.Equal(t, withQuery, withoutQuery,
 		"non-matching query should produce identical output to empty query")
+}
+
+func TestRenderPlainItemUsesGreyMetadataAndBrightPreview(t *testing.T) {
+	t.Parallel()
+
+	conversation := testConv(testConversationIDPrimary)
+	conversation.Sessions[0].FirstMessage = "plain preview"
+
+	items := buildPlainConversationItems([]conv.Conversation{conversation})
+	require.Len(t, items, 1)
+
+	rendered := renderConversationItem(t, items[0], delegateHeightDefault, false)
+	lines := strings.Split(rendered, "\n")
+	require.Len(t, lines, 3)
+
+	assert.Contains(t, ansi.Strip(lines[0]), conversation.Title())
+	assert.Contains(t, lines[0], ansiColorGrey)
+	assert.NotContains(t, lines[0], ansiColorBright)
+	assert.Contains(t, ansi.Strip(lines[1]), "Claude")
+	assert.Contains(t, lines[1], ansiColorGrey)
+	assert.NotContains(t, lines[1], ansiColorGreen)
+	assert.Contains(t, ansi.Strip(lines[2]), "plain preview")
+	assert.Contains(t, lines[2], ansiColorBright)
+	assert.NotContains(t, lines[2], ansiColorGrey)
+}
+
+func TestRenderSelectedDeepSearchItemHighlightsAllLinesGreen(t *testing.T) {
+	t.Parallel()
+
+	conversation := testConv(testConversationIDPrimary)
+	conversation.SearchPreview = "preview match line"
+
+	items := buildDeepSearchItems("", []conv.Conversation{conversation})
+	require.Len(t, items, 1)
+
+	rendered := renderConversationItem(t, items[0], delegateHeightDeepSearch, true)
+	lines := strings.Split(rendered, "\n")
+	require.GreaterOrEqual(t, len(lines), 3)
+
+	assert.Contains(t, ansi.Strip(lines[0]), conversation.Title())
+	assert.Contains(t, lines[0], ansiColorGreen)
+	assert.Contains(t, ansi.Strip(lines[1]), "Claude")
+	assert.Contains(t, lines[1], ansiColorGreen)
+	assert.Contains(t, ansi.Strip(lines[2]), "preview match line")
+	assert.Contains(t, lines[2], ansiColorGreen)
 }
