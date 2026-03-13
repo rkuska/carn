@@ -44,8 +44,8 @@ func (c Conversation) Title() string {
 	if branch := c.GitBranch(); branch != "" {
 		title += "  " + branch
 	}
-	if len(c.Sessions) > 1 {
-		title += fmt.Sprintf("  (%d parts)", len(c.Sessions))
+	if parts := c.PartCount(); parts > 1 {
+		title += fmt.Sprintf("  (%d parts)", parts)
 	}
 	return title
 }
@@ -92,11 +92,11 @@ func (c Conversation) CacheKey() string {
 }
 
 func (c Conversation) ResumeID() string {
-	return c.Sessions[len(c.Sessions)-1].ID
+	return c.latestPrimarySession().ID
 }
 
 func (c Conversation) ResumeCWD() string {
-	return c.Sessions[len(c.Sessions)-1].CWD
+	return c.latestPrimarySession().CWD
 }
 
 func (c Conversation) ResumeTarget() ResumeTarget {
@@ -120,7 +120,7 @@ func (c Conversation) FilePaths() []string {
 }
 
 func (c Conversation) LatestFilePath() string {
-	return c.Sessions[len(c.Sessions)-1].FilePath
+	return c.latestPrimarySession().FilePath
 }
 
 func (c Conversation) FirstMessage() string {
@@ -225,6 +225,9 @@ func (c Conversation) Model() string {
 }
 
 func (c Conversation) Version() string {
+	if v := c.latestPrimarySession().Version; v != "" {
+		return v
+	}
 	for i := len(c.Sessions) - 1; i >= 0; i-- {
 		if v := c.Sessions[i].Version; v != "" {
 			return v
@@ -235,4 +238,30 @@ func (c Conversation) Version() string {
 
 func (c Conversation) GitBranch() string {
 	return c.Sessions[0].GitBranch
+}
+
+func (c Conversation) PartCount() int {
+	count := 0
+	for _, session := range c.Sessions {
+		if session.IsSubagent {
+			continue
+		}
+		count++
+	}
+	if count == 0 {
+		return len(c.Sessions)
+	}
+	return count
+}
+
+func (c Conversation) latestPrimarySession() SessionMeta {
+	if len(c.Sessions) == 0 {
+		return SessionMeta{}
+	}
+	for i := len(c.Sessions) - 1; i >= 0; i-- {
+		if !c.Sessions[i].IsSubagent {
+			return c.Sessions[i]
+		}
+	}
+	return c.Sessions[len(c.Sessions)-1]
 }

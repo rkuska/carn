@@ -57,7 +57,7 @@ func headerBadges(conversation conv.Conversation) []string {
 	if conversation.IsSubagent() {
 		badges = append(badges, renderHeaderBadge("subagent", colorAccent))
 	}
-	if parts := len(conversation.Sessions); parts > 1 {
+	if parts := conversation.PartCount(); parts > 1 {
 		badges = append(badges, renderHeaderBadge(fmt.Sprintf("%d parts", parts), colorSecondary))
 	}
 	if conversation.PlanCount > 0 {
@@ -128,7 +128,7 @@ func headerTimingChips(conversation conv.Conversation) []string {
 	if last := conversationLastTimestamp(conversation); !last.IsZero() {
 		chips = append(chips, renderSingleChip("last", last.Format(tsFmt)))
 	}
-	if len(conversation.Sessions) > 1 {
+	if conversation.PartCount() > 1 {
 		chips = append(chips, renderSingleChip("resume", shortID(conversation.ResumeID())))
 	}
 	return chips

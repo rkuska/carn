@@ -12,7 +12,7 @@ Use these terms when referring to different parts of the project in prompts.
 | **Project** | The source directory a session was started from. Derived from the encoded path under `~/.claude/projects/`. |
 | **Message** | A single turn in the transcript — either `user` or `assistant` role. Contains text, thinking, tool calls, tool results, and plans. |
 | **Sidechain** | A background message stream (marked `isSidechain`). Not part of the main conversation flow. Counted separately in `mainMessageCount`. Can be hidden in the viewer. |
-| **Subagent** | A spawned child session (`isSubagent: true`). Appears as its own conversation, not grouped with the parent. |
+| **Subagent** | A spawned child session (`isSubagent: true`). May be shown standalone or grouped into the parent conversation, depending on provider-owned projection. |
 | **Agent Divider** | A synthetic message (`isAgentDivider`) injected when subagent transcripts are merged into the parent via **projection**. Renders as a horizontal rule. |
 | **Plan** | A structured document extracted from `ExitPlanMode` tool results. Has a `filePath` and `content`. Deduplicated by path (last write wins). |
 | **Tool Call** | An assistant's invocation of a tool — `name` + optional `summary`. |

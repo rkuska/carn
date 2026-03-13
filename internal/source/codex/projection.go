@@ -9,43 +9,6 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func appendAssistantMessage(
-	messages []conv.Message,
-	thinking string,
-	calls []conv.ToolCall,
-	results []conv.ToolResult,
-	plans []conv.Plan,
-	text string,
-) []conv.Message {
-	if text == "" && thinking == "" && len(calls) == 0 && len(results) == 0 && len(plans) == 0 {
-		return messages
-	}
-
-	msg := conv.Message{
-		Role:        conv.RoleAssistant,
-		Text:        text,
-		Thinking:    thinking,
-		ToolCalls:   append([]conv.ToolCall(nil), calls...),
-		ToolResults: append([]conv.ToolResult(nil), results...),
-		Plans:       append([]conv.Plan(nil), plans...),
-	}
-
-	if len(messages) == 0 {
-		return append(messages, msg)
-	}
-
-	last := &messages[len(messages)-1]
-	if last.Role == conv.RoleAssistant && last.Text == msg.Text && !last.IsAgentDivider {
-		last.Thinking = joinUniqueText(last.Thinking, msg.Thinking)
-		last.ToolCalls = append(last.ToolCalls, msg.ToolCalls...)
-		last.ToolResults = append(last.ToolResults, msg.ToolResults...)
-		last.Plans = appendUniquePlans(last.Plans, msg.Plans)
-		return messages
-	}
-
-	return append(messages, msg)
-}
-
 func joinText(parts []string) string {
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {

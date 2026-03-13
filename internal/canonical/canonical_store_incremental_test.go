@@ -58,3 +58,33 @@ func TestGroupSearchUnitsByConversation(t *testing.T) {
 	assert.Len(t, grouped["a"], 2)
 	assert.Len(t, grouped["b"], 1)
 }
+
+func TestClassifyStoreConversationsMarksGroupedConversationChangedWhenChildFileChanges(t *testing.T) {
+	t.Parallel()
+
+	grouped := conversation{
+		Ref: conversationRef{Provider: conversationProvider("codex"), ID: "grouped"},
+		Sessions: []sessionMeta{
+			{
+				ID:        "main",
+				FilePath:  "/raw/main.jsonl",
+				Timestamp: time.Now(),
+			},
+			{
+				ID:         "child",
+				FilePath:   "/raw/child.jsonl",
+				Timestamp:  time.Now(),
+				IsSubagent: true,
+			},
+		},
+	}
+
+	plan := classifyStoreConversations(
+		[]conversation{grouped},
+		[]conversation{grouped},
+		map[string]struct{}{"/raw/child.jsonl": {}},
+	)
+
+	assert.Empty(t, plan.unchanged)
+	assert.Equal(t, []conversation{grouped}, plan.changed)
+}
