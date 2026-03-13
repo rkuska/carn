@@ -46,17 +46,18 @@ type summaryBlock struct {
 }
 
 type responseItemPayload struct {
-	Type      string         `json:"type"`
-	Role      string         `json:"role"`
-	Name      string         `json:"name"`
-	Arguments string         `json:"arguments"`
-	CallID    string         `json:"call_id"`
-	Output    string         `json:"output"`
-	Input     string         `json:"input"`
-	Status    string         `json:"status"`
-	Content   []contentBlock `json:"content"`
-	Summary   []summaryBlock `json:"summary"`
-	Action    struct {
+	Type             string         `json:"type"`
+	Role             string         `json:"role"`
+	Name             string         `json:"name"`
+	Arguments        string         `json:"arguments"`
+	CallID           string         `json:"call_id"`
+	Output           string         `json:"output"`
+	Input            string         `json:"input"`
+	Status           string         `json:"status"`
+	EncryptedContent string         `json:"encrypted_content"`
+	Content          []contentBlock `json:"content"`
+	Summary          []summaryBlock `json:"summary"`
+	Action           struct {
 		Query   string   `json:"query"`
 		Queries []string `json:"queries"`
 	} `json:"action"`

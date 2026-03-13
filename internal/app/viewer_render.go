@@ -161,6 +161,8 @@ func renderSegment(
 		sb.WriteString(renderRoleHeader(seg.role, contentWidth))
 	case segmentThinking:
 		sb.WriteString(renderThinkingBlock(seg.text))
+	case segmentThinkingUnavailable:
+		sb.WriteString(renderThinkingUnavailableBlock())
 	case segmentToolCall:
 		sb.WriteString(renderStyledToolCall(seg.text))
 	}
@@ -234,6 +236,21 @@ func renderThinkingBlock(text string) string {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
+	return sb.String()
+}
+
+func renderThinkingUnavailableBlock() string {
+	var sb strings.Builder
+	label := lipgloss.NewStyle().Italic(true).Foreground(colorSecondary).Render("Thinking unavailable")
+	sb.WriteString(label)
+	sb.WriteString("\n")
+
+	border := lipgloss.NewStyle().Foreground(colorSecondary).Render("▎")
+	lineStyle := lipgloss.NewStyle().Foreground(colorSecondary)
+	sb.WriteString(border)
+	sb.WriteString(" ")
+	sb.WriteString(lineStyle.Render(hiddenThinkingUnavailableText))
+	sb.WriteString("\n\n")
 	return sb.String()
 }
 

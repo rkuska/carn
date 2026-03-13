@@ -58,6 +58,18 @@ func (w Workspace) SeedFixtureCorpus(tb testing.TB) {
 	copyFixtureDir(tb, fixtureCorpusDir(tb), w.SourceDir)
 }
 
+// SeedCodexFixtureCorpus copies the shared Codex raw-session corpus into an isolated source directory.
+func (w Workspace) SeedCodexFixtureCorpus(tb testing.TB) string {
+	tb.Helper()
+
+	sourceDir := filepath.Join(w.RootDir, "codex-source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		tb.Fatalf("os.MkdirAll codex source: %v", err)
+	}
+	copyFixtureDir(tb, codexFixtureCorpusDir(tb), sourceDir)
+	return sourceDir
+}
+
 // WriteSession writes a minimal session JSONL file into the source workspace.
 func (w Workspace) WriteSession(tb testing.TB, spec SessionSpec) string {
 	tb.Helper()
@@ -148,6 +160,17 @@ func fixtureCorpusDir(tb testing.TB) string {
 	}
 
 	return filepath.Join(filepath.Dir(file), "..", "..", "testdata", "claude_raw")
+}
+
+func codexFixtureCorpusDir(tb testing.TB) string {
+	tb.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		tb.Fatal("runtime.Caller: no caller information")
+	}
+
+	return filepath.Join(filepath.Dir(file), "..", "..", "testdata", "codex_raw")
 }
 
 func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {

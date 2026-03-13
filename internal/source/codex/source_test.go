@@ -19,7 +19,7 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	rawDir := copyCodexFixtureDir(t)
 	conversations, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 2)
+	require.Len(t, conversations, 3)
 
 	byID := make(map[string]conv.Conversation, len(conversations))
 	for _, conversation := range conversations {
@@ -55,7 +55,7 @@ func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 	rawDir := copyCodexFixtureDir(t)
 	conversations, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 2)
+	require.Len(t, conversations, 3)
 
 	colliding := make([]conv.Conversation, 0, len(conversations))
 	for _, conversation := range conversations {
@@ -64,10 +64,10 @@ func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 		}
 	}
 
-	require.Len(t, colliding, 2)
+	require.Len(t, colliding, 3)
 	assert.ElementsMatch(t,
-		[]string{"019cexample-main", "019cexample-legacy"},
-		[]string{colliding[0].ID(), colliding[1].ID()},
+		[]string{"019cexample-main", "019cexample-legacy", "019cexample-hidden"},
+		[]string{colliding[0].ID(), colliding[1].ID(), colliding[2].ID()},
 	)
 }
 
@@ -114,6 +114,20 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, "Inspect the parser.", mainSession.Messages[6].Text)
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[7].Role)
 	assert.Equal(t, "Parser inspected.", mainSession.Messages[7].Text)
+
+	hiddenSession, err := New().Load(context.Background(), byID["019cexample-hidden"])
+	require.NoError(t, err)
+	require.Len(t, hiddenSession.Messages, 4)
+	assert.Equal(t, conv.RoleAssistant, hiddenSession.Messages[1].Role)
+	assert.Equal(t, "First answer without visible thinking.", hiddenSession.Messages[1].Text)
+	assert.Empty(t, hiddenSession.Messages[1].Thinking)
+	assert.True(t, hiddenSession.Messages[1].HasHiddenThinking)
+	assert.True(t, hiddenSession.Messages[1].HasThinking())
+	assert.Equal(t, conv.RoleAssistant, hiddenSession.Messages[3].Role)
+	assert.Equal(t, "Second answer with visible reasoning.", hiddenSession.Messages[3].Text)
+	assert.Equal(t, "Visible reasoning should win.", hiddenSession.Messages[3].Thinking)
+	assert.False(t, hiddenSession.Messages[3].HasHiddenThinking)
+	assert.True(t, hiddenSession.Messages[3].HasThinking())
 
 	legacySession, err := New().Load(context.Background(), byID["019cexample-legacy"])
 	require.NoError(t, err)
@@ -163,10 +177,10 @@ func TestAnalyzeReportsSyncCandidates(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, analysis.UnitsTotal)
-	assert.Equal(t, 3, analysis.FilesInspected)
-	assert.Equal(t, 3, analysis.Conversations)
-	assert.Equal(t, 3, analysis.NewConversations)
-	assert.Len(t, analysis.SyncCandidates, 3)
+	assert.Equal(t, 4, analysis.FilesInspected)
+	assert.Equal(t, 4, analysis.Conversations)
+	assert.Equal(t, 4, analysis.NewConversations)
+	assert.Len(t, analysis.SyncCandidates, 4)
 	require.Len(t, progresses, 1)
 	assert.Equal(t, conv.ProviderCodex, progresses[0].Provider)
 	assert.Equal(t, "sessions", progresses[0].CurrentUnit)
@@ -184,7 +198,7 @@ func TestSourceOwnsCodexSourceConfigAndSyncCandidates(t *testing.T) {
 
 	candidates, err := backend.SyncCandidates(context.Background(), sourceDir, rawDir)
 	require.NoError(t, err)
-	require.Len(t, candidates, 3)
+	require.Len(t, candidates, 4)
 	assert.Equal(t,
 		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-00-00-019cexample-main.jsonl"),
 		candidates[0].DestPath,
@@ -196,6 +210,10 @@ func TestSourceOwnsCodexSourceConfigAndSyncCandidates(t *testing.T) {
 	assert.Equal(t,
 		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-10-00-019cexample-child.jsonl"),
 		candidates[2].DestPath,
+	)
+	assert.Equal(t,
+		filepath.Join(rawDir, "2026", "03", "13", "rollout-2026-03-13T10-15-00-019cexample-hidden.jsonl"),
+		candidates[3].DestPath,
 	)
 }
 

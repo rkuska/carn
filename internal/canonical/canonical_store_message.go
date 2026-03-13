@@ -11,6 +11,7 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	bw.writeString(string(msg.Visibility))
 	bw.writeString(msg.Text)
 	bw.writeString(msg.Thinking)
+	bw.writeBool(msg.HasHiddenThinking)
 	bw.writeUint(uint64(len(msg.ToolCalls)))
 	for _, call := range msg.ToolCalls {
 		bw.writeString(call.Name)
@@ -48,6 +49,7 @@ func readMessage(r *bufio.Reader) (message, error) {
 	visibilityValue := br.readString()
 	text := br.readString()
 	thinking := br.readString()
+	hasHiddenThinking := br.readBool()
 	callCount := br.readUint()
 	toolCalls := make([]toolCall, 0, callCount)
 	for range callCount {
@@ -84,15 +86,16 @@ func readMessage(r *bufio.Reader) (message, error) {
 		plans = append(plans, plan)
 	}
 	return message{
-		Role:           role(roleValue),
-		Visibility:     convMessageVisibility(visibilityValue),
-		Text:           text,
-		Thinking:       thinking,
-		ToolCalls:      toolCalls,
-		ToolResults:    toolResults,
-		Plans:          plans,
-		IsSidechain:    isSidechain,
-		IsAgentDivider: isAgentDivider,
+		Role:              role(roleValue),
+		Visibility:        convMessageVisibility(visibilityValue),
+		Text:              text,
+		Thinking:          thinking,
+		HasHiddenThinking: hasHiddenThinking,
+		ToolCalls:         toolCalls,
+		ToolResults:       toolResults,
+		Plans:             plans,
+		IsSidechain:       isSidechain,
+		IsAgentDivider:    isAgentDivider,
 	}, nil
 }
 

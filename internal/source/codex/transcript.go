@@ -1,37 +1,40 @@
 package codex
 
 import (
+	"strings"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type parsedMessage struct {
-	role           conv.Role
-	timestamp      time.Time
-	text           string
-	thinking       string
-	toolCalls      []conv.ToolCall
-	toolResults    []conv.ToolResult
-	plans          []conv.Plan
-	visibility     conv.MessageVisibility
-	isAgentDivider bool
+	role              conv.Role
+	timestamp         time.Time
+	text              string
+	thinking          string
+	hasHiddenThinking bool
+	toolCalls         []conv.ToolCall
+	toolResults       []conv.ToolResult
+	plans             []conv.Plan
+	visibility        conv.MessageVisibility
+	isAgentDivider    bool
 }
 
 func appendParsedAssistantMessage(
 	messages []parsedMessage,
 	thinking string,
+	hasHiddenThinking bool,
 	calls []conv.ToolCall,
 	results []conv.ToolResult,
 	plans []conv.Plan,
 	text string,
 	timestamp time.Time,
 ) []parsedMessage {
-	if assistantMessageEmpty(thinking, calls, results, plans, text) {
+	if assistantMessageEmpty(thinking, hasHiddenThinking, calls, results, plans, text) {
 		return messages
 	}
 
-	msg := newParsedAssistantMessage(thinking, calls, results, plans, text, timestamp)
+	msg := newParsedAssistantMessage(thinking, hasHiddenThinking, calls, results, plans, text, timestamp)
 
 	if len(messages) == 0 {
 		return append(messages, msg)
@@ -46,16 +49,23 @@ func appendParsedAssistantMessage(
 
 func assistantMessageEmpty(
 	thinking string,
+	hasHiddenThinking bool,
 	calls []conv.ToolCall,
 	results []conv.ToolResult,
 	plans []conv.Plan,
 	text string,
 ) bool {
-	return text == "" && thinking == "" && len(calls) == 0 && len(results) == 0 && len(plans) == 0
+	return text == "" &&
+		thinking == "" &&
+		!hasHiddenThinking &&
+		len(calls) == 0 &&
+		len(results) == 0 &&
+		len(plans) == 0
 }
 
 func newParsedAssistantMessage(
 	thinking string,
+	hasHiddenThinking bool,
 	calls []conv.ToolCall,
 	results []conv.ToolResult,
 	plans []conv.Plan,
@@ -63,13 +73,14 @@ func newParsedAssistantMessage(
 	timestamp time.Time,
 ) parsedMessage {
 	return parsedMessage{
-		role:        conv.RoleAssistant,
-		timestamp:   timestamp,
-		text:        text,
-		thinking:    thinking,
-		toolCalls:   append([]conv.ToolCall(nil), calls...),
-		toolResults: append([]conv.ToolResult(nil), results...),
-		plans:       append([]conv.Plan(nil), plans...),
+		role:              conv.RoleAssistant,
+		timestamp:         timestamp,
+		text:              text,
+		thinking:          thinking,
+		hasHiddenThinking: hasHiddenThinking,
+		toolCalls:         append([]conv.ToolCall(nil), calls...),
+		toolResults:       append([]conv.ToolResult(nil), results...),
+		plans:             append([]conv.Plan(nil), plans...),
 	}
 }
 
@@ -80,6 +91,8 @@ func mergeAdjacentAssistantMessage(messages []parsedMessage, msg parsedMessage) 
 	}
 
 	last.thinking = joinUniqueText(last.thinking, msg.thinking)
+	last.hasHiddenThinking = strings.TrimSpace(last.thinking) == "" &&
+		(last.hasHiddenThinking || msg.hasHiddenThinking)
 	last.toolCalls = append(last.toolCalls, msg.toolCalls...)
 	last.toolResults = append(last.toolResults, msg.toolResults...)
 	last.plans = appendUniquePlans(last.plans, msg.plans)
@@ -147,14 +160,15 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 	projected := make([]conv.Message, 0, len(messages))
 	for _, msg := range messages {
 		projected = append(projected, conv.Message{
-			Role:           msg.role,
-			Text:           msg.text,
-			Thinking:       msg.thinking,
-			ToolCalls:      append([]conv.ToolCall(nil), msg.toolCalls...),
-			ToolResults:    append([]conv.ToolResult(nil), msg.toolResults...),
-			Plans:          append([]conv.Plan(nil), msg.plans...),
-			Visibility:     msg.visibility,
-			IsAgentDivider: msg.isAgentDivider,
+			Role:              msg.role,
+			Text:              msg.text,
+			Thinking:          msg.thinking,
+			HasHiddenThinking: msg.hasHiddenThinking,
+			ToolCalls:         append([]conv.ToolCall(nil), msg.toolCalls...),
+			ToolResults:       append([]conv.ToolResult(nil), msg.toolResults...),
+			Plans:             append([]conv.Plan(nil), msg.plans...),
+			Visibility:        msg.visibility,
+			IsAgentDivider:    msg.isAgentDivider,
 		})
 	}
 	return projected

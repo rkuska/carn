@@ -35,6 +35,11 @@ func TestScanContentFlags(t *testing.T) {
 			want:     contentFlags{hasThinking: true},
 		},
 		{
+			name:     "has hidden thinking only",
+			messages: []conv.Message{{Role: conv.RoleAssistant, HasHiddenThinking: true}},
+			want:     contentFlags{hasThinking: true},
+		},
+		{
 			name:     "has tool calls only",
 			messages: []conv.Message{{Role: conv.RoleAssistant, ToolCalls: []conv.ToolCall{{Name: "Read"}}}},
 			want:     contentFlags{hasToolCalls: true},
@@ -106,6 +111,31 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	// Thinking is off by default and there IS thinking content — should glow.
+	helpOff := m.footerView()
+
+	m.opts.showThinking = true
+	helpOn := m.footerView()
+
+	assert.NotEqual(t, helpOff, helpOn)
+}
+
+func TestHelpViewGlowsWhenHiddenThinkingExistsWithoutVisibleThinking(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "glow-hidden-thinking",
+			Timestamp: time.Now(),
+			Project:   conv.Project{DisplayName: "test"},
+		},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "hello"},
+			{Role: conv.RoleAssistant, Text: "hi", HasHiddenThinking: true},
+		},
+	}
+
+	m := newTestViewer(session, 120, 40)
+
 	helpOff := m.footerView()
 
 	m.opts.showThinking = true
