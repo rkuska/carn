@@ -27,6 +27,12 @@ type Analysis struct {
 	SyncCandidates   []string
 }
 
+// SyncCandidate is a backend-owned raw-file sync plan item.
+type SyncCandidate struct {
+	SourcePath string
+	DestPath   string
+}
+
 // Progress reports provider-local analysis progress using provider-neutral terms.
 type Progress struct {
 	Provider         conv.Provider
@@ -43,9 +49,12 @@ type Progress struct {
 // Backend is the generic provider contract used by archive, canonical, and app.
 type Backend interface {
 	Provider() conv.Provider
+	SourceEnvVars() []string
+	DefaultSourceDir(home string) string
 	Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error)
 	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
 	Analyze(ctx context.Context, sourceDir, rawDir string, onProgress func(Progress)) (Analysis, error)
+	SyncCandidates(ctx context.Context, sourceDir, rawDir string) ([]SyncCandidate, error)
 	ResumeCommand(target conv.ResumeTarget) (*exec.Cmd, error)
 }
 

@@ -114,39 +114,24 @@ func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, loadedClaude.Messages)
 	assert.NotEmpty(t, loadedCodex.Messages)
+	assert.Contains(t, []string{
+		claudeConversation.Ref.ID,
+		codexConversation.Ref.ID,
+	}, conversations[0].Ref.ID)
+	assert.Contains(t, []string{
+		claudeConversation.Ref.ID,
+		codexConversation.Ref.ID,
+	}, conversations[1].Ref.ID)
 }
 
-func TestBuildConversationStoreKeyKeepsCollidingCodexSlugsSeparate(t *testing.T) {
+func TestStoreTranscriptPathHashesConversationCacheKey(t *testing.T) {
 	t.Parallel()
 
-	rawDir := t.TempDir()
-	pathA := filepath.Join(rawDir, "2026", "03", "13", "rollout-a.jsonl")
-	pathB := filepath.Join(rawDir, "2026", "03", "13", "rollout-b.jsonl")
-
-	convA := conversation{
-		Ref:     conversationRef{Provider: conversationProvider("codex"), ID: "019cexample-main"},
-		Project: project{DisplayName: "project"},
-		Sessions: []sessionMeta{{
-			ID:       "019cexample-main",
-			Slug:     "019cexample-",
-			FilePath: pathA,
-		}},
-	}
-	convB := conversation{
-		Ref:     conversationRef{Provider: conversationProvider("codex"), ID: "019cexample-child"},
-		Project: project{DisplayName: "project"},
-		Sessions: []sessionMeta{{
-			ID:       "019cexample-child",
-			Slug:     "019cexample-",
-			FilePath: pathB,
-		}},
-	}
-
-	assert.NotEqual(
-		t,
-		buildConversationStoreKey(rawDir, conversationProvider("codex"), convA),
-		buildConversationStoreKey(rawDir, conversationProvider("codex"), convB),
-	)
+	storeDir := t.TempDir()
+	path := storeTranscriptPath(storeDir, "claude:path:project-a/session-with-subagent/subagents/agent-1.jsonl")
+	assert.Equal(t, "transcripts", filepath.Base(filepath.Dir(path)))
+	assert.NotContains(t, path, "session-with-subagent/subagents")
+	assert.Regexp(t, `transcripts/[0-9a-f]+\.bin$`, filepath.ToSlash(path))
 }
 
 func testProviderConversation(
@@ -156,6 +141,7 @@ func testProviderConversation(
 	path string,
 ) conversation {
 	return conversation{
+		Ref:     conversationRef{Provider: provider, ID: sessionID},
 		Name:    name,
 		Project: project{DisplayName: string(provider)},
 		Sessions: []sessionMeta{{

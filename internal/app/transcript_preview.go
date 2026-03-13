@@ -63,7 +63,7 @@ func renderPreviewTimingParts(meta conv.SessionMeta, sep string) string {
 
 func firstUserMessage(messages []conv.Message) string {
 	for _, msg := range messages {
-		if msg.Role != conv.RoleUser || msg.IsAgentDivider || msg.Text == "" || isSystemInterrupt(msg.Text) {
+		if msg.Role != conv.RoleUser || !msg.IsVisible() || msg.IsAgentDivider || msg.Text == "" {
 			continue
 		}
 		return msg.Text
@@ -123,7 +123,7 @@ func renderPreview(session conv.Session, maxMessages int, width int) string {
 func renderPreviewMessage(msg conv.Message, skippedFirstUser *bool, width int) (string, bool) {
 	switch msg.Role {
 	case conv.RoleUser:
-		if msg.Text == "" || isSystemInterrupt(msg.Text) {
+		if !msg.IsVisible() || msg.Text == "" {
 			return "", true
 		}
 		if !*skippedFirstUser {
@@ -137,6 +137,8 @@ func renderPreviewMessage(msg conv.Message, skippedFirstUser *bool, width int) (
 			text = formatToolCall(msg.ToolCalls[0])
 		}
 		return "◀ Assistant\n" + wrapText(text, width) + "\n\n", false
+	case conv.RoleSystem:
+		return "", true
 	}
 	return "", true
 }

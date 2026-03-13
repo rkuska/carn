@@ -3,10 +3,12 @@ package app
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const archiveMatchesSourceSubtitle = "analysis complete; archive already matches the configured sources"
@@ -105,16 +107,13 @@ func renderImportStatusPill(phase importPhase, hasFailures bool) string {
 
 func (m importOverviewModel) renderContextBlock(width int) string {
 	lines := make([]string, 0, 3)
-	if m.cfg.SourceDir != "" {
+	for _, provider := range orderedSourceProviders(m.cfg.SourceDirs) {
+		sourceDir := m.cfg.SourceDirs[provider]
+		if sourceDir == "" {
+			continue
+		}
 		lines = append(lines, ansi.Truncate(
-			renderSingleChip("Claude", shortenPath(m.cfg.SourceDir)),
-			width,
-			"…",
-		))
-	}
-	if m.cfg.CodexSourceDir != "" {
-		lines = append(lines, ansi.Truncate(
-			renderSingleChip("Codex", shortenPath(m.cfg.CodexSourceDir)),
+			renderSingleChip(provider.Label(), shortenPath(sourceDir)),
 			width,
 			"…",
 		))
@@ -199,14 +198,7 @@ func (m importOverviewModel) filesMetric() string {
 }
 
 func (m importOverviewModel) sourcesMetric() string {
-	count := 0
-	if m.cfg.SourceDir != "" {
-		count++
-	}
-	if m.cfg.CodexSourceDir != "" {
-		count++
-	}
-	return fmt.Sprintf("%d", count)
+	return fmt.Sprintf("%d", len(orderedSourceProviders(m.cfg.SourceDirs)))
 }
 
 func (m importOverviewModel) conversationMetric() string {
@@ -225,6 +217,20 @@ func shortenPath(path string) string {
 		return "~" + rest
 	}
 	return path
+}
+
+func orderedSourceProviders(sourceDirs map[conv.Provider]string) []conv.Provider {
+	providers := make([]conv.Provider, 0, len(sourceDirs))
+	for provider, sourceDir := range sourceDirs {
+		if sourceDir == "" {
+			continue
+		}
+		providers = append(providers, provider)
+	}
+	slices.SortFunc(providers, func(a, b conv.Provider) int {
+		return strings.Compare(a.Label(), b.Label())
+	})
+	return providers
 }
 
 func centerImportBlock(block string, width int) string {

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rkuska/carn/internal/canonical"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/internal/source/claude"
 )
 
@@ -45,7 +46,7 @@ func TestPipelineAnalyze(t *testing.T) {
 	source := claude.New()
 	store := canonical.New(source)
 	pipeline := New(Config{
-		SourceDir:  sourceDir,
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
 		ArchiveDir: archiveDir,
 	}, store, source)
 
@@ -55,7 +56,6 @@ func TestPipelineAnalyze(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, sourceDir, analysis.SourceDir)
 	assert.Equal(t, archiveDir, analysis.ArchiveDir)
 	assert.Equal(t, 1, analysis.Projects)
 	assert.Equal(t, 2, analysis.FilesInspected)
@@ -85,7 +85,7 @@ func TestPipelineAnalyzeMissingSource(t *testing.T) {
 	source := claude.New()
 	store := canonical.New(source)
 	pipeline := New(Config{
-		SourceDir:  filepath.Join(dir, "missing"),
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: filepath.Join(dir, "missing")},
 		ArchiveDir: filepath.Join(dir, "archive"),
 	}, store, source)
 
@@ -102,7 +102,10 @@ func TestPipelineAnalyzeContextCanceled(t *testing.T) {
 
 	source := claude.New()
 	store := canonical.New(source)
-	pipeline := New(Config{SourceDir: t.TempDir(), ArchiveDir: t.TempDir()}, store, source)
+	pipeline := New(Config{
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: t.TempDir()},
+		ArchiveDir: t.TempDir(),
+	}, store, source)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -125,7 +128,7 @@ func TestPipelineRunReportsSyncActivities(t *testing.T) {
 	source := claude.New()
 	store := canonical.New(source)
 	pipeline := New(Config{
-		SourceDir:  sourceDir,
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
 		ArchiveDir: archiveDir,
 	}, store, source)
 

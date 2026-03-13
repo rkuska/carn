@@ -3,6 +3,8 @@ package claude
 import (
 	"slices"
 	"strings"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 // systemInterrupts are messages injected by Claude Code when a session
@@ -32,4 +34,11 @@ func isSystemInterrupt(text string) bool {
 		}
 	}
 	return false
+}
+
+func classifyUserText(text string) (role, messageVisibility) {
+	if isSystemInterrupt(text) {
+		return roleSystem, conv.MessageVisibilityHiddenSystem
+	}
+	return roleUser, conv.MessageVisibilityVisible
 }

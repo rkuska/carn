@@ -173,7 +173,7 @@ func (s *scanState) applyResponseItem(raw json.RawMessage) error {
 }
 
 func (s *scanState) recordMessage(message visibleMessage, ok bool) {
-	if !ok || message.text == "" || message.isAgentDivider {
+	if !ok || message.text == "" || message.isAgentDivider || message.visibility == conv.MessageVisibilityHiddenSystem {
 		return
 	}
 

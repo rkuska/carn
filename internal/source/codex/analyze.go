@@ -49,6 +49,41 @@ func (Source) Analyze(
 	return analysis, nil
 }
 
+func (Source) SyncCandidates(
+	ctx context.Context,
+	sourceDir string,
+	rawDir string,
+) ([]src.SyncCandidate, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("syncCandidates_ctx: %w", err)
+	}
+
+	paths, err := listRolloutPaths(sourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("syncCandidates_listRolloutPaths: %w", err)
+	}
+
+	candidates := make([]src.SyncCandidate, 0, len(paths))
+	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("syncCandidates_ctx: %w", err)
+		}
+
+		destPath, needsSync, err := codexDestPathIfStale(sourceDir, rawDir, path)
+		if err != nil {
+			return nil, fmt.Errorf("codexDestPathIfStale_%s: %w", filepath.Base(path), err)
+		}
+		if !needsSync {
+			continue
+		}
+		candidates = append(candidates, src.SyncCandidate{
+			SourcePath: path,
+			DestPath:   destPath,
+		})
+	}
+	return candidates, nil
+}
+
 func dirExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -61,18 +96,10 @@ func dirExists(path string) (bool, error) {
 }
 
 func analyzePath(sourceDir, rawDir, path string, analysis *src.Analysis) error {
-	rel, err := filepath.Rel(sourceDir, path)
+	_, needsSync, exists, err := codexSyncStatus(sourceDir, rawDir, path)
 	if err != nil {
-		return fmt.Errorf("filepath.Rel: %w", err)
+		return fmt.Errorf("codexSyncStatus: %w", err)
 	}
-
-	destPath := filepath.Join(rawDir, rel)
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("os.Stat: %w", err)
-	}
-
-	needsSync, exists := codexFileNeedsSync(info, destPath)
 	analysis.Conversations++
 	switch {
 	case !exists:
@@ -86,6 +113,30 @@ func analyzePath(sourceDir, rawDir, path string, analysis *src.Analysis) error {
 		analysis.SyncCandidates = append(analysis.SyncCandidates, path)
 	}
 	return nil
+}
+
+func codexDestPathIfStale(sourceDir, rawDir, path string) (string, bool, error) {
+	destPath, needsSync, _, err := codexSyncStatus(sourceDir, rawDir, path)
+	if err != nil {
+		return "", false, err
+	}
+	return destPath, needsSync, nil
+}
+
+func codexSyncStatus(sourceDir, rawDir, path string) (string, bool, bool, error) {
+	rel, err := filepath.Rel(sourceDir, path)
+	if err != nil {
+		return "", false, false, fmt.Errorf("filepath.Rel: %w", err)
+	}
+
+	destPath := filepath.Join(rawDir, rel)
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false, false, fmt.Errorf("os.Stat: %w", err)
+	}
+
+	needsSync, exists := codexFileNeedsSync(info, destPath)
+	return destPath, needsSync, exists, nil
 }
 
 func reportAnalyzeProgress(analysis src.Analysis, onProgress func(src.Progress)) {

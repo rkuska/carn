@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	storeSchemaVersion       = 3
-	storeProjectionVersion   = 3
+	storeSchemaVersion       = 4
+	storeProjectionVersion   = 4
 	storeSearchCorpusVersion = 1
 
 	catalogMagic    = "CLDSCAT1"
@@ -112,13 +112,6 @@ func scanRegisteredConversations(
 		scanned, err := source.Scan(ctx, rawDir)
 		if err != nil {
 			return nil, fmt.Errorf("source.Scan_%s: %w", provider, err)
-		}
-
-		for i := range scanned {
-			scanned[i].Ref = conversationRef{
-				Provider: provider,
-				ID:       buildConversationStoreKey(rawDir, provider, scanned[i]),
-			}
 		}
 		conversations = append(conversations, scanned...)
 	}

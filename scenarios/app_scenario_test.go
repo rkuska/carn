@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/rkuska/carn/internal/app"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/scenarios/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,9 @@ func newScenarioHarness(
 	t.Setenv("HOME", workspace.RootDir)
 
 	model, err := app.NewModel(t.Context(), app.Config{
-		SourceDir:    workspace.SourceDir,
+		SourceDirs: map[conv.Provider]string{
+			conv.ProviderClaude: workspace.SourceDir,
+		},
 		ArchiveDir:   workspace.ArchiveDir,
 		GlamourStyle: "dark",
 	})

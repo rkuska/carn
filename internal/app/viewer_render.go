@@ -93,6 +93,7 @@ func appendToggleStatusParts(parts []string, opts transcriptOptions, content con
 		{opts.showThinking && content.hasThinking, "[thinking]"},
 		{opts.showTools && content.hasToolCalls, "[tools]"},
 		{opts.showToolResults && content.hasToolResults, "[results]"},
+		{opts.showSystem && content.hasSystem, "[system]"},
 		{opts.hideSidechain && content.hasSidechain, "[no-sidechain]"},
 	}
 	for _, toggle := range toggles {
@@ -208,6 +209,10 @@ func renderRoleHeader(r conv.Role, width int) string {
 		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
 	case conv.RoleAssistant:
 		badge := lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(" Assistant")
+		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
+		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+	case conv.RoleSystem:
+		badge := lipgloss.NewStyle().Bold(true).Foreground(colorSecondary).Render(" System")
 		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
 		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
 	}

@@ -24,6 +24,7 @@ type contentFlags struct {
 	hasToolResults bool
 	hasPlans       bool
 	hasSidechain   bool
+	hasSystem      bool
 }
 
 type viewerModel struct {
@@ -69,16 +70,24 @@ func scanContentFlags(messages []conv.Message) contentFlags {
 }
 
 func (f contentFlags) accumulate(msg conv.Message) contentFlags {
-	f.hasThinking = f.hasThinking || msg.Thinking != ""
-	f.hasToolCalls = f.hasToolCalls || len(msg.ToolCalls) > 0
-	f.hasToolResults = f.hasToolResults || len(msg.ToolResults) > 0
-	f.hasPlans = f.hasPlans || len(msg.Plans) > 0
+	if msg.IsVisible() {
+		f.hasThinking = f.hasThinking || msg.Thinking != ""
+		f.hasToolCalls = f.hasToolCalls || len(msg.ToolCalls) > 0
+		f.hasToolResults = f.hasToolResults || len(msg.ToolResults) > 0
+		f.hasPlans = f.hasPlans || len(msg.Plans) > 0
+	}
 	f.hasSidechain = f.hasSidechain || msg.IsSidechain
+	f.hasSystem = f.hasSystem || !msg.IsVisible()
 	return f
 }
 
 func (f contentFlags) allSet() bool {
-	return f.hasThinking && f.hasToolCalls && f.hasToolResults && f.hasPlans && f.hasSidechain
+	return f.hasThinking &&
+		f.hasToolCalls &&
+		f.hasToolResults &&
+		f.hasPlans &&
+		f.hasSidechain &&
+		f.hasSystem
 }
 
 func newViewerModel(
@@ -291,6 +300,14 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 			label = "hidden"
 		}
 		m = m.setNotification(infoNotification(fmt.Sprintf("sidechain: %s", label)).notification, cmds)
+		return m, true
+	case key.Matches(msg, viewerKeys.ToggleSystem):
+		m.opts.showSystem = !m.opts.showSystem
+		m = m.renderContent()
+		m = m.setNotification(
+			infoNotification(fmt.Sprintf("system: %s", toggleLabel(m.opts.showSystem))).notification,
+			cmds,
+		)
 		return m, true
 	}
 	return m, false

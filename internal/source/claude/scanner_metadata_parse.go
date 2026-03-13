@@ -32,7 +32,11 @@ func applyUserMetadata(meta *sessionMeta, rec jsonRecord) {
 }
 
 func isUserContentText(content string) bool {
-	return content != "" && !isSystemInterrupt(content)
+	if content == "" {
+		return false
+	}
+	_, visibility := classifyUserText(content)
+	return visibility == ""
 }
 
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) {

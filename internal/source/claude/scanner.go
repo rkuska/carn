@@ -29,6 +29,7 @@ const (
 
 type sessionFile struct {
 	path         string
+	relPath      string
 	project      project
 	groupDirName string
 	isSubagent   bool
@@ -108,6 +109,7 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error)
 			projDir,
 			project{DisplayName: proj.displayName},
 			proj.dirName,
+			baseDir,
 		)
 		if err != nil {
 			log.Warn().Err(err).Msgf("discoverProjectSessionFiles failed for %s", projDir)
@@ -204,12 +206,17 @@ func scanSessionFile(ctx context.Context, file sessionFile) (scannedSession, err
 
 func buildConversationGroupKey(file sessionFile, meta sessionMeta) groupKey {
 	if file.isSubagent || meta.Slug == "" {
-		return groupKey{dirName: file.groupDirName, slug: file.path}
+		return groupKey{dirName: file.groupDirName, slug: filepath.ToSlash(file.relPath)}
 	}
 	return groupKey{dirName: file.groupDirName, slug: meta.Slug}
 }
 
-func discoverProjectSessionFiles(projDir string, proj project, groupDirName string) ([]sessionFile, error) {
+func discoverProjectSessionFiles(
+	projDir string,
+	proj project,
+	groupDirName string,
+	baseDir string,
+) ([]sessionFile, error) {
 	mainFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("filepath.Glob_main: %w", err)
@@ -222,15 +229,25 @@ func discoverProjectSessionFiles(projDir string, proj project, groupDirName stri
 
 	files := make([]sessionFile, 0, len(mainFiles)+len(subagentFiles))
 	for _, path := range mainFiles {
+		relPath, err := filepath.Rel(baseDir, path)
+		if err != nil {
+			return nil, fmt.Errorf("filepath.Rel_main: %w", err)
+		}
 		files = append(files, sessionFile{
 			path:         path,
+			relPath:      relPath,
 			project:      proj,
 			groupDirName: groupDirName,
 		})
 	}
 	for _, path := range subagentFiles {
+		relPath, err := filepath.Rel(baseDir, path)
+		if err != nil {
+			return nil, fmt.Errorf("filepath.Rel_subagent: %w", err)
+		}
 		files = append(files, sessionFile{
 			path:         path,
+			relPath:      relPath,
 			project:      proj,
 			groupDirName: groupDirName,
 			isSubagent:   true,

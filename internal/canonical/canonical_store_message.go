@@ -8,6 +8,7 @@ import (
 func writeMessage(w *bufio.Writer, msg message) error {
 	bw := binWriter{w: w}
 	bw.writeString(string(msg.Role))
+	bw.writeString(string(msg.Visibility))
 	bw.writeString(msg.Text)
 	bw.writeString(msg.Thinking)
 	bw.writeUint(uint64(len(msg.ToolCalls)))
@@ -44,6 +45,7 @@ func writeMessage(w *bufio.Writer, msg message) error {
 func readMessage(r *bufio.Reader) (message, error) {
 	br := binReader{r: r}
 	roleValue := br.readString()
+	visibilityValue := br.readString()
 	text := br.readString()
 	thinking := br.readString()
 	callCount := br.readUint()
@@ -83,6 +85,7 @@ func readMessage(r *bufio.Reader) (message, error) {
 	}
 	return message{
 		Role:           role(roleValue),
+		Visibility:     convMessageVisibility(visibilityValue),
 		Text:           text,
 		Thinking:       thinking,
 		ToolCalls:      toolCalls,
@@ -91,6 +94,10 @@ func readMessage(r *bufio.Reader) (message, error) {
 		IsSidechain:    isSidechain,
 		IsAgentDivider: isAgentDivider,
 	}, nil
+}
+
+func convMessageVisibility(value string) messageVisibility {
+	return messageVisibility(value)
 }
 
 func writeToolResult(w *bufio.Writer, result toolResult) error {

@@ -127,7 +127,7 @@ func pathExists(path string) (bool, error) {
 }
 
 func storeTranscriptPath(storeDir, conversationID string) string {
-	return filepath.Join(storeDir, "transcripts", conversationID+".bin")
+	return filepath.Join(storeDir, "transcripts", storeTranscriptFileKey(conversationID)+".bin")
 }
 
 func writeManifest(path string) error {

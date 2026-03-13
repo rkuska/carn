@@ -121,6 +121,50 @@ func TestRenderPreview(t *testing.T) {
 	}
 }
 
+func TestRenderTranscriptHidesSystemMessagesByDefaultAndShowsThemWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Messages: []conv.Message{
+			{
+				Role:       conv.RoleSystem,
+				Text:       "bootstrap context",
+				Visibility: conv.MessageVisibilityHiddenSystem,
+			},
+			{Role: conv.RoleUser, Text: "Actual prompt"},
+			{Role: conv.RoleAssistant, Text: "Actual answer"},
+		},
+	}
+
+	hidden := renderTranscript(session, transcriptOptions{})
+	assert.NotContains(t, hidden, "bootstrap context")
+	assert.NotContains(t, hidden, "## System")
+
+	shown := renderTranscript(session, transcriptOptions{showSystem: true})
+	assert.Contains(t, shown, "bootstrap context")
+	assert.Contains(t, shown, "## System")
+}
+
+func TestRenderPreviewSkipsHiddenSystemMessages(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Messages: []conv.Message{
+			{
+				Role:       conv.RoleSystem,
+				Text:       "bootstrap context",
+				Visibility: conv.MessageVisibilityHiddenSystem,
+			},
+			{Role: conv.RoleUser, Text: "Actual prompt"},
+			{Role: conv.RoleAssistant, Text: "Actual answer"},
+		},
+	}
+
+	result := renderPreview(session, 10, 80)
+	assert.Contains(t, result, "Actual prompt")
+	assert.NotContains(t, result, "bootstrap context")
+}
+
 func TestFormatToolCall(t *testing.T) {
 	t.Parallel()
 
@@ -663,7 +707,11 @@ func TestFirstUserMessage(t *testing.T) {
 		{
 			name: "skips interrupt",
 			messages: []conv.Message{
-				{Role: conv.RoleUser, Text: "[Request interrupted by user]"},
+				{
+					Role:       conv.RoleSystem,
+					Text:       "[Request interrupted by user]",
+					Visibility: conv.MessageVisibilityHiddenSystem,
+				},
 				{Role: conv.RoleUser, Text: "Real question"},
 			},
 			want: "Real question",
@@ -747,7 +795,11 @@ func TestRenderTranscriptSkipsInterruptMessages(t *testing.T) {
 		Messages: []conv.Message{
 			{Role: conv.RoleUser, Text: "Hello"},
 			{Role: conv.RoleAssistant, Text: "Hi there"},
-			{Role: conv.RoleUser, Text: "[Request interrupted by user for tool use]"},
+			{
+				Role:       conv.RoleSystem,
+				Text:       "[Request interrupted by user for tool use]",
+				Visibility: conv.MessageVisibilityHiddenSystem,
+			},
 			{Role: conv.RoleUser, Text: "Continue please"},
 			{Role: conv.RoleAssistant, Text: "Continuing"},
 		},
@@ -768,7 +820,11 @@ func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
 		Messages: []conv.Message{
 			{Role: conv.RoleUser, Text: "Hello"},
 			{Role: conv.RoleAssistant, Text: "Hi there"},
-			{Role: conv.RoleUser, Text: "[Request interrupted by user]"},
+			{
+				Role:       conv.RoleSystem,
+				Text:       "[Request interrupted by user]",
+				Visibility: conv.MessageVisibilityHiddenSystem,
+			},
 			{Role: conv.RoleUser, Text: "Continue"},
 			{Role: conv.RoleAssistant, Text: "Continuing"},
 		},
@@ -785,7 +841,10 @@ func TestRenderTranscriptInterruptWithToolResults(t *testing.T) {
 
 	session := conv.Session{
 		Messages: []conv.Message{
-			{Role: conv.RoleUser, Text: "[Request interrupted by user for tool use]",
+			{
+				Role:       conv.RoleSystem,
+				Text:       "[Request interrupted by user for tool use]",
+				Visibility: conv.MessageVisibilityHiddenSystem,
 				ToolResults: []conv.ToolResult{
 					{ToolName: "Read", ToolSummary: "/file.go", Content: "package main"},
 				}},

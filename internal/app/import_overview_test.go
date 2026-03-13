@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	arch "github.com/rkuska/carn/internal/archive"
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,9 +46,15 @@ func testImportOverviewConfig(t *testing.T) arch.Config {
 	t.Helper()
 	dir := t.TempDir()
 	return arch.Config{
-		SourceDir:  filepath.Join(dir, "source"),
+		SourceDirs: map[conv.Provider]string{
+			conv.ProviderClaude: filepath.Join(dir, "source"),
+		},
 		ArchiveDir: filepath.Join(dir, "archive"),
 	}
+}
+
+func testImportOverviewSourceDir(cfg arch.Config) string {
+	return cfg.SourceDirFor(conv.ProviderClaude)
 }
 
 func TestImportOverviewModelInit(t *testing.T) {
@@ -83,7 +90,6 @@ func TestImportOverviewReadyWithoutSyncContinuesToBrowser(t *testing.T) {
 
 	m, _ = m.Update(analysisFinishedMsg{
 		analysis: arch.ImportAnalysis{
-			SourceDir:  cfg.SourceDir,
 			ArchiveDir: cfg.ArchiveDir,
 		},
 	})
@@ -104,9 +110,8 @@ func TestImportOverviewReadyWithSyncStartsSync(t *testing.T) {
 
 	m, _ = m.Update(analysisFinishedMsg{
 		analysis: arch.ImportAnalysis{
-			SourceDir:        cfg.SourceDir,
 			ArchiveDir:       cfg.ArchiveDir,
-			QueuedFiles:      []string{filepath.Join(cfg.SourceDir, "a.jsonl")},
+			QueuedFiles:      []string{filepath.Join(testImportOverviewSourceDir(cfg), "a.jsonl")},
 			NewConversations: 1,
 			Conversations:    1,
 		},
@@ -248,7 +253,6 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.height = 40
 		m.phase = phaseReady
 		m.analysis = arch.ImportAnalysis{
-			SourceDir:        cfg.SourceDir,
 			ArchiveDir:       cfg.ArchiveDir,
 			FilesInspected:   100,
 			Projects:         5,
@@ -270,7 +274,6 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 		m.height = 40
 		m.phase = phaseReady
 		m.analysis = arch.ImportAnalysis{
-			SourceDir:  cfg.SourceDir,
 			ArchiveDir: cfg.ArchiveDir,
 			UpToDate:   10,
 		}
@@ -363,7 +366,6 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 			model: importOverviewModel{
 				phase: phaseReady,
 				analysis: arch.ImportAnalysis{
-					SourceDir:   cfg.SourceDir,
 					ArchiveDir:  cfg.ArchiveDir,
 					QueuedFiles: []string{"a.jsonl"},
 				},
@@ -379,7 +381,6 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 			model: importOverviewModel{
 				phase: phaseReady,
 				analysis: arch.ImportAnalysis{
-					SourceDir:  cfg.SourceDir,
 					ArchiveDir: cfg.ArchiveDir,
 					UpToDate:   1,
 				},
@@ -457,7 +458,6 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 				CurrentProject:    "proj-a",
 			})
 			return arch.ImportAnalysis{
-				SourceDir:   cfg.SourceDir,
 				ArchiveDir:  cfg.ArchiveDir,
 				Projects:    2,
 				QueuedFiles: []string{"a.jsonl"},
@@ -506,7 +506,6 @@ func TestImportOverviewStoreRebuildOnlyShowsSpinnerState(t *testing.T) {
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
 			return arch.ImportAnalysis{
-				SourceDir:       cfg.SourceDir,
 				ArchiveDir:      cfg.ArchiveDir,
 				StoreNeedsBuild: true,
 			}, nil

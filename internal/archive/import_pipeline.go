@@ -13,11 +13,12 @@ func (p Pipeline) Run(ctx context.Context, onProgress func(SyncProgress)) (SyncR
 
 	sourceCandidates := make([]syncCandidate, 0)
 	for _, configured := range p.configuredBackends() {
-		candidates, err := collectSyncCandidates(syncRootsConfig{
-			provider:  configured.backend.Provider(),
-			sourceDir: configured.sourceDir,
-			destDir:   p.rawDir(configured.backend.Provider()),
-		})
+		candidates, err := collectSyncCandidates(
+			ctx,
+			configured.backend,
+			configured.sourceDir,
+			p.rawDir(configured.backend.Provider()),
+		)
 		if err != nil {
 			return SyncResult{}, fmt.Errorf("run_collectSyncCandidates_%s: %w", configured.backend.Provider(), err)
 		}

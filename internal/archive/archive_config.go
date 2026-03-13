@@ -7,19 +7,15 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
-const claudeProjectsDir = ".claude/projects"
-const codexSessionsDir = ".codex/sessions"
-
 type Config struct {
-	SourceDir      string
-	CodexSourceDir string
-	ArchiveDir     string
+	SourceDirs map[conv.Provider]string
+	ArchiveDir string
 }
 
 type ImportAnalysis struct {
-	SourceDir        string
 	ArchiveDir       string
 	FilesInspected   int
 	Projects         int
@@ -82,23 +78,10 @@ type SyncProgress struct {
 	Activity SyncActivity
 }
 
-func DefaultConfig() (Config, error) {
+func DefaultConfig(backends ...src.Backend) (Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Config{}, fmt.Errorf("defaultConfig_os.UserHomeDir: %w", err)
-	}
-
-	sourceDir := os.Getenv("CARN_CLAUDE_SOURCE_DIR")
-	if sourceDir == "" {
-		sourceDir = os.Getenv("CARN_SOURCE_DIR")
-	}
-	if sourceDir == "" {
-		sourceDir = filepath.Join(home, claudeProjectsDir)
-	}
-
-	codexSourceDir := os.Getenv("CARN_CODEX_SOURCE_DIR")
-	if codexSourceDir == "" {
-		codexSourceDir = filepath.Join(home, codexSessionsDir)
 	}
 
 	archiveDir := os.Getenv("CARN_ARCHIVE_DIR")
@@ -107,19 +90,39 @@ func DefaultConfig() (Config, error) {
 	}
 
 	return Config{
-		SourceDir:      sourceDir,
-		CodexSourceDir: codexSourceDir,
-		ArchiveDir:     archiveDir,
+		SourceDirs: resolveSourceDirs(home, backends...),
+		ArchiveDir: archiveDir,
 	}, nil
 }
 
 func (c Config) SourceDirFor(provider conv.Provider) string {
-	switch provider {
-	case conv.ProviderClaude:
-		return c.SourceDir
-	case conv.ProviderCodex:
-		return c.CodexSourceDir
-	default:
+	if c.SourceDirs == nil {
 		return ""
 	}
+	return c.SourceDirs[provider]
+}
+
+func resolveSourceDirs(home string, backends ...src.Backend) map[conv.Provider]string {
+	sourceDirs := make(map[conv.Provider]string, len(backends))
+	for _, backend := range backends {
+		if backend == nil {
+			continue
+		}
+
+		sourceDir := firstConfiguredSourceDir(backend, home)
+		if sourceDir == "" {
+			continue
+		}
+		sourceDirs[backend.Provider()] = sourceDir
+	}
+	return sourceDirs
+}
+
+func firstConfiguredSourceDir(backend src.Backend, home string) string {
+	for _, envVar := range backend.SourceEnvVars() {
+		if value := os.Getenv(envVar); value != "" {
+			return value
+		}
+	}
+	return backend.DefaultSourceDir(home)
 }

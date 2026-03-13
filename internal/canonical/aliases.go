@@ -10,6 +10,7 @@ type tokenUsage = conv.TokenUsage
 type diffHunk = conv.DiffHunk
 type toolCall = conv.ToolCall
 type toolResult = conv.ToolResult
+type messageVisibility = conv.MessageVisibility
 type plan = conv.Plan
 type message = conv.Message
 type sessionMeta = conv.SessionMeta

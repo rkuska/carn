@@ -11,6 +11,7 @@ type transcriptOptions struct {
 	showThinking    bool
 	showTools       bool
 	showToolResults bool
+	showSystem      bool
 	hideSidechain   bool
 }
 
@@ -51,29 +52,86 @@ func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []t
 	}
 
 	for _, msg := range session.Messages {
-		if opts.hideSidechain && msg.IsSidechain {
-			state.breakGroup()
-			continue
-		}
-		if msg.IsAgentDivider {
-			flush()
-			md.WriteString("---\n### Subagent\n")
-			md.WriteString(msg.Text)
-			md.WriteString("\n---\n\n")
-			state.breakGroup()
-			continue
-		}
-
-		switch msg.Role {
-		case conv.RoleUser:
-			appendUserSegments(&segments, &md, flush, &state, msg, opts)
-		case conv.RoleAssistant:
-			appendAssistantSegments(&segments, &md, flush, &state, msg, opts)
-		}
+		appendTranscriptMessage(&segments, &md, flush, &state, msg, opts)
 	}
 
 	flush()
 	return segments
+}
+
+func appendTranscriptMessage(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+	opts transcriptOptions,
+) {
+	if shouldSkipSidechain(msg, opts) {
+		state.breakGroup()
+		return
+	}
+	if appendAgentDividerSegments(md, flush, state, msg) {
+		return
+	}
+	if appendSuppressedMessageSegments(segments, md, flush, state, msg, opts) {
+		return
+	}
+	appendVisibleMessageSegments(segments, md, flush, state, msg, opts)
+}
+
+func shouldSkipSidechain(msg conv.Message, opts transcriptOptions) bool {
+	return opts.hideSidechain && msg.IsSidechain
+}
+
+func appendAgentDividerSegments(
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+) bool {
+	if !msg.IsAgentDivider {
+		return false
+	}
+	flush()
+	md.WriteString("---\n### Subagent\n")
+	md.WriteString(msg.Text)
+	md.WriteString("\n---\n\n")
+	state.breakGroup()
+	return true
+}
+
+func appendSuppressedMessageSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+	opts transcriptOptions,
+) bool {
+	if msg.IsVisible() || opts.showSystem {
+		return false
+	}
+	appendHiddenMessageSegments(segments, md, flush, state, msg, opts)
+	return true
+}
+
+func appendVisibleMessageSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+	opts transcriptOptions,
+) {
+	switch msg.Role {
+	case conv.RoleUser:
+		appendUserSegments(segments, md, flush, state, msg, opts)
+	case conv.RoleAssistant:
+		appendAssistantSegments(segments, md, flush, state, msg, opts)
+	case conv.RoleSystem:
+		appendSystemSegments(segments, md, flush, state, msg, opts)
+	}
 }
 
 func userHasContent(msg conv.Message, userText string, opts transcriptOptions) bool {
@@ -88,18 +146,14 @@ func appendUserSegments(
 	msg conv.Message,
 	opts transcriptOptions,
 ) {
-	userText := msg.Text
-	if isSystemInterrupt(userText) {
-		userText = ""
-	}
-	if !userHasContent(msg, userText, opts) {
+	if !userHasContent(msg, msg.Text, opts) {
 		// Hidden message kinds should not create a visible role boundary.
 		return
 	}
 
 	appendRoleHeader(segments, flush, state, conv.RoleUser)
-	if userText != "" {
-		md.WriteString(userText)
+	if msg.Text != "" {
+		md.WriteString(msg.Text)
 		md.WriteString("\n\n")
 	}
 	if opts.showToolResults && len(msg.ToolResults) > 0 {
@@ -107,6 +161,55 @@ func appendUserSegments(
 		appendToolResultSegments(segments, msg.ToolResults)
 		md.WriteString("\n")
 	}
+}
+
+func appendSystemSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+	opts transcriptOptions,
+) {
+	if msg.Text == "" && (!opts.showToolResults || len(msg.ToolResults) == 0) {
+		return
+	}
+
+	appendRoleHeader(segments, flush, state, conv.RoleSystem)
+	if msg.Text != "" {
+		md.WriteString(msg.Text)
+		md.WriteString("\n\n")
+	}
+	if opts.showToolResults && len(msg.ToolResults) > 0 {
+		flush()
+		appendToolResultSegments(segments, msg.ToolResults)
+		md.WriteString("\n")
+	}
+}
+
+func appendHiddenMessageSegments(
+	segments *[]transcriptSegment,
+	md *strings.Builder,
+	flush func(),
+	state *transcriptRenderState,
+	msg conv.Message,
+	opts transcriptOptions,
+) {
+	if opts.showThinking && msg.Thinking != "" {
+		flush()
+		*segments = append(*segments, transcriptSegment{kind: segmentThinking, text: msg.Thinking})
+	}
+	if opts.showTools && len(msg.ToolCalls) > 0 {
+		flush()
+		appendToolCallSegments(segments, msg.ToolCalls)
+		md.WriteString("\n")
+	}
+	if opts.showToolResults && len(msg.ToolResults) > 0 {
+		flush()
+		appendToolResultSegments(segments, msg.ToolResults)
+		md.WriteString("\n")
+	}
+	state.breakGroup()
 }
 
 func appendToolResultSegments(segments *[]transcriptSegment, results []conv.ToolResult) {
@@ -213,6 +316,8 @@ func appendRoleHeaderSegment(sb *strings.Builder, r conv.Role) {
 		sb.WriteString("## You\n\n")
 	case conv.RoleAssistant:
 		sb.WriteString("## Assistant\n\n")
+	case conv.RoleSystem:
+		sb.WriteString("## System\n\n")
 	}
 }
 

@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
+	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/rs/zerolog"
@@ -22,10 +25,9 @@ const (
 
 // Config defines the minimal app inputs needed to build the UI model.
 type Config struct {
-	SourceDir      string
-	CodexSourceDir string
-	ArchiveDir     string
-	GlamourStyle   string
+	SourceDirs   map[conv.Provider]string
+	ArchiveDir   string
+	GlamourStyle string
 }
 
 // Run starts the CLI application with environment-derived configuration.
@@ -39,7 +41,9 @@ func Run() error {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: logFile, NoColor: true}).With().Timestamp().Logger()
 	ctx := logger.WithContext(context.Background())
 
-	cfg, err := defaultArchiveConfig()
+	claudeBackend := claude.New()
+	codexBackend := codex.New()
+	cfg, err := defaultArchiveConfig(claudeBackend, codexBackend)
 	if err != nil {
 		return fmt.Errorf("defaultArchiveConfig: %w", err)
 	}
@@ -55,10 +59,9 @@ func Run() error {
 	}
 
 	model, err := NewModel(ctx, Config{
-		SourceDir:      cfg.SourceDir,
-		CodexSourceDir: cfg.CodexSourceDir,
-		ArchiveDir:     cfg.ArchiveDir,
-		GlamourStyle:   glamourStyle,
+		SourceDirs:   cfg.SourceDirs,
+		ArchiveDir:   cfg.ArchiveDir,
+		GlamourStyle: glamourStyle,
 	})
 	if err != nil {
 		return fmt.Errorf("NewModel: %w", err)
@@ -74,7 +77,7 @@ func Run() error {
 
 // NewModel builds the root model with deterministic inputs for callers.
 func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
-	if cfg.SourceDir == "" && cfg.CodexSourceDir == "" {
+	if len(nonEmptySourceProviders(cfg.SourceDirs)) == 0 {
 		return nil, errors.New("newModel: at least one source dir is required")
 	}
 	if cfg.ArchiveDir == "" {
@@ -98,9 +101,8 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	browserStore := newBrowserStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{
-			SourceDir:      cfg.SourceDir,
-			CodexSourceDir: cfg.CodexSourceDir,
-			ArchiveDir:     cfg.ArchiveDir,
+			SourceDirs: cfg.SourceDirs,
+			ArchiveDir: cfg.ArchiveDir,
 		},
 		store,
 		claudeBackend,
@@ -111,9 +113,8 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	model := newAppModelWithDeps(
 		ctx,
 		arch.Config{
-			SourceDir:      cfg.SourceDir,
-			CodexSourceDir: cfg.CodexSourceDir,
-			ArchiveDir:     cfg.ArchiveDir,
+			SourceDirs: cfg.SourceDirs,
+			ArchiveDir: cfg.ArchiveDir,
 		},
 		glamourStyle,
 		browserStore,
@@ -124,10 +125,22 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	return model, nil
 }
 
-func defaultArchiveConfig() (arch.Config, error) {
-	cfg, err := arch.DefaultConfig()
+func defaultArchiveConfig(backends ...src.Backend) (arch.Config, error) {
+	cfg, err := arch.DefaultConfig(backends...)
 	if err != nil {
 		return arch.Config{}, fmt.Errorf("archive.DefaultConfig: %w", err)
 	}
 	return cfg, nil
+}
+
+func nonEmptySourceProviders(sourceDirs map[conv.Provider]string) []conv.Provider {
+	providers := make([]conv.Provider, 0, len(sourceDirs))
+	for provider, sourceDir := range sourceDirs {
+		if sourceDir == "" {
+			continue
+		}
+		providers = append(providers, provider)
+	}
+	slices.Sort(providers)
+	return providers
 }

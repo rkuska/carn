@@ -1,6 +1,10 @@
 package claude
 
-import "sort"
+import (
+	"sort"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+)
 
 type groupKey struct {
 	dirName string
@@ -36,6 +40,7 @@ func groupConversations(sessions []scannedSession) []conversation {
 			return metaMembers[i].Timestamp.Before(metaMembers[j].Timestamp)
 		})
 		conversations = append(conversations, conversation{
+			Ref:      conversationRefForGroup(key),
 			Name:     key.slug,
 			Project:  metaMembers[0].Project,
 			Sessions: metaMembers,
@@ -47,6 +52,7 @@ func groupConversations(sessions []scannedSession) []conversation {
 			continue
 		}
 		conversations = append(conversations, conversation{
+			Ref:      conversationRefForPath(session.groupKey.slug),
 			Name:     session.meta.Slug,
 			Project:  session.meta.Project,
 			Sessions: []sessionMeta{session.meta},
@@ -54,4 +60,18 @@ func groupConversations(sessions []scannedSession) []conversation {
 	}
 
 	return conversations
+}
+
+func conversationRefForGroup(key groupKey) conversationRef {
+	return conversationRef{
+		Provider: conv.ProviderClaude,
+		ID:       "group:" + key.dirName + ":" + key.slug,
+	}
+}
+
+func conversationRefForPath(relPath string) conversationRef {
+	return conversationRef{
+		Provider: conv.ProviderClaude,
+		ID:       "path:" + relPath,
+	}
 }

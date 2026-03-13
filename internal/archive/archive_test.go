@@ -3,13 +3,57 @@ package archive
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
+	"github.com/rkuska/carn/internal/source/claude"
+	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubBackend struct {
+	provider       conv.Provider
+	envVars        []string
+	defaultDir     string
+	syncCandidates []src.SyncCandidate
+}
+
+func (s stubBackend) Provider() conv.Provider {
+	return s.provider
+}
+
+func (s stubBackend) Scan(context.Context, string) ([]conv.Conversation, error) {
+	return nil, nil
+}
+
+func (s stubBackend) Load(context.Context, conv.Conversation) (conv.Session, error) {
+	return conv.Session{}, nil
+}
+
+func (s stubBackend) Analyze(context.Context, string, string, func(src.Progress)) (src.Analysis, error) {
+	return src.Analysis{}, nil
+}
+
+func (s stubBackend) ResumeCommand(conv.ResumeTarget) (*exec.Cmd, error) {
+	return nil, nil
+}
+
+func (s stubBackend) SourceEnvVars() []string {
+	return append([]string(nil), s.envVars...)
+}
+
+func (s stubBackend) DefaultSourceDir(string) string {
+	return s.defaultDir
+}
+
+func (s stubBackend) SyncCandidates(context.Context, string, string) ([]src.SyncCandidate, error) {
+	return append([]src.SyncCandidate(nil), s.syncCandidates...), nil
+}
 
 func TestFileNeedsSync(t *testing.T) {
 	t.Parallel()
@@ -102,43 +146,55 @@ func TestCopyFile(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	t.Run("uses defaults", func(t *testing.T) {
 		t.Setenv("CARN_SOURCE_DIR", "")
+		t.Setenv("CARN_CLAUDE_SOURCE_DIR", "")
+		t.Setenv("CARN_CODEX_SOURCE_DIR", "")
 		t.Setenv("CARN_ARCHIVE_DIR", "")
 
-		cfg, err := DefaultConfig()
+		cfg, err := DefaultConfig(claude.New(), codex.New())
 		require.NoError(t, err)
 
 		home, _ := os.UserHomeDir()
-		assert.Equal(t, filepath.Join(home, ".claude", "projects"), cfg.SourceDir)
+		assert.Equal(t, filepath.Join(home, ".claude", "projects"), cfg.SourceDirs[conv.ProviderClaude])
+		assert.Equal(t, filepath.Join(home, ".codex", "sessions"), cfg.SourceDirs[conv.ProviderCodex])
 		assert.Equal(t, filepath.Join(home, ".local", "share", "carn"), cfg.ArchiveDir)
 	})
 
 	t.Run("uses env overrides", func(t *testing.T) {
 		t.Setenv("CARN_SOURCE_DIR", "/custom/source")
+		t.Setenv("CARN_CODEX_SOURCE_DIR", "/custom/codex")
 		t.Setenv("CARN_ARCHIVE_DIR", "/custom/archive")
 
-		cfg, err := DefaultConfig()
+		cfg, err := DefaultConfig(claude.New(), codex.New())
 		require.NoError(t, err)
-		assert.Equal(t, "/custom/source", cfg.SourceDir)
+		assert.Equal(t, "/custom/source", cfg.SourceDirs[conv.ProviderClaude])
+		assert.Equal(t, "/custom/codex", cfg.SourceDirs[conv.ProviderCodex])
 		assert.Equal(t, "/custom/archive", cfg.ArchiveDir)
 	})
 }
 
-func TestCollectSyncCandidates(t *testing.T) {
+func TestCollectSyncCandidatesUsesBackendPlan(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	sourceDir := filepath.Join(dir, "source")
 	destDir := filepath.Join(dir, "archive")
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
 
-	writeTestFile(t, filepath.Join(sourceDir, "proj", "a.jsonl"), "a")
-	writeTestFile(t, filepath.Join(sourceDir, "proj", "b.txt"), "skip")
-
-	candidates, err := collectSyncCandidates(syncRootsConfig{
-		sourceDir: sourceDir,
-		destDir:   destDir,
-	})
+	candidates, err := collectSyncCandidates(
+		context.Background(),
+		stubBackend{
+			provider: conv.ProviderClaude,
+			syncCandidates: []src.SyncCandidate{{
+				SourcePath: filepath.Join(sourceDir, "proj", "a.jsonl"),
+				DestPath:   filepath.Join(destDir, "proj", "a.jsonl"),
+			}},
+		},
+		sourceDir,
+		destDir,
+	)
 	require.NoError(t, err)
 	require.Len(t, candidates, 1)
+	assert.Equal(t, conv.ProviderClaude, candidates[0].provider)
 	assert.Equal(t, filepath.Join(sourceDir, "proj", "a.jsonl"), candidates[0].sourcePath)
 	assert.Equal(t, syncStatusNew, candidates[0].status)
 }
