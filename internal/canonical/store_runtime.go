@@ -11,7 +11,11 @@ func providerRawDir(archiveDir string, provider conversationProvider) string {
 }
 
 func canonicalStoreDir(archiveDir string) string {
-	return filepath.Join(archiveDir, "store", "v1")
+	return filepath.Join(archiveDir, "store")
+}
+
+func canonicalStorePath(archiveDir string) string {
+	return filepath.Join(canonicalStoreDir(archiveDir), "canonical.sqlite")
 }
 
 func statDir(path string) (bool, error) {

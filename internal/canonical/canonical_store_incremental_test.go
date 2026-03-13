@@ -1,49 +1,102 @@
 package canonical
 
 import (
+	"context"
 	"testing"
-	"time"
 
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestClassifyStoreConversationsSeparatesAddedChangedAndUnchanged(t *testing.T) {
+type stubIncrementalSource struct {
+	provider          conversationProvider
+	scanConversations []conversation
+	sessions          map[string]sessionFull
+	resolution        src.IncrementalResolution
+	resolveErr        error
+	scanCalls         int
+	resolveCalls      int
+	lastChangedPaths  []string
+}
+
+func (s *stubIncrementalSource) Provider() conversationProvider {
+	return s.provider
+}
+
+func (s *stubIncrementalSource) Scan(context.Context, string) ([]conversation, error) {
+	s.scanCalls++
+	return s.scanConversations, nil
+}
+
+func (s *stubIncrementalSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
+	return s.sessions[conversation.CacheKey()], nil
+}
+
+func (s *stubIncrementalSource) ResolveIncremental(
+	_ context.Context,
+	_ string,
+	changedRawPaths []string,
+	_ src.IncrementalLookup,
+) (src.IncrementalResolution, error) {
+	s.resolveCalls++
+	s.lastChangedPaths = append([]string(nil), changedRawPaths...)
+	return s.resolution, s.resolveErr
+}
+
+func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T) {
 	t.Parallel()
 
-	unchanged := conversation{
-		Ref: conversationRef{Provider: conversationProvider("claude"), ID: "unchanged"},
-		Sessions: []sessionMeta{{
-			ID:        "unchanged",
-			FilePath:  "/raw/a.jsonl",
-			Timestamp: time.Now(),
-		}},
+	archiveDir := t.TempDir()
+	rawDir := providerRawDir(archiveDir, conversationProvider("claude"))
+	convValue := writeTestConversation(t, rawDir, "project-a", "session-1", "slug-1", []string{
+		"first line",
+	})
+	source := &stubIncrementalSource{
+		provider: conversationProvider("claude"),
+		scanConversations: []conversation{
+			convValue,
+		},
+		sessions: map[string]sessionFull{
+			convValue.CacheKey(): {
+				Meta: sessionMeta{ID: "session-1"},
+				Messages: []message{
+					{Role: role("assistant"), Text: "first line"},
+				},
+			},
+		},
 	}
-	changed := conversation{
-		Ref: conversationRef{Provider: conversationProvider("claude"), ID: "changed"},
-		Sessions: []sessionMeta{{
-			ID:        "changed",
-			FilePath:  "/raw/b.jsonl",
-			Timestamp: time.Now(),
-		}},
+	store := New(source)
+	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+
+	source.resolution = src.IncrementalResolution{
+		Conversations: []conversation{convValue},
+		ReplaceCacheKeys: []string{
+			convValue.CacheKey(),
+		},
 	}
-	added := conversation{
-		Ref: conversationRef{Provider: conversationProvider("claude"), ID: "added"},
-		Sessions: []sessionMeta{{
-			ID:        "added",
-			FilePath:  "/raw/c.jsonl",
-			Timestamp: time.Now(),
-		}},
+	source.sessions[convValue.CacheKey()] = sessionFull{
+		Meta: sessionMeta{ID: "session-1"},
+		Messages: []message{
+			{Role: role("assistant"), Text: "updated line"},
+		},
 	}
 
-	plan := classifyStoreConversations(
-		[]conversation{unchanged, changed, added},
-		[]conversation{unchanged, changed},
-		map[string]struct{}{"/raw/b.jsonl": {}},
-	)
+	rawPath := convValue.Sessions[0].FilePath
+	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath}))
 
-	assert.Equal(t, []conversation{unchanged}, plan.unchanged)
-	assert.Equal(t, []conversation{changed}, plan.changed)
-	assert.Equal(t, []conversation{added}, plan.added)
+	assert.Equal(t, 1, source.scanCalls)
+	assert.Equal(t, 1, source.resolveCalls)
+	assert.Equal(t, []string{rawPath}, source.lastChangedPaths)
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 1)
+	assert.Equal(t, "updated line", session.Messages[0].Text)
 }
 
 func TestGroupSearchUnitsByConversation(t *testing.T) {
@@ -57,34 +110,4 @@ func TestGroupSearchUnitsByConversation(t *testing.T) {
 
 	assert.Len(t, grouped["a"], 2)
 	assert.Len(t, grouped["b"], 1)
-}
-
-func TestClassifyStoreConversationsMarksGroupedConversationChangedWhenChildFileChanges(t *testing.T) {
-	t.Parallel()
-
-	grouped := conversation{
-		Ref: conversationRef{Provider: conversationProvider("codex"), ID: "grouped"},
-		Sessions: []sessionMeta{
-			{
-				ID:        "main",
-				FilePath:  "/raw/main.jsonl",
-				Timestamp: time.Now(),
-			},
-			{
-				ID:         "child",
-				FilePath:   "/raw/child.jsonl",
-				Timestamp:  time.Now(),
-				IsSubagent: true,
-			},
-		},
-	}
-
-	plan := classifyStoreConversations(
-		[]conversation{grouped},
-		[]conversation{grouped},
-		map[string]struct{}{"/raw/child.jsonl": {}},
-	)
-
-	assert.Empty(t, plan.unchanged)
-	assert.Equal(t, []conversation{grouped}, plan.changed)
 }

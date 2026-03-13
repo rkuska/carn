@@ -120,6 +120,7 @@ func projectSyncCandidates(sourceDir, rawDir, projDir string) ([]src.SyncCandida
 		candidates = append(candidates, src.SyncCandidate{
 			SourcePath: classified.srcPath,
 			DestPath:   classified.dstPath,
+			DestExists: classified.dstExists,
 		})
 	}
 	return candidates, nil

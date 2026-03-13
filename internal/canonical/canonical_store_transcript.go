@@ -2,76 +2,8 @@ package canonical
 
 import (
 	"bufio"
-	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-
-	"github.com/rs/zerolog"
 )
-
-func writeTranscriptFile(path string, session sessionFull) error {
-	return writeBinaryFile(path, func(w *bufio.Writer) error {
-		if _, err := w.WriteString(transcriptMagic); err != nil {
-			return fmt.Errorf("WriteString: %w", err)
-		}
-		if err := writeSessionFull(w, session); err != nil {
-			return fmt.Errorf("writeSessionFull: %w", err)
-		}
-		return nil
-	})
-}
-
-func readTranscriptFile(path string) (sessionFull, error) {
-	return readBinaryFile(path, func(r *bufio.Reader) (sessionFull, error) {
-		magic, err := readFixedString(r, len(transcriptMagic))
-		if err != nil {
-			return sessionFull{}, fmt.Errorf("readFixedString: %w", err)
-		}
-		if magic != transcriptMagic {
-			return sessionFull{}, fmt.Errorf("readTranscriptFile: %w", errInvalidMagic("transcript"))
-		}
-		session, err := readSessionFull(r)
-		if err != nil {
-			return sessionFull{}, fmt.Errorf("readSessionFull: %w", err)
-		}
-		return session, nil
-	})
-}
-
-func writeBinaryFile(path string, writeFn func(*bufio.Writer) error) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("os.MkdirAll: %w", err)
-	}
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("os.Create: %w", err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			zerolog.Ctx(context.Background()).Warn().Err(closeErr).Msgf("failed to close %s", path)
-		}
-	}()
-
-	writer := bufio.NewWriter(file)
-	if err := writeFn(writer); err != nil {
-		return err
-	}
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("writer.Flush: %w", err)
-	}
-	return nil
-}
-
-func readBinaryFile[T any](path string, readFn func(*bufio.Reader) (T, error)) (T, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		var zero T
-		return zero, fmt.Errorf("os.Open: %w", err)
-	}
-	defer func() { _ = file.Close() }()
-	return readFn(bufio.NewReader(file))
-}
 
 func writeSessionFull(w *bufio.Writer, session sessionFull) error {
 	if err := writeSessionMeta(w, session.Meta); err != nil {

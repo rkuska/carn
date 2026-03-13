@@ -75,6 +75,41 @@ func TestBuildSearchUnitsIncludesLinkedSubagentMessages(t *testing.T) {
 	assert.Contains(t, texts, "Parser inspected.")
 }
 
+func TestBuildSearchUnitsSkipsHiddenSystemMessages(t *testing.T) {
+	t.Parallel()
+
+	units := buildSearchUnits("codex:main", sessionFull{
+		Messages: []message{
+			{
+				Role:       role("system"),
+				Text:       "hidden system prompt",
+				Visibility: messageVisibility("hidden_system"),
+			},
+			{
+				Role: role("assistant"),
+				Text: "visible response",
+				ToolCalls: []toolCall{{
+					Name:    "exec_command",
+					Summary: "ran tests",
+				}},
+				Plans: []plan{{
+					Content: "follow up tomorrow",
+				}},
+			},
+		},
+	})
+
+	texts := make([]string, 0, len(units))
+	for _, unit := range units {
+		texts = append(texts, unit.text)
+	}
+
+	assert.NotContains(t, texts, "hidden system prompt")
+	assert.Contains(t, texts, "visible response")
+	assert.Contains(t, texts, "ran tests")
+	assert.Contains(t, texts, "follow up tomorrow")
+}
+
 func writeTestConversation(
 	t *testing.T,
 	dir, projectName, sessionID, slug string,

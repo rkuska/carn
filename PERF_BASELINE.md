@@ -1,12 +1,12 @@
 # Performance Baseline
 
-Captured on March 12, 2026.
+Captured on March 13, 2026.
 
 Current benchmark commands:
 
 ```bash
 go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents)$' -benchmem ./internal/source/claude
-go test -run '^$' -bench 'Benchmark(LoadCatalog|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
+go test -run '^$' -bench 'Benchmark(LoadCatalogCold|LoadCatalogWarm|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
 go test -run '^$' -bench 'Benchmark(ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
 ```
@@ -15,22 +15,30 @@ Results (Apple M4 Pro, darwin/arm64):
 
 | Package | Benchmark | ns/op | B/op | allocs/op |
 | --- | --- | ---: | ---: | ---: |
-| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 17,771,219 | 192,115,464 | 59,475 |
-| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 5,928,587 | 35,711,956 | 54,555 |
-| `internal/canonical` | BenchmarkLoadCatalog | 139,943 | 249,946 | 6,184 |
-| `internal/canonical` | BenchmarkLoadSearchIndex | 922,871 | 2,238,216 | 53,288 |
-| `internal/canonical` | BenchmarkDeepSearchFuzzy | 915,978 | 165,949 | 981 |
-| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 170,911 | 280,106 | 8,030 |
-| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 41,141,859 | 410,202,976 | 496,991 |
-| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 34,883,505 | 272,447,476 | 367,586 |
-| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 15,872,253 | 216,155,485 | 341,279 |
-| `internal/archive` | BenchmarkCollectFilesToSync | 1,758,282 | 714,488 | 5,241 |
-| `internal/archive` | BenchmarkStreamImportAnalysis | 6,806,307 | 24,639,586 | 9,759 |
-| `internal/app` | BenchmarkViewerRenderContent | 35,262,518 | 30,540,141 | 393,422 |
-| `internal/app` | BenchmarkViewerSearch | 10,105 | 256 | 5 |
+| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 19,120,110 | 192,016,147 | 55,163 |
+| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 6,794,467 | 35,856,919 | 54,562 |
+| `internal/canonical` | BenchmarkLoadCatalogCold | 1,237,683 | 753,755 | 13,249 |
+| `internal/canonical` | BenchmarkLoadCatalogWarm | 17,258 | 99,216 | 9 |
+| `internal/canonical` | BenchmarkLoadSearchIndex | 4,964 | 384 | 13 |
+| `internal/canonical` | BenchmarkDeepSearchFuzzy | 5,110,924 | 10,957 | 370 |
+| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 203,821 | 394,858 | 8,041 |
+| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 68,164,968 | 416,913,708 | 594,367 |
+| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 62,277,425 | 70,125,482 | 101,778 |
+| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 16,301,286 | 217,440,450 | 341,276 |
+| `internal/archive` | BenchmarkCollectFilesToSync | 9,335,083 | 2,750,077 | 10,479 |
+| `internal/archive` | BenchmarkStreamImportAnalysis | 7,874,657 | 2,532,660 | 9,750 |
+| `internal/app` | BenchmarkViewerRenderContent | 40,094,039 | 30,535,762 | 393,420 |
+| `internal/app` | BenchmarkViewerSearch | 1,079 | 0 | 0 |
 
 Notes:
 - Benchmarks live with the package that owns the runtime path.
 - `PERF_BASELINE.md` should always include the full benchmark suite, even
   when the benchmark code is split across packages.
+- `BenchmarkLoadCatalogCold` measures a first uncached SQLite catalog load.
+- `BenchmarkLoadCatalogWarm` measures repeated `Store.List` calls served from
+  the in-process catalog cache.
+- `BenchmarkCanonicalStoreIncrementalRebuild` now measures the single-file
+  targeted incremental SQLite rebuild path.
+- `BenchmarkDeepSearchFuzzy` is a legacy name and now measures the SQLite FTS
+  deep-search path.
 - Refresh this file whenever benchmark commands or meaningful results change.

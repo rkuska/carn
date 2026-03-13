@@ -350,25 +350,40 @@ func TestRenderCenteredImportActivityBlockCentersNonEmptyLines(t *testing.T) {
 	assertCenteredLineContains(t, lines, "Press Enter to continue")
 }
 
-func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
+func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 	t.Parallel()
 
 	cfg := testImportOverviewConfig(t)
 
 	tests := []struct {
 		name       string
-		model      importOverviewModel
+		model      func() importOverviewModel
 		contains   []string
 		blockWidth int
 	}{
 		{
+			name: "analyzing",
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseAnalyzing
+				return m
+			},
+			contains: []string{
+				"Scanning configured sources",
+				"Import becomes available after analysis completes.",
+			},
+			blockWidth: 80,
+		},
+		{
 			name: "ready with sync needed",
-			model: importOverviewModel{
-				phase: phaseReady,
-				analysis: arch.ImportAnalysis{
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseReady
+				m.analysis = arch.ImportAnalysis{
 					ArchiveDir:  cfg.ArchiveDir,
 					QueuedFiles: []string{"a.jsonl"},
-				},
+				}
+				return m
 			},
 			contains: []string{
 				"Will import 1 archive files and refresh the local store after confirmation.",
@@ -378,12 +393,14 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 		},
 		{
 			name: "ready without sync",
-			model: importOverviewModel{
-				phase: phaseReady,
-				analysis: arch.ImportAnalysis{
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseReady
+				m.analysis = arch.ImportAnalysis{
 					ArchiveDir: cfg.ArchiveDir,
 					UpToDate:   1,
-				},
+				}
+				return m
 			},
 			contains: []string{
 				"No import needed. Archived files already match the source.",
@@ -392,10 +409,57 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 			blockWidth: 80,
 		},
 		{
+			name: "ready blocked",
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseReady
+				m.analysis = arch.ImportAnalysis{Err: errors.New("permission denied")}
+				return m
+			},
+			contains: []string{
+				"Import is blocked: permission denied",
+				"Press q to quit",
+			},
+			blockWidth: 80,
+		},
+		{
+			name: "syncing progress",
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseSyncing
+				m.syncActivity = arch.SyncActivitySyncingFiles
+				m.current = 2
+				m.total = 5
+				m.currentFile = "test.jsonl"
+				return m
+			},
+			contains: []string{
+				"Importing archive files",
+				"2/5",
+				"Current file test.jsonl",
+			},
+			blockWidth: 80,
+		},
+		{
+			name: "syncing rebuild",
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseSyncing
+				m.syncActivity = arch.SyncActivityRebuildingStore
+				return m
+			},
+			contains: []string{
+				"Rebuilding local store",
+			},
+			blockWidth: 80,
+		},
+		{
 			name: "done",
-			model: importOverviewModel{
-				phase:  phaseDone,
-				result: arch.SyncResult{Copied: 1, Elapsed: time.Second},
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg)
+				m.phase = phaseDone
+				m.result = arch.SyncResult{Copied: 1, Elapsed: time.Second}
+				return m
 			},
 			contains: []string{
 				"Import complete.",
@@ -409,7 +473,7 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			lines := nonEmptyLines(ansi.Strip(tt.model.renderActivityBlock(tt.blockWidth)))
+			lines := nonEmptyLines(ansi.Strip(tt.model().renderActivityBlock(tt.blockWidth)))
 			require.NotEmpty(t, lines)
 
 			for _, want := range tt.contains {
@@ -417,33 +481,6 @@ func TestImportOverviewRenderActivityBlockCentersEnterActions(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestImportOverviewRenderActivityBlockLeavesBlockedStateLeftAligned(t *testing.T) {
-	t.Parallel()
-
-	m := importOverviewModel{
-		phase:    phaseReady,
-		analysis: arch.ImportAnalysis{Err: errors.New("permission denied")},
-	}
-
-	lines := nonEmptyLines(ansi.Strip(m.renderActivityBlock(120)))
-	require.Len(t, lines, 2)
-	assertLeftAlignedLineContains(t, lines, "Import is blocked: permission denied")
-	assertLeftAlignedLineContains(t, lines, "Press q to quit")
-}
-
-func TestImportOverviewRenderActivityBlockCentersRebuildSpinner(t *testing.T) {
-	t.Parallel()
-
-	m := importOverviewModel{
-		phase:        phaseSyncing,
-		syncActivity: arch.SyncActivityRebuildingStore,
-	}
-
-	lines := nonEmptyLines(ansi.Strip(m.renderActivityBlock(80)))
-	require.Len(t, lines, 1)
-	assertCenteredLineContains(t, lines, "Rebuilding local store")
 }
 
 func TestImportOverviewUsesPipelineMessages(t *testing.T) {
@@ -564,20 +601,4 @@ func assertCenteredLineContains(t testing.TB, lines []string, want string) {
 	}
 
 	t.Fatalf("expected to find centered line containing %q in %q", want, lines)
-}
-
-func assertLeftAlignedLineContains(t testing.TB, lines []string, want string) {
-	t.Helper()
-
-	for _, line := range lines {
-		index := strings.Index(line, want)
-		if index == -1 {
-			continue
-		}
-
-		assert.Equal(t, 0, index, "expected %q to be left aligned in %q", want, line)
-		return
-	}
-
-	t.Fatalf("expected to find left-aligned line containing %q in %q", want, lines)
 }

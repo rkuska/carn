@@ -2,10 +2,12 @@ package canonical
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
+	"maps"
+	"slices"
 	"sync"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -53,8 +55,9 @@ func (r sourceRegistry) lookup(provider conversationProvider) (Source, bool) {
 }
 
 type storeState struct {
-	mu           sync.RWMutex
-	searchCorpus map[string]searchCorpus
+	mu      sync.RWMutex
+	db      map[string]*sql.DB
+	catalog map[string][]conversation
 }
 
 type Store struct {
@@ -66,7 +69,8 @@ func New(sources ...Source) Store {
 	return Store{
 		sources: newSourceRegistry(sources...),
 		state: &storeState{
-			searchCorpus: make(map[string]searchCorpus),
+			db:      make(map[string]*sql.DB),
+			catalog: make(map[string][]conversation),
 		},
 	}
 }
@@ -92,30 +96,44 @@ func (s Store) RebuildAll(
 	archiveDir string,
 	changedRawPaths map[conv.Provider][]string,
 ) error {
-	s.invalidateSearchCorpus(archiveDir)
+	if err := s.invalidateDB(archiveDir); err != nil {
+		return fmt.Errorf("invalidateDB: %w", err)
+	}
 	return rebuildCanonicalStore(ctx, archiveDir, s.sources, changedRawPaths)
 }
 
 func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation, error) {
-	catalogPath := filepath.Join(canonicalStoreDir(archiveDir), "catalog.bin")
-	conversations, err := readCatalogFile(catalogPath)
+	path := canonicalStorePath(archiveDir)
+	if conversations, ok := s.cachedCatalog(path); ok {
+		return cloneConversations(conversations), nil
+	}
+
+	db, err := s.loadDB(archiveDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("readCatalogFile: %w", err)
+		return nil, fmt.Errorf("loadDB: %w", err)
 	}
-	return conversations, nil
+	conversations, err := readSQLiteConversations(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("readSQLiteConversations: %w", err)
+	}
+	return s.cacheCatalog(path, conversations)
 }
 
-func (s Store) Load(_ context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
+func (s Store) Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
 	if conversation.CacheKey() == "" {
-		return conv.Session{}, fmt.Errorf("readTranscriptFile: %w", errors.New("conversation key is required"))
+		return conv.Session{}, fmt.Errorf("readSQLiteTranscript: %w", errors.New("conversation key is required"))
 	}
-	transcriptPath := storeTranscriptPath(canonicalStoreDir(archiveDir), conversation.CacheKey())
-	session, err := readTranscriptFile(transcriptPath)
+
+	db, err := s.loadDB(archiveDir)
 	if err != nil {
-		return conv.Session{}, fmt.Errorf("readTranscriptFile: %w", err)
+		return conv.Session{}, fmt.Errorf("loadDB: %w", err)
+	}
+	session, err := readSQLiteTranscript(ctx, db, conversation.CacheKey())
+	if err != nil {
+		return conv.Session{}, fmt.Errorf("readSQLiteTranscript: %w", err)
 	}
 	return session, nil
 }
@@ -126,80 +144,142 @@ func (s Store) DeepSearch(
 	query string,
 	conversations []conv.Conversation,
 ) ([]conv.Conversation, bool, error) {
-	if query == "" {
-		_, err := s.loadSearchCorpus(archiveDir)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
+	db, err := s.loadDB(archiveDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			if query == "" {
 				return conversations, false, nil
 			}
-			return conversations, false, fmt.Errorf("readSearchFile: %w", err)
+			return nil, false, nil
 		}
+		return nil, false, fmt.Errorf("loadDB: %w", err)
+	}
+
+	if query == "" {
 		return conversations, true, nil
 	}
 
-	corpus, err := s.loadSearchCorpus(archiveDir)
+	results, err := runSQLiteDeepSearch(ctx, db, query, conversations)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("readSearchFile: %w", err)
-	}
-
-	results, ok := runDeepSearch(ctx, query, conversations, corpus)
-	if !ok {
-		return nil, false, nil
+		return nil, false, fmt.Errorf("runSQLiteDeepSearch: %w", err)
 	}
 	return results, true, nil
 }
 
-func (s Store) searchPath(archiveDir string) string {
-	return filepath.Join(canonicalStoreDir(archiveDir), "search.bin")
-}
-
-func (s Store) loadSearchCorpus(archiveDir string) (searchCorpus, error) {
-	path := s.searchPath(archiveDir)
-	if corpus, ok := s.cachedSearchCorpus(path); ok {
-		return corpus, nil
+func (s Store) loadDB(archiveDir string) (*sql.DB, error) {
+	path := canonicalStorePath(archiveDir)
+	if db, ok := s.cachedDB(path); ok {
+		return db, nil
 	}
 
-	corpus, err := readSearchFile(path)
+	exists, err := pathExists(path)
 	if err != nil {
-		return searchCorpus{}, err
+		return nil, fmt.Errorf("pathExists: %w", err)
 	}
-	s.cacheSearchCorpus(path, corpus)
-	return corpus, nil
+	if !exists {
+		return nil, fs.ErrNotExist
+	}
+
+	db, err := openSQLiteDB(path, true)
+	if err != nil {
+		return nil, fmt.Errorf("openSQLiteDB: %w", err)
+	}
+	return s.cacheDB(path, db)
 }
 
-func (s Store) cachedSearchCorpus(path string) (searchCorpus, bool) {
+func (s Store) cachedDB(path string) (*sql.DB, bool) {
 	if s.state == nil {
-		return searchCorpus{}, false
+		return nil, false
 	}
 
 	s.state.mu.RLock()
 	defer s.state.mu.RUnlock()
 
-	corpus, ok := s.state.searchCorpus[path]
-	return corpus, ok
+	db, ok := s.state.db[path]
+	return db, ok
 }
 
-func (s Store) cacheSearchCorpus(path string, corpus searchCorpus) {
+func (s Store) cachedCatalog(path string) ([]conversation, bool) {
 	if s.state == nil {
-		return
+		return nil, false
+	}
+
+	s.state.mu.RLock()
+	defer s.state.mu.RUnlock()
+
+	conversations, ok := s.state.catalog[path]
+	return conversations, ok
+}
+
+func (s Store) cacheDB(path string, opened *sql.DB) (*sql.DB, error) {
+	if s.state == nil {
+		return opened, nil
 	}
 
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	s.state.searchCorpus[path] = corpus
+	if existing, ok := s.state.db[path]; ok {
+		if err := opened.Close(); err != nil {
+			return nil, fmt.Errorf("opened.Close: %w", err)
+		}
+		return existing, nil
+	}
+
+	s.state.db[path] = opened
+	return opened, nil
 }
 
-func (s Store) invalidateSearchCorpus(archiveDir string) {
+func (s Store) cacheCatalog(path string, conversations []conversation) ([]conversation, error) {
 	if s.state == nil {
-		return
+		return cloneConversations(conversations), nil
 	}
+
+	cloned := cloneConversations(conversations)
 
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	delete(s.state.searchCorpus, s.searchPath(archiveDir))
+	s.state.catalog[path] = cloned
+	return cloneConversations(cloned), nil
+}
+
+func (s Store) invalidateDB(archiveDir string) error {
+	if s.state == nil {
+		return nil
+	}
+
+	path := canonicalStorePath(archiveDir)
+
+	s.state.mu.Lock()
+	db, ok := s.state.db[path]
+	delete(s.state.catalog, path)
+	if ok {
+		delete(s.state.db, path)
+	}
+	s.state.mu.Unlock()
+
+	if ok {
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("db.Close: %w", err)
+		}
+	}
+	return nil
+}
+
+func cloneConversations(conversations []conversation) []conversation {
+	cloned := make([]conversation, len(conversations))
+	for i, conversationValue := range conversations {
+		cloned[i] = conversationValue
+		cloned[i].Sessions = cloneSessions(conversationValue.Sessions)
+	}
+	return cloned
+}
+
+func cloneSessions(sessions []sessionMeta) []sessionMeta {
+	cloned := slices.Clone(sessions)
+	for i := range cloned {
+		cloned[i].ToolCounts = maps.Clone(cloned[i].ToolCounts)
+	}
+	return cloned
 }

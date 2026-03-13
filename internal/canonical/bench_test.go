@@ -164,9 +164,36 @@ func makeBenchCanonicalStore(
 	return archiveDir, store
 }
 
-func BenchmarkLoadCatalog(b *testing.B) {
+func BenchmarkLoadCatalogCold(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := store.invalidateDB(archiveDir); err != nil {
+			b.Fatalf("store.invalidateDB: %v", err)
+		}
+		conversations, err := store.List(ctx, archiveDir)
+		if err != nil {
+			b.Fatalf("store.List: %v", err)
+		}
+		if len(conversations) == 0 {
+			b.Fatal("store.List returned no conversations")
+		}
+	}
+}
+
+func BenchmarkLoadCatalogWarm(b *testing.B) {
+	ctx := context.Background()
+	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
+
+	conversations, err := store.List(ctx, archiveDir)
+	if err != nil {
+		b.Fatalf("store.List: %v", err)
+	}
+	if len(conversations) == 0 {
+		b.Fatal("store.List returned no conversations")
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -181,17 +208,21 @@ func BenchmarkLoadCatalog(b *testing.B) {
 }
 
 func BenchmarkLoadSearchIndex(b *testing.B) {
-	archiveDir, _ := makeBenchCanonicalStore(b, 6, 60, 12)
-	searchPath := filepath.Join(canonicalStoreDir(archiveDir), "search.bin")
+	ctx := context.Background()
+	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
+	db, err := store.loadDB(archiveDir)
+	if err != nil {
+		b.Fatalf("store.loadDB: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		corpus, err := readSearchFile(searchPath)
-		if err != nil {
-			b.Fatalf("readSearchFile: %v", err)
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM search_chunks`).Scan(&count); err != nil {
+			b.Fatalf("db.QueryRowContext: %v", err)
 		}
-		if corpus.Len() == 0 {
-			b.Fatal("readSearchFile returned no search units")
+		if count == 0 {
+			b.Fatal("search_chunks returned no rows")
 		}
 	}
 }
@@ -206,7 +237,7 @@ func BenchmarkDeepSearchFuzzy(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		results, available, err := store.DeepSearch(ctx, archiveDir, "important_needle", conversations)
+		results, available, err := store.DeepSearch(ctx, archiveDir, "important needle", conversations)
 		if err != nil {
 			b.Fatalf("store.DeepSearch: %v", err)
 		}
@@ -262,7 +293,6 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 	rawDir := providerRawDir(archiveDir, conv.ProviderClaude)
 	changedPaths := []string{
 		filepath.Join(rawDir, "project-0", "session-00-0000.jsonl"),
-		filepath.Join(rawDir, "project-1", "session-01-0001.jsonl"),
 	}
 
 	b.ResetTimer()

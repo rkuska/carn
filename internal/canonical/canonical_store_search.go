@@ -39,6 +39,7 @@ func appendSearchUnits(units []searchUnit, conversationID, text string) []search
 		for _, chunk := range chunkSearchText(trimmed, 160, 48) {
 			units = append(units, searchUnit{
 				conversationID: conversationID,
+				ordinal:        len(units),
 				text:           chunk,
 			})
 		}

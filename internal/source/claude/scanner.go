@@ -24,7 +24,7 @@ const (
 	maxToolResultChars  = 500
 	blockTypeText       = "text"
 	jsonlScanBufferSize = 512 * 1024
-	jsonlSlugBufferSize = 64 * 1024
+	jsonlSlugBufferSize = 4 * 1024
 )
 
 type sessionFile struct {
