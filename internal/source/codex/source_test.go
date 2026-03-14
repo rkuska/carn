@@ -186,15 +186,12 @@ func TestAnalyzeReportsSyncCandidates(t *testing.T) {
 	assert.Equal(t, "sessions", progresses[0].CurrentUnit)
 }
 
-func TestSourceOwnsCodexSourceConfigAndSyncCandidates(t *testing.T) {
+func TestSourceOwnsSyncCandidates(t *testing.T) {
 	t.Parallel()
 
 	sourceDir := copyCodexFixtureDir(t)
 	rawDir := t.TempDir()
 	backend := New()
-
-	assert.Equal(t, []string{"CARN_CODEX_SOURCE_DIR"}, backend.SourceEnvVars())
-	assert.Equal(t, filepath.Join("/home/test", ".codex", "sessions"), backend.DefaultSourceDir("/home/test"))
 
 	candidates, err := backend.SyncCandidates(context.Background(), sourceDir, rawDir)
 	require.NoError(t, err)

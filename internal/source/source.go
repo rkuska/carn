@@ -50,8 +50,6 @@ type Progress struct {
 // Backend is the generic provider contract used by archive, canonical, and app.
 type Backend interface {
 	Provider() conv.Provider
-	SourceEnvVars() []string
-	DefaultSourceDir(home string) string
 	Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error)
 	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
 	Analyze(ctx context.Context, sourceDir, rawDir string, onProgress func(Progress)) (Analysis, error)

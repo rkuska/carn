@@ -35,6 +35,7 @@ type viewerModel struct {
 	opts                 transcriptOptions
 	content              contentFlags
 	glamourStyle         string
+	timestampFormat      string
 	width                int
 	height               int
 	searchInput          textinput.Model
@@ -94,12 +95,14 @@ func newViewerModel(
 	session conv.Session,
 	conversation conv.Conversation,
 	glamourStyle string,
+	timestampFormat string,
 	width, height int,
 ) viewerModel {
 	return newViewerModelWithLauncher(
 		session,
 		conversation,
 		glamourStyle,
+		timestampFormat,
 		width,
 		height,
 		newDefaultSessionLauncher(),
@@ -110,6 +113,7 @@ func newViewerModelWithLauncher(
 	session conv.Session,
 	conversation conv.Conversation,
 	glamourStyle string,
+	timestampFormat string,
 	width, height int,
 	launcher sessionLauncher,
 ) viewerModel {
@@ -132,16 +136,17 @@ func newViewerModelWithLauncher(
 	ti.Blur()
 
 	m := viewerModel{
-		viewport:     vp,
-		conversation: conversation,
-		session:      session,
-		launcher:     launcher,
-		opts:         transcriptOptions{},
-		content:      scanContentFlags(session.Messages),
-		glamourStyle: glamourStyle,
-		width:        width,
-		height:       height,
-		searchInput:  ti,
+		viewport:        vp,
+		conversation:    conversation,
+		session:         session,
+		launcher:        launcher,
+		opts:            transcriptOptions{},
+		content:         scanContentFlags(session.Messages),
+		glamourStyle:    glamourStyle,
+		timestampFormat: timestampFormat,
+		width:           width,
+		height:          height,
+		searchInput:     ti,
 	}
 	return m.renderContent()
 }

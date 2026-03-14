@@ -3,7 +3,6 @@ package claude
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -16,17 +15,6 @@ func New() Source {
 
 func (Source) Provider() conv.Provider {
 	return conv.ProviderClaude
-}
-
-func (Source) SourceEnvVars() []string {
-	return []string{"CARN_CLAUDE_SOURCE_DIR", "CARN_SOURCE_DIR"}
-}
-
-func (Source) DefaultSourceDir(home string) string {
-	if home == "" {
-		return ""
-	}
-	return filepath.Join(home, ".claude", "projects")
 }
 
 func (Source) Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error) {

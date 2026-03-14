@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	deepSearchDebounceDelay  = 200 * time.Millisecond
 	delegateHeightDefault    = 3
 	delegateHeightDeepSearch = 5
 )
@@ -39,8 +38,8 @@ func newBrowserSearchInput() textinput.Model {
 	return ti
 }
 
-func deepSearchDebounceCmd(revision int, query string) tea.Cmd {
-	return tea.Tick(deepSearchDebounceDelay, func(time.Time) tea.Msg {
+func deepSearchDebounceCmd(revision int, query string, delay time.Duration) tea.Cmd {
+	return tea.Tick(delay, func(time.Time) tea.Msg {
 		return deepSearchDebounceMsg{revision: revision, query: query}
 	})
 }
@@ -147,7 +146,8 @@ func (m browserModel) scheduleDeepSearch(cmds *[]tea.Cmd) browserModel {
 	}
 
 	m.search.status = searchStatusDebouncing
-	*cmds = append(*cmds, deepSearchDebounceCmd(m.search.revision, m.search.query))
+	delay := time.Duration(m.deepSearchDebounceMs) * time.Millisecond
+	*cmds = append(*cmds, deepSearchDebounceCmd(m.search.revision, m.search.query, delay))
 	return m
 }
 

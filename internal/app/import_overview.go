@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"maps"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/progress"
@@ -9,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	arch "github.com/rkuska/carn/internal/archive"
+	"github.com/rkuska/carn/internal/config"
 )
 
 type importPhase int
@@ -65,6 +67,9 @@ type importOverviewModel struct {
 	result       arch.SyncResult
 	syncEvents   <-chan tea.Msg
 
+	configFilePath   string
+	configFileExists bool
+
 	done     bool
 	width    int
 	height   int
@@ -75,6 +80,8 @@ func newImportOverviewModelWithPipeline(
 	ctx context.Context,
 	cfg arch.Config,
 	pipeline importPipeline,
+	configFilePath string,
+	configFileExists bool,
 ) importOverviewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -86,20 +93,29 @@ func newImportOverviewModelWithPipeline(
 	)
 
 	return importOverviewModel{
-		ctx:      ctx,
-		cfg:      cfg,
-		pipeline: pipeline,
-		phase:    phaseAnalyzing,
-		spinner:  s,
-		progress: p,
+		ctx:              ctx,
+		cfg:              cfg,
+		pipeline:         pipeline,
+		phase:            phaseAnalyzing,
+		spinner:          s,
+		progress:         p,
+		configFilePath:   configFilePath,
+		configFileExists: configFileExists,
 	}
 }
 
-func newImportOverviewModel(ctx context.Context, cfg arch.Config) importOverviewModel {
+func newImportOverviewModel(
+	ctx context.Context,
+	cfg arch.Config,
+	configFilePath string,
+	configFileExists bool,
+) importOverviewModel {
 	return newImportOverviewModelWithPipeline(
 		ctx,
 		cfg,
 		newDefaultImportPipeline(cfg),
+		configFilePath,
+		configFileExists,
 	)
 }
 
@@ -122,6 +138,8 @@ func (m importOverviewModel) Update(msg tea.Msg) (importOverviewModel, tea.Cmd) 
 		return m.handleAnalysisProgress(msg)
 	case analysisFinishedMsg:
 		return m.handleAnalysisFinished(msg)
+	case configReloadedMsg:
+		return m.handleConfigReloaded(msg)
 	case importSyncStartedMsg, importSyncProgressMsg, importSyncFinishedMsg:
 		return m.handleSyncMsg(msg)
 	case spinner.TickMsg:
@@ -164,6 +182,8 @@ func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel
 		return m, nil
 	case key.Matches(msg, importOverviewKeys.Quit):
 		return m, tea.Quit
+	case key.Matches(msg, importOverviewKeys.Configure):
+		return m.handleConfigureKey()
 	case key.Matches(msg, importOverviewKeys.Enter):
 		return m.handleEnterKey()
 	}
@@ -209,6 +229,40 @@ func (m importOverviewModel) handleAnalysisFinished(msg analysisFinishedMsg) (im
 	m.analysis = msg.analysis
 	m.analysisEvents = nil
 	return m, nil
+}
+
+func (m importOverviewModel) handleConfigureKey() (importOverviewModel, tea.Cmd) {
+	if m.phase != phaseAnalyzing && m.phase != phaseReady {
+		return m, nil
+	}
+	return m, createAndEditConfigCmd(
+		config.FilePath(),
+		config.DefaultTemplate(),
+	)
+}
+
+func (m importOverviewModel) handleConfigReloaded(msg configReloadedMsg) (importOverviewModel, tea.Cmd) {
+	if msg.err != nil {
+		return m, notificationCmd(errorNotification("config error: " + msg.err.Error()))
+	}
+
+	m.configFileExists = true
+	m.configFilePath = msg.path
+
+	archCfg := msg.cfg.ArchiveConfig()
+	pathsChanged := m.cfg.ArchiveDir != archCfg.ArchiveDir ||
+		!maps.Equal(m.cfg.SourceDirs, archCfg.SourceDirs)
+
+	if pathsChanged {
+		m.cfg = archCfg
+		m.phase = phaseAnalyzing
+		return m, tea.Batch(
+			m.spinner.Tick,
+			startImportAnalysisCmd(m.ctx, m.pipeline),
+		)
+	}
+
+	return m, notificationCmd(successNotification("config saved"))
 }
 
 func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (importOverviewModel, tea.Cmd) {
@@ -271,12 +325,14 @@ func (m importOverviewModel) footerItems() []helpItem {
 	switch m.phase {
 	case phaseAnalyzing:
 		return []helpItem{
+			{key: "c", desc: "configure", priority: helpPriorityHigh},
 			{key: "?", desc: "help", priority: helpPriorityEssential},
 			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}
 	case phaseReady:
 		if m.analysis.Err != nil {
 			return []helpItem{
+				{key: "c", desc: "configure", priority: helpPriorityHigh},
 				{key: "?", desc: "help", priority: helpPriorityEssential},
 				{key: "q", desc: "quit", priority: helpPriorityHigh},
 			}
@@ -287,6 +343,7 @@ func (m importOverviewModel) footerItems() []helpItem {
 		}
 		return []helpItem{
 			{key: "enter", desc: action},
+			{key: "c", desc: "configure", priority: helpPriorityHigh},
 			{key: "?", desc: "help", priority: helpPriorityEssential},
 			{key: "q", desc: "quit", priority: helpPriorityHigh},
 		}

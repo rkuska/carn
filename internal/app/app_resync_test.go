@@ -17,6 +17,15 @@ import (
 
 const testResyncBetaSlug = "beta"
 
+func testAppConfig() Config {
+	return Config{
+		GlamourStyle:         "dark",
+		TimestampFormat:      "2006-01-02 15:04",
+		BrowserCacheSize:     20,
+		DeepSearchDebounceMs: 200,
+	}
+}
+
 func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	t.Parallel()
 
@@ -37,11 +46,11 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 		},
 	}
 
-	m := newAppModelWithDeps(context.Background(), cfg, "dark", store, pipeline)
+	m := newAppModelWithDeps(context.Background(), cfg, testAppConfig(), store, pipeline)
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", store)
+	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -77,11 +86,11 @@ func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
 		},
 	}
 
-	m := newAppModelWithDeps(context.Background(), cfg, "dark", store, pipeline)
+	m := newAppModelWithDeps(context.Background(), cfg, testAppConfig(), store, pipeline)
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", store)
+	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -152,11 +161,11 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 		},
 	}
 
-	m := newAppModelWithDeps(context.Background(), cfg, "dark", store, pipeline)
+	m := newAppModelWithDeps(context.Background(), cfg, testAppConfig(), store, pipeline)
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", store)
+	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -191,6 +200,7 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 			},
 		},
 		"dark",
+		"2006-01-02 15:04",
 		60,
 		40,
 	)
@@ -292,11 +302,11 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 		},
 	}
 
-	m := newAppModelWithDeps(context.Background(), cfg, "dark", store, pipeline)
+	m := newAppModelWithDeps(context.Background(), cfg, testAppConfig(), store, pipeline)
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", store)
+	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -328,6 +338,7 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 		},
 		alpha,
 		"dark",
+		"2006-01-02 15:04",
 		60,
 		40,
 	)
@@ -413,11 +424,11 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 		},
 	}
 
-	m := newAppModelWithDeps(context.Background(), cfg, "dark", store, pipeline)
+	m := newAppModelWithDeps(context.Background(), cfg, testAppConfig(), store, pipeline)
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", store)
+	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -445,6 +456,7 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 		},
 		alpha,
 		"dark",
+		"2006-01-02 15:04",
 		60,
 		40,
 	)

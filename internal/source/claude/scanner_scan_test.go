@@ -58,15 +58,12 @@ func TestSourceScanOwnsClaudeConversationRefs(t *testing.T) {
 	assert.Equal(t, "path:project-a/session-with-subagent/subagents/agent-1.jsonl", subagent.Ref.ID)
 }
 
-func TestSourceOwnsClaudeSourceConfigAndSyncCandidates(t *testing.T) {
+func TestSourceOwnsSyncCandidates(t *testing.T) {
 	t.Parallel()
 
 	sourceDir := copyScannerFixtureCorpus(t)
 	rawDir := t.TempDir()
 	backend := New()
-
-	assert.Equal(t, []string{"CARN_CLAUDE_SOURCE_DIR", "CARN_SOURCE_DIR"}, backend.SourceEnvVars())
-	assert.Equal(t, filepath.Join("/home/test", ".claude", "projects"), backend.DefaultSourceDir("/home/test"))
 
 	candidates, err := backend.SyncCandidates(context.Background(), sourceDir, rawDir)
 	require.NoError(t, err)

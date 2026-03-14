@@ -15,6 +15,7 @@
                 │  Ready to Import   review complete; import and store build are ready                 │                
                 │ Claude ~/source                                                                      │                
                 │ Archive ~/archive                                                                    │                
+                │ Config not found — press c to create                                                 │                
                 │ Sources 1  Files 1  Conversations 1                                                  │                
                 │ New 1  Update 0  Current 0                                                           │                
                 │                                                                                      │                
@@ -35,6 +36,5 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
- enter import  ? help  q quit                                                                                           
+ enter import  c configure  ? help  q quit                                                                              
                                                                                                                         

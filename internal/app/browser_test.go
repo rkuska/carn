@@ -22,7 +22,7 @@ const (
 
 func testBrowser(t *testing.T) browserModel {
 	t.Helper()
-	b := newBrowserModel(context.Background(), t.TempDir(), "dark")
+	b := newBrowserModel(context.Background(), t.TempDir(), "dark", "2006-01-02 15:04", 20, 200)
 	b.width = 120
 	b.height = 40
 	b = b.updateLayout()
