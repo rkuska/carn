@@ -38,7 +38,6 @@ None.
 | internal/canonical/sqlite_search.go | source | 244 | 60 | 275 |
 | internal/app/viewer_model.go | source | 332 | 35 | 364 |
 | internal/app/browser_test.go | test | 620 | 30 | 752 |
-| internal/app/import_overview.go | source | 333 | 29 | 378 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 
 ## Notes

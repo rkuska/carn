@@ -1,69 +1,37 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFilePath_XDGConfigHome(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+func TestResolvePath(t *testing.T) {
+	t.Run("uses user config dir", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
 
-	got := FilePath()
-	want := filepath.Join(xdg, "carn", "config.toml")
-	if got != want {
-		t.Errorf("FilePath() = %q, want %q", got, want)
-	}
-}
+		got, err := ResolvePath()
+		require.NoError(t, err)
 
-func TestFilePath_DefaultHome(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "")
+		baseDir, err := os.UserConfigDir()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(baseDir, "carn", "config.toml"), got)
+	})
 
-	got := FilePath()
-	home, _ := os.UserHomeDir()
-	want := filepath.Join(home, ".config", "carn", "config.toml")
-	if got != want {
-		t.Errorf("FilePath() = %q, want %q", got, want)
-	}
-}
+	t.Run("returns error when user config dir lookup fails", func(t *testing.T) {
+		got, err := resolvePath(func() (string, error) {
+			return "", errors.New("boom")
+		})
 
-func TestFileExists_Missing(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	if FileExists() {
-		t.Error("FileExists() = true, want false for missing file")
-	}
-}
-
-func TestFileExists_Present(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("# empty"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if !FileExists() {
-		t.Error("FileExists() = false, want true for existing file")
-	}
-}
-
-func TestFileExists_IsDir(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-
-	// Create config.toml as a directory, not a file.
-	dir := filepath.Join(xdg, "carn", "config.toml")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	if FileExists() {
-		t.Error("FileExists() = true, want false when path is a directory")
-	}
+		require.Error(t, err)
+		assert.Empty(t, got)
+		assert.ErrorContains(t, err, "userConfigDir")
+		assert.ErrorContains(t, err, "boom")
+	})
 }

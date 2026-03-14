@@ -51,6 +51,8 @@ Use these terms when referring to different parts of the project in prompts.
 | **Sync Activity** | The active work inside the syncing phase: raw-file sync or local-store rebuild. |
 | **Status Pill** | The colored badge showing current phase ("Analyzing", "Ready to Import", "Importing", "Complete"). |
 | **Context Block** | Shows source and archive directory paths. |
+| **Config File** | The user-scoped `config.toml` file resolved from the operating system config directory. |
+| **Config Status** | The import overview config state: `missing`, `loaded`, or `invalid`. |
 | **Summary Block** | Metrics: project count, file count, conversation count. |
 | **Detail Tokens** | Phase-specific stats (new/update/current counts, copied/failed/elapsed). |
 | **Activity Block** | The syncing-phase status area. Raw-file sync shows a progress bar; local-store rebuild shows a spinner + message. |

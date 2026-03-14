@@ -1,11 +1,15 @@
 package scenarios
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/rkuska/carn/internal/app"
+	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/scenarios/helpers"
 	"github.com/stretchr/testify/require"
@@ -37,6 +41,30 @@ func newScenarioHarnessWithSourceDirs(
 		TimestampFormat:      "2006-01-02 15:04",
 		BrowserCacheSize:     20,
 		DeepSearchDebounceMs: 200,
+	})
+	require.NoError(t, err)
+
+	return newProgramHarness(t, model, width, height)
+}
+
+func newScenarioHarnessWithConfigState(
+	t *testing.T,
+	state config.State,
+	width, height int,
+) *programHarness {
+	t.Helper()
+
+	archCfg := state.Config.ArchiveConfig()
+	model, err := app.NewModel(t.Context(), app.Config{
+		SourceDirs:           archCfg.SourceDirs,
+		ArchiveDir:           archCfg.ArchiveDir,
+		GlamourStyle:         "dark",
+		TimestampFormat:      state.Config.Display.TimestampFormat,
+		BrowserCacheSize:     state.Config.Display.BrowserCacheSize,
+		DeepSearchDebounceMs: state.Config.Search.DeepSearchDebounceMs,
+		ConfigFilePath:       state.Path,
+		ConfigStatus:         state.Status,
+		ConfigErr:            state.Err,
 	})
 	require.NoError(t, err)
 
@@ -253,4 +281,71 @@ func TestScenarioImportCodexHiddenThinking(t *testing.T) {
 
 	harness.quit(t)
 	golden.RequireEqual(t, harness.finalView(t))
+}
+
+func TestScenarioInvalidConfigBlocksImportUntilFixed(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		Project:       "project-a",
+		FileName:      "session-1.jsonl",
+		Slug:          "first-session",
+		SessionID:     "session-1",
+		UserText:      "Test session question",
+		AssistantText: "Assistant response for transcript",
+	})
+
+	t.Setenv("HOME", workspace.RootDir)
+	configPath := writeScenarioConfig(t, "[display]\nbrowser_cache_size = 0\n")
+	state, err := config.LoadState()
+	require.NoError(t, err)
+	require.Equal(t, config.StatusInvalid, state.Status)
+	require.Equal(t, configPath, state.Path)
+
+	t.Setenv("EDITOR", writeScenarioEditor(t, fmt.Sprintf(`#!/bin/sh
+cat > "$1" <<'EOF'
+[paths]
+archive_dir = %q
+claude_source_dir = %q
+
+[display]
+timestamp_format = "2006-01-02 15:04"
+browser_cache_size = 20
+
+[search]
+deep_search_debounce_ms = 200
+EOF
+`, workspace.ArchiveDir, workspace.SourceDir)))
+
+	harness := newScenarioHarnessWithConfigState(t, state, 120, 40)
+	harness.waitForText(t, "Config is invalid")
+	harness.waitForText(t, "Press c to fix")
+
+	harness.pressKey('c')
+	harness.waitForText(
+		t,
+		"Will import 1 archive files and refresh the local store after confirmation.",
+	)
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+
+	harness.quit(t)
+}
+
+func writeScenarioConfig(t *testing.T, content string) string {
+	t.Helper()
+
+	path, err := config.ResolvePath()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	return path
+}
+
+func writeScenarioEditor(t *testing.T, script string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "editor.sh")
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
+	return path
 }

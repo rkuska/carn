@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rkuska/carn/internal/config"
 )
 
 func (m importOverviewModel) renderActivityBlock(width int) string {
@@ -40,6 +41,11 @@ func (m importOverviewModel) analyzingActivityLines(width int) []string {
 
 func (m importOverviewModel) readyActivityLines(width int) []string {
 	var lines []string
+	if m.configStatus == config.StatusInvalid {
+		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Config is invalid: %v", m.configErr), width, false))
+		lines = append(lines, renderKeyHint("Press ", "c", " to fix"))
+		return lines
+	}
 	if m.analysis.Err != nil {
 		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false))
 		lines = append(lines, renderKeyHint("Press ", "q", " to quit"))

@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -33,7 +34,7 @@ func (m importOverviewModel) viewDashboard() string {
 }
 
 func (m importOverviewModel) renderDashboardHeader(width int) string {
-	pill := renderImportStatusPill(m.phase, m.result.Failed > 0)
+	pill := renderImportStatusPill(m.phase, m.result.Failed > 0 || m.importBlocked())
 	subtitle := styleSubtitle.Render(m.dashboardSubtitle())
 
 	if lipgloss.Width(pill)+2+lipgloss.Width(subtitle) <= width {
@@ -43,30 +44,42 @@ func (m importOverviewModel) renderDashboardHeader(width int) string {
 }
 
 func (m importOverviewModel) dashboardSubtitle() string {
+	if m.configStatus == config.StatusInvalid {
+		return "fix the config file before import can continue"
+	}
+
 	switch m.phase {
 	case phaseAnalyzing:
 		return "checking configured sources before import"
 	case phaseReady:
-		if m.analysis.Err != nil {
-			return "analysis finished with errors"
-		}
-		if m.analysis.NeedsSync() {
-			return "review complete; import and store build are ready"
-		}
-		return archiveMatchesSourceSubtitle
+		return m.readySubtitle()
 	case phaseSyncing:
 		return "syncing raw files and rebuilding the local store"
 	case phaseDone:
-		if m.result.Failed > 0 {
-			return "import finished with some copy failures"
-		}
-		if m.result.StoreBuilt {
-			return "import finished and refreshed the local store"
-		}
-		return "import finished and is ready to continue"
+		return m.doneSubtitle()
 	default:
 		return ""
 	}
+}
+
+func (m importOverviewModel) readySubtitle() string {
+	if m.analysis.Err != nil {
+		return "analysis finished with errors"
+	}
+	if m.analysis.NeedsSync() {
+		return "review complete; import and store build are ready"
+	}
+	return archiveMatchesSourceSubtitle
+}
+
+func (m importOverviewModel) doneSubtitle() string {
+	if m.result.Failed > 0 {
+		return "import finished with some copy failures"
+	}
+	if m.result.StoreBuilt {
+		return "import finished and refreshed the local store"
+	}
+	return "import finished and is ready to continue"
 }
 
 func renderImportStatusPill(phase importPhase, hasFailures bool) string {
@@ -124,17 +137,27 @@ func (m importOverviewModel) renderContextBlock(width int) string {
 		"…",
 	))
 
-	if m.configFileExists {
+	if m.configStatus != config.StatusMissing {
 		lines = append(lines, ansi.Truncate(
 			renderSingleChip("Config", shortenPath(m.configFilePath)),
 			width,
 			"…",
 		))
-	} else {
+	}
+
+	switch m.configStatus {
+	case config.StatusMissing:
 		hint := styleMetaLabel.Render("Config") + " " +
 			styleMetaValue.Render("not found — press ") +
 			styleMetaValue.Bold(true).Render("c") +
 			styleMetaValue.Render(" to create")
+		lines = append(lines, ansi.Truncate(hint, width, "…"))
+	case config.StatusLoaded:
+	case config.StatusInvalid:
+		hint := styleMetaLabel.Render("Config") + " " +
+			styleMetaValue.Render("invalid — press ") +
+			styleMetaValue.Bold(true).Render("c") +
+			styleMetaValue.Render(" to fix")
 		lines = append(lines, ansi.Truncate(hint, width, "…"))
 	}
 
@@ -161,6 +184,10 @@ func (m importOverviewModel) renderSummaryBlock(width int) string {
 }
 
 func (m importOverviewModel) summaryDetailTokens() []string {
+	if m.configStatus == config.StatusInvalid {
+		return nil
+	}
+
 	switch m.phase {
 	case phaseAnalyzing:
 		tokens := []string{

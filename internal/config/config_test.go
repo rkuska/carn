@@ -6,54 +6,35 @@ import (
 	"testing"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestLoad_Defaults(t *testing.T) {
-	// Point XDG to a temp dir so no real config file is found.
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+func TestLoadState(t *testing.T) {
+	t.Run("missing file returns defaults and missing status", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusMissing, state.Status)
+		assert.NoError(t, state.Err)
+		assertConfigMatchesDefaults(t, state.Config)
 
-	home, _ := os.UserHomeDir()
+		baseDir, err := os.UserConfigDir()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(baseDir, "carn", "config.toml"), state.Path)
+	})
 
-	if got, want := cfg.Paths.ArchiveDir, filepath.Join(home, DefaultArchiveDir); got != want {
-		t.Errorf("ArchiveDir = %q, want %q", got, want)
-	}
-	if got, want := cfg.Paths.ClaudeSourceDir, filepath.Join(home, DefaultClaudeSourceDir); got != want {
-		t.Errorf("ClaudeSourceDir = %q, want %q", got, want)
-	}
-	if got, want := cfg.Paths.CodexSourceDir, filepath.Join(home, DefaultCodexSourceDir); got != want {
-		t.Errorf("CodexSourceDir = %q, want %q", got, want)
-	}
-	if got, want := cfg.Paths.LogFile, DefaultLogFile; got != want {
-		t.Errorf("LogFile = %q, want %q", got, want)
-	}
-	if got, want := cfg.Display.TimestampFormat, DefaultTimestampFormat; got != want {
-		t.Errorf("TimestampFormat = %q, want %q", got, want)
-	}
-	if got, want := cfg.Display.BrowserCacheSize, DefaultBrowserCacheSize; got != want {
-		t.Errorf("BrowserCacheSize = %d, want %d", got, want)
-	}
-	if got, want := cfg.Search.DeepSearchDebounceMs, DefaultDeepSearchDebounceMs; got != want {
-		t.Errorf("DeepSearchDebounceMs = %d, want %d", got, want)
-	}
-}
+	t.Run("valid file overrides defaults", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
 
-func TestLoad_FileOverridesDefaults(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	tomlContent := `
+		writeConfigFile(t, `
 [paths]
 archive_dir = "/custom/archive"
+claude_source_dir = "/custom/claude"
 log_file = "/var/log/carn.log"
 
 [display]
@@ -61,160 +42,98 @@ browser_cache_size = 50
 
 [search]
 deep_search_debounce_ms = 500
-`
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusLoaded, state.Status)
+		assert.NoError(t, state.Err)
+		assert.Equal(t, "/custom/archive", state.Config.Paths.ArchiveDir)
+		assert.Equal(t, "/custom/claude", state.Config.Paths.ClaudeSourceDir)
+		assert.Equal(t, "/var/log/carn.log", state.Config.Paths.LogFile)
+		assert.Equal(t, 50, state.Config.Display.BrowserCacheSize)
+		assert.Equal(t, 500, state.Config.Search.DeepSearchDebounceMs)
+		assert.Equal(t, DefaultTimestampFormat, state.Config.Display.TimestampFormat)
+	})
 
-	if got := cfg.Paths.ArchiveDir; got != "/custom/archive" {
-		t.Errorf("ArchiveDir = %q, want /custom/archive", got)
-	}
-	if got := cfg.Paths.LogFile; got != "/var/log/carn.log" {
-		t.Errorf("LogFile = %q, want /var/log/carn.log", got)
-	}
-	if got := cfg.Display.BrowserCacheSize; got != 50 {
-		t.Errorf("BrowserCacheSize = %d, want 50", got)
-	}
-	if got := cfg.Search.DeepSearchDebounceMs; got != 500 {
-		t.Errorf("DeepSearchDebounceMs = %d, want 500", got)
-	}
-	// Unset fields should keep defaults.
-	if got := cfg.Display.TimestampFormat; got != DefaultTimestampFormat {
-		t.Errorf("TimestampFormat = %q, want %q (default)", got, DefaultTimestampFormat)
-	}
-}
+	t.Run("tilde expands in loaded config", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
 
-func TestLoad_PartialPathsOverride(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	tomlContent := `
-[paths]
-claude_source_dir = "/custom/claude"
-`
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if got := cfg.Paths.ClaudeSourceDir; got != "/custom/claude" {
-		t.Errorf("ClaudeSourceDir = %q, want /custom/claude", got)
-	}
-	// Other paths should keep defaults.
-	home, _ := os.UserHomeDir()
-	if got, want := cfg.Paths.CodexSourceDir, filepath.Join(home, DefaultCodexSourceDir); got != want {
-		t.Errorf("CodexSourceDir = %q, want %q (default)", got, want)
-	}
-}
-
-func TestLoad_TildeExpansion(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	tomlContent := `
+		writeConfigFile(t, `
 [paths]
 archive_dir = "~/my-archive"
 log_file = "~/logs/carn.log"
-`
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
+		state, err := LoadState()
+		require.NoError(t, err)
 
-	home, _ := os.UserHomeDir()
-	if got, want := cfg.Paths.ArchiveDir, filepath.Join(home, "my-archive"); got != want {
-		t.Errorf("ArchiveDir = %q, want %q (tilde expanded)", got, want)
-	}
-	if got, want := cfg.Paths.LogFile, filepath.Join(home, "logs", "carn.log"); got != want {
-		t.Errorf("LogFile = %q, want %q (tilde expanded)", got, want)
-	}
-}
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(home, "my-archive"), state.Config.Paths.ArchiveDir)
+		assert.Equal(t, filepath.Join(home, "logs", "carn.log"), state.Config.Paths.LogFile)
+	})
 
-func TestLoad_MalformedTOML(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Run("malformed toml returns invalid status with defaults", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
 
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[invalid toml\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+		writeConfigFile(t, "[invalid toml\n")
 
-	_, err := Load()
-	if err == nil {
-		t.Fatal("Load() should return error for malformed TOML")
-	}
-}
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusInvalid, state.Status)
+		require.Error(t, state.Err)
+		assert.ErrorContains(t, state.Err, "overlayFile")
+		assertConfigMatchesDefaults(t, state.Config)
+	})
 
-func TestLoad_InvalidBrowserCacheSize(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Run("validation failure returns invalid status with defaults", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
 
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	tomlContent := `
+		writeConfigFile(t, `
 [display]
 browser_cache_size = 0
-`
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
-	_, err := Load()
-	if err == nil {
-		t.Fatal("Load() should return error for browser_cache_size = 0")
-	}
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusInvalid, state.Status)
+		require.Error(t, state.Err)
+		assert.ErrorContains(t, state.Err, "validate")
+		assertConfigMatchesDefaults(t, state.Config)
+	})
 }
 
-func TestLoad_InvalidDebounceMs(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+func TestLoad(t *testing.T) {
+	t.Run("returns defaults when config is missing", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	dir := filepath.Join(xdg, "carn")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+		cfg, err := Load()
+		require.NoError(t, err)
+		assertConfigMatchesDefaults(t, cfg)
+	})
 
-	tomlContent := `
+	t.Run("returns error when config is invalid", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		writeConfigFile(t, `
 [search]
 deep_search_debounce_ms = -1
-`
-	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+`)
 
-	_, err := Load()
-	if err == nil {
-		t.Fatal("Load() should return error for negative debounce")
-	}
+		_, err := Load()
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "state.Err")
+	})
 }
 
 func TestArchiveConfig(t *testing.T) {
@@ -259,28 +178,26 @@ func TestArchiveConfig_EmptySourcesOmitted(t *testing.T) {
 	}
 }
 
-func TestExpandTilde(t *testing.T) {
-	t.Parallel()
+func assertConfigMatchesDefaults(t *testing.T, cfg Config) {
+	t.Helper()
 
-	home := "/home/user"
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"~/projects", filepath.Join(home, "projects")},
-		{"~", home},
-		{"/absolute/path", "/absolute/path"},
-		{"relative/path", "relative/path"},
-		{"~other/path", "~other/path"},
-	}
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			t.Parallel()
-			got := expandTilde(tt.input, home)
-			if got != tt.want {
-				t.Errorf("expandTilde(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
+	assert.Equal(t, filepath.Join(home, DefaultArchiveDir), cfg.Paths.ArchiveDir)
+	assert.Equal(t, filepath.Join(home, DefaultClaudeSourceDir), cfg.Paths.ClaudeSourceDir)
+	assert.Equal(t, filepath.Join(home, DefaultCodexSourceDir), cfg.Paths.CodexSourceDir)
+	assert.Equal(t, DefaultLogFile, cfg.Paths.LogFile)
+	assert.Equal(t, DefaultTimestampFormat, cfg.Display.TimestampFormat)
+	assert.Equal(t, DefaultBrowserCacheSize, cfg.Display.BrowserCacheSize)
+	assert.Equal(t, DefaultDeepSearchDebounceMs, cfg.Search.DeepSearchDebounceMs)
+}
+
+func writeConfigFile(t *testing.T, tomlContent string) {
+	t.Helper()
+
+	path, err := ResolvePath()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(tomlContent), 0o644))
 }

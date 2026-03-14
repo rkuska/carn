@@ -15,16 +15,19 @@ const (
 )
 
 type appModel struct {
-	ctx            context.Context
-	cfg            arch.Config
-	glamourStyle   string
-	pipeline       importPipeline
-	state          viewState
-	importOverview importOverviewModel
-	browser        browserModel
-	width          int
-	height         int
-	resyncEvents   <-chan tea.Msg
+	ctx             context.Context
+	cfg             arch.Config
+	glamourStyle    string
+	pipeline        importPipeline
+	pipelineFactory func(arch.Config) importPipeline
+	store           browserStore
+	launcher        sessionLauncher
+	state           viewState
+	importOverview  importOverviewModel
+	browser         browserModel
+	width           int
+	height          int
+	resyncEvents    <-chan tea.Msg
 }
 
 func newAppModelWithDeps(
@@ -40,23 +43,19 @@ func newAppModelWithDeps(
 		launcher = launchers[0]
 	}
 
-	return appModel{
-		ctx:          ctx,
-		cfg:          cfg,
-		glamourStyle: appCfg.GlamourStyle,
-		pipeline:     pipeline,
-		state:        viewImportOverview,
-		importOverview: newImportOverviewModelWithPipeline(
-			ctx, cfg, pipeline,
-			appCfg.ConfigFilePath, appCfg.ConfigFileExists,
-		),
-		browser: newBrowserModelWithStore(
-			ctx, cfg.ArchiveDir, appCfg.GlamourStyle,
-			appCfg.TimestampFormat, appCfg.BrowserCacheSize,
-			appCfg.DeepSearchDebounceMs,
-			store, launcher,
-		),
+	model := appModel{
+		ctx:             ctx,
+		cfg:             cfg,
+		glamourStyle:    appCfg.GlamourStyle,
+		pipeline:        pipeline,
+		pipelineFactory: func(nextCfg arch.Config) importPipeline { return pipeline },
+		store:           store,
+		launcher:        launcher,
+		state:           viewImportOverview,
 	}
+
+	model = model.rebuildRuntime(resolveRuntimeConfig(appCfg))
+	return model
 }
 
 func (m appModel) Init() tea.Cmd {
@@ -80,6 +79,10 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if next, cmd, handled := m.handleImportOverviewConfigMsg(msg); handled {
+		return next, cmd
+	}
+
 	var cmd tea.Cmd
 	m.importOverview, cmd = m.importOverview.Update(msg)
 
