@@ -25,9 +25,9 @@ None.
 
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
-| internal/canonical/canonical_store_message.go | source | 240 | 77 | 254 |
+| internal/canonical/message_codec.go | source | 240 | 77 | 254 |
 | internal/source/codex/scan.go | source | 212 | 76 | 239 |
-| internal/canonical/canonical_store_bin.go | source | 224 | 75 | 251 |
+| internal/canonical/binary_codec.go | source | 224 | 75 | 251 |
 | internal/canonical/sqlite_store_persist.go | source | 303 | 70 | 329 |
 | internal/app/transcript_segments.go | source | 352 | 67 | 397 |
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
