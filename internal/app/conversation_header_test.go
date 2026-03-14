@@ -57,7 +57,7 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(conv, 90))
+	got := ansi.Strip(renderConversationHeader(conv, 90, "2006-01-02 15:04"))
 
 	assertContainsAll(t, got,
 		"provider Codex",
@@ -97,7 +97,7 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(conv, 80))
+	got := ansi.Strip(renderConversationHeader(conv, 80, "2006-01-02 15:04"))
 
 	require.NotEmpty(t, got)
 	gotLower := strings.ToLower(got)
@@ -144,7 +144,7 @@ func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	}
 
 	const width = 46
-	got := ansi.Strip(renderConversationHeader(conv, width))
+	got := ansi.Strip(renderConversationHeader(conv, width, "2006-01-02 15:04"))
 
 	for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
 		assert.LessOrEqual(t, lipgloss.Width(line), width)
@@ -180,7 +180,7 @@ func TestViewerUsesConversationTargets(t *testing.T) {
 		Messages: []conversation.Message{{Role: conversation.RoleUser, Text: "hello"}},
 	}
 
-	m := newViewerModel(session, conv, "dark", 120, 40)
+	m := newViewerModel(session, conv, "dark", "2006-01-02 15:04", 120, 40)
 
 	assert.Equal(t, "/tmp/second.jsonl", m.editorFilePath())
 	assert.Equal(t, conversation.ResumeTarget{
@@ -220,7 +220,7 @@ func TestViewerUsesMainTargetsWhenConversationContainsGroupedSubagent(t *testing
 		Messages: []conversation.Message{{Role: conversation.RoleUser, Text: "hello"}},
 	}
 
-	m := newViewerModel(session, conv, "dark", 120, 40)
+	m := newViewerModel(session, conv, "dark", "2006-01-02 15:04", 120, 40)
 
 	assert.Equal(t, "/tmp/main.jsonl", m.editorFilePath())
 	assert.Equal(t, conversation.ResumeTarget{
@@ -263,7 +263,7 @@ func TestRenderConversationHeaderDoesNotCountGroupedSubagentAsPart(t *testing.T)
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(conv, 90))
+	got := ansi.Strip(renderConversationHeader(conv, 90, "2006-01-02 15:04"))
 
 	assert.NotContains(t, got, "2 parts")
 	assert.NotContains(t, got, "resume child-id")
@@ -296,7 +296,7 @@ func TestViewerRendersConversationHeaderBeforeTranscript(t *testing.T) {
 		},
 	}
 
-	m := newViewerModel(session, conv, "dark", 90, 20)
+	m := newViewerModel(session, conv, "dark", "2006-01-02 15:04", 90, 20)
 	got := ansi.Strip(m.viewport.View())
 
 	headerIdx := strings.Index(got, "model")

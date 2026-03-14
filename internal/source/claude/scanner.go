@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	claudeProjectsDir   = ".claude/projects"
 	maxFirstMessage     = 200
 	maxToolResultChars  = 500
 	blockTypeText       = "text"

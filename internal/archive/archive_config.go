@@ -1,13 +1,9 @@
 package archive
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
-	src "github.com/rkuska/carn/internal/source"
 )
 
 type Config struct {
@@ -78,51 +74,9 @@ type SyncProgress struct {
 	Activity SyncActivity
 }
 
-func DefaultConfig(backends ...src.Backend) (Config, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return Config{}, fmt.Errorf("defaultConfig_os.UserHomeDir: %w", err)
-	}
-
-	archiveDir := os.Getenv("CARN_ARCHIVE_DIR")
-	if archiveDir == "" {
-		archiveDir = filepath.Join(home, ".local", "share", "carn")
-	}
-
-	return Config{
-		SourceDirs: resolveSourceDirs(home, backends...),
-		ArchiveDir: archiveDir,
-	}, nil
-}
-
 func (c Config) SourceDirFor(provider conv.Provider) string {
 	if c.SourceDirs == nil {
 		return ""
 	}
 	return c.SourceDirs[provider]
-}
-
-func resolveSourceDirs(home string, backends ...src.Backend) map[conv.Provider]string {
-	sourceDirs := make(map[conv.Provider]string, len(backends))
-	for _, backend := range backends {
-		if backend == nil {
-			continue
-		}
-
-		sourceDir := firstConfiguredSourceDir(backend, home)
-		if sourceDir == "" {
-			continue
-		}
-		sourceDirs[backend.Provider()] = sourceDir
-	}
-	return sourceDirs
-}
-
-func firstConfiguredSourceDir(backend src.Backend, home string) string {
-	for _, envVar := range backend.SourceEnvVars() {
-		if value := os.Getenv(envVar); value != "" {
-			return value
-		}
-	}
-	return backend.DefaultSourceDir(home)
 }

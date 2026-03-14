@@ -119,6 +119,7 @@ func (m browserModel) installViewer(session conv.Session, conversation conv.Conv
 		session,
 		conversation,
 		m.glamourStyle,
+		m.timestampFormat,
 		m.viewerWidth(),
 		m.height,
 		m.launcher,
@@ -239,7 +240,7 @@ func (m browserModel) addToCache(id string) browserModel {
 	}
 
 	m.cacheOrder = append(m.cacheOrder, id)
-	for len(m.cacheOrder) > browserCacheSize {
+	for len(m.cacheOrder) > m.browserCacheSize {
 		evictID := m.cacheOrder[0]
 		m.cacheOrder = m.cacheOrder[1:]
 		delete(m.sessionCache, evictID)

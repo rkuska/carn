@@ -10,16 +10,12 @@ import (
 
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
-	"github.com/rkuska/carn/internal/source/claude"
-	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type stubBackend struct {
 	provider       conv.Provider
-	envVars        []string
-	defaultDir     string
 	syncCandidates []src.SyncCandidate
 }
 
@@ -41,14 +37,6 @@ func (s stubBackend) Analyze(context.Context, string, string, func(src.Progress)
 
 func (s stubBackend) ResumeCommand(conv.ResumeTarget) (*exec.Cmd, error) {
 	return nil, nil
-}
-
-func (s stubBackend) SourceEnvVars() []string {
-	return append([]string(nil), s.envVars...)
-}
-
-func (s stubBackend) DefaultSourceDir(string) string {
-	return s.defaultDir
 }
 
 func (s stubBackend) SyncCandidates(context.Context, string, string) ([]src.SyncCandidate, error) {
@@ -141,35 +129,6 @@ func TestCopyFile(t *testing.T) {
 	dstInfo, err := os.Stat(dstPath)
 	require.NoError(t, err)
 	assert.True(t, dstInfo.ModTime().Equal(modTime))
-}
-
-func TestDefaultConfig(t *testing.T) {
-	t.Run("uses defaults", func(t *testing.T) {
-		t.Setenv("CARN_SOURCE_DIR", "")
-		t.Setenv("CARN_CLAUDE_SOURCE_DIR", "")
-		t.Setenv("CARN_CODEX_SOURCE_DIR", "")
-		t.Setenv("CARN_ARCHIVE_DIR", "")
-
-		cfg, err := DefaultConfig(claude.New(), codex.New())
-		require.NoError(t, err)
-
-		home, _ := os.UserHomeDir()
-		assert.Equal(t, filepath.Join(home, ".claude", "projects"), cfg.SourceDirs[conv.ProviderClaude])
-		assert.Equal(t, filepath.Join(home, ".codex", "sessions"), cfg.SourceDirs[conv.ProviderCodex])
-		assert.Equal(t, filepath.Join(home, ".local", "share", "carn"), cfg.ArchiveDir)
-	})
-
-	t.Run("uses env overrides", func(t *testing.T) {
-		t.Setenv("CARN_SOURCE_DIR", "/custom/source")
-		t.Setenv("CARN_CODEX_SOURCE_DIR", "/custom/codex")
-		t.Setenv("CARN_ARCHIVE_DIR", "/custom/archive")
-
-		cfg, err := DefaultConfig(claude.New(), codex.New())
-		require.NoError(t, err)
-		assert.Equal(t, "/custom/source", cfg.SourceDirs[conv.ProviderClaude])
-		assert.Equal(t, "/custom/codex", cfg.SourceDirs[conv.ProviderCodex])
-		assert.Equal(t, "/custom/archive", cfg.ArchiveDir)
-	})
 }
 
 func TestCollectSyncCandidatesUsesBackendPlan(t *testing.T) {

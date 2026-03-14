@@ -11,8 +11,8 @@ import (
 	"charm.land/lipgloss/v2"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
+	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
-	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/rs/zerolog"
@@ -25,14 +25,24 @@ const (
 
 // Config defines the minimal app inputs needed to build the UI model.
 type Config struct {
-	SourceDirs   map[conv.Provider]string
-	ArchiveDir   string
-	GlamourStyle string
+	SourceDirs           map[conv.Provider]string
+	ArchiveDir           string
+	GlamourStyle         string
+	TimestampFormat      string
+	BrowserCacheSize     int
+	DeepSearchDebounceMs int
+	ConfigFilePath       string
+	ConfigFileExists     bool
 }
 
-// Run starts the CLI application with environment-derived configuration.
+// Run starts the CLI application with config-file-derived configuration.
 func Run() error {
-	logFile, err := os.OpenFile("/tmp/carn.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config.Load: %w", err)
+	}
+
+	logFile, err := os.OpenFile(cfg.Paths.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}
@@ -40,13 +50,6 @@ func Run() error {
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: logFile, NoColor: true}).With().Timestamp().Logger()
 	ctx := logger.WithContext(context.Background())
-
-	claudeBackend := claude.New()
-	codexBackend := codex.New()
-	cfg, err := defaultArchiveConfig(claudeBackend, codexBackend)
-	if err != nil {
-		return fmt.Errorf("defaultArchiveConfig: %w", err)
-	}
 
 	// Detect terminal background before Bubble Tea takes over stdin.
 	// glamour.WithAutoStyle() sends an OSC 11 query on every call, whose
@@ -58,10 +61,17 @@ func Run() error {
 		glamourStyle = glamourStyleLight
 	}
 
+	archCfg := cfg.ArchiveConfig()
+	cfgPath := config.FilePath()
 	model, err := NewModel(ctx, Config{
-		SourceDirs:   cfg.SourceDirs,
-		ArchiveDir:   cfg.ArchiveDir,
-		GlamourStyle: glamourStyle,
+		SourceDirs:           archCfg.SourceDirs,
+		ArchiveDir:           archCfg.ArchiveDir,
+		GlamourStyle:         glamourStyle,
+		TimestampFormat:      cfg.Display.TimestampFormat,
+		BrowserCacheSize:     cfg.Display.BrowserCacheSize,
+		DeepSearchDebounceMs: cfg.Search.DeepSearchDebounceMs,
+		ConfigFilePath:       cfgPath,
+		ConfigFileExists:     fileExists(cfgPath),
 	})
 	if err != nil {
 		return fmt.Errorf("NewModel: %w", err)
@@ -116,7 +126,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 			SourceDirs: cfg.SourceDirs,
 			ArchiveDir: cfg.ArchiveDir,
 		},
-		glamourStyle,
+		cfg,
 		browserStore,
 		pipeline,
 		launcher,
@@ -125,12 +135,9 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	return model, nil
 }
 
-func defaultArchiveConfig(backends ...src.Backend) (arch.Config, error) {
-	cfg, err := arch.DefaultConfig(backends...)
-	if err != nil {
-		return arch.Config{}, fmt.Errorf("archive.DefaultConfig: %w", err)
-	}
-	return cfg, nil
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func nonEmptySourceProviders(sourceDirs map[conv.Provider]string) []conv.Provider {

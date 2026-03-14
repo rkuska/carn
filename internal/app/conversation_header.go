@@ -23,7 +23,7 @@ func singleSessionConversation(meta conv.SessionMeta) conv.Conversation {
 	}
 }
 
-func renderConversationHeader(conversation conv.Conversation, width int) string {
+func renderConversationHeader(conversation conv.Conversation, width int, tsFmt string) string {
 	if len(conversation.Sessions) == 0 || width <= 0 {
 		return ""
 	}
@@ -37,7 +37,7 @@ func renderConversationHeader(conversation conv.Conversation, width int) string 
 	if summary := renderWrappedTokens(headerSummaryChips(conversation), contentWidth); summary != "" {
 		lines = append(lines, summary)
 	}
-	if timing := renderWrappedTokens(headerTimingChips(conversation), contentWidth); timing != "" {
+	if timing := renderWrappedTokens(headerTimingChips(conversation, tsFmt), contentWidth); timing != "" {
 		lines = append(lines, timing)
 	}
 
@@ -118,9 +118,8 @@ func headerSummaryChips(conversation conv.Conversation) []string {
 	return chips
 }
 
-func headerTimingChips(conversation conv.Conversation) []string {
+func headerTimingChips(conversation conv.Conversation, tsFmt string) []string {
 	var chips []string
-	const tsFmt = "2006-01-02 15:04"
 
 	if started := conversation.Timestamp(); !started.IsZero() {
 		chips = append(chips, renderSingleChip("started", started.Format(tsFmt)))

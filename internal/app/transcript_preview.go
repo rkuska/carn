@@ -9,14 +9,14 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func renderPreviewHeader(meta conv.SessionMeta) string {
+func renderPreviewHeader(meta conv.SessionMeta, tsFmt string) string {
 	sep := styleMetaLabel.Render("  ")
 	lines := []string{strings.Join(renderPreviewPrimaryParts(meta), sep)}
 
 	if secondary := renderPreviewSecondaryParts(meta, sep); secondary != "" {
 		lines = append(lines, secondary)
 	}
-	if timing := renderPreviewTimingParts(meta, sep); timing != "" {
+	if timing := renderPreviewTimingParts(meta, sep, tsFmt); timing != "" {
 		lines = append(lines, timing)
 	}
 
@@ -49,9 +49,8 @@ func renderPreviewSecondaryParts(meta conv.SessionMeta, sep string) string {
 	return strings.Join(parts, sep)
 }
 
-func renderPreviewTimingParts(meta conv.SessionMeta, sep string) string {
+func renderPreviewTimingParts(meta conv.SessionMeta, sep, tsFmt string) string {
 	var parts []string
-	const tsFmt = "2006-01-02 15:04"
 	if !meta.Timestamp.IsZero() {
 		parts = append(parts, styleMetaLabel.Render("started ")+styleMetaValue.Render(meta.Timestamp.Format(tsFmt)))
 	}
@@ -89,9 +88,9 @@ func renderInitialPrompt(prompt string, width int) string {
 	return sb.String()
 }
 
-func renderPreview(session conv.Session, maxMessages int, width int) string {
+func renderPreview(session conv.Session, maxMessages int, width int, tsFmt string) string {
 	var sb strings.Builder
-	sb.WriteString(renderPreviewHeader(session.Meta))
+	sb.WriteString(renderPreviewHeader(session.Meta, tsFmt))
 	sb.WriteString(renderInitialPrompt(firstUserMessage(session.Messages), width))
 
 	count := 0

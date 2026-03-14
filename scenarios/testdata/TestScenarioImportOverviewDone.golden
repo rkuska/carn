@@ -15,6 +15,7 @@
                 │  Complete   import finished and refreshed the local store                            │                
                 │ Claude ~/source                                                                      │                
                 │ Archive ~/archive                                                                    │                
+                │ Config not found — press c to create                                                 │                
                 │ Sources 1  Files 1  Conversations 1                                                  │                
                 │ Copied 1  Failed 0  Elapsed 0s                                                       │                
                 │                                                                                      │                
@@ -23,7 +24,6 @@
                 │                               Press Enter to continue                                │                
                 │                                                                                      │                
                 ╰──────────────────────────────────────────────────────────────────────────────────────╯                
-                                                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         

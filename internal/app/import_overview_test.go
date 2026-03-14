@@ -60,7 +60,7 @@ func testImportOverviewSourceDir(cfg arch.Config) string {
 func TestImportOverviewModelInit(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 
 	cmd := m.Init()
 	require.NotNil(t, cmd)
@@ -70,7 +70,7 @@ func TestImportOverviewModelInit(t *testing.T) {
 func TestImportOverviewAnalyzingDisablesEnter(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 	m.width = 120
 	m.height = 40
 
@@ -84,7 +84,7 @@ func TestImportOverviewReadyWithoutSyncContinuesToBrowser(t *testing.T) {
 	t.Parallel()
 
 	cfg := testImportOverviewConfig(t)
-	m := newImportOverviewModel(context.Background(), cfg)
+	m := newImportOverviewModel(context.Background(), cfg, "", false)
 	m.width = 120
 	m.height = 40
 
@@ -104,7 +104,7 @@ func TestImportOverviewReadyWithSyncStartsSync(t *testing.T) {
 	t.Parallel()
 
 	cfg := testImportOverviewConfig(t)
-	m := newImportOverviewModel(context.Background(), cfg)
+	m := newImportOverviewModel(context.Background(), cfg, "", false)
 	m.width = 120
 	m.height = 40
 
@@ -127,7 +127,7 @@ func TestImportOverviewReadyWithSyncStartsSync(t *testing.T) {
 func TestImportOverviewSyncCompletion(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 	m.width = 120
 	m.height = 40
 	m.phase = phaseSyncing
@@ -159,7 +159,7 @@ func TestImportOverviewSyncCompletion(t *testing.T) {
 func TestImportOverviewAnalysisProgressUpdatesDashboardState(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 	m.width = 120
 	m.height = 40
 
@@ -183,7 +183,7 @@ func TestImportOverviewAnalysisProgressUpdatesDashboardState(t *testing.T) {
 func TestImportOverviewAnalysisErrorBlocksEnter(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 	m.width = 120
 	m.height = 40
 
@@ -200,7 +200,7 @@ func TestImportOverviewAnalysisErrorBlocksEnter(t *testing.T) {
 func TestImportOverviewWindowResize(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 200, Height: 50})
 
@@ -211,7 +211,7 @@ func TestImportOverviewWindowResize(t *testing.T) {
 func TestImportOverviewSpinnerTick(t *testing.T) {
 	t.Parallel()
 
-	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t))
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
 	m.width = 120
 	m.height = 40
 
@@ -226,7 +226,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("analyzing", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseAnalyzing
@@ -248,7 +248,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("ready with sync needed", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseReady
@@ -269,7 +269,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("ready without sync", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseReady
@@ -284,7 +284,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("syncing", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseSyncing
@@ -300,7 +300,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("rebuilding store", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseSyncing
@@ -318,7 +318,7 @@ func TestImportOverviewViewRendersInAllPhases(t *testing.T) {
 
 	t.Run("done", func(t *testing.T) {
 		t.Parallel()
-		m := newImportOverviewModel(context.Background(), cfg)
+		m := newImportOverviewModel(context.Background(), cfg, "", false)
 		m.width = 120
 		m.height = 40
 		m.phase = phaseDone
@@ -364,7 +364,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "analyzing",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseAnalyzing
 				return m
 			},
@@ -377,7 +377,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "ready with sync needed",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseReady
 				m.analysis = arch.ImportAnalysis{
 					ArchiveDir:  cfg.ArchiveDir,
@@ -394,7 +394,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "ready without sync",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseReady
 				m.analysis = arch.ImportAnalysis{
 					ArchiveDir: cfg.ArchiveDir,
@@ -411,7 +411,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "ready blocked",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseReady
 				m.analysis = arch.ImportAnalysis{Err: errors.New("permission denied")}
 				return m
@@ -425,7 +425,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "syncing progress",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseSyncing
 				m.syncActivity = arch.SyncActivitySyncingFiles
 				m.current = 2
@@ -443,7 +443,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "syncing rebuild",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseSyncing
 				m.syncActivity = arch.SyncActivityRebuildingStore
 				return m
@@ -456,7 +456,7 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 		{
 			name: "done",
 			model: func() importOverviewModel {
-				m := newImportOverviewModel(context.Background(), cfg)
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
 				m.phase = phaseDone
 				m.result = arch.SyncResult{Copied: 1, Elapsed: time.Second}
 				return m
@@ -511,7 +511,7 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 		},
 	}
 
-	m := newImportOverviewModelWithPipeline(context.Background(), cfg, pipeline)
+	m := newImportOverviewModelWithPipeline(context.Background(), cfg, pipeline, "", false)
 
 	analysisMsg := requireMsgType[importAnalysisStartedMsg](t, startImportAnalysisCmd(context.Background(), pipeline)())
 	m, cmd := m.Update(analysisMsg)
@@ -553,7 +553,7 @@ func TestImportOverviewStoreRebuildOnlyShowsSpinnerState(t *testing.T) {
 		},
 	}
 
-	m := newImportOverviewModelWithPipeline(context.Background(), cfg, pipeline)
+	m := newImportOverviewModelWithPipeline(context.Background(), cfg, pipeline, "", false)
 	m.width = 120
 	m.height = 40
 

@@ -31,9 +31,12 @@ func newScenarioHarnessWithSourceDirs(
 	t.Setenv("HOME", workspace.RootDir)
 
 	model, err := app.NewModel(t.Context(), app.Config{
-		SourceDirs:   sourceDirs,
-		ArchiveDir:   workspace.ArchiveDir,
-		GlamourStyle: "dark",
+		SourceDirs:           sourceDirs,
+		ArchiveDir:           workspace.ArchiveDir,
+		GlamourStyle:         "dark",
+		TimestampFormat:      "2006-01-02 15:04",
+		BrowserCacheSize:     20,
+		DeepSearchDebounceMs: 200,
 	})
 	require.NoError(t, err)
 

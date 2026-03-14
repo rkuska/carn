@@ -6,6 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.0.0
 	charm.land/bubbletea/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/boyter/scc/v3 v3.7.0
 	github.com/charmbracelet/glamour v0.10.0
@@ -13,7 +14,6 @@ require (
 	github.com/charmbracelet/x/exp/golden v0.0.0-20250806222409-83e3a29d542f
 	github.com/muesli/reflow v0.3.0
 	github.com/rs/zerolog v1.34.0
-	github.com/sahilm/fuzzy v0.1.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.19.0
 	modernc.org/sqlite v1.46.1
@@ -57,6 +57,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect

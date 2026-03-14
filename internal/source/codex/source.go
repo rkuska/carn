@@ -3,7 +3,6 @@ package codex
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -16,17 +15,6 @@ func New() Source {
 
 func (Source) Provider() conv.Provider {
 	return conv.ProviderCodex
-}
-
-func (Source) SourceEnvVars() []string {
-	return []string{"CARN_CODEX_SOURCE_DIR"}
-}
-
-func (Source) DefaultSourceDir(home string) string {
-	if home == "" {
-		return ""
-	}
-	return filepath.Join(home, ".codex", "sessions")
 }
 
 func (Source) Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error) {

@@ -30,7 +30,7 @@ type appModel struct {
 func newAppModelWithDeps(
 	ctx context.Context,
 	cfg arch.Config,
-	glamourStyle string,
+	appCfg Config,
 	store browserStore,
 	pipeline importPipeline,
 	launchers ...sessionLauncher,
@@ -41,13 +41,21 @@ func newAppModelWithDeps(
 	}
 
 	return appModel{
-		ctx:            ctx,
-		cfg:            cfg,
-		glamourStyle:   glamourStyle,
-		pipeline:       pipeline,
-		state:          viewImportOverview,
-		importOverview: newImportOverviewModelWithPipeline(ctx, cfg, pipeline),
-		browser:        newBrowserModelWithStore(ctx, cfg.ArchiveDir, glamourStyle, store, launcher),
+		ctx:          ctx,
+		cfg:          cfg,
+		glamourStyle: appCfg.GlamourStyle,
+		pipeline:     pipeline,
+		state:        viewImportOverview,
+		importOverview: newImportOverviewModelWithPipeline(
+			ctx, cfg, pipeline,
+			appCfg.ConfigFilePath, appCfg.ConfigFileExists,
+		),
+		browser: newBrowserModelWithStore(
+			ctx, cfg.ArchiveDir, appCfg.GlamourStyle,
+			appCfg.TimestampFormat, appCfg.BrowserCacheSize,
+			appCfg.DeepSearchDebounceMs,
+			store, launcher,
+		),
 	}
 }
 

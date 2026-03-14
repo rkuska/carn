@@ -18,7 +18,7 @@ func (m viewerModel) paneTitle() string {
 	return fmt.Sprintf("%s / %s  %s",
 		m.conversation.Project.DisplayName,
 		m.conversation.DisplayName(),
-		m.conversation.Timestamp().Format("2006-01-02 15:04"),
+		m.conversation.Timestamp().Format(m.timestampFormat),
 	)
 }
 
@@ -124,7 +124,7 @@ func (m viewerModel) renderContent() viewerModel {
 	contentWidth := m.contentWidth()
 
 	var sb strings.Builder
-	if header := renderConversationHeader(m.conversation, contentWidth); header != "" {
+	if header := renderConversationHeader(m.conversation, contentWidth, m.timestampFormat); header != "" {
 		sb.WriteString(header)
 	}
 	if planHeader := renderPlanHeader(m.session.Messages, contentWidth, m.planExpanded); planHeader != "" {

@@ -34,10 +34,11 @@ None.
 | internal/canonical/sqlite_db.go | source | 270 | 67 | 294 |
 | internal/source/claude/scanner_metadata.go | source | 331 | 64 | 361 |
 | internal/conversation/conversation.go | source | 236 | 64 | 267 |
-| internal/source/claude/scanner.go | source | 251 | 62 | 286 |
+| internal/source/claude/scanner.go | source | 250 | 62 | 285 |
 | internal/canonical/sqlite_search.go | source | 244 | 60 | 275 |
-| internal/app/viewer_model.go | source | 327 | 35 | 359 |
+| internal/app/viewer_model.go | source | 332 | 35 | 364 |
 | internal/app/browser_test.go | test | 620 | 30 | 752 |
+| internal/app/import_overview.go | source | 333 | 29 | 378 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 
 ## Notes

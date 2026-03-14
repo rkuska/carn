@@ -124,6 +124,20 @@ func (m importOverviewModel) renderContextBlock(width int) string {
 		"…",
 	))
 
+	if m.configFileExists {
+		lines = append(lines, ansi.Truncate(
+			renderSingleChip("Config", shortenPath(m.configFilePath)),
+			width,
+			"…",
+		))
+	} else {
+		hint := styleMetaLabel.Render("Config") + " " +
+			styleMetaValue.Render("not found — press ") +
+			styleMetaValue.Bold(true).Render("c") +
+			styleMetaValue.Render(" to create")
+		lines = append(lines, ansi.Truncate(hint, width, "…"))
+	}
+
 	return strings.Join(lines, "\n")
 }
 

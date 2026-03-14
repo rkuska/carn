@@ -12,8 +12,6 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-const browserCacheSize = 20
-
 type focusArea int
 
 const (
@@ -35,6 +33,9 @@ type browserModel struct {
 	store                     browserStore
 	launcher                  sessionLauncher
 	glamourStyle              string
+	timestampFormat           string
+	browserCacheSize          int
+	deepSearchDebounceMs      int
 	list                      list.Model
 	delegate                  conversationDelegate
 	focus                     focusArea
@@ -64,6 +65,9 @@ type browserModel struct {
 func newBrowserModelWithStore(
 	ctx context.Context,
 	archiveDir, glamourStyle string,
+	timestampFormat string,
+	cacheSize int,
+	debounceMs int,
 	store browserStore,
 	launchers ...sessionLauncher,
 ) browserModel {
@@ -109,32 +113,42 @@ func newBrowserModelWithStore(
 	}
 
 	return browserModel{
-		ctx:            ctx,
-		archiveDir:     archiveDir,
-		store:          store,
-		launcher:       launcher,
-		glamourStyle:   glamourStyle,
-		list:           l,
-		delegate:       delegate,
-		focus:          focusList,
-		transcriptMode: transcriptClosed,
-		searchInput:    newBrowserSearchInput(),
+		ctx:                  ctx,
+		archiveDir:           archiveDir,
+		store:                store,
+		launcher:             launcher,
+		glamourStyle:         glamourStyle,
+		timestampFormat:      timestampFormat,
+		browserCacheSize:     cacheSize,
+		deepSearchDebounceMs: debounceMs,
+		list:                 l,
+		delegate:             delegate,
+		focus:                focusList,
+		transcriptMode:       transcriptClosed,
+		searchInput:          newBrowserSearchInput(),
 		search: browserSearchState{
 			mode:   searchModeMetadata,
 			status: searchStatusIdle,
 		},
-		sessionCache:        make(map[string]conv.Session, browserCacheSize),
-		transcriptCache:     make(map[string]conv.Session, browserCacheSize),
+		sessionCache:        make(map[string]conv.Session, cacheSize),
+		transcriptCache:     make(map[string]conv.Session, cacheSize),
 		deepSearchAvailable: true,
 		resyncSpinner:       s,
 	}
 }
 
-func newBrowserModel(ctx context.Context, archiveDir, glamourStyle string) browserModel {
+func newBrowserModel(
+	ctx context.Context,
+	archiveDir, glamourStyle, timestampFormat string,
+	cacheSize, debounceMs int,
+) browserModel {
 	return newBrowserModelWithStore(
 		ctx,
 		archiveDir,
 		glamourStyle,
+		timestampFormat,
+		cacheSize,
+		debounceMs,
 		newDefaultBrowserStore(),
 	)
 }
