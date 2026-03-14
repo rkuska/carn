@@ -55,9 +55,7 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "/", desc: "search"},
 		m.deepSearchToggleItem(),
 		{key: "enter", desc: "open"},
-		{key: "o", desc: "editor"},
 		{key: "r", desc: "resume"},
-		m.resyncHelpItem(),
 	}
 
 	if m.transcriptMode == transcriptSplit {
@@ -112,38 +110,43 @@ func (m browserModel) helpTitle() string {
 
 func (m browserModel) helpSections() []helpSection {
 	if m.transcriptFocused() {
-		extraActions := []helpItem{m.layoutActionItem()}
+		extraActions := []helpItem{}
 		if m.transcriptMode == transcriptSplit {
-			extraActions = append(extraActions, m.focusActionItem())
+			extraActions = append(extraActions,
+				withHelpDetail(m.focusActionItem(), m.focusActionDetail()),
+			)
 		}
+		extraActions = append(extraActions,
+			withHelpDetail(m.layoutActionItem(), m.layoutActionDetail()),
+		)
 		return m.viewer.helpSections(extraActions)
 	}
 
 	actions := []helpItem{
-		{key: "/", desc: "search list"},
-		{key: "enter", desc: "open transcript"},
-		{key: "o", desc: "open in editor"},
-		{key: "r", desc: "resume session"},
-		{key: "R", desc: "resync browser data"},
+		{key: "/", desc: "search", detail: "edit the list query for visible conversations"},
+		{key: "enter", desc: "open", detail: "open the selected transcript in split view"},
+		{key: "o", desc: "editor", detail: "open the selected raw session file in $EDITOR"},
+		{key: "r", desc: "resume", detail: "resume the selected session with its provider"},
+		m.resyncHelpItem(),
 	}
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,
-			m.focusActionItem(),
-			m.layoutActionItem(),
-			helpItem{key: "q/esc", desc: "close transcript"},
+			withHelpDetail(m.focusActionItem(), m.focusActionDetail()),
+			withHelpDetail(m.layoutActionItem(), m.layoutActionDetail()),
+			helpItem{key: "q/esc", desc: "close", detail: "close the transcript pane and return to the list"},
 		)
 	} else {
-		actions = append(actions, helpItem{key: "q", desc: "quit"})
+		actions = append(actions, helpItem{key: "q", desc: "quit", detail: "exit carn from the browser"})
 	}
 
 	return []helpSection{
 		{
 			title: "Navigation",
 			items: []helpItem{
-				{key: "j/k", desc: "move selection"},
-				{key: "gg", desc: "go to top"},
-				{key: "G", desc: "go to bottom"},
-				{key: "ctrl+f/b", desc: "page down/up"},
+				{key: "j/k", desc: "move", detail: "move the selection up or down"},
+				{key: "gg", desc: "top", detail: "jump to the first conversation"},
+				{key: "G", desc: "bottom", detail: "jump to the last conversation"},
+				{key: "ctrl+f/b", desc: "page", detail: "move a page down or up"},
 			},
 		},
 		{
@@ -169,6 +172,7 @@ func (m browserModel) deepSearchToggleItem() helpItem {
 	return helpItem{
 		key:    "ctrl+s",
 		desc:   "deep search",
+		detail: "search transcript contents in the local index instead of metadata",
 		toggle: true,
 		on:     m.search.mode == searchModeDeep,
 	}
@@ -194,9 +198,9 @@ func (m browserModel) searchScopeLabel() string {
 
 func (m browserModel) layoutActionItem() helpItem {
 	if m.transcriptMode == transcriptFullscreen {
-		return helpItem{key: "O", desc: "split transcript"}
+		return helpItem{key: "O", desc: "split"}
 	}
-	return helpItem{key: "O", desc: "fullscreen transcript"}
+	return helpItem{key: "O", desc: "fullscreen"}
 }
 
 func (m browserModel) focusActionItem() helpItem {
@@ -233,4 +237,18 @@ func (m browserModel) transcriptFooterItems() []helpItem {
 	result = append(result, m.transcriptActionItems()...)
 	result = append(result, items[helpIndex:]...)
 	return result
+}
+
+func (m browserModel) layoutActionDetail() string {
+	if m.transcriptMode == transcriptFullscreen {
+		return "return to split view with the conversation list"
+	}
+	return "expand the transcript to use the full window"
+}
+
+func (m browserModel) focusActionDetail() string {
+	if m.focus == focusTranscript {
+		return "move keyboard focus back to the conversation list"
+	}
+	return "move keyboard focus to the transcript pane"
 }

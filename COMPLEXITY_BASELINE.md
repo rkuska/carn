@@ -37,7 +37,7 @@ None.
 | internal/source/claude/scanner.go | source | 250 | 62 | 285 |
 | internal/canonical/sqlite_search.go | source | 244 | 60 | 275 |
 | internal/app/viewer_model.go | source | 332 | 35 | 364 |
-| internal/app/browser_test.go | test | 620 | 30 | 752 |
+| internal/app/browser_test.go | test | 621 | 30 | 753 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 
 ## Notes

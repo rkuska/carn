@@ -9,6 +9,7 @@ import (
 type helpItem struct {
 	key      string
 	desc     string
+	detail   string
 	toggle   bool
 	on       bool
 	glow     bool
@@ -83,15 +84,7 @@ func renderHelpItemsWithKeep(items []helpItem, keep []bool) string {
 			continue
 		}
 
-		keyText := item.key
-		if item.toggle {
-			if item.on {
-				keyText = "+" + keyText
-			} else {
-				keyText = "-" + keyText
-			}
-		}
-
+		keyText := helpItemKeyText(item)
 		parts = append(parts, helpItemKeyStyle(item).Render(keyText)+helpStyle.Render(" "+item.desc))
 	}
 
@@ -109,36 +102,6 @@ func renderHelpItem(item helpItem) string {
 	return renderHelpItems([]helpItem{item})
 }
 
-func renderHelpOverlay(width, height int, title string, sections []helpSection) string {
-	boxWidth := min(max(width-8, 40), 96)
-	bodyHeight := max(height-framedFooterRows, 1)
-
-	var lines []string
-	lines = append(lines, "")
-	for i, section := range sections {
-		if section.title != "" {
-			header := lipgloss.NewStyle().
-				Bold(true).
-				Foreground(colorPrimary).
-				Render("  " + section.title)
-			lines = append(lines, header)
-		}
-
-		for _, item := range section.items {
-			lines = append(lines, "  "+renderHelpItem(item))
-		}
-
-		if i != len(sections)-1 {
-			lines = append(lines, "")
-		}
-	}
-	lines = append(lines, "")
-
-	content := strings.Join(lines, "\n")
-	box := renderFramedBox(title, boxWidth, colorPrimary, content)
-	return lipgloss.Place(width, bodyHeight, lipgloss.Center, lipgloss.Center, box)
-}
-
 func joinNonEmpty(items []string, sep string) string {
 	filtered := make([]string, 0, len(items))
 	for _, item := range items {
@@ -148,4 +111,19 @@ func joinNonEmpty(items []string, sep string) string {
 		filtered = append(filtered, item)
 	}
 	return strings.Join(filtered, sep)
+}
+
+func helpItemKeyText(item helpItem) string {
+	if !item.toggle {
+		return item.key
+	}
+	if item.on {
+		return "+" + item.key
+	}
+	return "-" + item.key
+}
+
+func withHelpDetail(item helpItem, detail string) helpItem {
+	item.detail = detail
+	return item
 }

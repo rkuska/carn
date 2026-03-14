@@ -39,12 +39,7 @@ func (m viewerModel) hasActiveOverlay() bool {
 }
 
 func (m viewerModel) actionFooterItems() []helpItem {
-	items := []helpItem{
-		{key: "c", desc: "conversation"},
-	}
-	if m.content.hasPlans {
-		items = append(items, helpItem{key: "p", desc: "plan"})
-	}
+	items := append([]helpItem{}, m.actionTargetItems(m.actionMode)...)
 	items = append(items,
 		helpItem{key: "r", desc: "raw"},
 		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
@@ -74,25 +69,21 @@ func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
 }
 
 func (m viewerModel) actionHelpSections(extraActions []helpItem) []helpSection {
-	items := []helpItem{
-		{key: "c", desc: "conversation"},
-	}
-	if m.content.hasPlans {
-		items = append(items, helpItem{key: "p", desc: "plan"})
-	}
+	items := append([]helpItem{}, m.actionTargetItems(m.actionMode)...)
 	items = append(items,
-		helpItem{key: "r", desc: "raw"},
-		helpItem{key: "q/esc", desc: "cancel"},
+		withHelpDetail(m.rawActionTargetItem(m.actionMode), viewerActionTargetDetail(actionTargetRaw, m.actionMode)),
+		helpItem{key: "q/esc", desc: "cancel", detail: "close the target picker without taking action"},
 	)
 	items = append(items, extraActions...)
 	return []helpSection{{title: "Select Target", items: items}}
 }
 
 func (m viewerModel) planPickerHelpSections(extraActions []helpItem) []helpSection {
+	action := m.planPicker.action.String()
 	items := []helpItem{
-		{key: "j/k", desc: "move"},
-		{key: "enter", desc: m.planPicker.action.String()},
-		{key: "q/esc", desc: "cancel"},
+		{key: "j/k", desc: "move", detail: "move between available plans"},
+		{key: "enter", desc: action, detail: fmt.Sprintf("%s the selected plan", action)},
+		{key: "q/esc", desc: "cancel", detail: "close the plan picker without taking action"},
 	}
 	items = append(items, extraActions...)
 	return []helpSection{{title: "Select Plan", items: items}}
@@ -212,6 +203,68 @@ const (
 	actionTargetPlan
 	actionTargetRaw
 )
+
+func (m viewerModel) actionTargetItems(mode viewerActionMode) []helpItem {
+	items := []helpItem{
+		withHelpDetail(
+			helpItem{key: "c", desc: "conversation"},
+			viewerActionTargetDetail(actionTargetConversation, mode),
+		),
+	}
+	if m.content.hasPlans {
+		items = append(items, withHelpDetail(
+			helpItem{key: "p", desc: "plan"},
+			viewerActionTargetDetail(actionTargetPlan, mode),
+		))
+	}
+	return items
+}
+
+func (m viewerModel) rawActionTargetItem(mode viewerActionMode) helpItem {
+	return withHelpDetail(
+		helpItem{key: "r", desc: "raw"},
+		viewerActionTargetDetail(actionTargetRaw, mode),
+	)
+}
+
+func viewerActionTargetDetail(target actionTarget, mode viewerActionMode) string {
+	switch mode {
+	case viewerActionNone:
+		return ""
+	case viewerActionCopy:
+		return viewerCopyTargetDetail(target)
+	case viewerActionOpen:
+		return viewerOpenTargetDetail(target)
+	default:
+		return ""
+	}
+}
+
+func viewerCopyTargetDetail(target actionTarget) string {
+	switch target {
+	case actionTargetConversation:
+		return "copy the visible conversation transcript to the clipboard"
+	case actionTargetPlan:
+		return "copy the selected plan to the clipboard"
+	case actionTargetRaw:
+		return "copy the concatenated raw conversation files"
+	default:
+		return ""
+	}
+}
+
+func viewerOpenTargetDetail(target actionTarget) string {
+	switch target {
+	case actionTargetConversation:
+		return "open the visible conversation transcript in $EDITOR"
+	case actionTargetPlan:
+		return "open the selected plan in $EDITOR"
+	case actionTargetRaw:
+		return "open the concatenated raw conversation files in $EDITOR"
+	default:
+		return ""
+	}
+}
 
 func conversationActionCmd(
 	mode viewerActionMode,

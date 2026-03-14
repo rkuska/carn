@@ -5,6 +5,7 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 		{
 			key:    "t",
 			desc:   "thinking",
+			detail: "show or hide assistant thinking blocks",
 			toggle: true,
 			on:     opts.showThinking,
 			glow:   !opts.showThinking && content.hasThinking,
@@ -12,6 +13,7 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 		{
 			key:    "T",
 			desc:   "tools",
+			detail: "show or hide tool call summaries",
 			toggle: true,
 			on:     opts.showTools,
 			glow:   !opts.showTools && content.hasToolCalls,
@@ -19,6 +21,7 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 		{
 			key:    "R",
 			desc:   "results",
+			detail: "show or hide tool result output",
 			toggle: true,
 			on:     opts.showToolResults,
 			glow:   !opts.showToolResults && content.hasToolResults,
@@ -26,6 +29,7 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 		{
 			key:    "s",
 			desc:   "sidechain",
+			detail: "show or hide sidechain messages",
 			toggle: true,
 			on:     !opts.hideSidechain,
 			glow:   opts.hideSidechain && content.hasSidechain,
@@ -33,6 +37,7 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 		{
 			key:    "m",
 			desc:   "system",
+			detail: "show or hide system messages",
 			toggle: true,
 			on:     opts.showSystem,
 			glow:   !opts.showSystem && content.hasSystem,
@@ -42,14 +47,13 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 
 func transcriptFooterItems(opts transcriptOptions, content contentFlags) []helpItem {
 	items := []helpItem{
-		{key: "/", desc: "search"},
-		{key: "n/N", desc: "match"},
+		{key: "/", desc: "search", detail: "search inside the visible transcript"},
+		{key: "n/N", desc: "match", detail: "jump to the next or previous search match"},
 	}
 	items = append(items, transcriptToggleItems(opts, content)...)
 	items = append(items,
-		helpItem{key: "y", desc: "copy"},
-		helpItem{key: "o", desc: "open"},
-		helpItem{key: "e", desc: "export", priority: helpPriorityHigh},
+		helpItem{key: "y", desc: "copy", detail: "choose what to copy from this transcript"},
+		helpItem{key: "e", desc: "export", detail: "export the visible transcript as Markdown", priority: helpPriorityHigh},
 		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
 		helpItem{key: "q/esc", desc: "back", priority: helpPriorityHigh},
 	)
@@ -62,13 +66,13 @@ func transcriptHelpSections(
 	extraActions []helpItem,
 ) []helpSection {
 	actions := []helpItem{
-		{key: "/", desc: "search transcript"},
-		{key: "n / N", desc: "next / previous match"},
-		{key: "y", desc: "copy target"},
-		{key: "o", desc: "open target"},
-		{key: "e", desc: "export markdown"},
-		{key: "r", desc: "resume session"},
-		{key: "q/esc", desc: "close transcript"},
+		{key: "/", desc: "search", detail: "search inside the visible transcript"},
+		{key: "n / N", desc: "match", detail: "jump to the next or previous search match"},
+		{key: "y", desc: "copy", detail: "copy the conversation, a plan, or the raw transcript"},
+		{key: "o", desc: "open", detail: "open the conversation, a plan, or the raw transcript in $EDITOR"},
+		{key: "e", desc: "export", detail: "export the visible transcript as Markdown"},
+		{key: "r", desc: "resume", detail: "resume the session with its original provider"},
+		{key: "q/esc", desc: "back", detail: "close the transcript view"},
 	}
 	actions = append(actions, extraActions...)
 
@@ -76,10 +80,10 @@ func transcriptHelpSections(
 		{
 			title: "Navigation",
 			items: []helpItem{
-				{key: "j/k", desc: "scroll"},
-				{key: "gg", desc: "go to top"},
-				{key: "G", desc: "go to bottom"},
-				{key: "ctrl+f/b", desc: "page down/up"},
+				{key: "j/k", desc: "scroll", detail: "scroll the transcript up or down"},
+				{key: "gg", desc: "top", detail: "jump to the beginning of the transcript"},
+				{key: "G", desc: "bottom", detail: "jump to the end of the transcript"},
+				{key: "ctrl+f/b", desc: "page", detail: "move a page down or up"},
 			},
 		},
 		{

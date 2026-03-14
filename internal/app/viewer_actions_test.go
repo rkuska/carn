@@ -20,7 +20,7 @@ func TestViewerFooterIncludesTopLevelActionPrefixes(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "o", "e", "?", "q/esc"},
+		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "e", "?", "q/esc"},
 		helpItemKeys(m.footerItems()),
 	)
 }
@@ -52,6 +52,30 @@ func TestViewerOpenPrefixEntersTargetMode(t *testing.T) {
 	assert.Equal(t, viewerActionOpen, m.actionMode)
 	assert.False(t, m.planPicker.active)
 	assert.Nil(t, cmd)
+}
+
+func TestViewerHelpSectionsShowOpenActionWhenFooterHidesIt(t *testing.T) {
+	t.Parallel()
+
+	sections := newTestViewer(testSession("viewer-help-open"), 120, 40).helpSections(nil)
+
+	for _, section := range sections {
+		if section.title != "Actions" {
+			continue
+		}
+
+		for _, item := range section.items {
+			if item.key != "o" {
+				continue
+			}
+
+			assert.Equal(t, "open", item.desc)
+			assert.NotEmpty(t, item.detail)
+			return
+		}
+	}
+
+	t.Fatal("expected open action in viewer help")
 }
 
 func TestViewerConversationCopyTargetReturnsCommand(t *testing.T) {

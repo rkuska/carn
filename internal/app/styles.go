@@ -3,6 +3,7 @@ package app
 import (
 	"image/color"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 )
@@ -30,48 +31,52 @@ var (
 	styleMetaValue    lipgloss.Style
 	styleSearchMatch  lipgloss.Style
 	styleCurrentMatch lipgloss.Style
+
+	paletteOnce sync.Once
 )
 
 // initPalette sets the colour palette and derived styles based on
 // whether the terminal has a dark background.
 func initPalette(hasDarkBG bool) {
-	ld := lipgloss.LightDark(hasDarkBG)
+	paletteOnce.Do(func() {
+		ld := lipgloss.LightDark(hasDarkBG)
 
-	// (light-bg variant, dark-bg variant)
-	colorPrimary = ld(lipgloss.Color("55"), lipgloss.Color("99"))
-	colorSecondary = ld(lipgloss.Color("245"), lipgloss.Color("243"))
-	colorAccent = ld(lipgloss.Color("28"), lipgloss.Color("114"))
-	colorHighlight = ld(lipgloss.Color("225"), lipgloss.Color("53"))
-	colorSelectedFg = ld(lipgloss.Color("22"), lipgloss.Color("156"))
-	colorDiffRemove = ld(lipgloss.Color("124"), lipgloss.Color("203"))
-	colorDiffHunk = ld(lipgloss.Color("30"), lipgloss.Color("37"))
-	colorToolBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
-	colorFgOnBg = ld(lipgloss.Color("238"), lipgloss.Color("252"))
-	colorStatusFg = ld(lipgloss.Color("232"), lipgloss.Color("255"))
-	colorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
-	colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
-	colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
+		// (light-bg variant, dark-bg variant)
+		colorPrimary = ld(lipgloss.Color("55"), lipgloss.Color("99"))
+		colorSecondary = ld(lipgloss.Color("245"), lipgloss.Color("243"))
+		colorAccent = ld(lipgloss.Color("28"), lipgloss.Color("114"))
+		colorHighlight = ld(lipgloss.Color("225"), lipgloss.Color("53"))
+		colorSelectedFg = ld(lipgloss.Color("22"), lipgloss.Color("156"))
+		colorDiffRemove = ld(lipgloss.Color("124"), lipgloss.Color("203"))
+		colorDiffHunk = ld(lipgloss.Color("30"), lipgloss.Color("37"))
+		colorToolBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
+		colorFgOnBg = ld(lipgloss.Color("238"), lipgloss.Color("252"))
+		colorStatusFg = ld(lipgloss.Color("232"), lipgloss.Color("255"))
+		colorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
+		colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
+		colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
 
-	styleSubtitle = lipgloss.NewStyle().
-		Foreground(colorSecondary)
+		styleSubtitle = lipgloss.NewStyle().
+			Foreground(colorSecondary)
 
-	styleToolCall = lipgloss.NewStyle().
-		Foreground(colorAccent)
+		styleToolCall = lipgloss.NewStyle().
+			Foreground(colorAccent)
 
-	styleMetaLabel = lipgloss.NewStyle().
-		Foreground(colorSecondary).
-		Bold(true)
+		styleMetaLabel = lipgloss.NewStyle().
+			Foreground(colorSecondary).
+			Bold(true)
 
-	styleMetaValue = lipgloss.NewStyle().
-		Foreground(colorNormalTitle)
+		styleMetaValue = lipgloss.NewStyle().
+			Foreground(colorNormalTitle)
 
-	styleSearchMatch = lipgloss.NewStyle().
-		Background(colorHighlight)
+		styleSearchMatch = lipgloss.NewStyle().
+			Background(colorHighlight)
 
-	colorCurrentMatch := ld(lipgloss.Color("201"), lipgloss.Color("129"))
-	styleCurrentMatch = lipgloss.NewStyle().
-		Background(colorCurrentMatch).
-		Bold(true)
+		colorCurrentMatch := ld(lipgloss.Color("201"), lipgloss.Color("129"))
+		styleCurrentMatch = lipgloss.NewStyle().
+			Background(colorCurrentMatch).
+			Bold(true)
+	})
 }
 
 // renderBorderTop builds a custom top border line with an embedded title badge:

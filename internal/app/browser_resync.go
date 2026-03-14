@@ -59,8 +59,7 @@ func (m browserModel) resyncHelpItem() helpItem {
 	return helpItem{
 		key:      "R",
 		desc:     "resync",
-		toggle:   true,
-		on:       m.resync.active,
+		detail:   "refresh source sessions and rebuild the local store",
 		priority: helpPriorityHigh,
 	}
 }

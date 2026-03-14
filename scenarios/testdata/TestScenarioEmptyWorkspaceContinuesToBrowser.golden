@@ -36,5 +36,5 @@
 │                                                                                                                      │
 │                                                                                                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
- / search  -ctrl+s deep search  enter open  o editor  r resume  -R resync  ? help  q quit [METADATA SEARCH]  0 sessions 
+ ctrl+f/b page  / search  -ctrl+s deep search  enter open  r resume  ? help  q quit       [METADATA SEARCH]  0 sessions 
                                                                                                                         
