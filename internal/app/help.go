@@ -99,7 +99,7 @@ func renderHelpItemsWithKeep(items []helpItem, keep []bool) string {
 }
 
 func helpItemKeyStyle(item helpItem) lipgloss.Style {
-	if item.glow || (item.toggle && item.on) {
+	if item.glow {
 		return lipgloss.NewStyle().Foreground(colorPrimary)
 	}
 	return lipgloss.NewStyle().Foreground(colorAccent)

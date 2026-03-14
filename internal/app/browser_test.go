@@ -332,22 +332,37 @@ func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
 	assert.True(t, found)
 }
 
-func TestRenderHelpItemHighlightsActiveToggle(t *testing.T) {
+func TestRenderHelpItemUsesGlowForPurpleToggleHighlight(t *testing.T) {
 	t.Parallel()
 
-	active := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true, on: true})
-	inactive := renderHelpItem(helpItem{key: "ctrl+s", desc: "deep search", toggle: true})
+	tests := []struct {
+		name     string
+		item     helpItem
+		expected string
+	}{
+		{
+			name:     "active toggle without glow stays accent",
+			item:     helpItem{key: "ctrl+s", desc: "deep search", toggle: true, on: true},
+			expected: lipgloss.NewStyle().Foreground(colorAccent).Render("+ctrl+s"),
+		},
+		{
+			name:     "inactive toggle without glow stays accent",
+			item:     helpItem{key: "ctrl+s", desc: "deep search", toggle: true},
+			expected: lipgloss.NewStyle().Foreground(colorAccent).Render("-ctrl+s"),
+		},
+		{
+			name:     "glowing toggle uses primary",
+			item:     helpItem{key: "t", desc: "thinking", toggle: true, glow: true},
+			expected: lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+		},
+	}
 
-	assert.Contains(
-		t,
-		active,
-		lipgloss.NewStyle().Foreground(colorPrimary).Render("+ctrl+s"),
-	)
-	assert.Contains(
-		t,
-		inactive,
-		lipgloss.NewStyle().Foreground(colorAccent).Render("-ctrl+s"),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Contains(t, renderHelpItem(tt.item), tt.expected)
+		})
+	}
 }
 
 func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
