@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"maps"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/progress"
@@ -67,8 +66,9 @@ type importOverviewModel struct {
 	result       arch.SyncResult
 	syncEvents   <-chan tea.Msg
 
-	configFilePath   string
-	configFileExists bool
+	configFilePath string
+	configStatus   config.Status
+	configErr      error
 
 	done     bool
 	width    int
@@ -76,12 +76,13 @@ type importOverviewModel struct {
 	helpOpen bool
 }
 
-func newImportOverviewModelWithPipeline(
+func newImportOverviewModelWithPipelineConfig(
 	ctx context.Context,
 	cfg arch.Config,
 	pipeline importPipeline,
 	configFilePath string,
-	configFileExists bool,
+	configStatus config.Status,
+	configErr error,
 ) importOverviewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -92,16 +93,39 @@ func newImportOverviewModelWithPipeline(
 		progress.WithoutPercentage(),
 	)
 
-	return importOverviewModel{
-		ctx:              ctx,
-		cfg:              cfg,
-		pipeline:         pipeline,
-		phase:            phaseAnalyzing,
-		spinner:          s,
-		progress:         p,
-		configFilePath:   configFilePath,
-		configFileExists: configFileExists,
+	phase := phaseAnalyzing
+	if configStatus == config.StatusInvalid {
+		phase = phaseReady
 	}
+
+	return importOverviewModel{
+		ctx:            ctx,
+		cfg:            cfg,
+		pipeline:       pipeline,
+		phase:          phase,
+		spinner:        s,
+		progress:       p,
+		configFilePath: configFilePath,
+		configStatus:   configStatus,
+		configErr:      configErr,
+	}
+}
+
+func newImportOverviewModelWithPipeline(
+	ctx context.Context,
+	cfg arch.Config,
+	pipeline importPipeline,
+	configFilePath string,
+	configFileExists bool,
+) importOverviewModel {
+	return newImportOverviewModelWithPipelineConfig(
+		ctx,
+		cfg,
+		pipeline,
+		configFilePath,
+		configStatusFromExists(configFileExists),
+		nil,
+	)
 }
 
 func newImportOverviewModel(
@@ -120,6 +144,9 @@ func newImportOverviewModel(
 }
 
 func (m importOverviewModel) Init() tea.Cmd {
+	if m.configStatus == config.StatusInvalid {
+		return nil
+	}
 	return tea.Batch(m.spinner.Tick, startImportAnalysisCmd(m.ctx, m.pipeline))
 }
 
@@ -138,8 +165,6 @@ func (m importOverviewModel) Update(msg tea.Msg) (importOverviewModel, tea.Cmd) 
 		return m.handleAnalysisProgress(msg)
 	case analysisFinishedMsg:
 		return m.handleAnalysisFinished(msg)
-	case configReloadedMsg:
-		return m.handleConfigReloaded(msg)
 	case importSyncStartedMsg, importSyncProgressMsg, importSyncFinishedMsg:
 		return m.handleSyncMsg(msg)
 	case spinner.TickMsg:
@@ -192,6 +217,10 @@ func (m importOverviewModel) handleKey(msg tea.KeyPressMsg) (importOverviewModel
 }
 
 func (m importOverviewModel) handleEnterKey() (importOverviewModel, tea.Cmd) {
+	if m.configStatus == config.StatusInvalid {
+		return m, nil
+	}
+
 	switch m.phase {
 	case phaseAnalyzing, phaseSyncing:
 		return m, nil
@@ -235,34 +264,7 @@ func (m importOverviewModel) handleConfigureKey() (importOverviewModel, tea.Cmd)
 	if m.phase != phaseAnalyzing && m.phase != phaseReady {
 		return m, nil
 	}
-	return m, createAndEditConfigCmd(
-		config.FilePath(),
-		config.DefaultTemplate(),
-	)
-}
-
-func (m importOverviewModel) handleConfigReloaded(msg configReloadedMsg) (importOverviewModel, tea.Cmd) {
-	if msg.err != nil {
-		return m, notificationCmd(errorNotification("config error: " + msg.err.Error()))
-	}
-
-	m.configFileExists = true
-	m.configFilePath = msg.path
-
-	archCfg := msg.cfg.ArchiveConfig()
-	pathsChanged := m.cfg.ArchiveDir != archCfg.ArchiveDir ||
-		!maps.Equal(m.cfg.SourceDirs, archCfg.SourceDirs)
-
-	if pathsChanged {
-		m.cfg = archCfg
-		m.phase = phaseAnalyzing
-		return m, tea.Batch(
-			m.spinner.Tick,
-			startImportAnalysisCmd(m.ctx, m.pipeline),
-		)
-	}
-
-	return m, notificationCmd(successNotification("config saved"))
+	return m, requestConfigEditCmd()
 }
 
 func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (importOverviewModel, tea.Cmd) {
@@ -303,76 +305,4 @@ func (m importOverviewModel) View() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, body, m.footerView())
-}
-
-func (m importOverviewModel) footerView() string {
-	if m.helpOpen {
-		return renderHelpFooter(
-			m.width,
-			[]helpItem{
-				{key: "?", desc: "close help", priority: helpPriorityEssential},
-				{key: "q/esc", desc: "close help", priority: helpPriorityHigh},
-			},
-			nil,
-			notification{},
-		)
-	}
-
-	return renderHelpFooter(m.width, m.footerItems(), nil, notification{})
-}
-
-func (m importOverviewModel) footerItems() []helpItem {
-	switch m.phase {
-	case phaseAnalyzing:
-		return []helpItem{
-			{key: "c", desc: "configure", priority: helpPriorityHigh},
-			{key: "?", desc: "help", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", priority: helpPriorityHigh},
-		}
-	case phaseReady:
-		if m.analysis.Err != nil {
-			return []helpItem{
-				{key: "c", desc: "configure", priority: helpPriorityHigh},
-				{key: "?", desc: "help", priority: helpPriorityEssential},
-				{key: "q", desc: "quit", priority: helpPriorityHigh},
-			}
-		}
-		action := "continue"
-		if m.analysis.NeedsSync() {
-			action = "import"
-		}
-		return []helpItem{
-			{key: "enter", desc: action},
-			{key: "c", desc: "configure", priority: helpPriorityHigh},
-			{key: "?", desc: "help", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", priority: helpPriorityHigh},
-		}
-	case phaseSyncing:
-		return []helpItem{
-			{key: "?", desc: "help", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", priority: helpPriorityHigh},
-		}
-	case phaseDone:
-		return []helpItem{
-			{key: "enter", desc: "continue"},
-			{key: "?", desc: "help", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", priority: helpPriorityHigh},
-		}
-	default:
-		return nil
-	}
-}
-
-func (m importOverviewModel) helpSections() []helpSection {
-	return []helpSection{
-		{
-			title: "Actions",
-			items: m.footerItems(),
-		},
-	}
-}
-
-func (m importOverviewModel) renderBox(title string, boxWidth int, content string) string {
-	box := renderFramedBox(title, boxWidth, colorPrimary, content)
-	return lipgloss.Place(m.width, max(m.height-framedFooterRows, 1), lipgloss.Center, lipgloss.Center, box)
 }

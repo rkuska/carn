@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,22 @@ const (
 	DefaultBrowserCacheSize     = 20
 	DefaultDeepSearchDebounceMs = 200
 )
+
+type Status string
+
+const (
+	StatusMissing Status = "missing"
+	StatusLoaded  Status = "loaded"
+	StatusInvalid Status = "invalid"
+)
+
+// State describes the config file resolution result for the current user.
+type State struct {
+	Path   string
+	Status Status
+	Config Config
+	Err    error
+}
 
 // Config is the fully resolved application configuration.
 // All fields have valid values after Load returns successfully.
@@ -66,23 +83,62 @@ func (c Config) ArchiveConfig() arch.Config {
 // If the config file does not exist, defaults are used silently.
 // If the config file exists but is malformed, an error is returned.
 func Load() (Config, error) {
-	home, _ := os.UserHomeDir()
-	cfg := defaults(home)
+	state, err := LoadState()
+	if err != nil {
+		return Config{}, fmt.Errorf("LoadState: %w", err)
+	}
+	if state.Status == StatusInvalid {
+		return Config{}, fmt.Errorf("state.Err: %w", state.Err)
+	}
+	return state.Config, nil
+}
 
-	path := FilePath()
-	if path != "" {
-		if err := overlayFile(&cfg, path); err != nil {
-			return Config{}, fmt.Errorf("overlayFile: %w", err)
-		}
+// LoadState resolves the config path and returns whether the config is
+// missing, loaded, or invalid. Invalid config falls back to defaults so the
+// app can still boot into a blocked/fixable state.
+func LoadState() (State, error) {
+	path, err := ResolvePath()
+	if err != nil {
+		return State{}, fmt.Errorf("ResolvePath: %w", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return State{}, fmt.Errorf("os.UserHomeDir: %w", err)
+	}
+
+	state := State{
+		Path:   path,
+		Status: StatusMissing,
+		Config: defaults(home),
+	}
+
+	exists, err := pathExists(path)
+	if err != nil {
+		return State{}, fmt.Errorf("pathExists: %w", err)
+	}
+	if !exists {
+		return state, nil
+	}
+
+	cfg := defaults(home)
+	if err := overlayFile(&cfg, path); err != nil {
+		state.Status = StatusInvalid
+		state.Err = fmt.Errorf("overlayFile: %w", err)
+		return state, nil
 	}
 
 	expandPaths(&cfg, home)
 
 	if err := validate(cfg); err != nil {
-		return Config{}, fmt.Errorf("validate: %w", err)
+		state.Status = StatusInvalid
+		state.Err = fmt.Errorf("validate: %w", err)
+		return state, nil
 	}
 
-	return cfg, nil
+	state.Status = StatusLoaded
+	state.Config = cfg
+	return state, nil
 }
 
 func defaults(home string) Config {
@@ -129,9 +185,6 @@ type rawSearch struct {
 
 func overlayFile(cfg *Config, path string) error {
 	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil
-	}
 	if err != nil {
 		return fmt.Errorf("os.ReadFile: %w", err)
 	}
@@ -220,4 +273,15 @@ func validate(cfg Config) error {
 		return fmt.Errorf("deep_search_debounce_ms must be >= 0, got %d", cfg.Search.DeepSearchDebounceMs)
 	}
 	return nil
+}
+
+func pathExists(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		return !info.IsDir(), nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("os.Stat: %w", err)
 }

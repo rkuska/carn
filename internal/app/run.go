@@ -33,16 +33,18 @@ type Config struct {
 	DeepSearchDebounceMs int
 	ConfigFilePath       string
 	ConfigFileExists     bool
+	ConfigStatus         config.Status
+	ConfigErr            error
 }
 
 // Run starts the CLI application with config-file-derived configuration.
 func Run() error {
-	cfg, err := config.Load()
+	state, err := config.LoadState()
 	if err != nil {
-		return fmt.Errorf("config.Load: %w", err)
+		return fmt.Errorf("config.LoadState: %w", err)
 	}
 
-	logFile, err := os.OpenFile(cfg.Paths.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := os.OpenFile(state.Config.Paths.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}
@@ -61,18 +63,7 @@ func Run() error {
 		glamourStyle = glamourStyleLight
 	}
 
-	archCfg := cfg.ArchiveConfig()
-	cfgPath := config.FilePath()
-	model, err := NewModel(ctx, Config{
-		SourceDirs:           archCfg.SourceDirs,
-		ArchiveDir:           archCfg.ArchiveDir,
-		GlamourStyle:         glamourStyle,
-		TimestampFormat:      cfg.Display.TimestampFormat,
-		BrowserCacheSize:     cfg.Display.BrowserCacheSize,
-		DeepSearchDebounceMs: cfg.Search.DeepSearchDebounceMs,
-		ConfigFilePath:       cfgPath,
-		ConfigFileExists:     fileExists(cfgPath),
-	})
+	model, err := NewModel(ctx, configStateToAppConfig(state, glamourStyle))
 	if err != nil {
 		return fmt.Errorf("NewModel: %w", err)
 	}
@@ -131,13 +122,11 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 		pipeline,
 		launcher,
 	)
+	model.pipelineFactory = func(nextCfg arch.Config) importPipeline {
+		return newImportPipeline(nextCfg, store, claudeBackend, codexBackend)
+	}
 
 	return model, nil
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 func nonEmptySourceProviders(sourceDirs map[conv.Provider]string) []conv.Provider {
@@ -150,4 +139,18 @@ func nonEmptySourceProviders(sourceDirs map[conv.Provider]string) []conv.Provide
 	}
 	slices.Sort(providers)
 	return providers
+}
+
+func resolveRuntimeConfig(cfg Config) Config {
+	if cfg.ConfigStatus != "" {
+		return cfg
+	}
+
+	if cfg.ConfigFileExists {
+		cfg.ConfigStatus = config.StatusLoaded
+		return cfg
+	}
+
+	cfg.ConfigStatus = config.StatusMissing
+	return cfg
 }

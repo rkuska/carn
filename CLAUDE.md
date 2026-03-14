@@ -19,13 +19,16 @@ Code is split by ownership under `internal/`.
   resolution.
 - `internal/source/` owns the provider-neutral backend contract shared by app,
   archive, and canonical.
+- `internal/config/` owns config-file path resolution, default values, template
+  rendering, parsing, and config state (`missing`, `loaded`, `invalid`).
 - `internal/canonical/` owns the SQLite Canonical Store, rebuild/load logic,
   transcript codecs, transcript persistence, targeted incremental rebuilds,
   and FTS deep search.
 - `internal/archive/` owns sync, import analysis, and pipeline orchestration.
 
-Sources: `~/.claude/projects/`, `~/.codex/sessions/`, archive:
-`~/.local/share/carn/`.
+Defaults: sources `~/.claude/projects/`, `~/.codex/sessions/`, archive:
+`~/.local/share/carn/`. Runtime paths come from the user config file resolved
+by `internal/config`.
 
 ### Data pipeline
 
@@ -62,6 +65,8 @@ Sources: `~/.claude/projects/`, `~/.codex/sessions/`, archive:
 **Codex source backend**: `internal/source/codex/*.go`
 
 **Provider-neutral source contract**: `internal/source/source.go`
+
+**Config backend**: `internal/config/*.go`
 
 **Canonical Store backend**: `internal/canonical/*.go`
 
