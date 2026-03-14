@@ -111,12 +111,21 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	// Thinking is off by default and there IS thinking content — should glow.
-	helpOff := m.footerView()
+	helpOff := renderHelpItems(m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := m.footerView()
+	helpOn := renderHelpItems(m.footerItems())
 
-	assert.NotEqual(t, helpOff, helpOn)
+	assert.Contains(
+		t,
+		helpOff,
+		lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+	)
+	assert.Contains(
+		t,
+		helpOn,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+	)
 }
 
 func TestHelpViewGlowsWhenHiddenThinkingExistsWithoutVisibleThinking(t *testing.T) {
@@ -136,47 +145,43 @@ func TestHelpViewGlowsWhenHiddenThinkingExistsWithoutVisibleThinking(t *testing.
 
 	m := newTestViewer(session, 120, 40)
 
-	helpOff := m.footerView()
+	helpOff := renderHelpItems(m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := m.footerView()
+	helpOn := renderHelpItems(m.footerItems())
 
-	assert.NotEqual(t, helpOff, helpOn)
+	assert.Contains(
+		t,
+		helpOff,
+		lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+	)
+	assert.Contains(
+		t,
+		helpOn,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+	)
 }
 
 func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 	t.Parallel()
 
-	// Session with no thinking data — glow should not activate,
-	// but the +/- prefix still changes with toggle state.
-	session := conv.Session{
-		Meta: conv.SessionMeta{
-			ID:        "no-glow",
-			Timestamp: time.Now(),
-			Project:   conv.Project{DisplayName: "test"},
-		},
-		Messages: []conv.Message{
-			{Role: conv.RoleUser, Text: "hello"},
-			{Role: conv.RoleAssistant, Text: "hi", Thinking: "deep thought"},
-		},
-	}
-	m := newTestViewer(session, 120, 40)
-
-	helpOff := m.footerView()
+	noThinkSession := testSession("no-glow-plain")
+	m := newTestViewer(noThinkSession, 120, 40)
+	helpOff := renderHelpItems(m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := m.footerView()
+	helpOn := renderHelpItems(m.footerItems())
 
-	// With thinking data, toggling changes both glow and prefix.
-	assert.NotEqual(t, helpOff, helpOn)
-
-	// Session with NO thinking data — glow should not activate.
-	noThinkSession := testSession("no-glow-plain")
-	m2 := newTestViewer(noThinkSession, 120, 40)
-	footer := m2.footerView()
-
-	// The key should show -t (off) but not glow since there's no thinking content.
-	assert.Contains(t, footer, "-t")
+	assert.Contains(
+		t,
+		helpOff,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("-t"),
+	)
+	assert.Contains(
+		t,
+		helpOn,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+	)
 }
 
 func newTestViewer(session conv.Session, width, height int) viewerModel {
@@ -369,6 +374,11 @@ func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 
 	keys := helpItemKeys(m.footerItems())
 	assert.Contains(t, keys, "p")
+	assert.Contains(
+		t,
+		renderHelpItems(m.footerItems()),
+		lipgloss.NewStyle().Foreground(colorPrimary).Render("-p"),
+	)
 
 	// p should appear after the last transcript toggle and before action items
 	pIdx := -1
@@ -386,6 +396,14 @@ func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 	}
 	assert.Greater(t, pIdx, sIdx, "conv.Plan toggle should come after sidechain toggle")
 	assert.Less(t, pIdx, yIdx, "conv.Plan toggle should come before action items")
+
+	m.planExpanded = true
+
+	assert.Contains(
+		t,
+		renderHelpItems(m.footerItems()),
+		lipgloss.NewStyle().Foreground(colorAccent).Render("+p"),
+	)
 }
 
 func TestViewerEscapeCancelsActiveSearch(t *testing.T) {

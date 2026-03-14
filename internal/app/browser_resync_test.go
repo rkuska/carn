@@ -6,6 +6,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/stretchr/testify/assert"
@@ -60,10 +61,16 @@ func TestBrowserListFooterShowsResyncProgressStatus(t *testing.T) {
 	b.resync.total = 5
 
 	footer := ansi.Strip(b.footerView())
+	help := renderHelpItems(b.listFooterItems())
 
 	assert.Contains(t, footer, "+R resync")
 	assert.Contains(t, footer, "[resync]")
 	assert.Contains(t, footer, "2/5")
+	assert.Contains(
+		t,
+		help,
+		lipgloss.NewStyle().Foreground(colorAccent).Render("+R"),
+	)
 }
 
 func TestBrowserListFooterShowsResyncRebuildStatusWithoutCounts(t *testing.T) {
