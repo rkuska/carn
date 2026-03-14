@@ -309,7 +309,8 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	})
 
 	helpLine := ansi.Strip(renderHelpItems(b.viewer.footerItems()))
-	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking", "open")
+	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking")
+	assert.NotContains(t, helpLine, " open")
 }
 
 func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
@@ -372,7 +373,7 @@ func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "R", "?", "q"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "r", "?", "q"},
 		helpItemKeys(b.listFooterItems()),
 	)
 }
@@ -410,7 +411,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "o", "r", "R", "tab", "O", "?", "q/esc"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "r", "tab", "O", "?", "q/esc"},
 		helpItemKeys(items),
 	)
 
@@ -420,7 +421,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 		if item.key == "tab" && item.desc == "focus transcript" {
 			sawFocus = true
 		}
-		if item.key == "O" && item.desc == "fullscreen transcript" {
+		if item.key == "O" && item.desc == "fullscreen" {
 			sawLayout = true
 		}
 	}
@@ -444,14 +445,14 @@ func TestBrowserSplitTranscriptFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "o", "e", "tab", "O", "?", "q/esc"},
+		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "e", "tab", "O", "?", "q/esc"},
 		helpItemKeys(b.transcriptFooterItems()),
 	)
 
 	items := b.transcriptActionItems()
 	require.Len(t, items, 2)
 	assert.Equal(t, helpItem{key: "tab", desc: "focus list"}, items[0])
-	assert.Equal(t, helpItem{key: "O", desc: "fullscreen transcript"}, items[1])
+	assert.Equal(t, helpItem{key: "O", desc: "fullscreen"}, items[1])
 }
 
 func TestBrowserListFooterStatusDoesNotChangeWithSelectedProject(t *testing.T) {
