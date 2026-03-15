@@ -13,6 +13,7 @@ const (
 	searchPreviewMaxRunes                 = 96
 	searchPreviewContextRunes             = 24
 	searchPreviewFetchRowsPerConversation = 12
+	searchPreviewMaxPerConversation       = 3
 )
 
 type rankedConversationMatch struct {
@@ -201,7 +202,7 @@ func appendSearchPreview(
 	terms []string,
 ) {
 	cacheKey, ok := cacheKeysByConversationID[conversationID]
-	if !ok || len(previews[cacheKey]) >= 3 || !containsAllTerms(text, terms) {
+	if !ok || len(previews[cacheKey]) >= searchPreviewMaxPerConversation || !containsAllTerms(text, terms) {
 		return
 	}
 

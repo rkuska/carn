@@ -37,7 +37,7 @@ func (p Pipeline) Run(ctx context.Context, onProgress func(SyncProgress)) (SyncR
 		return SyncResult{}, fmt.Errorf("run_syncImportStage: %w", err)
 	}
 
-	storeNeedsBuild, err := p.store.NeedsRebuild(p.cfg.ArchiveDir)
+	storeNeedsBuild, err := p.store.NeedsRebuild(ctx, p.cfg.ArchiveDir)
 	if err != nil {
 		return SyncResult{}, fmt.Errorf("run_store.NeedsRebuild: %w", err)
 	}

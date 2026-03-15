@@ -210,7 +210,7 @@ func BenchmarkLoadCatalogWarm(b *testing.B) {
 func BenchmarkLoadSearchIndex(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
-	db, err := store.loadDB(archiveDir)
+	db, err := store.loadDB(ctx, archiveDir)
 	if err != nil {
 		b.Fatalf("store.loadDB: %v", err)
 	}

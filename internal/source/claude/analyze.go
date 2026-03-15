@@ -37,13 +37,15 @@ func (Source) Analyze(
 			if firstErr == nil {
 				firstErr = fmt.Errorf("analyzeProject_%s: %w", filepath.Base(projectDir), err)
 			}
-			reportClaudeAnalyzeProgress(onProgress, src.Progress{
-				Provider:       conv.ProviderClaude,
-				UnitsCompleted: i + 1,
-				UnitsTotal:     len(projectDirs),
-				CurrentUnit:    filepath.Base(projectDir),
-				Err:            err,
-			})
+			if onProgress != nil {
+				onProgress(src.Progress{
+					Provider:       conv.ProviderClaude,
+					UnitsCompleted: i + 1,
+					UnitsTotal:     len(projectDirs),
+					CurrentUnit:    filepath.Base(projectDir),
+					Err:            err,
+				})
+			}
 			continue
 		}
 
@@ -56,27 +58,22 @@ func (Source) Analyze(
 			projectAnalysis.UpToDate
 		analysis.SyncCandidates = append(analysis.SyncCandidates, projectAnalysis.SyncCandidates...)
 
-		reportClaudeAnalyzeProgress(onProgress, src.Progress{
-			Provider:         conv.ProviderClaude,
-			UnitsCompleted:   i + 1,
-			UnitsTotal:       len(projectDirs),
-			FilesInspected:   analysis.FilesInspected,
-			Conversations:    analysis.Conversations,
-			NewConversations: analysis.NewConversations,
-			ToUpdate:         analysis.ToUpdate,
-			CurrentUnit:      filepath.Base(projectDir),
-		})
+		if onProgress != nil {
+			onProgress(src.Progress{
+				Provider:         conv.ProviderClaude,
+				UnitsCompleted:   i + 1,
+				UnitsTotal:       len(projectDirs),
+				FilesInspected:   analysis.FilesInspected,
+				Conversations:    analysis.Conversations,
+				NewConversations: analysis.NewConversations,
+				ToUpdate:         analysis.ToUpdate,
+				CurrentUnit:      filepath.Base(projectDir),
+			})
+		}
 	}
 
 	if firstErr != nil {
 		return analysis, firstErr
 	}
 	return analysis, nil
-}
-
-func reportClaudeAnalyzeProgress(onProgress func(src.Progress), progress src.Progress) {
-	if onProgress == nil {
-		return
-	}
-	onProgress(progress)
 }

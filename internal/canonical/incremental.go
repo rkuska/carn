@@ -24,7 +24,7 @@ func tryIncrementalRebuildWithSources(
 	sources sourceRegistry,
 	changedRawPaths map[conversationProvider][]string,
 ) error {
-	needsRebuild, err := storeNeedsRebuild(archiveDir)
+	needsRebuild, err := storeNeedsRebuild(ctx, archiveDir)
 	if err != nil {
 		return fmt.Errorf("storeNeedsRebuild: %w", err)
 	}
@@ -32,7 +32,7 @@ func tryIncrementalRebuildWithSources(
 		return errors.New("store requires full rebuild")
 	}
 
-	db, err := openSQLiteDB(canonicalStorePath(archiveDir), true)
+	db, err := openSQLiteDB(ctx, canonicalStorePath(archiveDir), true)
 	if err != nil {
 		return fmt.Errorf("openSQLiteDB: %w", err)
 	}

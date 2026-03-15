@@ -68,6 +68,7 @@ func rebuildCanonicalStore(
 
 	setPlanCounts(conversations, transcripts)
 	if err := writeCanonicalStoreAtomically(
+		ctx,
 		archiveDir,
 		conversations,
 		transcripts,

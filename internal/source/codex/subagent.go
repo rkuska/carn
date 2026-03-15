@@ -2,7 +2,6 @@ package codex
 
 import (
 	"encoding/json"
-	"slices"
 	"sort"
 	"strings"
 
@@ -101,13 +100,16 @@ func groupRollouts(rollouts []scannedRollout) []conv.Conversation {
 
 func resolveRootRolloutID(rollout scannedRollout, byID map[string]scannedRollout) (string, bool) {
 	current := rollout
-	seen := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
 	for current.meta.IsSubagent {
 		parentID := current.link.parentThreadID
-		if parentID == "" || slices.Contains(seen, current.meta.ID) {
+		if parentID == "" {
 			return "", false
 		}
-		seen = append(seen, current.meta.ID)
+		if _, ok := seen[current.meta.ID]; ok {
+			return "", false
+		}
+		seen[current.meta.ID] = struct{}{}
 
 		parent, ok := byID[parentID]
 		if !ok {

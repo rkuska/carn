@@ -56,10 +56,10 @@ func TestStoreCopiesShareSQLiteHandle(t *testing.T) {
 		text:           "needle",
 	}}})
 
-	db, err := store.loadDB(archiveDir)
+	db, err := store.loadDB(context.Background(), archiveDir)
 	require.NoError(t, err)
 
-	dbCopy, err := storeCopy.loadDB(archiveDir)
+	dbCopy, err := storeCopy.loadDB(context.Background(), archiveDir)
 	require.NoError(t, err)
 
 	assert.Same(t, db, dbCopy)
@@ -138,7 +138,8 @@ func writeSQLiteTestStore(
 	corpus searchCorpus,
 ) {
 	tb.Helper()
-	require.NoError(tb, writeCanonicalStoreAtomically(archiveDir, conversations, transcripts, corpus))
+	ctx := context.Background()
+	require.NoError(tb, writeCanonicalStoreAtomically(ctx, archiveDir, conversations, transcripts, corpus))
 }
 
 func testSQLiteConversation(id string) conversation {

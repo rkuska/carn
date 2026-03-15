@@ -15,6 +15,7 @@ type sqliteStoreCounts struct {
 }
 
 func writeCanonicalStoreAtomically(
+	ctx context.Context,
 	archiveDir string,
 	conversations []conversation,
 	transcripts map[string]sessionFull,
@@ -35,21 +36,21 @@ func writeCanonicalStoreAtomically(
 	}
 	defer func() { _ = os.Remove(tempPath) }()
 
-	db, err := openSQLiteDB(tempPath, false)
+	db, err := openSQLiteDB(ctx, tempPath, false)
 	if err != nil {
 		return fmt.Errorf("openSQLiteDB: %w", err)
 	}
 	defer func() { _ = db.Close() }()
 
-	if err := configureSQLiteBulkLoadDB(context.Background(), db); err != nil {
+	if err := configureSQLiteBulkLoadDB(ctx, db); err != nil {
 		return fmt.Errorf("configureSQLiteBulkLoadDB: %w", err)
 	}
 
-	counts, err := replaceSQLiteStoreContents(context.Background(), db, conversations, transcripts, corpus)
+	counts, err := replaceSQLiteStoreContents(ctx, db, conversations, transcripts, corpus)
 	if err != nil {
 		return fmt.Errorf("replaceSQLiteStoreContents: %w", err)
 	}
-	if err := validateSQLiteStoreCounts(context.Background(), db, counts); err != nil {
+	if err := validateSQLiteStoreCounts(ctx, db, counts); err != nil {
 		return fmt.Errorf("validateSQLiteStoreCounts: %w", err)
 	}
 	if err := db.Close(); err != nil {

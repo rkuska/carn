@@ -62,7 +62,7 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 	}
 	analysis.QueuedFiles = dedupeStrings(analysis.QueuedFiles)
 
-	storeNeedsBuild, err := p.storeNeedsBuild(analysis)
+	storeNeedsBuild, err := p.storeNeedsBuild(ctx, analysis)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
@@ -150,8 +150,8 @@ func (p Pipeline) hasAnyRawFiles() bool {
 	return false
 }
 
-func (p Pipeline) storeNeedsBuild(analysis ImportAnalysis) (bool, error) {
-	storeNeedsBuild, err := p.store.NeedsRebuild(p.cfg.ArchiveDir)
+func (p Pipeline) storeNeedsBuild(ctx context.Context, analysis ImportAnalysis) (bool, error) {
+	storeNeedsBuild, err := p.store.NeedsRebuild(ctx, p.cfg.ArchiveDir)
 	if err != nil {
 		return false, fmt.Errorf("analyze_store.NeedsRebuild: %w", err)
 	}

@@ -99,14 +99,14 @@ var sqliteSearchTriggerStatements = []string{
 	END`,
 }
 
-func openSQLiteDB(path string, useWAL bool) (*sql.DB, error) {
+func openSQLiteDB(ctx context.Context, path string, useWAL bool) (*sql.DB, error) {
 	db, err := sql.Open(sqliteDriverName, path)
 	if err != nil {
 		return nil, fmt.Errorf("sql.Open: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 
-	if err := configureSQLiteDB(context.Background(), db, useWAL); err != nil {
+	if err := configureSQLiteDB(ctx, db, useWAL); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("configureSQLiteDB: %w", err)
 	}
@@ -204,7 +204,7 @@ func readSQLiteMeta(ctx context.Context, db *sql.DB) (map[string]string, error) 
 	return meta, nil
 }
 
-func storeNeedsRebuild(archiveDir string) (bool, error) {
+func storeNeedsRebuild(ctx context.Context, archiveDir string) (bool, error) {
 	path := canonicalStorePath(archiveDir)
 	exists, err := pathExists(path)
 	if err != nil {
@@ -214,13 +214,13 @@ func storeNeedsRebuild(archiveDir string) (bool, error) {
 		return true, nil
 	}
 
-	db, err := openSQLiteDB(path, false)
+	db, err := openSQLiteDB(ctx, path, false)
 	if err != nil {
 		return true, nil
 	}
 	defer func() { _ = db.Close() }()
 
-	meta, err := readSQLiteMeta(context.Background(), db)
+	meta, err := readSQLiteMeta(ctx, db)
 	if err != nil {
 		return true, nil
 	}
