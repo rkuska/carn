@@ -393,7 +393,7 @@ func TestFilterFooterItemsExpandedState(t *testing.T) {
 	items := b.filterFooterItems()
 	keys := helpItemKeys(items)
 
-	assert.Equal(t, []string{"j/k", "space", "enter", "/", "x", "esc"}, keys)
+	assert.Equal(t, []string{"j/k", "space", "enter", "/", "x", "q/esc"}, keys)
 }
 
 func TestFilterFooterItemsRegexState(t *testing.T) {
