@@ -113,7 +113,7 @@ func TestReadSearchPreviewsReturnsThreeUniquePreviewsPerConversation(t *testing.
 		},
 	}, corpus)
 
-	db, err := openSQLiteDB(canonicalStorePath(archiveDir), true)
+	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 

@@ -75,8 +75,8 @@ func New(sources ...Source) Store {
 	}
 }
 
-func (s Store) NeedsRebuild(archiveDir string) (bool, error) {
-	return storeNeedsRebuild(archiveDir)
+func (s Store) NeedsRebuild(ctx context.Context, archiveDir string) (bool, error) {
+	return storeNeedsRebuild(ctx, archiveDir)
 }
 
 func (s Store) Rebuild(
@@ -108,7 +108,7 @@ func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation
 		return cloneConversations(conversations), nil
 	}
 
-	db, err := s.loadDB(archiveDir)
+	db, err := s.loadDB(ctx, archiveDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
@@ -124,10 +124,10 @@ func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation
 
 func (s Store) Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
 	if conversation.CacheKey() == "" {
-		return conv.Session{}, fmt.Errorf("readSQLiteTranscript: %w", errors.New("conversation key is required"))
+		return conv.Session{}, fmt.Errorf("load: %w", errors.New("conversation key is required"))
 	}
 
-	db, err := s.loadDB(archiveDir)
+	db, err := s.loadDB(ctx, archiveDir)
 	if err != nil {
 		return conv.Session{}, fmt.Errorf("loadDB: %w", err)
 	}
@@ -144,7 +144,7 @@ func (s Store) DeepSearch(
 	query string,
 	conversations []conv.Conversation,
 ) ([]conv.Conversation, bool, error) {
-	db, err := s.loadDB(archiveDir)
+	db, err := s.loadDB(ctx, archiveDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			if query == "" {
@@ -166,7 +166,7 @@ func (s Store) DeepSearch(
 	return results, true, nil
 }
 
-func (s Store) loadDB(archiveDir string) (*sql.DB, error) {
+func (s Store) loadDB(ctx context.Context, archiveDir string) (*sql.DB, error) {
 	path := canonicalStorePath(archiveDir)
 	if db, ok := s.cachedDB(path); ok {
 		return db, nil
@@ -180,7 +180,7 @@ func (s Store) loadDB(archiveDir string) (*sql.DB, error) {
 		return nil, fs.ErrNotExist
 	}
 
-	db, err := openSQLiteDB(path, true)
+	db, err := openSQLiteDB(ctx, path, true)
 	if err != nil {
 		return nil, fmt.Errorf("openSQLiteDB: %w", err)
 	}
@@ -235,13 +235,11 @@ func (s Store) cacheCatalog(path string, conversations []conversation) ([]conver
 		return cloneConversations(conversations), nil
 	}
 
-	cloned := cloneConversations(conversations)
-
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	s.state.catalog[path] = cloned
-	return cloneConversations(cloned), nil
+	s.state.catalog[path] = cloneConversations(conversations)
+	return cloneConversations(conversations), nil
 }
 
 func (s Store) invalidateDB(archiveDir string) error {

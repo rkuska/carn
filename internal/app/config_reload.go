@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type configEditRequestedMsg struct{}
@@ -130,8 +131,8 @@ func (m appModel) currentConfig() config.Config {
 	return config.Config{
 		Paths: config.PathsConfig{
 			ArchiveDir:      m.cfg.ArchiveDir,
-			ClaudeSourceDir: m.cfg.SourceDirFor("claude"),
-			CodexSourceDir:  m.cfg.SourceDirFor("codex"),
+			ClaudeSourceDir: m.cfg.SourceDirFor(conv.ProviderClaude),
+			CodexSourceDir:  m.cfg.SourceDirFor(conv.ProviderCodex),
 			LogFile:         config.DefaultLogFile,
 		},
 		Display: config.DisplayConfig{

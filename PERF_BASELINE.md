@@ -1,6 +1,6 @@
 # Performance Baseline
 
-Captured on March 13, 2026.
+Captured on March 15, 2026.
 
 Current benchmark commands:
 
@@ -15,20 +15,20 @@ Results (Apple M4 Pro, darwin/arm64):
 
 | Package | Benchmark | ns/op | B/op | allocs/op |
 | --- | --- | ---: | ---: | ---: |
-| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 19,120,110 | 192,016,147 | 55,163 |
-| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 6,794,467 | 35,856,919 | 54,562 |
-| `internal/canonical` | BenchmarkLoadCatalogCold | 1,237,683 | 753,755 | 13,249 |
-| `internal/canonical` | BenchmarkLoadCatalogWarm | 17,258 | 99,216 | 9 |
-| `internal/canonical` | BenchmarkLoadSearchIndex | 4,964 | 384 | 13 |
-| `internal/canonical` | BenchmarkDeepSearchFuzzy | 5,110,924 | 10,957 | 370 |
-| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 203,821 | 394,858 | 8,041 |
-| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 68,164,968 | 416,913,708 | 594,367 |
-| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 62,277,425 | 70,125,482 | 101,778 |
-| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 16,301,286 | 217,440,450 | 341,276 |
-| `internal/archive` | BenchmarkCollectFilesToSync | 9,335,083 | 2,750,077 | 10,479 |
-| `internal/archive` | BenchmarkStreamImportAnalysis | 7,874,657 | 2,532,660 | 9,750 |
-| `internal/app` | BenchmarkViewerRenderContent | 40,094,039 | 30,535,762 | 393,420 |
-| `internal/app` | BenchmarkViewerSearch | 1,079 | 0 | 0 |
+| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 17,597,210 | 192,013,289 | 55,149 |
+| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 5,905,936 | 35,864,460 | 54,556 |
+| `internal/canonical` | BenchmarkLoadCatalogCold | 1,013,915 | 753,757 | 13,249 |
+| `internal/canonical` | BenchmarkLoadCatalogWarm | 13,637 | 99,216 | 9 |
+| `internal/canonical` | BenchmarkLoadSearchIndex | 4,716 | 384 | 13 |
+| `internal/canonical` | BenchmarkDeepSearchFuzzy | 4,979,089 | 10,975 | 370 |
+| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 209,552 | 427,626 | 8,041 |
+| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 67,981,662 | 416,968,193 | 594,402 |
+| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 57,376,711 | 70,133,590 | 101,773 |
+| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 16,275,244 | 217,490,591 | 341,284 |
+| `internal/archive` | BenchmarkCollectFilesToSync | 6,148,294 | 2,750,116 | 10,479 |
+| `internal/archive` | BenchmarkStreamImportAnalysis | 5,920,124 | 2,532,670 | 9,750 |
+| `internal/app` | BenchmarkViewerRenderContent | 34,590,340 | 30,535,716 | 393,419 |
+| `internal/app` | BenchmarkViewerSearch | 940 | 0 | 0 |
 
 Notes:
 - Benchmarks live with the package that owns the runtime path.

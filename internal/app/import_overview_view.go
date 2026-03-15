@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"slices"
 	"strings"
@@ -83,8 +84,8 @@ func (m importOverviewModel) doneSubtitle() string {
 }
 
 func renderImportStatusPill(phase importPhase, hasFailures bool) string {
-	text := "Analyzing"
-	bg := colorPrimary
+	var text string
+	var bg color.Color
 
 	switch phase {
 	case phaseAnalyzing:
@@ -202,13 +203,6 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 		}
 		return tokens
 	case phaseReady:
-		if m.analysis.Err != nil {
-			return []string{
-				renderSingleChip("New", fmt.Sprintf("%d", m.analysis.NewConversations)),
-				renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),
-				renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.UpToDate)),
-			}
-		}
 		return []string{
 			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.NewConversations)),
 			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),

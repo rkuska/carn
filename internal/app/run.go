@@ -32,7 +32,6 @@ type Config struct {
 	BrowserCacheSize     int
 	DeepSearchDebounceMs int
 	ConfigFilePath       string
-	ConfigFileExists     bool
 	ConfigStatus         config.Status
 	ConfigErr            error
 }
@@ -143,11 +142,6 @@ func nonEmptySourceProviders(sourceDirs map[conv.Provider]string) []conv.Provide
 
 func resolveRuntimeConfig(cfg Config) Config {
 	if cfg.ConfigStatus != "" {
-		return cfg
-	}
-
-	if cfg.ConfigFileExists {
-		cfg.ConfigStatus = config.StatusLoaded
 		return cfg
 	}
 

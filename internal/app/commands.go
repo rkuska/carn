@@ -71,7 +71,6 @@ func openConversationCmdWithStore(
 	return func() tea.Msg {
 		session, err := store.Load(ctx, archiveDir, conversation)
 		if err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msgf("browserStore.Load failed for %s", conversation.ID())
 			return errorNotification(fmt.Sprintf("load session failed: %v", err))
 		}
 		return openViewerMsg{
@@ -83,7 +82,6 @@ func openConversationCmdWithStore(
 }
 
 func openConversationCmdCachedWithStore(
-	ctx context.Context,
 	conversation conv.Conversation,
 	parent conv.Session,
 ) tea.Cmd {

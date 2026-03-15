@@ -99,7 +99,7 @@ func (m browserModel) openTranscript(conversation conv.Conversation) (browserMod
 	m.openConversationID = ""
 	m.loadingConversationID = conversation.CacheKey()
 	if session, ok := m.sessionCache[conversation.CacheKey()]; ok {
-		return m, openConversationCmdCachedWithStore(m.ctx, conversation, session)
+		return m, openConversationCmdCachedWithStore(conversation, session)
 	}
 	return m, openConversationCmdWithStore(m.ctx, m.archiveDir, conversation, m.store)
 }

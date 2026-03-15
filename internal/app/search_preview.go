@@ -117,9 +117,10 @@ func findQueryMatchIndices(text, query string) []int {
 		return nil
 	}
 
+	lower := strings.ToLower(text)
 	var indices []int
 	for _, word := range words {
-		indices = findWordIndices(indices, text, word)
+		indices = findWordIndices(indices, lower, strings.ToLower(word))
 	}
 
 	if len(indices) == 0 {
@@ -130,9 +131,7 @@ func findQueryMatchIndices(text, query string) []int {
 	return slices.Compact(indices)
 }
 
-func findWordIndices(indices []int, text, word string) []int {
-	lower := strings.ToLower(text)
-	wordLower := strings.ToLower(word)
+func findWordIndices(indices []int, lower, wordLower string) []int {
 	wordRunes := utf8.RuneCountInString(wordLower)
 
 	offset := 0

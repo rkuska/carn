@@ -158,7 +158,6 @@ func TestOpenConversationCmdCachedWithStoreUsesCachedSession(t *testing.T) {
 	conversation := singleSessionConversation(cached.Meta)
 
 	msg := openConversationCmdCachedWithStore(
-		context.Background(),
 		conversation,
 		cached,
 	)()
