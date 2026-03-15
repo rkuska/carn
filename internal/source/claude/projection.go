@@ -1,5 +1,11 @@
 package claude
 
+import (
+	"time"
+
+	src "github.com/rkuska/carn/internal/source"
+)
+
 type linkedTranscriptKind string
 
 const linkedTranscriptKindSubagent linkedTranscriptKind = "subagent"
@@ -20,29 +26,12 @@ func projectConversationTranscript(messages []parsedMessage, linked []parsedLink
 			isAgentDivider: transcript.kind == linkedTranscriptKindSubagent,
 			text:           transcript.title,
 		}
-		pos := findInsertPosition(projected, transcript.anchor)
-		projected = slicesInsert(projected, pos, divider)
-		projected = slicesInsertSlice(projected, pos+1, transcript.messages)
+		pos := src.FindInsertPosition(projected, transcript.anchor, func(msg parsedMessage) time.Time {
+			return msg.timestamp
+		})
+		projected = src.InsertAt(projected, pos, divider)
+		projected = src.InsertSliceAt(projected, pos+1, transcript.messages)
 	}
 
 	return projectParsedMessages(projected)
-}
-
-func slicesInsert(items []parsedMessage, index int, item parsedMessage) []parsedMessage {
-	items = append(items, parsedMessage{})
-	copy(items[index+1:], items[index:])
-	items[index] = item
-	return items
-}
-
-func slicesInsertSlice(items []parsedMessage, index int, inserted []parsedMessage) []parsedMessage {
-	if len(inserted) == 0 {
-		return items
-	}
-
-	oldLen := len(items)
-	items = append(items, make([]parsedMessage, len(inserted))...)
-	copy(items[index+len(inserted):], items[index:oldLen])
-	copy(items[index:], inserted)
-	return items
 }

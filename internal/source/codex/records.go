@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -118,13 +117,6 @@ func parseTimestamp(value string) time.Time {
 		return time.Time{}
 	}
 	return t
-}
-
-func projectNameFromCWD(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-	return filepath.Base(filepath.Clean(cwd))
 }
 
 func extractMessageText(blocks []contentBlock) string {

@@ -255,31 +255,3 @@ func discoverProjectSessionFiles(
 
 	return files, nil
 }
-
-func displayNameFromCWD(cwd string) string {
-	parts := strings.Split(filepath.ToSlash(cwd), "/")
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], "/")
-	}
-	if len(parts) == 1 {
-		return parts[0]
-	}
-	return cwd
-}
-
-func truncate(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", "")
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
-	}
-	return s
-}
-
-func truncatePreserveNewlines(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	if len(s) > maxLen {
-		return s[:maxLen] + "\n..."
-	}
-	return s
-}

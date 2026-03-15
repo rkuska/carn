@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -154,6 +155,43 @@ func StatDir(path string) (bool, error) {
 // ProviderRawDir returns the provider-specific raw archive path.
 func ProviderRawDir(archiveDir string, provider conv.Provider) string {
 	return filepath.Join(archiveDir, string(provider), "raw")
+}
+
+// InsertAt inserts a single item at the given index.
+func InsertAt[T any](items []T, index int, item T) []T {
+	items = append(items, *new(T))
+	copy(items[index+1:], items[index:])
+	items[index] = item
+	return items
+}
+
+// InsertSliceAt inserts multiple items at the given index.
+func InsertSliceAt[T any](items []T, index int, inserted []T) []T {
+	if len(inserted) == 0 {
+		return items
+	}
+
+	result := make([]T, 0, len(items)+len(inserted))
+	result = append(result, items[:index]...)
+	result = append(result, inserted...)
+	result = append(result, items[index:]...)
+	return result
+}
+
+// FindInsertPosition returns the index after the latest timestamp not after anchor.
+func FindInsertPosition[T any](items []T, anchor time.Time, timestamp func(T) time.Time) int {
+	if anchor.IsZero() {
+		return len(items)
+	}
+
+	pos := 0
+	for i, item := range items {
+		ts := timestamp(item)
+		if !ts.IsZero() && !ts.After(anchor) {
+			pos = i + 1
+		}
+	}
+	return pos
 }
 
 // ValidateResumeTarget applies the shared strict resume policy.

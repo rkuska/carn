@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
 )
 
@@ -130,7 +131,7 @@ func summarizeToolCall(name string, input json.RawMessage) string {
 		return extractStringParam(params, paramKey)
 	}
 	if paramKey, ok := toolTruncateKey[name]; ok {
-		return truncate(extractStringParam(params, paramKey), 80)
+		return conv.Truncate(extractStringParam(params, paramKey), 80)
 	}
 	if constant, ok := toolConstant[name]; ok {
 		return constant
@@ -156,13 +157,13 @@ func extractStringParam(params map[string]json.RawMessage, key string) string {
 func summarizeMCPTool(params map[string]json.RawMessage) string {
 	for _, key := range []string{"query", "libraryName"} {
 		if value := extractStringParam(params, key); value != "" {
-			return truncate(value, 80)
+			return conv.Truncate(value, 80)
 		}
 	}
 	for _, raw := range params {
 		var value string
 		if err := json.Unmarshal(raw, &value); err == nil && value != "" {
-			return truncate(value, 80)
+			return conv.Truncate(value, 80)
 		}
 	}
 	return ""
