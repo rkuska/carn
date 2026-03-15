@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"path/filepath"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -20,29 +18,18 @@ type scanState struct {
 }
 
 func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, error) {
-	rollouts := make([]scannedRollout, 0)
-
-	err := filepath.WalkDir(rawDir, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil || d.IsDir() || !isJSONLExt(path) {
-			return walkErr
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		rollout, ok, err := scanRollout(path)
-		if err != nil {
-			return fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
-		}
-		if ok {
-			rollouts = append(rollouts, rollout)
-		}
-		return nil
-	})
+	paths, err := listJSONLPaths(rawDir)
 	if err != nil {
-		return nil, fmt.Errorf("filepath.WalkDir: %w", err)
+		return nil, fmt.Errorf("listJSONLPaths: %w", err)
+	}
+	if len(paths) == 0 {
+		return nil, nil
 	}
 
+	rollouts, err := scanRolloutsParallel(ctx, paths)
+	if err != nil {
+		return nil, fmt.Errorf("scanRolloutsParallel: %w", err)
+	}
 	return groupRollouts(rollouts), nil
 }
 

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
@@ -155,22 +153,10 @@ func listRolloutPaths(root string) ([]string, error) {
 		return nil, err
 	}
 
-	paths := make([]string, 0)
-	err = filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
-	})
+	paths, err := listJSONLPaths(root)
 	if err != nil {
-		return nil, fmt.Errorf("listRolloutPaths_filepath.WalkDir: %w", err)
+		return nil, fmt.Errorf("listJSONLPaths: %w", err)
 	}
-
-	sort.Strings(paths)
 	return paths, nil
 }
 
