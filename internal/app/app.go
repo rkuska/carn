@@ -38,11 +38,6 @@ func newAppModelWithDeps(
 	pipeline importPipeline,
 	launchers ...sessionLauncher,
 ) appModel {
-	launcher := newDefaultSessionLauncher()
-	if len(launchers) > 0 && launchers[0] != nil {
-		launcher = launchers[0]
-	}
-
 	model := appModel{
 		ctx:             ctx,
 		cfg:             cfg,
@@ -50,7 +45,7 @@ func newAppModelWithDeps(
 		pipeline:        pipeline,
 		pipelineFactory: func(nextCfg arch.Config) importPipeline { return pipeline },
 		store:           store,
-		launcher:        launcher,
+		launcher:        resolveSessionLauncher(launchers...),
 		state:           viewImportOverview,
 	}
 

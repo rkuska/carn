@@ -50,7 +50,7 @@ var (
 	styleToolResultErrorBadge lipgloss.Style
 	stylePaneTitle            lipgloss.Style
 
-	paletteOnce sync.Once
+	paletteOnce = &sync.Once{}
 )
 
 // initPalette sets the colour palette and derived styles based on
@@ -173,6 +173,11 @@ func initPalette(hasDarkBG bool) {
 			Bold(true).
 			Padding(0, 1)
 	})
+}
+
+func initPaletteForTest(hasDarkBG bool) {
+	paletteOnce = &sync.Once{}
+	initPalette(hasDarkBG)
 }
 
 // renderBorderTop builds a custom top border line with an embedded title badge:

@@ -25,6 +25,15 @@ func newDefaultSessionLauncher() sessionLauncher {
 	return newSessionLauncher(claude.New(), codex.New())
 }
 
+func resolveSessionLauncher(launchers ...sessionLauncher) sessionLauncher {
+	for _, launcher := range launchers {
+		if launcher != nil {
+			return launcher
+		}
+	}
+	return newDefaultSessionLauncher()
+}
+
 func newSessionLauncher(backends ...src.Backend) sessionLauncher {
 	lookup := make(map[conv.Provider]src.Backend, len(backends))
 	for _, backend := range backends {
