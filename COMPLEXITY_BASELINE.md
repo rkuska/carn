@@ -31,7 +31,7 @@ None.
 | internal/canonical/sqlite_store_persist.go | source | 304 | 70 | 330 |
 | internal/app/transcript_segments.go | source | 352 | 67 | 397 |
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
-| internal/source/claude/scanner_metadata.go | source | 339 | 64 | 370 |
+| internal/source/claude/scanner_metadata.go | source | 346 | 66 | 378 |
 | internal/canonical/store.go | source | 263 | 62 | 312 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
 | internal/canonical/sqlite_search.go | source | 245 | 60 | 276 |

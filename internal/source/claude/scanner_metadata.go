@@ -28,6 +28,11 @@ type metadataScanState struct {
 	stats          scanStats
 }
 
+var (
+	recordTypeUser      = []byte(`"type":"user"`)
+	recordTypeAssistant = []byte(`"type":"assistant"`)
+)
+
 type jsonRecord struct {
 	Type          string          `json:"type"`
 	SessionID     string          `json:"sessionId"`
@@ -175,11 +180,11 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 }
 
 func extractType(line []byte) string {
-	if bytes.Contains(line, []byte(`"type":"user"`)) {
-		return "user"
-	}
-	if bytes.Contains(line, []byte(`"type":"assistant"`)) {
+	if bytes.Contains(line, recordTypeAssistant) {
 		return "assistant"
+	}
+	if bytes.Contains(line, recordTypeUser) {
+		return "user"
 	}
 	return ""
 }
@@ -219,6 +224,9 @@ func extractUserContent(raw json.RawMessage) (string, []parsedToolResult) {
 				})
 			}
 		}
+	}
+	if len(texts) == 1 {
+		return texts[0], results
 	}
 	return strings.Join(texts, "\n"), results
 }

@@ -66,19 +66,13 @@ func (c Conversation) FirstMessage() string {
 }
 
 func (c Conversation) TotalMessageCount() int {
-	total := 0
-	for _, s := range c.Sessions {
-		total += s.MessageCount
-	}
+	total, _ := c.messageCounts()
 	return total
 }
 
 func (c Conversation) MainMessageCount() int {
-	total := 0
-	for _, s := range c.Sessions {
-		total += s.MainMessageCount
-	}
-	return total
+	_, main := c.messageCounts()
+	return main
 }
 
 func (c Conversation) TotalTokenUsage() TokenUsage {
