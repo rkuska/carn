@@ -25,12 +25,30 @@ var (
 	colorTitleFg     color.Color // list title text on primary bg
 
 	// Styles — rebuilt by initPalette.
-	styleSubtitle     lipgloss.Style
-	styleToolCall     lipgloss.Style
-	styleMetaLabel    lipgloss.Style
-	styleMetaValue    lipgloss.Style
-	styleSearchMatch  lipgloss.Style
-	styleCurrentMatch lipgloss.Style
+	styleSubtitle             lipgloss.Style
+	styleToolCall             lipgloss.Style
+	styleToolCallItalic       lipgloss.Style
+	styleMetaLabel            lipgloss.Style
+	styleMetaValue            lipgloss.Style
+	styleSearchMatch          lipgloss.Style
+	styleCurrentMatch         lipgloss.Style
+	styleRuleHR               lipgloss.Style
+	styleBadgeUser            lipgloss.Style
+	styleBadgeAssistant       lipgloss.Style
+	styleBadgeSystem          lipgloss.Style
+	styleThinkLabel           lipgloss.Style
+	styleThinkBorder          lipgloss.Style
+	styleThinkLine            lipgloss.Style
+	styleSelectedPreview      lipgloss.Style
+	styleNormalPreview        lipgloss.Style
+	styleDimmedPreview        lipgloss.Style
+	styleDiffBg               lipgloss.Style
+	styleDiffAdd              lipgloss.Style
+	styleDiffRemoveLine       lipgloss.Style
+	styleDiffHunkLine         lipgloss.Style
+	styleToolResultBadge      lipgloss.Style
+	styleToolResultErrorBadge lipgloss.Style
+	stylePaneTitle            lipgloss.Style
 
 	paletteOnce sync.Once
 )
@@ -62,6 +80,10 @@ func initPalette(hasDarkBG bool) {
 		styleToolCall = lipgloss.NewStyle().
 			Foreground(colorAccent)
 
+		styleToolCallItalic = lipgloss.NewStyle().
+			Foreground(colorAccent).
+			Italic(true)
+
 		styleMetaLabel = lipgloss.NewStyle().
 			Foreground(colorSecondary).
 			Bold(true)
@@ -76,6 +98,80 @@ func initPalette(hasDarkBG bool) {
 		styleCurrentMatch = lipgloss.NewStyle().
 			Background(colorCurrentMatch).
 			Bold(true)
+
+		styleRuleHR = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("238"))
+
+		styleBadgeUser = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorPrimary)
+
+		styleBadgeAssistant = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorAccent)
+
+		styleBadgeSystem = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorSecondary)
+
+		styleThinkLabel = lipgloss.NewStyle().
+			Italic(true).
+			Foreground(colorSecondary)
+
+		styleThinkBorder = lipgloss.NewStyle().
+			Foreground(colorSecondary)
+
+		styleThinkLine = lipgloss.NewStyle().
+			Foreground(colorSecondary).
+			Italic(true)
+
+		styleSelectedPreview = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(colorAccent).
+			Foreground(colorSelectedFg).
+			Padding(0, 0, 0, 1)
+
+		styleNormalPreview = lipgloss.NewStyle().
+			Foreground(colorNormalTitle).
+			Bold(true).
+			Padding(0, 0, 0, 2)
+
+		styleDimmedPreview = lipgloss.NewStyle().
+			Foreground(colorNormalDesc).
+			Padding(0, 0, 0, 2)
+
+		styleDiffBg = lipgloss.NewStyle().
+			Background(colorToolBg).
+			Foreground(colorFgOnBg)
+
+		styleDiffAdd = lipgloss.NewStyle().
+			Background(colorToolBg).
+			Foreground(colorAccent)
+
+		styleDiffRemoveLine = lipgloss.NewStyle().
+			Background(colorToolBg).
+			Foreground(colorDiffRemove)
+
+		styleDiffHunkLine = lipgloss.NewStyle().
+			Background(colorToolBg).
+			Foreground(colorDiffHunk)
+
+		styleToolResultBadge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorStatusFg).
+			Background(colorPrimary).
+			Padding(0, 1)
+
+		styleToolResultErrorBadge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorStatusFg).
+			Background(colorDiffRemove).
+			Padding(0, 1)
+
+		stylePaneTitle = lipgloss.NewStyle().
+			Foreground(colorTitleFg).
+			Bold(true).
+			Padding(0, 1)
 	})
 }
 
@@ -84,11 +180,7 @@ func initPalette(hasDarkBG bool) {
 func renderBorderTop(title string, width int, fg, bg color.Color) string {
 	border := lipgloss.RoundedBorder()
 	bs := lipgloss.NewStyle().Foreground(fg)
-	ts := lipgloss.NewStyle().
-		Background(bg).
-		Foreground(colorTitleFg).
-		Bold(true).
-		Padding(0, 1)
+	ts := stylePaneTitle.Background(bg)
 
 	titleRendered := ts.Render(title)
 	titleW := lipgloss.Width(titleRendered)
