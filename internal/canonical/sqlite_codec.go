@@ -9,8 +9,9 @@ import (
 )
 
 func encodeSessionBlob(session sessionFull) ([]byte, error) {
-	var buf bytes.Buffer
-	writer := bufio.NewWriter(&buf)
+	estimatedSize := len(session.Messages) * 256
+	buf := bytes.NewBuffer(make([]byte, 0, estimatedSize))
+	writer := bufio.NewWriter(buf)
 	if err := writeSessionFull(writer, session); err != nil {
 		return nil, fmt.Errorf("writeSessionFull: %w", err)
 	}

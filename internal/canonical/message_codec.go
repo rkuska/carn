@@ -237,7 +237,7 @@ func writeTokenUsage(w *bufio.Writer, usage tokenUsage) error {
 }
 
 func readTokenUsage(r *bufio.Reader) (tokenUsage, error) {
-	values := make([]uint64, 4)
+	var values [4]uint64
 	for i := range values {
 		value, err := readUint(r)
 		if err != nil {

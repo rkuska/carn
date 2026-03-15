@@ -39,3 +39,37 @@ func TestJSONLLinesHandlesLargeLines(t *testing.T) {
 	require.Len(t, lines, 1)
 	assert.Len(t, lines[0], jsonlScanBufferSize+32)
 }
+
+func TestExtractType(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		line string
+		want string
+	}{
+		{
+			name: "user record",
+			line: `{"type":"user","message":{"role":"user","content":"hi"}}`,
+			want: "user",
+		},
+		{
+			name: "assistant record",
+			line: `{"type":"assistant","message":{"role":"assistant","content":"hi"}}`,
+			want: "assistant",
+		},
+		{
+			name: "other record",
+			line: `{"type":"summary","message":{"role":"assistant","content":"hi"}}`,
+			want: "",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, testCase.want, extractType([]byte(testCase.line)))
+		})
+	}
+}
