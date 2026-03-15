@@ -5,6 +5,7 @@ import "charm.land/bubbles/v2/key"
 type browserKeyMap struct {
 	Enter            key.Binding
 	Search           key.Binding
+	Filter           key.Binding
 	ToggleFullscreen key.Binding
 	FocusPane        key.Binding
 	DeepSearch       key.Binding
@@ -24,6 +25,10 @@ var browserKeys = browserKeyMap{
 	Search: key.NewBinding(
 		key.WithKeys("/"),
 		key.WithHelp("/", "search"),
+	),
+	Filter: key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "filter"),
 	),
 	ToggleFullscreen: key.NewBinding(
 		key.WithKeys("O"),

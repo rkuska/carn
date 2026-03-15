@@ -9,7 +9,7 @@ import (
 )
 
 func (m browserModel) canHandleTranscriptAction() bool {
-	return !m.isFiltering() && !m.viewer.searching && !m.viewer.hasActiveOverlay()
+	return !m.isFiltering() && !m.filter.active && !m.viewer.searching && !m.viewer.hasActiveOverlay()
 }
 
 func (m browserModel) handleTranscriptKey(msg tea.KeyPressMsg) (browserModel, bool) {
@@ -221,7 +221,7 @@ func (m browserModel) shouldUpdateList(isKey bool) bool {
 	if !isKey {
 		return true
 	}
-	if m.helpOpen || m.transcriptMode == transcriptFullscreen || m.searchEditing() {
+	if m.helpOpen || m.filter.active || m.transcriptMode == transcriptFullscreen || m.searchEditing() {
 		return false
 	}
 	return m.focus == focusList

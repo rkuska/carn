@@ -27,6 +27,10 @@ func (m browserModel) footerView() string {
 		)
 	}
 
+	if m.filter.active {
+		return renderHelpFooter(m.width, m.filterFooterItems(), []string{"Filter"}, m.notification)
+	}
+
 	if m.transcriptFocused() {
 		items := m.transcriptFooterItems()
 		status := append([]string{}, m.viewer.footerStatusParts()...)
@@ -53,6 +57,7 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "G", desc: "bottom"},
 		{key: "ctrl+f/b", desc: "page"},
 		{key: "/", desc: "search"},
+		{key: "f", desc: "filter"},
 		m.deepSearchToggleItem(),
 		{key: "enter", desc: "open"},
 		{key: "r", desc: "resume"},
@@ -80,6 +85,9 @@ func (m browserModel) listFooterItems() []helpItem {
 
 func (m browserModel) listFooterStatusParts() []string {
 	status := make([]string, 0, 8)
+	for _, badge := range filterBadges(m.filter.dimensions) {
+		status = append(status, styleToolCall.Render("["+badge+"]"))
+	}
 	status = append(status, styleToolCall.Render(m.searchScopeFooterStatus()))
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		status = append(status, styleToolCall.Render("[UPDATING]"))
@@ -124,6 +132,7 @@ func (m browserModel) helpSections() []helpSection {
 
 	actions := []helpItem{
 		{key: "/", desc: "search", detail: "edit the list query for visible conversations"},
+		{key: "f", desc: "filter", detail: "open filter overlay to narrow by provider, project, model, etc."},
 		{key: "enter", desc: "open", detail: "open the selected transcript in split view"},
 		{key: "o", desc: "editor", detail: "open the selected raw session file in $EDITOR"},
 		{key: "r", desc: "resume", detail: "resume the selected session with its provider"},
