@@ -19,40 +19,35 @@ func renderStyledToolResult(tr conv.ToolResult, width int) string {
 	var sb strings.Builder
 
 	// Choose badge color based on error status
-	badgeBg := colorPrimary
 	borderColor := colorPrimary
 	if tr.IsError {
-		badgeBg = colorDiffRemove
 		borderColor = colorDiffRemove
 	}
-
-	badgeStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(colorStatusFg).
-		Background(badgeBg).
-		Padding(0, 1)
 
 	name := "Result"
 	if tr.ToolName != "" {
 		name = tr.ToolName
 	}
-	sb.WriteString(badgeStyle.Render(name))
+	if tr.IsError {
+		sb.WriteString(styleToolResultErrorBadge.Render(name))
+	} else {
+		sb.WriteString(styleToolResultBadge.Render(name))
+	}
 
 	// Build content lines early so we can show line count
 	contentLines := buildContentLines(tr)
 
-	summaryStyle := lipgloss.NewStyle().Foreground(colorSecondary)
 	summary := tr.ToolSummary
 	if summary == "" && tr.ToolName == "" {
 		summary = contentFallbackSummary(tr.Content)
 	}
 	if summary != "" {
 		sb.WriteString(" ")
-		sb.WriteString(summaryStyle.Render(summary))
+		sb.WriteString(styleSubtitle.Render(summary))
 	}
 	if len(contentLines) > 0 {
 		lineCount := fmt.Sprintf(" %d lines", len(contentLines))
-		sb.WriteString(summaryStyle.Render(lineCount))
+		sb.WriteString(styleSubtitle.Render(lineCount))
 	}
 	sb.WriteString("\n")
 
@@ -101,34 +96,18 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 		Foreground(borderClr).
 		Render("▎")
 
-	bgStyle := lipgloss.NewStyle().
-		Background(colorToolBg).
-		Foreground(colorFgOnBg)
-
-	addStyle := lipgloss.NewStyle().
-		Background(colorToolBg).
-		Foreground(colorAccent)
-
-	removeStyle := lipgloss.NewStyle().
-		Background(colorToolBg).
-		Foreground(colorDiffRemove)
-
-	hunkStyle := lipgloss.NewStyle().
-		Background(colorToolBg).
-		Foreground(colorDiffHunk)
-
 	contentWidth := max(width-toolResultPrefixW, 1)
 
 	for _, line := range lines {
-		style := bgStyle
+		style := styleDiffBg
 		if isDiff {
 			switch {
 			case strings.HasPrefix(line, "+"):
-				style = addStyle
+				style = styleDiffAdd
 			case strings.HasPrefix(line, "-"):
-				style = removeStyle
+				style = styleDiffRemoveLine
 			case strings.HasPrefix(line, "@@"):
-				style = hunkStyle
+				style = styleDiffHunkLine
 			}
 		}
 

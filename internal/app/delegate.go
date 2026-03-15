@@ -135,38 +135,26 @@ func (d conversationDelegate) styledLines(
 	isFiltered := filterState == list.Filtering ||
 		filterState == list.FilterApplied ||
 		hasMatches
-	selectedPreview := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(colorAccent).
-		Foreground(colorSelectedFg).
-		Padding(0, 0, 0, 1)
-	normalPreview := lipgloss.NewStyle().
-		Foreground(colorNormalTitle).
-		Bold(true).
-		Padding(0, 0, 0, 2)
-	dimmedPreview := lipgloss.NewStyle().
-		Foreground(colorNormalDesc).
-		Padding(0, 0, 0, 2)
 
 	switch {
 	case emptyFilter:
-		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(metadata), dimmedPreview.Render(preview)
+		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(metadata), styleDimmedPreview.Render(preview)
 
 	case isSelected && filterState != list.Filtering:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.SelectedTitle, s.FilterMatch)
 			metadata = renderMatchedText(metadata, metadataMatches, s.SelectedDesc, s.FilterMatch)
-			preview = renderMatchedText(preview, previewMatches, selectedPreview, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, styleSelectedPreview, s.FilterMatch)
 		}
-		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(metadata), selectedPreview.Render(preview)
+		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(metadata), styleSelectedPreview.Render(preview)
 
 	default:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.NormalTitle, s.FilterMatch)
 			metadata = renderMatchedText(metadata, metadataMatches, s.NormalDesc, s.FilterMatch)
-			preview = renderMatchedText(preview, previewMatches, normalPreview, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, styleNormalPreview, s.FilterMatch)
 		}
-		return s.NormalTitle.Render(title), s.NormalDesc.Render(metadata), normalPreview.Render(preview)
+		return s.NormalTitle.Render(title), s.NormalDesc.Render(metadata), styleNormalPreview.Render(preview)
 	}
 }
 

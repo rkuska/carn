@@ -203,36 +203,32 @@ func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error
 }
 
 func renderRoleHeader(r conv.Role, width int) string {
-	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	switch r {
 	case conv.RoleUser:
-		badge := lipgloss.NewStyle().Bold(true).Foreground(colorPrimary).Render(" User")
-		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
-		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+		return renderRoleHeaderBadge(styleBadgeUser, " User", width)
 	case conv.RoleAssistant:
-		badge := lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(" Assistant")
-		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
-		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+		return renderRoleHeaderBadge(styleBadgeAssistant, " Assistant", width)
 	case conv.RoleSystem:
-		badge := lipgloss.NewStyle().Bold(true).Foreground(colorSecondary).Render(" System")
-		ruleLen := max(width-lipgloss.Width(badge)-1, 0)
-		return badge + " " + ruleStyle.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+		return renderRoleHeaderBadge(styleBadgeSystem, " System", width)
 	}
 	return "\n"
 }
 
+func renderRoleHeaderBadge(style lipgloss.Style, label string, width int) string {
+	badge := style.Render(label)
+	ruleLen := max(width-lipgloss.Width(badge)-1, 0)
+	return badge + " " + styleRuleHR.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+}
+
 func renderThinkingBlock(text string) string {
 	var sb strings.Builder
-	label := lipgloss.NewStyle().Italic(true).Foreground(colorSecondary).Render("Thinking")
-	sb.WriteString(label)
+	sb.WriteString(styleThinkLabel.Render("Thinking"))
 	sb.WriteString("\n")
 
-	border := lipgloss.NewStyle().Foreground(colorSecondary).Render("▎")
-	lineStyle := lipgloss.NewStyle().Foreground(colorSecondary).Italic(true)
 	for line := range strings.SplitSeq(text, "\n") {
-		sb.WriteString(border)
+		sb.WriteString(styleThinkBorder.Render("▎"))
 		sb.WriteString(" ")
-		sb.WriteString(lineStyle.Render(line))
+		sb.WriteString(styleThinkLine.Render(line))
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
@@ -241,20 +237,16 @@ func renderThinkingBlock(text string) string {
 
 func renderThinkingUnavailableBlock() string {
 	var sb strings.Builder
-	label := lipgloss.NewStyle().Italic(true).Foreground(colorSecondary).Render("Thinking unavailable")
-	sb.WriteString(label)
+	sb.WriteString(styleThinkLabel.Render("Thinking unavailable"))
 	sb.WriteString("\n")
 
-	border := lipgloss.NewStyle().Foreground(colorSecondary).Render("▎")
-	lineStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	sb.WriteString(border)
+	sb.WriteString(styleThinkBorder.Render("▎"))
 	sb.WriteString(" ")
-	sb.WriteString(lineStyle.Render(hiddenThinkingUnavailableText))
+	sb.WriteString(styleSubtitle.Render(hiddenThinkingUnavailableText))
 	sb.WriteString("\n\n")
 	return sb.String()
 }
 
 func renderStyledToolCall(text string) string {
-	styled := lipgloss.NewStyle().Foreground(colorAccent).Italic(true).Render(text)
-	return styled + "\n"
+	return styleToolCallItalic.Render(text) + "\n"
 }
