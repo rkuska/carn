@@ -38,6 +38,7 @@ func (s canonicalBrowserStore) List(
 	if err != nil {
 		return nil, fmt.Errorf("store.List: %w", err)
 	}
+	precomputeConversationDisplay(conversations)
 	return conversations, nil
 }
 
@@ -62,5 +63,12 @@ func (s canonicalBrowserStore) DeepSearch(
 	if err != nil {
 		return nil, false, fmt.Errorf("store.DeepSearch: %w", err)
 	}
+	precomputeConversationDisplay(results)
 	return results, available, nil
+}
+
+func precomputeConversationDisplay(conversations []conv.Conversation) {
+	for i := range conversations {
+		conversations[i].PrecomputeDisplay()
+	}
 }

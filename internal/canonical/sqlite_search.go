@@ -61,7 +61,7 @@ func runSQLiteDeepSearch(
 		if !ok {
 			continue
 		}
-		conv.SearchPreview = strings.Join(previews[match.cacheKey], "\n")
+		conv.SetSearchPreview(strings.Join(previews[match.cacheKey], "\n"))
 		results = append(results, conv)
 	}
 	return results, nil
