@@ -49,19 +49,42 @@ var toolConstant = map[string]string{
 	"TaskList":      "list tasks",
 }
 
+// blockJoiner concatenates multiple block strings with newline separators.
+// For the common single-block case it returns the string directly (zero alloc).
+type blockJoiner struct {
+	first string
+	b     strings.Builder
+	n     int
+}
+
+func (j *blockJoiner) add(s string) {
+	if j.n == 0 {
+		j.first = s
+	} else {
+		if j.n == 1 {
+			j.b.WriteString(j.first)
+		}
+		j.b.WriteByte('\n')
+		j.b.WriteString(s)
+	}
+	j.n++
+}
+
+func (j *blockJoiner) result() string {
+	if j.n <= 1 {
+		return j.first
+	}
+	return j.b.String()
+}
+
 func extractAssistantContent(blocks []contentBlock) (text, thinking string, toolCalls []parsedToolCall) {
+	var textJ, thinkJ blockJoiner
 	for _, block := range blocks {
 		switch block.Type {
 		case blockTypeText:
-			if text != "" {
-				text += "\n"
-			}
-			text += block.Text
+			textJ.add(block.Text)
 		case "thinking":
-			if thinking != "" {
-				thinking += "\n"
-			}
-			thinking += block.Thinking
+			thinkJ.add(block.Thinking)
 		case "tool_use":
 			toolCalls = append(toolCalls, parsedToolCall{
 				id:      block.ID,
@@ -70,43 +93,33 @@ func extractAssistantContent(blocks []contentBlock) (text, thinking string, tool
 			})
 		}
 	}
-	return text, thinking, toolCalls
+	return textJ.result(), thinkJ.result(), toolCalls
 }
 
-func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessage, bool) {
-	var rec jsonRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return parsedMessage{}, false
-	}
-
-	var msg jsonMessage
-	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return parsedMessage{}, false
-	}
-
-	var blocks []contentBlock
-	if err := json.Unmarshal(msg.Content, &blocks); err != nil {
+func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, bool) {
+	pc.blocks = pc.blocks[:0]
+	if err := json.Unmarshal(pc.rec.Message.Content, &pc.blocks); err != nil {
 		zerolog.Ctx(ctx).Debug().Err(err).Msg("failed to unmarshal assistant content blocks")
 		return parsedMessage{}, false
 	}
 
-	text, thinking, toolCalls := extractAssistantContent(blocks)
+	text, thinking, toolCalls := extractAssistantContent(pc.blocks)
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
 		return parsedMessage{}, false
 	}
 
 	var ts time.Time
-	if rec.Timestamp != "" {
-		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
+	if pc.rec.Timestamp != "" {
+		ts, _ = time.Parse(time.RFC3339Nano, pc.rec.Timestamp)
 	}
 
 	var usage tokenUsage
-	if msg.Usage != nil {
+	if pc.rec.Message.Usage != nil {
 		usage = tokenUsage{
-			InputTokens:              msg.Usage.InputTokens,
-			CacheCreationInputTokens: msg.Usage.CacheCreationInputTokens,
-			CacheReadInputTokens:     msg.Usage.CacheReadInputTokens,
-			OutputTokens:             msg.Usage.OutputTokens,
+			InputTokens:              pc.rec.Message.Usage.InputTokens,
+			CacheCreationInputTokens: pc.rec.Message.Usage.CacheCreationInputTokens,
+			CacheReadInputTokens:     pc.rec.Message.Usage.CacheReadInputTokens,
+			OutputTokens:             pc.rec.Message.Usage.OutputTokens,
 		}
 	}
 
@@ -117,7 +130,7 @@ func parseParsedAssistantMessage(ctx context.Context, line []byte) (parsedMessag
 		thinking:    thinking,
 		toolCalls:   toolCalls,
 		usage:       usage,
-		isSidechain: rec.IsSidechain,
+		isSidechain: pc.rec.IsSidechain,
 	}, true
 }
 

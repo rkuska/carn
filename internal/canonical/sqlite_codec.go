@@ -5,12 +5,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 )
 
+var blobBufferPool = sync.Pool{
+	New: func() any { return bytes.NewBuffer(make([]byte, 0, 8192)) },
+}
+
 func encodeSessionBlob(session sessionFull) ([]byte, error) {
-	estimatedSize := len(session.Messages) * 256
-	buf := bytes.NewBuffer(make([]byte, 0, estimatedSize))
+	buf := blobBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer blobBufferPool.Put(buf)
+
 	writer := bufio.NewWriter(buf)
 	if err := writeSessionFull(writer, session); err != nil {
 		return nil, fmt.Errorf("writeSessionFull: %w", err)
@@ -18,7 +25,10 @@ func encodeSessionBlob(session sessionFull) ([]byte, error) {
 	if err := writer.Flush(); err != nil {
 		return nil, fmt.Errorf("writer.Flush: %w", err)
 	}
-	return buf.Bytes(), nil
+
+	result := make([]byte, buf.Len())
+	copy(result, buf.Bytes())
+	return result, nil
 }
 
 func decodeSessionBlob(blob []byte) (sessionFull, error) {

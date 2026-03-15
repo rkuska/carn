@@ -1,6 +1,9 @@
 package canonical
 
-import "strings"
+import (
+	"iter"
+	"strings"
+)
 
 func setPlanCounts(conversations []conversation, transcripts map[string]sessionFull) {
 	for i := range conversations {
@@ -11,7 +14,7 @@ func setPlanCounts(conversations []conversation, transcripts map[string]sessionF
 }
 
 func buildSearchUnits(conversationID string, session sessionFull) []searchUnit {
-	var units []searchUnit
+	units := make([]searchUnit, 0, len(session.Messages)*3)
 	for _, msg := range session.Messages {
 		if !msg.IsVisible() {
 			continue
@@ -36,7 +39,7 @@ func appendSearchUnits(units []searchUnit, conversationID, text string) []search
 		if trimmed == "" {
 			continue
 		}
-		for _, chunk := range chunkSearchText(trimmed, 160, 48) {
+		for chunk := range chunkSearchText(trimmed, 160, 48) {
 			units = append(units, searchUnit{
 				conversationID: conversationID,
 				ordinal:        len(units),
@@ -47,23 +50,38 @@ func appendSearchUnits(units []searchUnit, conversationID, text string) []search
 	return units
 }
 
-func chunkSearchText(text string, maxRunes, overlap int) []string {
-	runes := []rune(text)
-	if len(runes) <= maxRunes {
-		return []string{text}
-	}
-	if overlap >= maxRunes {
-		overlap = maxRunes / 2
-	}
-
-	var chunks []string
-	step := maxRunes - overlap
-	for start := 0; start < len(runes); start += step {
-		end := min(start+maxRunes, len(runes))
-		chunks = append(chunks, strings.TrimSpace(string(runes[start:end])))
-		if end == len(runes) {
-			break
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > 127 {
+			return false
 		}
 	}
-	return chunks
+	return true
+}
+
+func chunkSearchText(text string, maxRunes, overlap int) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if len(text) <= maxRunes && isASCII(text) {
+			yield(text)
+			return
+		}
+		runes := []rune(text)
+		if len(runes) <= maxRunes {
+			yield(text)
+			return
+		}
+		if overlap >= maxRunes {
+			overlap = maxRunes / 2
+		}
+		step := maxRunes - overlap
+		for start := 0; start < len(runes); start += step {
+			end := min(start+maxRunes, len(runes))
+			if !yield(strings.TrimSpace(string(runes[start:end]))) {
+				return
+			}
+			if end == len(runes) {
+				return
+			}
+		}
+	}
 }
