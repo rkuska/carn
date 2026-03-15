@@ -31,7 +31,6 @@ func (m browserModel) renderFilterOverlay() string {
 
 	lines = append(lines, "")
 	lines = append(lines, m.renderFilterMatchLine(contentWidth))
-	lines = append(lines, m.renderFilterHintLine(contentWidth))
 	lines = append(lines, "")
 
 	content := strings.Join(lines, "\n")
@@ -143,37 +142,50 @@ func (m browserModel) renderFilterMatchLine(width int) string {
 	return filterOverlayIndent + ansi.Truncate(rendered, max(width-4, 1), "…")
 }
 
-func (m browserModel) renderFilterHintLine(width int) string {
-	if m.filter.regexEditing {
-		return filterOverlayIndent + renderFilterHints([]string{
-			"enter apply", "esc cancel",
-		}, width-4)
-	}
-	if m.filter.expanded >= 0 {
-		return filterOverlayIndent + renderFilterHints([]string{
-			"space toggle", "enter done", "/ regex", "x clear", "esc back",
-		}, width-4)
-	}
-	return filterOverlayIndent + renderFilterHints([]string{
-		"enter select", "space toggle", "/ regex", "x clear", "X clear all", "esc close",
-	}, width-4)
-}
-
-func renderFilterHints(hints []string, maxWidth int) string {
-	parts := make([]string, 0, len(hints))
-	for _, h := range hints {
-		parts = append(parts, lipgloss.NewStyle().Foreground(colorNormalDesc).Render(h))
-	}
-	text := strings.Join(parts, "  ")
-	return ansi.Truncate(text, max(maxWidth, 1), "…")
+func (m browserModel) filterFooterStatusParts() []string {
+	count := m.filter.matchCount(m.mainConversations)
+	total := len(m.mainConversations)
+	return []string{fmt.Sprintf("%d/%d sessions", count, total)}
 }
 
 func (m browserModel) filterFooterItems() []helpItem {
-	return []helpItem{
-		{key: "j/k", desc: "move"},
-		{key: "space", desc: "toggle"},
-		{key: "/", desc: "regex"},
-		{key: "x", desc: "clear"},
-		{key: "esc", desc: "close filter"},
+	if m.filter.regexEditing {
+		return []helpItem{
+			{key: "enter", desc: "apply"},
+			{key: "esc", desc: "cancel"},
+		}
 	}
+	if m.filter.expanded >= 0 {
+		return []helpItem{
+			{key: "j/k", desc: "move"},
+			{key: "space", desc: "toggle"},
+			{key: "enter", desc: "done"},
+			{key: "/", desc: "regex"},
+			{key: "x", desc: "clear"},
+			{key: "esc", desc: "back"},
+		}
+	}
+	return m.filterDimensionFooterItems()
+}
+
+func (m browserModel) filterDimensionFooterItems() []helpItem {
+	dim := filterDimension(m.filter.cursor)
+	items := []helpItem{{key: "j/k", desc: "move"}}
+
+	if filterDimensionIsBool(dim) {
+		items = append(items, helpItem{key: "space", desc: "toggle"})
+	} else {
+		items = append(items, helpItem{key: "enter", desc: "select"})
+		items = append(items, helpItem{key: "/", desc: "regex"})
+	}
+
+	if m.filter.dimensions[dim].isActive() {
+		items = append(items, helpItem{key: "x", desc: "clear"})
+	}
+	if m.filter.hasActiveFilters() {
+		items = append(items, helpItem{key: "X", desc: "clear all"})
+	}
+
+	items = append(items, helpItem{key: "q/esc", desc: "close"})
+	return items
 }

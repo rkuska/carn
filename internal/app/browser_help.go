@@ -28,7 +28,7 @@ func (m browserModel) footerView() string {
 	}
 
 	if m.filter.active {
-		return renderHelpFooter(m.width, m.filterFooterItems(), []string{"Filter"}, m.notification)
+		return renderHelpFooter(m.width, m.filterFooterItems(), m.filterFooterStatusParts(), m.notification)
 	}
 
 	if m.transcriptFocused() {
