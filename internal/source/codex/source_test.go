@@ -214,6 +214,24 @@ func TestSourceOwnsSyncCandidates(t *testing.T) {
 	)
 }
 
+func TestListJSONLPathsSortsAndSkipsNonJSONLFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "nested"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "b.jsonl"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("skip"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "nested", "a.jsonl"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "nested", "c.md"), []byte("skip"), 0o644))
+
+	paths, err := listJSONLPaths(root)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		filepath.Join(root, "b.jsonl"),
+		filepath.Join(root, "nested", "a.jsonl"),
+	}, paths)
+}
+
 func TestResumeCommand(t *testing.T) {
 	t.Parallel()
 
