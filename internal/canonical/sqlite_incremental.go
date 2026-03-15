@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func applySQLiteIncrementalRebuild(
@@ -25,7 +27,7 @@ func applySQLiteIncrementalRebuild(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := deleteSQLiteConversations(ctx, tx, dedupeIncrementalValues(replaceCacheKeys)); err != nil {
+	if err := deleteSQLiteConversations(ctx, tx, src.DedupeAndSort(replaceCacheKeys)); err != nil {
 		return fmt.Errorf("deleteSQLiteConversations: %w", err)
 	}
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 )
 
@@ -23,13 +24,6 @@ func TestImportAnalysisHelpers(t *testing.T) {
 	assert.False(t, ImportAnalysis{}.NeedsSync())
 	assert.False(t, ImportAnalysis{Err: assert.AnError}.NeedsSync())
 	assert.Equal(t, 2, ImportAnalysis{QueuedFiles: []string{"a", "b"}}.QueuedFileCount())
-}
-
-func TestDedupeStrings(t *testing.T) {
-	t.Parallel()
-
-	assert.Nil(t, dedupeStrings(nil))
-	assert.Equal(t, []string{"a", "b", "c"}, dedupeStrings([]string{"a", "b", "a", "c", "b"}))
 }
 
 func TestPipelineAnalyze(t *testing.T) {
@@ -76,6 +70,38 @@ func TestPipelineAnalyze(t *testing.T) {
 	assert.Equal(t, 2, last.NewConversations)
 	assert.Equal(t, "claude / proj1", last.CurrentProject)
 	assert.NoError(t, last.Err)
+}
+
+func TestPipelineAnalyzeDedupesQueuedFilesWithoutReordering(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	pipeline := New(
+		Config{
+			SourceDirs: map[conv.Provider]string{
+				conv.ProviderClaude: filepath.Join(dir, "claude"),
+				conv.ProviderCodex:  filepath.Join(dir, "codex"),
+			},
+			ArchiveDir: filepath.Join(dir, "archive"),
+		},
+		canonical.New(),
+		stubBackend{
+			provider: conv.ProviderClaude,
+			analysis: src.Analysis{
+				SyncCandidates: []string{"b.jsonl", "a.jsonl", "b.jsonl"},
+			},
+		},
+		stubBackend{
+			provider: conv.ProviderCodex,
+			analysis: src.Analysis{
+				SyncCandidates: []string{"c.jsonl", "a.jsonl"},
+			},
+		},
+	)
+
+	analysis, err := pipeline.Analyze(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"b.jsonl", "a.jsonl", "c.jsonl"}, analysis.QueuedFiles)
 }
 
 func TestPipelineAnalyzeMissingSource(t *testing.T) {

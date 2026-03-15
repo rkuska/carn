@@ -36,7 +36,7 @@ func (Source) ResolveIncremental(
 
 	return src.IncrementalResolution{
 		Conversations:    conversations,
-		ReplaceCacheKeys: sortedIncrementalKeys(replaceKeys),
+		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
 	}, nil
 }
 
@@ -54,7 +54,7 @@ func resolveIncrementalTargets(
 	targetsByProject := make(map[string]incrementalProjectTarget)
 	replaceKeys := make(map[string]struct{})
 
-	for _, path := range dedupeIncrementalPaths(changedRawPaths) {
+	for _, path := range src.DedupeAndSort(changedRawPaths) {
 		target, replaceKey, err := resolveIncrementalPath(ctx, rawDir, path, lookup)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolveIncrementalPath: %w", err)
@@ -242,30 +242,4 @@ func incrementalConversationCacheKey(scanned scannedSession) string {
 		return conversationRefForPath(scanned.groupKey.slug).CacheKey()
 	}
 	return conversationRefForGroup(scanned.groupKey).CacheKey()
-}
-
-func dedupeIncrementalPaths(paths []string) []string {
-	seen := make(map[string]struct{}, len(paths))
-	deduped := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		deduped = append(deduped, path)
-	}
-	sort.Strings(deduped)
-	return deduped
-}
-
-func sortedIncrementalKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for value := range values {
-		keys = append(keys, value)
-	}
-	sort.Strings(keys)
-	return keys
 }

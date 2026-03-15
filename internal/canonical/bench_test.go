@@ -11,6 +11,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 )
 
@@ -98,7 +99,7 @@ func makeBenchRawArchive(
 	b.Helper()
 
 	archiveDir := b.TempDir()
-	rawDir := providerRawDir(archiveDir, conv.ProviderClaude)
+	rawDir := src.ProviderRawDir(archiveDir, conv.ProviderClaude)
 
 	for p := range projects {
 		projDir := filepath.Join(rawDir, fmt.Sprintf("project-%d", p))
@@ -132,7 +133,7 @@ func makeBenchConversations(
 	ctx := context.Background()
 	source := claude.New()
 	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
-	rawDir := providerRawDir(archiveDir, conv.ProviderClaude)
+	rawDir := src.ProviderRawDir(archiveDir, conv.ProviderClaude)
 
 	conversations, err := source.Scan(ctx, rawDir)
 	if err != nil {
@@ -290,7 +291,7 @@ func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 	archiveDir, _ := makeBenchCanonicalStore(b, 6, 60, 12)
 	source := claude.New()
-	rawDir := providerRawDir(archiveDir, conv.ProviderClaude)
+	rawDir := src.ProviderRawDir(archiveDir, conv.ProviderClaude)
 	changedPaths := []string{
 		filepath.Join(rawDir, "project-0", "session-00-0000.jsonl"),
 	}

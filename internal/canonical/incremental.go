@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	src "github.com/rkuska/carn/internal/source"
 )
@@ -123,7 +122,7 @@ func resolveIncrementalRebuildWithSources(
 		}
 	}
 
-	sort.Strings(resolution.ReplaceCacheKeys)
+	resolution.ReplaceCacheKeys = src.DedupeAndSort(resolution.ReplaceCacheKeys)
 	return resolution, nil
 }
 
@@ -153,8 +152,8 @@ func resolveIncrementalProvider(
 
 	resolution, err := resolver.ResolveIncremental(
 		ctx,
-		providerRawDir(archiveDir, provider),
-		dedupeIncrementalValues(paths),
+		src.ProviderRawDir(archiveDir, provider),
+		src.DedupeAndSort(paths),
 		lookup,
 	)
 	if err != nil {
@@ -193,28 +192,6 @@ func appendIncrementalResolution(
 	}
 	return nil
 }
-
-func dedupeIncrementalValues(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(values))
-	deduped := make([]string, 0, len(values))
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		deduped = append(deduped, value)
-	}
-	sort.Strings(deduped)
-	return deduped
-}
-
 func groupSearchUnitsByConversation(corpus searchCorpus) map[string][]searchUnit {
 	grouped := make(map[string][]searchUnit)
 	for _, unit := range corpus.units {

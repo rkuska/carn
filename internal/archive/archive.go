@@ -60,7 +60,7 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 		analysis.UpToDate += providerAnalysis.UpToDate
 		analysis.QueuedFiles = append(analysis.QueuedFiles, providerAnalysis.SyncCandidates...)
 	}
-	analysis.QueuedFiles = dedupeStrings(analysis.QueuedFiles)
+	analysis.QueuedFiles = src.Dedupe(analysis.QueuedFiles)
 
 	storeNeedsBuild, err := p.storeNeedsBuild(ctx, analysis)
 	if err != nil && firstErr == nil {
@@ -92,24 +92,7 @@ func (p Pipeline) configuredBackends() []configuredBackend {
 }
 
 func (p Pipeline) rawDir(provider conv.Provider) string {
-	return providerRawDir(p.cfg.ArchiveDir, provider)
-}
-
-func dedupeStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]struct{}, len(values))
-	deduped := make([]string, 0, len(values))
-	for _, value := range values {
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		deduped = append(deduped, value)
-	}
-	return deduped
+	return src.ProviderRawDir(p.cfg.ArchiveDir, provider)
 }
 
 func (p Pipeline) reportProviderProgress(

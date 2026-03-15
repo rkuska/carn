@@ -201,7 +201,7 @@ func classifyProjectFile(file sessionFile, sourceDir, rawDir, dirName string) (c
 
 	return classifiedFile{
 		gk:        gk,
-		needsSync: fileNeedsSync(info, dstPath),
+		needsSync: src.FileNeedsSync(info, dstPath),
 		dstExists: dstExists,
 		srcPath:   file.path,
 		dstPath:   dstPath,

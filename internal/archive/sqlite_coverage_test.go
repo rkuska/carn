@@ -70,7 +70,7 @@ func assertProviderArchiveCoverage(
 	require.NoError(t, err)
 	assert.True(t, result.StoreBuilt)
 
-	rawDir := providerRawDir(archiveDir, provider)
+	rawDir := src.ProviderRawDir(archiveDir, provider)
 	wantSynced := relativeJSONLPaths(t, sourceDir)
 	gotSynced := relativeJSONLPaths(t, rawDir)
 	assert.Equal(t, wantSynced, gotSynced)
@@ -120,7 +120,7 @@ func usefulClaudeJSONLPaths(t *testing.T, root string) []string {
 func sqliteSessionRelPathsForProvider(t *testing.T, archiveDir string, provider conv.Provider) []string {
 	t.Helper()
 
-	rawDir := providerRawDir(archiveDir, provider)
+	rawDir := src.ProviderRawDir(archiveDir, provider)
 	db, err := sql.Open("sqlite", filepath.Join(archiveDir, "store", "canonical.sqlite"))
 	require.NoError(t, err)
 	defer func() {
