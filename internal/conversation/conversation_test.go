@@ -78,6 +78,20 @@ func TestConversationAccessors(t *testing.T) {
 	assert.Equal(t, 24*time.Hour+15*time.Minute, conversation.Duration())
 }
 
+func TestConversationZeroValueAccessors(t *testing.T) {
+	t.Parallel()
+
+	var conversation Conversation
+
+	assert.Empty(t, conversation.ID())
+	assert.Zero(t, conversation.Timestamp())
+	assert.Empty(t, conversation.FirstMessage())
+	assert.Zero(t, conversation.Duration())
+	assert.False(t, conversation.IsSubagent())
+	assert.Empty(t, conversation.Model())
+	assert.Empty(t, conversation.GitBranch())
+}
+
 func TestConversationListMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -118,9 +132,44 @@ func TestConversationListMetadata(t *testing.T) {
 	assert.Contains(t, conversation.Description(), "help me with Go")
 
 	withPreview := conversation
-	withPreview.SearchPreview = "needle only in preview"
+	withPreview.SetSearchPreview("needle only in preview")
 	assert.Contains(t, withPreview.Description(), "needle only in preview")
 	assert.NotContains(t, withPreview.Description(), "help me with Go")
+}
+
+func TestConversationPrecomputeDisplayAndSearchPreviewInvalidation(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2024, 6, 15, 14, 30, 0, 0, time.UTC)
+	conversation := Conversation{
+		Name:    "cheerful-ocean",
+		Project: Project{DisplayName: "my/project"},
+		Sessions: []SessionMeta{
+			{
+				ID:               "s1",
+				Slug:             "cheerful-ocean",
+				Timestamp:        ts,
+				LastTimestamp:    ts.Add(45 * time.Minute),
+				FirstMessage:     "help me with Go",
+				MessageCount:     20,
+				MainMessageCount: 18,
+				Model:            "claude-3",
+				Version:          "1.0.0",
+				GitBranch:        "feature",
+				ToolCounts:       map[string]int{"Read": 12, "Edit": 5},
+			},
+		},
+	}
+
+	conversation.PrecomputeDisplay()
+
+	assert.Contains(t, conversation.Title(), "feature")
+	assert.Contains(t, conversation.Description(), "help me with Go")
+	assert.Equal(t, map[string]int{"Read": 12, "Edit": 5}, conversation.TotalToolCounts())
+
+	conversation.SetSearchPreview("needle only in preview")
+	assert.Contains(t, conversation.Description(), "needle only in preview")
+	assert.NotContains(t, conversation.Description(), "help me with Go")
 }
 
 func TestConversationDisplayNameFallbacks(t *testing.T) {

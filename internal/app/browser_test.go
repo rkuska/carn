@@ -575,7 +575,7 @@ func TestBrowserListHighlightsSearchPreview(t *testing.T) {
 
 	b := testBrowser(t)
 	conversation := testConv(testConversationIDPrimary)
-	conversation.SearchPreview = archiveMatchesSourceSubtitle
+	conversation.SetSearchPreview(archiveMatchesSourceSubtitle)
 	b.list.SetItems([]list.Item{conversation})
 	b.list.SetFilterText("archive")
 
@@ -589,7 +589,7 @@ func TestBrowserListHighlightsDeepSearchPreviewWithoutListFiltering(t *testing.T
 
 	b := testBrowser(t)
 	conversation := testConv(testConversationIDPrimary)
-	conversation.SearchPreview = archiveMatchesSourceSubtitle
+	conversation.SetSearchPreview(archiveMatchesSourceSubtitle)
 
 	items := buildDeepSearchItems("archive", []conv.Conversation{conversation})
 	listItems := make([]list.Item, 0, len(items))

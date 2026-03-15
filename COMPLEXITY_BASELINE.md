@@ -33,7 +33,6 @@ None.
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
 | internal/canonical/sqlite_db.go | source | 270 | 67 | 294 |
 | internal/source/claude/scanner_metadata.go | source | 331 | 64 | 361 |
-| internal/conversation/conversation.go | source | 236 | 64 | 267 |
 | internal/source/claude/scanner.go | source | 250 | 62 | 285 |
 | internal/canonical/sqlite_search.go | source | 245 | 60 | 276 |
 | internal/app/viewer_model.go | source | 332 | 35 | 364 |

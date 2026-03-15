@@ -39,7 +39,7 @@ func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
 	t.Parallel()
 
 	conversation := testConv("one")
-	conversation.SearchPreview = "needle only in preview"
+	conversation.SetSearchPreview("needle only in preview")
 
 	items := buildMetadataSearchItems("needle", []conv.Conversation{conversation})
 	assert.Empty(t, items)
@@ -74,7 +74,7 @@ func TestBuildDeepSearchItemsHighlightsPreviewMatches(t *testing.T) {
 	t.Parallel()
 
 	conversation := testConv("one")
-	conversation.SearchPreview = "found the archive needle here"
+	conversation.SetSearchPreview("found the archive needle here")
 
 	items := buildDeepSearchItems("archive", []conv.Conversation{conversation})
 	require.Len(t, items, 1)
@@ -88,7 +88,7 @@ func TestBuildDeepSearchItemsNoMatchWhenQueryAbsent(t *testing.T) {
 	t.Parallel()
 
 	conversation := testConv("one")
-	conversation.SearchPreview = archiveMatchesSourceSubtitle
+	conversation.SetSearchPreview(archiveMatchesSourceSubtitle)
 
 	items := buildDeepSearchItems("", []conv.Conversation{conversation})
 	require.Len(t, items, 1)

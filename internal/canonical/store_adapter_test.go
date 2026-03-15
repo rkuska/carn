@@ -120,7 +120,7 @@ func TestStoreListReturnsIndependentCachedCopies(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, first, 1)
 
-	first[0].SearchPreview = "mutated preview"
+	first[0].SetSearchPreview("mutated preview")
 	first[0].Sessions[0].ToolCounts["Read"] = 99
 
 	second, err := store.List(context.Background(), archiveDir)

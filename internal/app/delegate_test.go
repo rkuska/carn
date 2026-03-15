@@ -98,7 +98,7 @@ func TestDeepSearchRenderHighlightsMultiWordQuery(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.SearchPreview = "the matching strategy uses string comparison"
+	conv.SetSearchPreview("the matching strategy uses string comparison")
 
 	highlighted := renderDeepSearchView(t, "matching strings", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -119,7 +119,7 @@ func TestDeepSearchRenderHighlightsSingleWordQuery(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.SearchPreview = "analysis complete; archive already matches the source"
+	conv.SetSearchPreview("analysis complete; archive already matches the source")
 
 	highlighted := renderDeepSearchView(t, "archive", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -132,7 +132,7 @@ func TestDeepSearchRenderHighlightsAcrossPreviewLines(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.SearchPreview = "the cache layer is fast\nrebuild cache on startup"
+	conv.SetSearchPreview("the cache layer is fast\nrebuild cache on startup")
 
 	highlighted := renderDeepSearchView(t, "cache", conv)
 	unhighlighted := renderDeepSearchView(t, "", conv)
@@ -152,7 +152,7 @@ func TestDeepSearchRenderNoHighlightWhenQueryAbsent(t *testing.T) {
 	t.Parallel()
 
 	conv := testConv(testConversationIDPrimary)
-	conv.SearchPreview = "some unrelated preview text"
+	conv.SetSearchPreview("some unrelated preview text")
 
 	withQuery := renderDeepSearchView(t, "xyznotfound", conv)
 	withoutQuery := renderDeepSearchView(t, "", conv)
@@ -191,7 +191,7 @@ func TestRenderSelectedDeepSearchItemHighlightsAllLinesGreen(t *testing.T) {
 	t.Parallel()
 
 	conversation := testConv(testConversationIDPrimary)
-	conversation.SearchPreview = "preview match line"
+	conversation.SetSearchPreview("preview match line")
 
 	items := buildDeepSearchItems("", []conv.Conversation{conversation})
 	require.Len(t, items, 1)
