@@ -45,7 +45,7 @@ func renderConversationHeader(conversation conv.Conversation, width int, tsFmt s
 		lines = append(lines, renderSingleChip("tools", tools))
 	}
 
-	if cwd := compactCWD(conversation.ResumeCWD()); cwd != "" {
+	if cwd := conv.CompactCWD(conversation.ResumeCWD()); cwd != "" {
 		lines = append(lines, renderSingleChip("cwd", cwd))
 	}
 
@@ -201,26 +201,4 @@ func shortID(id string) string {
 		return id
 	}
 	return id[:8]
-}
-
-func compactCWD(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-
-	clean := filepath.ToSlash(filepath.Clean(cwd))
-	parts := strings.Split(clean, "/")
-	filtered := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part != "" {
-			filtered = append(filtered, part)
-		}
-	}
-	if len(filtered) >= 2 {
-		return strings.Join(filtered[len(filtered)-2:], "/")
-	}
-	if len(filtered) == 1 {
-		return filtered[0]
-	}
-	return clean
 }

@@ -32,8 +32,7 @@ None.
 | internal/app/transcript_segments.go | source | 352 | 67 | 397 |
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
 | internal/canonical/sqlite_db.go | source | 270 | 67 | 294 |
-| internal/source/claude/scanner_metadata.go | source | 331 | 64 | 361 |
-| internal/source/claude/scanner.go | source | 250 | 62 | 285 |
+| internal/source/claude/scanner_metadata.go | source | 332 | 64 | 362 |
 | internal/canonical/sqlite_search.go | source | 245 | 60 | 276 |
 | internal/app/viewer_model.go | source | 332 | 35 | 364 |
 | internal/app/browser_test.go | test | 621 | 30 | 753 |

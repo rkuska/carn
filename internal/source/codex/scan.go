@@ -214,7 +214,7 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 	if meta.LastTimestamp.IsZero() {
 		meta.LastTimestamp = meta.Timestamp
 	}
-	meta.Project = conv.Project{DisplayName: projectNameFromCWD(meta.CWD)}
+	meta.Project = conv.Project{DisplayName: conv.ProjectName(meta.CWD)}
 	if len(meta.ToolCounts) == 0 {
 		meta.ToolCounts = nil
 	}

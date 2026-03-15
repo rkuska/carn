@@ -134,6 +134,50 @@ func TestProviderRawDir(t *testing.T) {
 	)
 }
 
+func TestInsertAt(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []int{1, 9, 2, 3}, InsertAt([]int{1, 2, 3}, 1, 9))
+}
+
+func TestInsertSliceAt(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []int{1, 9, 8, 2, 3}, InsertSliceAt([]int{1, 2, 3}, 1, []int{9, 8}))
+	assert.Equal(t, []int{1, 2, 3}, InsertSliceAt([]int{1, 2, 3}, 1, nil))
+}
+
+func TestFindInsertPosition(t *testing.T) {
+	t.Parallel()
+
+	zeroTime := time.Time{}
+	timestamps := []time.Time{
+		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+		zeroTime,
+		time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+	}
+
+	assert.Equal(t, 3, FindInsertPosition(timestamps, time.Time{}, func(ts time.Time) time.Time { return ts }))
+	assert.Equal(
+		t,
+		1,
+		FindInsertPosition(
+			timestamps,
+			time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
+			func(ts time.Time) time.Time { return ts },
+		),
+	)
+	assert.Equal(
+		t,
+		3,
+		FindInsertPosition(
+			timestamps,
+			time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			func(ts time.Time) time.Time { return ts },
+		),
+	)
+}
+
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

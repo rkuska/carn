@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
 )
 
@@ -64,7 +65,7 @@ func linkedTranscriptTitle(messages []parsedMessage) string {
 	title := "Subagent"
 	for _, msg := range messages {
 		if msg.role == roleUser && msg.text != "" && !isSystemInterrupt(msg.text) {
-			return truncate(msg.text, maxFirstMessage)
+			return conv.Truncate(msg.text, maxFirstMessage)
 		}
 	}
 	return title
@@ -77,20 +78,6 @@ func firstTimestamp(messages []parsedMessage) time.Time {
 		}
 	}
 	return time.Time{}
-}
-
-func findInsertPosition(messages []parsedMessage, anchor time.Time) int {
-	if anchor.IsZero() {
-		return len(messages)
-	}
-
-	pos := 0
-	for i, msg := range messages {
-		if !msg.timestamp.IsZero() && !msg.timestamp.After(anchor) {
-			pos = i + 1
-		}
-	}
-	return pos
 }
 
 func parseConversationWithSubagents(ctx context.Context, conv conversation) (sessionFull, error) {

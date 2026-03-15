@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func initSessionMeta(meta *sessionMeta, rec jsonRecord) {
@@ -18,7 +20,7 @@ func initSessionMeta(meta *sessionMeta, rec jsonRecord) {
 		}
 	}
 	if rec.CWD != "" {
-		meta.Project.DisplayName = displayNameFromCWD(rec.CWD)
+		meta.Project.DisplayName = conv.CompactCWD(rec.CWD)
 	}
 }
 
@@ -62,7 +64,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 	content, toolResults := extractUserContent(msg.Content)
 	hasContent := len(toolResults) > 0 || isUserContentText(content)
 	if !*found && isUserContentText(content) {
-		meta.FirstMessage = truncate(content, maxFirstMessage)
+		meta.FirstMessage = conv.Truncate(content, maxFirstMessage)
 		*found = true
 	}
 	return hasContent, nil

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
 )
 
@@ -205,7 +206,7 @@ func extractUserContent(raw json.RawMessage) (string, []parsedToolResult) {
 			if content != "" {
 				results = append(results, parsedToolResult{
 					toolUseID: block.ToolUseID,
-					content:   truncatePreserveNewlines(content, maxToolResultChars),
+					content:   conv.TruncatePreserveNewlines(content, maxToolResultChars),
 					isError:   block.IsError,
 				})
 			}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type linkedTranscript struct {
@@ -37,44 +38,13 @@ func mergeLinkedTranscripts(base []parsedMessage, linked []linkedTranscript) []p
 			timestamp:      transcript.anchor,
 			isAgentDivider: true,
 		}
-		pos := findParsedInsertPosition(projected, transcript.anchor)
-		projected = insertParsedMessage(projected, pos, divider)
-		projected = insertParsedMessages(projected, pos+1, transcript.messages)
+		pos := src.FindInsertPosition(projected, transcript.anchor, func(msg parsedMessage) time.Time {
+			return msg.timestamp
+		})
+		projected = src.InsertAt(projected, pos, divider)
+		projected = src.InsertSliceAt(projected, pos+1, transcript.messages)
 	}
 	return projected
-}
-
-func findParsedInsertPosition(messages []parsedMessage, anchor time.Time) int {
-	if anchor.IsZero() {
-		return len(messages)
-	}
-
-	pos := 0
-	for i, msg := range messages {
-		if !msg.timestamp.IsZero() && !msg.timestamp.After(anchor) {
-			pos = i + 1
-		}
-	}
-	return pos
-}
-
-func insertParsedMessage(items []parsedMessage, index int, item parsedMessage) []parsedMessage {
-	items = append(items, parsedMessage{})
-	copy(items[index+1:], items[index:])
-	items[index] = item
-	return items
-}
-
-func insertParsedMessages(items []parsedMessage, index int, inserted []parsedMessage) []parsedMessage {
-	if len(inserted) == 0 {
-		return items
-	}
-
-	oldLen := len(items)
-	items = append(items, make([]parsedMessage, len(inserted))...)
-	copy(items[index+len(inserted):], items[index:oldLen])
-	copy(items[index:], inserted)
-	return items
 }
 
 func mergeSubagentTranscripts(parent rolloutTranscript, children []rolloutTranscript) []parsedMessage {
