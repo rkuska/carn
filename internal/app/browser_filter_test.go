@@ -337,6 +337,77 @@ func TestFilterMatchCountReflectsActiveFilters(t *testing.T) {
 	assert.Equal(t, 2, state.matchCount(conversations))
 }
 
+func TestFilterFooterItemsCategoricalDimOmitsSpaceToggle(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.filter.active = true
+	b.filter.cursor = int(filterDimProvider)
+	items := b.filterFooterItems()
+	keys := helpItemKeys(items)
+
+	assert.Contains(t, keys, "enter")
+	assert.Contains(t, keys, "/")
+	assert.NotContains(t, keys, "space")
+}
+
+func TestFilterFooterItemsBoolDimOmitsEnterSelectAndRegex(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.filter.active = true
+	b.filter.cursor = int(filterDimHasPlans)
+	items := b.filterFooterItems()
+	keys := helpItemKeys(items)
+
+	assert.Contains(t, keys, "space")
+	assert.NotContains(t, keys, "enter")
+	assert.NotContains(t, keys, "/")
+}
+
+func TestFilterFooterItemsShowsClearOnlyWhenActive(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.filter.active = true
+	b.filter.cursor = int(filterDimProvider)
+
+	keys := helpItemKeys(b.filterFooterItems())
+	assert.NotContains(t, keys, "x")
+	assert.NotContains(t, keys, "X")
+
+	b.filter.dimensions[filterDimProvider] = dimensionFilter{
+		selected: map[string]bool{"Claude": true},
+	}
+	keys = helpItemKeys(b.filterFooterItems())
+	assert.Contains(t, keys, "x")
+	assert.Contains(t, keys, "X")
+}
+
+func TestFilterFooterItemsExpandedState(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.filter.active = true
+	b.filter.expanded = int(filterDimProject)
+	items := b.filterFooterItems()
+	keys := helpItemKeys(items)
+
+	assert.Equal(t, []string{"j/k", "space", "enter", "/", "x", "esc"}, keys)
+}
+
+func TestFilterFooterItemsRegexState(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.filter.active = true
+	b.filter.regexEditing = true
+	items := b.filterFooterItems()
+	keys := helpItemKeys(items)
+
+	assert.Equal(t, []string{"enter", "esc"}, keys)
+}
+
 func TestFilterDimensionLabels(t *testing.T) {
 	t.Parallel()
 
