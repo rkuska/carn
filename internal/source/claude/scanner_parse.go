@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,15 +14,51 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+// parseRecord is a flat struct that merges the outer JSONL record with the
+// nested message object. A single json.Decode fills both levels, eliminating
+// the intermediate json.RawMessage copy for the "message" field.
+// Used only in the parse phase; the metadata scan path keeps jsonRecord.
+type parseRecord struct {
+	Type          string          `json:"type"`
+	SessionID     string          `json:"sessionId"`
+	Slug          string          `json:"slug"`
+	CWD           string          `json:"cwd"`
+	GitBranch     string          `json:"gitBranch"`
+	Version       string          `json:"version"`
+	Timestamp     string          `json:"timestamp"`
+	IsSidechain   bool            `json:"isSidechain"`
+	IsMeta        bool            `json:"isMeta"`
+	ToolUseResult json.RawMessage `json:"toolUseResult"`
+	Message       struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+		Model   string          `json:"model"`
+		Usage   *jsonUsage      `json:"usage"`
+	} `json:"message"`
+}
+
+// parseContext holds reusable JSON decode containers to avoid per-line heap
+// allocations. The rec struct is zeroed before each decode via reset().
+// The blocks slice retains its backing array across calls — json.Unmarshal
+// reuses the capacity, only overwriting fields present in each JSON record.
+type parseContext struct {
+	rec    parseRecord
+	blocks []contentBlock
+}
+
+func (pc *parseContext) reset() {
+	pc.rec = parseRecord{}
+	pc.blocks = pc.blocks[:0]
+}
+
 func parseAndIndexLine(
 	ctx context.Context,
-	line []byte,
-	recType role,
+	pc *parseContext,
 	toolCallIndex map[string]parsedToolCall,
 ) (parsedMessage, bool) {
-	switch recType {
+	switch role(pc.rec.Type) {
 	case roleUser:
-		msg, ok := parseParsedUserMessage(line)
+		msg, ok := parseParsedUserMessage(pc)
 		if !ok {
 			return parsedMessage{}, false
 		}
@@ -33,7 +70,7 @@ func parseAndIndexLine(
 		}
 		return msg, true
 	case roleAssistant:
-		msg, ok := parseParsedAssistantMessage(ctx, line)
+		msg, ok := parseParsedAssistantMessage(ctx, pc)
 		if !ok {
 			return parsedMessage{}, false
 		}
@@ -54,18 +91,19 @@ func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parse
 	}
 	defer func() { _ = file.Close() }()
 
-	var messages []parsedMessage
+	messages := make([]parsedMessage, 0, 32)
 	toolCallIndex := make(map[string]parsedToolCall)
-	for line, err := range jsonlLines(file, jsonlScanBufferSize) {
+	var pc parseContext
+	dec := json.NewDecoder(bufio.NewReaderSize(file, jsonlScanBufferSize))
+	for dec.More() {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("parseSessionMessagesDetailed_ctx: %w", err)
 		}
-		if err != nil {
-			return nil, fmt.Errorf("parseSessionMessagesDetailed_jsonlLines: %w", err)
+		pc.reset()
+		if err := dec.Decode(&pc.rec); err != nil {
+			return nil, fmt.Errorf("parseSessionMessagesDetailed_decode: %w", err)
 		}
-
-		recType := role(extractType(line))
-		if msg, ok := parseAndIndexLine(ctx, line, recType, toolCallIndex); ok {
+		if msg, ok := parseAndIndexLine(ctx, &pc, toolCallIndex); ok {
 			messages = append(messages, msg)
 		}
 	}
@@ -138,36 +176,26 @@ func parseConversationPathsParallel(ctx context.Context, paths []string) ([]pars
 	return results, nil
 }
 
-func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
-	var rec jsonRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return parsedMessage{}, false
-	}
-
-	var msg jsonMessage
-	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return parsedMessage{}, false
-	}
-
-	content, toolResults := extractUserContent(msg.Content)
+func parseParsedUserMessage(pc *parseContext) (parsedMessage, bool) {
+	content, toolResults := extractUserContent(pc.rec.Message.Content)
 	if content == "" && len(toolResults) == 0 {
 		return parsedMessage{}, false
 	}
 	messageRole, visibility := classifyUserText(content)
 
 	var ts time.Time
-	if rec.Timestamp != "" {
-		ts, _ = time.Parse(time.RFC3339Nano, rec.Timestamp)
+	if pc.rec.Timestamp != "" {
+		ts, _ = time.Parse(time.RFC3339Nano, pc.rec.Timestamp)
 	}
 
 	var plans []plan
-	if len(rec.ToolUseResult) > 0 {
+	if len(pc.rec.ToolUseResult) > 0 {
 		if len(toolResults) == 1 {
-			if patch := extractStructuredPatch(rec.ToolUseResult); patch != nil {
+			if patch := extractStructuredPatch(pc.rec.ToolUseResult); patch != nil {
 				toolResults[0].structuredPatch = patch
 			}
 		}
-		if plan, ok := extractExitPlanResult(rec.ToolUseResult, ts); ok {
+		if plan, ok := extractExitPlanResult(pc.rec.ToolUseResult, ts); ok {
 			plans = append(plans, plan)
 		}
 	}
@@ -179,6 +207,6 @@ func parseParsedUserMessage(line []byte) (parsedMessage, bool) {
 		toolResults: toolResults,
 		plans:       plans,
 		visibility:  visibility,
-		isSidechain: rec.IsSidechain,
+		isSidechain: pc.rec.IsSidechain,
 	}, true
 }

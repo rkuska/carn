@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"os"
 	"strings"
 	"time"
@@ -94,7 +95,7 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	stats.totalUsage.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	stats.totalUsage.CacheReadInputTokens += usage.CacheReadInputTokens
 	stats.totalUsage.OutputTokens += usage.OutputTokens
-	for _, name := range extractToolNames(line) {
+	for name := range yieldToolNames(line) {
 		stats.toolCounts[name]++
 	}
 }
@@ -331,34 +332,36 @@ func parseUsageObject(raw []byte) tokenUsage {
 	}
 }
 
-func extractToolNames(line []byte) []string {
-	var names []string
-	search := []byte(`"type":"tool_use"`)
-	nameMarker := []byte(`"name":"`)
+func yieldToolNames(line []byte) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		search := []byte(`"type":"tool_use"`)
+		nameMarker := []byte(`"name":"`)
 
-	offset := 0
-	for offset < len(line) {
-		idx := bytes.Index(line[offset:], search)
-		if idx == -1 {
-			break
-		}
-		pos := offset + idx + len(search)
-		window := line[pos:]
-		if len(window) > 200 {
-			window = window[:200]
-		}
-
-		nameIdx := bytes.Index(window, nameMarker)
-		if nameIdx != -1 {
-			start := nameIdx + len(nameMarker)
-			end := bytes.IndexByte(window[start:], '"')
-			if end != -1 {
-				names = append(names, string(window[start:start+end]))
+		offset := 0
+		for offset < len(line) {
+			idx := bytes.Index(line[offset:], search)
+			if idx == -1 {
+				return
 			}
+			pos := offset + idx + len(search)
+			window := line[pos:]
+			if len(window) > 200 {
+				window = window[:200]
+			}
+
+			nameIdx := bytes.Index(window, nameMarker)
+			if nameIdx != -1 {
+				start := nameIdx + len(nameMarker)
+				end := bytes.IndexByte(window[start:], '"')
+				if end != -1 {
+					if !yield(string(window[start : start+end])) {
+						return
+					}
+				}
+			}
+			offset = pos
 		}
-		offset = pos
 	}
-	return names
 }
 
 func extractIsSidechain(line []byte) bool {
