@@ -21,6 +21,13 @@ type scanStats struct {
 	toolCounts map[string]int
 }
 
+type metadataScanState struct {
+	result         *scannedSession
+	foundUser      bool
+	foundAssistant bool
+	stats          scanStats
+}
+
 type jsonRecord struct {
 	Type          string          `json:"type"`
 	SessionID     string          `json:"sessionId"`
@@ -87,41 +94,38 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	}
 }
 
-func scanMetadataLine(
-	ctx context.Context,
-	line []byte,
-	result *scannedSession,
-	foundUser, foundAssistant *bool,
-	stats *scanStats,
-) {
+func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
 	recRole := role(extractType(line))
 
 	switch recRole {
 	case roleUser:
-		hasContent, err := parseUserRecord(line, &result.meta, foundUser)
+		hasContent, err := parseUserRecord(line, &s.result.meta, &s.foundUser)
 		if err != nil {
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", result.meta.FilePath)
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", s.result.meta.FilePath)
 			return
 		}
-		if !result.hasConversationContent && hasContent {
-			result.hasConversationContent = true
+		if !s.result.hasConversationContent && hasContent {
+			s.result.hasConversationContent = true
 		}
 		if hasContent {
-			accumulateRecordCounts(line, recRole, stats)
+			accumulateRecordCounts(line, recRole, &s.stats)
 		}
 	case roleAssistant:
-		accumulateRecordCounts(line, recRole, stats)
+		accumulateRecordCounts(line, recRole, &s.stats)
 		hasContent, err := parseAssistantRecord(
-			line, &result.meta, foundAssistant, result.hasConversationContent,
+			line,
+			&s.result.meta,
+			&s.foundAssistant,
+			s.result.hasConversationContent,
 		)
 		if err != nil {
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", result.meta.FilePath)
+			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", s.result.meta.FilePath)
 			return
 		}
-		if !result.hasConversationContent && hasContent {
-			result.hasConversationContent = true
+		if !s.result.hasConversationContent && hasContent {
+			s.result.hasConversationContent = true
 		}
-		accumulateAssistantStats(line, stats)
+		accumulateAssistantStats(line, &s.stats)
 	}
 }
 
@@ -139,8 +143,12 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	result := scannedSession{
 		meta: sessionMeta{FilePath: filePath, Project: proj},
 	}
-	var foundUser, foundAssistant bool
-	stats := scanStats{toolCounts: make(map[string]int)}
+	state := metadataScanState{
+		result: &result,
+		stats: scanStats{
+			toolCounts: make(map[string]int),
+		},
+	}
 
 	for line, err := range jsonlLines(file, jsonlScanBufferSize) {
 		if err := ctx.Err(); err != nil {
@@ -149,19 +157,19 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 		if err != nil {
 			return scannedSession{}, fmt.Errorf("scanMetadataResult_jsonlLines: %w", err)
 		}
-		scanMetadataLine(ctx, line, &result, &foundUser, &foundAssistant, &stats)
+		state.scanLine(ctx, line)
 	}
 
 	if result.meta.ID == "" {
 		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
 	}
 
-	result.meta.MessageCount = stats.total
-	result.meta.MainMessageCount = stats.mainOnly
-	result.meta.TotalUsage = stats.totalUsage
-	result.meta.LastTimestamp = stats.lastTS
-	if len(stats.toolCounts) > 0 {
-		result.meta.ToolCounts = stats.toolCounts
+	result.meta.MessageCount = state.stats.total
+	result.meta.MainMessageCount = state.stats.mainOnly
+	result.meta.TotalUsage = state.stats.totalUsage
+	result.meta.LastTimestamp = state.stats.lastTS
+	if len(state.stats.toolCounts) > 0 {
+		result.meta.ToolCounts = state.stats.toolCounts
 	}
 	return result, nil
 }

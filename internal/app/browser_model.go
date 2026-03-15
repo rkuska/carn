@@ -107,16 +107,11 @@ func newBrowserModelWithStore(
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
 
-	launcher := newDefaultSessionLauncher()
-	if len(launchers) > 0 && launchers[0] != nil {
-		launcher = launchers[0]
-	}
-
 	return browserModel{
 		ctx:                  ctx,
 		archiveDir:           archiveDir,
 		store:                store,
-		launcher:             launcher,
+		launcher:             resolveSessionLauncher(launchers...),
 		glamourStyle:         glamourStyle,
 		timestampFormat:      timestampFormat,
 		browserCacheSize:     cacheSize,

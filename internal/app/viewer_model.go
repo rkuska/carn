@@ -105,7 +105,7 @@ func newViewerModel(
 		timestampFormat,
 		width,
 		height,
-		newDefaultSessionLauncher(),
+		nil,
 	)
 }
 
@@ -139,7 +139,7 @@ func newViewerModelWithLauncher(
 		viewport:        vp,
 		conversation:    conversation,
 		session:         session,
-		launcher:        launcher,
+		launcher:        resolveSessionLauncher(launcher),
 		opts:            transcriptOptions{},
 		content:         scanContentFlags(session.Messages),
 		glamourStyle:    glamourStyle,

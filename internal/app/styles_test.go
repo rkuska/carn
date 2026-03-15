@@ -6,16 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInitPaletteKeepsFirstPalette(t *testing.T) {
-	t.Parallel()
+func TestInitPaletteForTestReinitializesPalette(t *testing.T) {
+	initPaletteForTest(true)
+	t.Cleanup(func() {
+		initPaletteForTest(true)
+	})
 
 	beforePrimary := colorPrimary
 	beforeAccent := colorAccent
 	beforeToolCall := styleToolCall.Render("tool")
 
-	initPalette(false)
+	initPaletteForTest(false)
 
-	assert.Equal(t, beforePrimary, colorPrimary)
-	assert.Equal(t, beforeAccent, colorAccent)
-	assert.Equal(t, beforeToolCall, styleToolCall.Render("tool"))
+	assert.NotEqual(t, beforePrimary, colorPrimary)
+	assert.NotEqual(t, beforeAccent, colorAccent)
+	assert.NotEqual(t, beforeToolCall, styleToolCall.Render("tool"))
 }
