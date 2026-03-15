@@ -146,20 +146,15 @@ func makeBenchConversations(
 func makeBenchCanonicalStore(
 	b *testing.B,
 	projects, sessionsPerProject, assistantTurns int,
-) (string, Store) {
+) (string, *Store) {
 	b.Helper()
 
 	source := claude.New()
 	store := New(source)
 	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
 
-	if err := rebuildCanonicalStore(
-		context.Background(),
-		archiveDir,
-		newSourceRegistry(source),
-		nil,
-	); err != nil {
-		b.Fatalf("rebuildCanonicalStore: %v", err)
+	if err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
+		b.Fatalf("store.RebuildAll: %v", err)
 	}
 
 	return archiveDir, store
@@ -273,24 +268,18 @@ func BenchmarkCanonicalTranscriptOpen(b *testing.B) {
 
 func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 	archiveDir := makeBenchRawArchive(b, 6, 60, 12)
-	source := claude.New()
+	store := New(claude.New())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := rebuildCanonicalStore(
-			context.Background(),
-			archiveDir,
-			newSourceRegistry(source),
-			nil,
-		); err != nil {
-			b.Fatalf("rebuildCanonicalStore: %v", err)
+		if err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
+			b.Fatalf("store.RebuildAll: %v", err)
 		}
 	}
 }
 
 func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
-	archiveDir, _ := makeBenchCanonicalStore(b, 6, 60, 12)
-	source := claude.New()
+	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
 	rawDir := src.ProviderRawDir(archiveDir, conv.ProviderClaude)
 	changedPaths := []string{
 		filepath.Join(rawDir, "project-0", "session-00-0000.jsonl"),
@@ -298,13 +287,12 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := rebuildCanonicalStore(
+		if err := store.RebuildAll(
 			context.Background(),
 			archiveDir,
-			newSourceRegistry(source),
 			map[conv.Provider][]string{conv.ProviderClaude: changedPaths},
 		); err != nil {
-			b.Fatalf("rebuildCanonicalStore: %v", err)
+			b.Fatalf("store.RebuildAll: %v", err)
 		}
 	}
 }

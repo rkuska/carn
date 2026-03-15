@@ -46,23 +46,27 @@ func (c searchCorpus) String(i int) string {
 func rebuildCanonicalStore(
 	ctx context.Context,
 	archiveDir string,
-	sources sourceRegistry,
+	store *Store,
 	changedRawPaths map[conversationProvider][]string,
 ) error {
 	if hasChangedRawPaths(changedRawPaths) {
-		err := tryIncrementalRebuildWithSources(ctx, archiveDir, sources, changedRawPaths)
+		err := tryIncrementalRebuildWithSources(ctx, archiveDir, store, changedRawPaths)
 		if err == nil {
 			return nil
 		}
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
 
-	conversations, err := scanRegisteredConversations(ctx, archiveDir, sources)
+	if err := store.invalidateDB(archiveDir); err != nil {
+		return fmt.Errorf("invalidateDB: %w", err)
+	}
+
+	conversations, err := scanRegisteredConversations(ctx, archiveDir, store.sources)
 	if err != nil {
 		return fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
-	transcripts, corpus, err := fullRebuildWithSources(ctx, sources, conversations)
+	transcripts, corpus, err := fullRebuildWithSources(ctx, store.sources, conversations)
 	if err != nil {
 		return fmt.Errorf("fullRebuildWithSources: %w", err)
 	}

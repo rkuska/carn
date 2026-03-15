@@ -24,7 +24,7 @@ func newDefaultImportPipeline(cfg arch.Config) importPipeline {
 
 func newImportPipeline(
 	cfg arch.Config,
-	store canonical.Store,
+	store *canonical.Store,
 	backends ...src.Backend,
 ) importPipeline {
 	return arch.New(cfg, store, backends...)

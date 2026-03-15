@@ -19,14 +19,14 @@ type browserStore interface {
 }
 
 type canonicalBrowserStore struct {
-	store canonical.Store
+	store *canonical.Store
 }
 
 func newDefaultBrowserStore() browserStore {
 	return newBrowserStore(canonical.New())
 }
 
-func newBrowserStore(store canonical.Store) browserStore {
+func newBrowserStore(store *canonical.Store) browserStore {
 	return canonicalBrowserStore{store: store}
 }
 

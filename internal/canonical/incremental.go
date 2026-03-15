@@ -20,23 +20,21 @@ func hasChangedRawPaths(changedRawPaths map[conversationProvider][]string) bool 
 func tryIncrementalRebuildWithSources(
 	ctx context.Context,
 	archiveDir string,
-	sources sourceRegistry,
+	store *Store,
 	changedRawPaths map[conversationProvider][]string,
 ) error {
-	needsRebuild, err := storeNeedsRebuild(ctx, archiveDir)
+	needsRebuild, err := store.needsRebuild(ctx, archiveDir)
 	if err != nil {
-		return fmt.Errorf("storeNeedsRebuild: %w", err)
+		return fmt.Errorf("store.needsRebuild: %w", err)
 	}
 	if needsRebuild {
 		return errors.New("store requires full rebuild")
 	}
 
-	db, err := openSQLiteDB(ctx, canonicalStorePath(archiveDir), true)
+	db, err := store.loadDB(ctx, archiveDir)
 	if err != nil {
-		return fmt.Errorf("openSQLiteDB: %w", err)
+		return fmt.Errorf("store.loadDB: %w", err)
 	}
-	defer func() { _ = db.Close() }()
-
 	if err := ensureSQLiteSchema(ctx, db); err != nil {
 		return fmt.Errorf("ensureSQLiteSchema: %w", err)
 	}
@@ -44,7 +42,7 @@ func tryIncrementalRebuildWithSources(
 	resolution, err := resolveIncrementalRebuildWithSources(
 		ctx,
 		archiveDir,
-		sources,
+		store.sources,
 		changedRawPaths,
 		sqliteIncrementalLookup{db: db},
 	)
@@ -54,7 +52,7 @@ func tryIncrementalRebuildWithSources(
 
 	parsedTranscripts, parsedCorpus, err := parseConversationsParallelWithSources(
 		ctx,
-		sources,
+		store.sources,
 		resolution.Conversations,
 	)
 	if err != nil {
