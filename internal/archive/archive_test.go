@@ -16,6 +16,8 @@ import (
 
 type stubBackend struct {
 	provider       conv.Provider
+	analysis       src.Analysis
+	analyzeErr     error
 	syncCandidates []src.SyncCandidate
 }
 
@@ -32,7 +34,7 @@ func (s stubBackend) Load(context.Context, conv.Conversation) (conv.Session, err
 }
 
 func (s stubBackend) Analyze(context.Context, string, string, func(src.Progress)) (src.Analysis, error) {
-	return src.Analysis{}, nil
+	return s.analysis, s.analyzeErr
 }
 
 func (s stubBackend) ResumeCommand(conv.ResumeTarget) (*exec.Cmd, error) {
@@ -104,7 +106,7 @@ func TestFileNeedsSync(t *testing.T) {
 
 			srcInfo, err := os.Stat(srcPath)
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, fileNeedsSync(srcInfo, dstPath))
+			assert.Equal(t, tt.want, src.FileNeedsSync(srcInfo, dstPath))
 		})
 	}
 }

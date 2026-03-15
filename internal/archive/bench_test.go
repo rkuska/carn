@@ -12,6 +12,7 @@ import (
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 )
 
@@ -112,7 +113,7 @@ func BenchmarkCollectFilesToSync(b *testing.B) {
 			context.Background(),
 			backend,
 			sourceDir,
-			providerRawDir(archiveDir, conv.ProviderClaude),
+			src.ProviderRawDir(archiveDir, conv.ProviderClaude),
 		)
 		if err != nil {
 			b.Fatalf("collectSyncCandidates: %v", err)

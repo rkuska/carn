@@ -7,25 +7,6 @@ import (
 	"path/filepath"
 )
 
-func fileNeedsSync(srcInfo os.FileInfo, dstPath string) bool {
-	dstInfo, err := os.Stat(dstPath)
-	if err != nil {
-		return true
-	}
-	if srcInfo.Size() != dstInfo.Size() {
-		return true
-	}
-	return srcInfo.ModTime().After(dstInfo.ModTime())
-}
-
-func statDir(path string) (bool, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false, err
-	}
-	return info.IsDir(), nil
-}
-
 func copyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {

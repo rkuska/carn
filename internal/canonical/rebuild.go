@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"runtime"
 
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -87,12 +88,12 @@ func scanRegisteredConversations(
 	conversations := make([]conversation, 0)
 	for _, source := range sources.providers() {
 		provider := conversationProvider(source.Provider())
-		rawDir := providerRawDir(archiveDir, provider)
-		if _, err := statDir(rawDir); err != nil {
+		rawDir := src.ProviderRawDir(archiveDir, provider)
+		if _, err := src.StatDir(rawDir); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			return nil, fmt.Errorf("statDir_%s: %w", provider, err)
+			return nil, fmt.Errorf("statDir_%s: %w", provider, fmt.Errorf("os.Stat: %w", err))
 		}
 
 		scanned, err := source.Scan(ctx, rawDir)

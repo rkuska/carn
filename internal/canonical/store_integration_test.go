@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +72,7 @@ func TestStoreRebuildInvalidatesDeepSearchCache(t *testing.T) {
 	require.NotEmpty(t, results)
 
 	rawPath := filepath.Join(
-		providerRawDir(archiveDir, conversationProvider("claude")),
+		src.ProviderRawDir(archiveDir, conversationProvider("claude")),
 		"project-a",
 		"session-with-tools.jsonl",
 	)
@@ -102,7 +103,7 @@ func TestStoreRebuildAddsClaudeSessionToExistingSlugGroup(t *testing.T) {
 
 	archiveDir := t.TempDir()
 	store := New(claude.New())
-	claudeRawDir := providerRawDir(archiveDir, conversationProvider("claude"))
+	claudeRawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
 
 	writeTestConversation(t, claudeRawDir, "project-a", "session-1", "demo", []string{
 		"first answer",
@@ -137,7 +138,7 @@ func TestStoreRebuildMovesClaudeConversationWhenSlugChanges(t *testing.T) {
 
 	archiveDir := t.TempDir()
 	store := New(claude.New())
-	claudeRawDir := providerRawDir(archiveDir, conversationProvider("claude"))
+	claudeRawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
 
 	convValue := writeTestConversation(t, claudeRawDir, "project-a", "session-1", "old-slug", []string{
 		"before rename",
@@ -170,7 +171,7 @@ func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
 	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
@@ -205,7 +206,7 @@ func TestStoreCodexLoadPreservesHiddenThinkingAndDoesNotIndexViewerNote(t *testi
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
 	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
@@ -243,7 +244,7 @@ func TestStoreDeepSearchSkipsHiddenSystemMessages(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
 	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
@@ -267,13 +268,13 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutChanges(t *te
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
 	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
 
 	childPath := filepath.Join(
-		providerRawDir(archiveDir, conversationProvider("codex")),
+		src.ProviderRawDir(archiveDir, conversationProvider("codex")),
 		"2026",
 		"03",
 		"13",
@@ -304,13 +305,13 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutIsDeleted(t *
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	copyFixtureDir(t, codexFixtureCorpusDir(t), providerRawDir(archiveDir, conversationProvider("codex")))
+	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
 	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
 
 	childPath := filepath.Join(
-		providerRawDir(archiveDir, conversationProvider("codex")),
+		src.ProviderRawDir(archiveDir, conversationProvider("codex")),
 		"2026",
 		"03",
 		"13",
@@ -359,7 +360,7 @@ func codexFixtureCorpusDir(tb testing.TB) string {
 
 func copyFixtureCorpusToArchive(tb testing.TB, archiveDir string) {
 	tb.Helper()
-	copyFixtureDir(tb, fixtureCorpusDir(tb), providerRawDir(archiveDir, conversationProvider("claude")))
+	copyFixtureDir(tb, fixtureCorpusDir(tb), src.ProviderRawDir(archiveDir, conversationProvider("claude")))
 }
 
 func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {

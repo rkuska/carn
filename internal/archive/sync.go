@@ -38,10 +38,6 @@ type syncCandidate struct {
 	status     syncFileStatus
 }
 
-func providerRawDir(archiveDir string, provider conv.Provider) string {
-	return filepath.Join(archiveDir, string(provider), "raw")
-}
-
 func buildSyncCandidate(provider conv.Provider, plan src.SyncCandidate) syncCandidate {
 	status := syncStatusUpdated
 	if !plan.DestExists {
@@ -62,7 +58,7 @@ func collectSyncCandidates(
 	sourceDir string,
 	destDir string,
 ) ([]syncCandidate, error) {
-	if _, err := statDir(sourceDir); err != nil {
+	if _, err := src.StatDir(sourceDir); err != nil {
 		return nil, nil
 	}
 

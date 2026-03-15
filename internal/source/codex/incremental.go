@@ -35,7 +35,7 @@ func (Source) ResolveIncremental(
 
 	return src.IncrementalResolution{
 		Conversations:    conversations,
-		ReplaceCacheKeys: sortedIncrementalKeys(replaceKeys),
+		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
 	}, nil
 }
 
@@ -186,7 +186,7 @@ func scanChangedRollouts(
 	rollouts := make([]scannedRollout, 0, len(changedRawPaths))
 	byID := make(map[string]scannedRollout, len(changedRawPaths))
 
-	for _, path := range dedupeIncrementalPaths(changedRawPaths) {
+	for _, path := range src.DedupeAndSort(changedRawPaths) {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
 		}
@@ -273,30 +273,4 @@ func scanIncrementalFamily(
 		rollouts = append(rollouts, rollout)
 	}
 	return groupRollouts(rollouts), nil
-}
-
-func dedupeIncrementalPaths(paths []string) []string {
-	seen := make(map[string]struct{}, len(paths))
-	deduped := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		deduped = append(deduped, path)
-	}
-	sort.Strings(deduped)
-	return deduped
-}
-
-func sortedIncrementalKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for value := range values {
-		keys = append(keys, value)
-	}
-	sort.Strings(keys)
-	return keys
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,8 +43,8 @@ func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	claudeRawDir := providerRawDir(archiveDir, conversationProvider("claude"))
-	codexRawDir := providerRawDir(archiveDir, conversationProvider("codex"))
+	claudeRawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	codexRawDir := src.ProviderRawDir(archiveDir, conversationProvider("codex"))
 	require.NoError(t, os.MkdirAll(filepath.Join(claudeRawDir, "project-a"), 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(codexRawDir, "2026", "03", "13"), 0o755))
 

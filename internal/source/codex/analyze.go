@@ -175,15 +175,12 @@ func listRolloutPaths(root string) ([]string, error) {
 }
 
 func codexFileNeedsSync(srcInfo os.FileInfo, dstPath string) (bool, bool) {
-	dstInfo, err := os.Stat(dstPath)
+	_, err := os.Stat(dstPath)
 	if os.IsNotExist(err) {
 		return true, false
 	}
 	if err != nil {
 		return true, true
 	}
-	if srcInfo.Size() != dstInfo.Size() {
-		return true, true
-	}
-	return srcInfo.ModTime().After(dstInfo.ModTime()), true
+	return src.FileNeedsSync(srcInfo, dstPath), true
 }

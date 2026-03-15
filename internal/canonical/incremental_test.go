@@ -48,7 +48,7 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	rawDir := providerRawDir(archiveDir, conversationProvider("claude"))
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
 	convValue := writeTestConversation(t, rawDir, "project-a", "session-1", "slug-1", []string{
 		"first line",
 	})
