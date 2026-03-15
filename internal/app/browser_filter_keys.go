@@ -157,7 +157,7 @@ func (m browserModel) handleFilterExpandedNav(msg tea.KeyPressMsg, count int) (b
 
 func isFilterCollapseKey(msg tea.KeyPressMsg) bool {
 	return msg.Code == tea.KeyEscape || msg.Code == tea.KeyEnter ||
-		msg.Text == "h" || msg.Code == tea.KeyLeft
+		msg.Text == "h" || msg.Code == tea.KeyLeft || msg.Text == "q"
 }
 
 func (m browserModel) handleFilterExpandedAction(

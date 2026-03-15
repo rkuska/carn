@@ -162,7 +162,7 @@ func (m browserModel) filterFooterItems() []helpItem {
 			{key: "enter", desc: "done"},
 			{key: "/", desc: "regex"},
 			{key: "x", desc: "clear"},
-			{key: "esc", desc: "back"},
+			{key: "q/esc", desc: "back"},
 		}
 	}
 	return m.filterDimensionFooterItems()
