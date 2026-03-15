@@ -54,32 +54,26 @@ func (r sourceRegistry) lookup(provider conversationProvider) (Source, bool) {
 	return source, ok
 }
 
-type storeState struct {
+type Store struct {
+	sources sourceRegistry
 	mu      sync.RWMutex
 	db      map[string]*sql.DB
 	catalog map[string][]conversation
 }
 
-type Store struct {
-	sources sourceRegistry
-	state   *storeState
-}
-
-func New(sources ...Source) Store {
-	return Store{
+func New(sources ...Source) *Store {
+	return &Store{
 		sources: newSourceRegistry(sources...),
-		state: &storeState{
-			db:      make(map[string]*sql.DB),
-			catalog: make(map[string][]conversation),
-		},
+		db:      make(map[string]*sql.DB),
+		catalog: make(map[string][]conversation),
 	}
 }
 
-func (s Store) NeedsRebuild(ctx context.Context, archiveDir string) (bool, error) {
-	return storeNeedsRebuild(ctx, archiveDir)
+func (s *Store) NeedsRebuild(ctx context.Context, archiveDir string) (bool, error) {
+	return s.needsRebuild(ctx, archiveDir)
 }
 
-func (s Store) Rebuild(
+func (s *Store) Rebuild(
 	ctx context.Context,
 	archiveDir string,
 	provider conv.Provider,
@@ -91,18 +85,16 @@ func (s Store) Rebuild(
 	return s.RebuildAll(ctx, archiveDir, map[conv.Provider][]string{provider: changedRawPaths})
 }
 
-func (s Store) RebuildAll(
+func (s *Store) RebuildAll(
 	ctx context.Context,
 	archiveDir string,
 	changedRawPaths map[conv.Provider][]string,
 ) error {
-	if err := s.invalidateDB(archiveDir); err != nil {
-		return fmt.Errorf("invalidateDB: %w", err)
-	}
-	return rebuildCanonicalStore(ctx, archiveDir, s.sources, changedRawPaths)
+	s.invalidateCatalog(archiveDir)
+	return rebuildCanonicalStore(ctx, archiveDir, s, changedRawPaths)
 }
 
-func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation, error) {
+func (s *Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation, error) {
 	path := canonicalStorePath(archiveDir)
 	if conversations, ok := s.cachedCatalog(path); ok {
 		return cloneConversations(conversations), nil
@@ -122,7 +114,7 @@ func (s Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation
 	return s.cacheCatalog(path, conversations)
 }
 
-func (s Store) Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
+func (s *Store) Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
 	if conversation.CacheKey() == "" {
 		return conv.Session{}, fmt.Errorf("load: %w", errors.New("conversation key is required"))
 	}
@@ -138,7 +130,7 @@ func (s Store) Load(ctx context.Context, archiveDir string, conversation conv.Co
 	return session, nil
 }
 
-func (s Store) DeepSearch(
+func (s *Store) DeepSearch(
 	ctx context.Context,
 	archiveDir string,
 	query string,
@@ -166,7 +158,7 @@ func (s Store) DeepSearch(
 	return results, true, nil
 }
 
-func (s Store) loadDB(ctx context.Context, archiveDir string) (*sql.DB, error) {
+func (s *Store) loadDB(ctx context.Context, archiveDir string) (*sql.DB, error) {
 	path := canonicalStorePath(archiveDir)
 	if db, ok := s.cachedDB(path); ok {
 		return db, nil
@@ -187,75 +179,112 @@ func (s Store) loadDB(ctx context.Context, archiveDir string) (*sql.DB, error) {
 	return s.cacheDB(path, db)
 }
 
-func (s Store) cachedDB(path string) (*sql.DB, bool) {
-	if s.state == nil {
+func (s *Store) needsRebuild(ctx context.Context, archiveDir string) (bool, error) {
+	path := canonicalStorePath(archiveDir)
+	exists, err := pathExists(path)
+	if err != nil {
+		return true, fmt.Errorf("pathExists: %w", err)
+	}
+	if !exists {
+		return true, nil
+	}
+
+	db, err := s.loadDB(ctx, archiveDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return true, nil
+		}
+		return true, nil
+	}
+
+	meta, err := readSQLiteMeta(ctx, db)
+	if err != nil {
+		return true, nil
+	}
+	return !sqliteMetaCurrent(meta), nil
+}
+
+func (s *Store) cachedDB(path string) (*sql.DB, bool) {
+	if s == nil {
 		return nil, false
 	}
 
-	s.state.mu.RLock()
-	defer s.state.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	db, ok := s.state.db[path]
+	db, ok := s.db[path]
 	return db, ok
 }
 
-func (s Store) cachedCatalog(path string) ([]conversation, bool) {
-	if s.state == nil {
+func (s *Store) cachedCatalog(path string) ([]conversation, bool) {
+	if s == nil {
 		return nil, false
 	}
 
-	s.state.mu.RLock()
-	defer s.state.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	conversations, ok := s.state.catalog[path]
+	conversations, ok := s.catalog[path]
 	return conversations, ok
 }
 
-func (s Store) cacheDB(path string, opened *sql.DB) (*sql.DB, error) {
-	if s.state == nil {
+func (s *Store) cacheDB(path string, opened *sql.DB) (*sql.DB, error) {
+	if s == nil {
 		return opened, nil
 	}
 
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if existing, ok := s.state.db[path]; ok {
+	if existing, ok := s.db[path]; ok {
 		if err := opened.Close(); err != nil {
 			return nil, fmt.Errorf("opened.Close: %w", err)
 		}
 		return existing, nil
 	}
 
-	s.state.db[path] = opened
+	s.db[path] = opened
 	return opened, nil
 }
 
-func (s Store) cacheCatalog(path string, conversations []conversation) ([]conversation, error) {
-	if s.state == nil {
+func (s *Store) cacheCatalog(path string, conversations []conversation) ([]conversation, error) {
+	if s == nil {
 		return cloneConversations(conversations), nil
 	}
 
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	s.state.catalog[path] = cloneConversations(conversations)
+	s.catalog[path] = cloneConversations(conversations)
 	return cloneConversations(conversations), nil
 }
 
-func (s Store) invalidateDB(archiveDir string) error {
-	if s.state == nil {
+func (s *Store) invalidateCatalog(archiveDir string) {
+	if s == nil {
+		return
+	}
+
+	path := canonicalStorePath(archiveDir)
+
+	s.mu.Lock()
+	delete(s.catalog, path)
+	s.mu.Unlock()
+}
+
+func (s *Store) invalidateDB(archiveDir string) error {
+	if s == nil {
 		return nil
 	}
 
 	path := canonicalStorePath(archiveDir)
 
-	s.state.mu.Lock()
-	db, ok := s.state.db[path]
-	delete(s.state.catalog, path)
+	s.mu.Lock()
+	db, ok := s.db[path]
+	delete(s.catalog, path)
 	if ok {
-		delete(s.state.db, path)
+		delete(s.db, path)
 	}
-	s.state.mu.Unlock()
+	s.mu.Unlock()
 
 	if ok {
 		if err := db.Close(); err != nil {

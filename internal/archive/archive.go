@@ -13,7 +13,7 @@ import (
 type Pipeline struct {
 	cfg      Config
 	backends []src.Backend
-	store    canonical.Store
+	store    *canonical.Store
 }
 
 type configuredBackend struct {
@@ -21,7 +21,7 @@ type configuredBackend struct {
 	backend   src.Backend
 }
 
-func New(cfg Config, store canonical.Store, backends ...src.Backend) Pipeline {
+func New(cfg Config, store *canonical.Store, backends ...src.Backend) Pipeline {
 	return Pipeline{
 		cfg:      cfg,
 		backends: backends,

@@ -35,12 +35,11 @@ func TestStoreDeepSearchAvailabilityFollowsSQLitePresence(t *testing.T) {
 	assert.Equal(t, conversations, results)
 }
 
-func TestStoreCopiesShareSQLiteHandle(t *testing.T) {
+func TestStoreNeedsRebuildCachesSQLiteHandle(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
 	store := New(claude.New())
-	storeCopy := store
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -56,13 +55,17 @@ func TestStoreCopiesShareSQLiteHandle(t *testing.T) {
 		text:           "needle",
 	}}})
 
+	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.False(t, needsRebuild)
+
+	cached, ok := store.cachedDB(canonicalStorePath(archiveDir))
+	require.True(t, ok)
+
 	db, err := store.loadDB(context.Background(), archiveDir)
 	require.NoError(t, err)
 
-	dbCopy, err := storeCopy.loadDB(context.Background(), archiveDir)
-	require.NoError(t, err)
-
-	assert.Same(t, db, dbCopy)
+	assert.Same(t, cached, db)
 }
 
 func TestStoreDeepSearchUsesSQLiteIndex(t *testing.T) {

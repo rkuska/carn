@@ -204,36 +204,17 @@ func readSQLiteMeta(ctx context.Context, db *sql.DB) (map[string]string, error) 
 	return meta, nil
 }
 
-func storeNeedsRebuild(ctx context.Context, archiveDir string) (bool, error) {
-	path := canonicalStorePath(archiveDir)
-	exists, err := pathExists(path)
-	if err != nil {
-		return true, fmt.Errorf("pathExists: %w", err)
-	}
-	if !exists {
-		return true, nil
-	}
-
-	db, err := openSQLiteDB(ctx, path, false)
-	if err != nil {
-		return true, nil
-	}
-	defer func() { _ = db.Close() }()
-
-	meta, err := readSQLiteMeta(ctx, db)
-	if err != nil {
-		return true, nil
-	}
+func sqliteMetaCurrent(meta map[string]string) bool {
 	if meta[metaSchemaKey] != strconv.Itoa(storeSchemaVersion) {
-		return true, nil
+		return false
 	}
 	if meta[metaProjectionKey] != strconv.Itoa(storeProjectionVersion) {
-		return true, nil
+		return false
 	}
 	if meta[metaSearchKey] != strconv.Itoa(storeSearchCorpusVersion) {
-		return true, nil
+		return false
 	}
-	return false, nil
+	return true
 }
 
 func removeSQLiteSidecars(path string) error {
