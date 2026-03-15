@@ -95,10 +95,13 @@ func (m browserModel) applyConversationsLoaded(
 ) browserModel {
 	m.allConversations = msg.conversations
 	mainConvs := filterMainConversations(msg.conversations)
+	m.mainConversations = mainConvs
 	m.mainConversationCount = len(mainConvs)
 	m.deepSearchAvailable = msg.deepSearchAvailable
-	m.search.baseConversations = mainConvs
-	m.search.visibleConversations = mainConvs
+	m.filter.values = extractFilterValues(mainConvs)
+	filtered := applyStructuredFilters(mainConvs, m.filter.dimensions)
+	m.search.baseConversations = filtered
+	m.search.visibleConversations = filtered
 	if !m.deepSearchAvailable && m.search.mode == searchModeDeep {
 		m.search.mode = searchModeMetadata
 		m.search.status = searchStatusIdle
@@ -155,19 +158,15 @@ func (m browserModel) matchesActiveDeepSearch(msg deepSearchResultMsg) bool {
 }
 
 func (m browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
-	if m.helpOpen {
-		if key.Matches(msg, browserKeys.Help) || key.Matches(msg, browserKeys.Close) {
-			m.helpOpen = false
-			m = m.reloadTranscriptAfterResync(cmds)
-		}
-		return m, nil
+	if m.filter.active {
+		return m.handleFilterKey(msg, cmds)
 	}
-
-	var handled bool
+	if m.helpOpen {
+		return m.handleHelpKey(msg, cmds)
+	}
 	if m.transcriptVisible() {
-		m, handled = m.handleTranscriptKey(msg)
-		if handled {
-			return m, nil
+		if next, handled := m.handleTranscriptKey(msg); handled {
+			return next, nil
 		}
 	}
 	if m.transcriptFocused() {
@@ -181,8 +180,15 @@ func (m browserModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserMo
 		m.pendingListGotoTopKey = false
 		return m, nil
 	}
-
 	return m.handleListNavigation(msg, cmds)
+}
+
+func (m browserModel) handleHelpKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
+	if key.Matches(msg, browserKeys.Help) || key.Matches(msg, browserKeys.Close) {
+		m.helpOpen = false
+		m = m.reloadTranscriptAfterResync(cmds)
+	}
+	return m, nil
 }
 
 func (m browserModel) handleListNavigation(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
@@ -203,6 +209,8 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 	switch {
 	case key.Matches(msg, browserKeys.Search):
 		return m.beginSearchEditing()
+	case key.Matches(msg, browserKeys.Filter):
+		return m.openFilterOverlay(), nil
 	case key.Matches(msg, browserKeys.Enter):
 		if conv, ok := m.selectedConversation(); ok {
 			m.transcriptMode = transcriptSplit

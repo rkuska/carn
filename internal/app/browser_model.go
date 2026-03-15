@@ -41,6 +41,7 @@ type browserModel struct {
 	focus                     focusArea
 	transcriptMode            transcriptMode
 	allConversations          []conv.Conversation
+	mainConversations         []conv.Conversation
 	width                     int
 	height                    int
 	mainConversationCount     int
@@ -53,6 +54,7 @@ type browserModel struct {
 	searchCancel              context.CancelFunc
 	openConversationID        string
 	loadingConversationID     string
+	filter                    browserFilterState
 	helpOpen                  bool
 	pendingListGotoTopKey     bool
 	cacheOrder                []string
@@ -125,6 +127,7 @@ func newBrowserModelWithStore(
 			mode:   searchModeMetadata,
 			status: searchStatusIdle,
 		},
+		filter:              newBrowserFilterState(),
 		sessionCache:        make(map[string]conv.Session, cacheSize),
 		transcriptCache:     make(map[string]conv.Session, cacheSize),
 		deepSearchAvailable: true,

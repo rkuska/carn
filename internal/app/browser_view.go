@@ -10,9 +10,12 @@ func (m browserModel) View() string {
 	}
 
 	var body string
-	if m.helpOpen {
+	switch {
+	case m.helpOpen:
 		body = renderHelpOverlay(m.width, m.height, m.helpTitle(), m.helpSections())
-	} else {
+	case m.filter.active:
+		body = m.renderFilterOverlay()
+	default:
 		switch m.transcriptMode {
 		case transcriptClosed:
 			body = m.renderListPane(m.width, true)

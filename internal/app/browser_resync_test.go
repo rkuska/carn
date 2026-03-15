@@ -19,7 +19,7 @@ func TestBrowserListFooterHidesResyncAndEditorActions(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "ctrl+s", "enter", "r", "?", "q"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "ctrl+s", "enter", "r", "?", "q"},
 		helpItemKeys(b.listFooterItems()),
 	)
 }

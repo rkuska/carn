@@ -35,6 +35,7 @@ None.
 | internal/canonical/store.go | source | 263 | 62 | 312 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
 | internal/canonical/sqlite_search.go | source | 245 | 60 | 276 |
+| internal/app/browser_transcript.go | source | 225 | 60 | 260 |
 | internal/app/viewer_model.go | source | 332 | 35 | 364 |
 | internal/app/browser_test.go | test | 621 | 30 | 753 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
