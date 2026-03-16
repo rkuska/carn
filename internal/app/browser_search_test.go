@@ -129,7 +129,7 @@ func TestBrowserToggleDeepSearchWhileEditingQuerySyncsTranscriptSelection(t *tes
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversationCount = 2
+	b.mainConversations = b.search.baseConversations
 	b.transcriptMode = transcriptSplit
 	b.focus = focusList
 	b.loadingConversationID = alpha.CacheKey()
@@ -190,7 +190,7 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	b.store = store
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
 	b.deepSearchAvailable = true
-	b.mainConversationCount = 2
+	b.mainConversations = b.search.baseConversations
 
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
@@ -225,7 +225,7 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversationCount = 2
+	b.mainConversations = b.search.baseConversations
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
 
@@ -253,7 +253,7 @@ func TestBrowserIgnoresStaleUnavailableDeepSearchResults(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversationCount = 2
+	b.mainConversations = b.search.baseConversations
 	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
@@ -294,7 +294,7 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	b := testBrowser(t)
 	b.store = store
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversationCount = 2
+	b.mainConversations = b.search.baseConversations
 	b.deepSearchAvailable = true
 
 	var cmds []tea.Cmd

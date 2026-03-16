@@ -267,8 +267,9 @@ func renderThinkingBlock(text string) string {
 	sb.WriteString(styleThinkLabel.Render("Thinking"))
 	sb.WriteString("\n")
 
+	border := styleThinkBorder.Render("▎")
 	for line := range strings.SplitSeq(text, "\n") {
-		sb.WriteString(styleThinkBorder.Render("▎"))
+		sb.WriteString(border)
 		sb.WriteString(" ")
 		sb.WriteString(styleThinkLine.Render(line))
 		sb.WriteString("\n")

@@ -111,23 +111,35 @@ func loadSQLiteSessions(
 			return fmt.Errorf("loadSQLiteSessions: %w", errors.New("session references unknown conversation"))
 		}
 
+		if err := finalizeSessionMeta(&meta, timestampNS, lastTimestampNS, toolCountsJSON, isSubagent); err != nil {
+			return fmt.Errorf("finalizeSessionMeta: %w", err)
+		}
 		meta.Project = conversations[index].Project
-		if timestampNS != 0 {
-			meta.Timestamp = unixTime(timestampNS)
-		}
-		if lastTimestampNS != 0 {
-			meta.LastTimestamp = unixTime(lastTimestampNS)
-		}
-		meta.IsSubagent = isSubagent == 1
-
-		meta.ToolCounts, err = unmarshalToolCounts(toolCountsJSON)
-		if err != nil {
-			return fmt.Errorf("unmarshalToolCounts: %w", err)
-		}
 		conversations[index].Sessions = append(conversations[index].Sessions, meta)
 	}
 	if err := sessionRows.Err(); err != nil {
 		return fmt.Errorf("sessionRows.Err: %w", err)
+	}
+	return nil
+}
+
+func finalizeSessionMeta(
+	meta *sessionMeta,
+	timestampNS, lastTimestampNS int64,
+	toolCountsJSON string,
+	isSubagent int,
+) error {
+	if timestampNS != 0 {
+		meta.Timestamp = unixTime(timestampNS)
+	}
+	if lastTimestampNS != 0 {
+		meta.LastTimestamp = unixTime(lastTimestampNS)
+	}
+	meta.IsSubagent = isSubagent == 1
+	var err error
+	meta.ToolCounts, err = unmarshalToolCounts(toolCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts: %w", err)
 	}
 	return nil
 }

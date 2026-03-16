@@ -1,7 +1,7 @@
 package codex
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -103,7 +103,7 @@ func filterConsumedDividers(messages []parsedMessage, consumed map[int]struct{})
 }
 
 func sortRolloutTranscripts(items []rolloutTranscript) {
-	slicesSortStableFunc(items, func(a, b rolloutTranscript) int {
+	slices.SortStableFunc(items, func(a, b rolloutTranscript) int {
 		switch {
 		case a.meta.Timestamp.IsZero() && b.meta.Timestamp.IsZero():
 			return 0
@@ -125,12 +125,9 @@ func linkedTranscriptAnchor(transcript rolloutTranscript) time.Time {
 	if !transcript.meta.Timestamp.IsZero() {
 		return transcript.meta.Timestamp
 	}
-	for _, msg := range transcript.messages {
-		if !msg.timestamp.IsZero() {
-			return msg.timestamp
-		}
-	}
-	return time.Time{}
+	return src.FirstNonZeroTime(transcript.messages, func(msg parsedMessage) time.Time {
+		return msg.timestamp
+	})
 }
 
 func linkedTranscriptTitle(transcript rolloutTranscript) string {
@@ -154,10 +151,4 @@ func firstUserPrompt(messages []parsedMessage) string {
 		return msg.text
 	}
 	return ""
-}
-
-func slicesSortStableFunc[T any](items []T, cmp func(T, T) int) {
-	sort.SliceStable(items, func(i, j int) bool {
-		return cmp(items[i], items[j]) < 0
-	})
 }

@@ -173,7 +173,7 @@ func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	assert.Equal(t, session.Meta.ID, b.openConversationID)
 	assert.Empty(t, b.loadingConversationID)
 	assert.Equal(t, session.Meta.ID, b.viewer.session.Meta.ID)
-	_, ok := b.transcriptCache[session.Meta.ID]
+	_, ok := b.sessionCache[session.Meta.ID]
 	assert.True(t, ok)
 }
 
@@ -459,8 +459,6 @@ func TestBrowserListFooterStatusDoesNotChangeWithSelectedProject(t *testing.T) {
 	t.Parallel()
 
 	b := testBrowser(t)
-	b.mainConversationCount = 2
-
 	conversationA := testConv(testConversationIDPrimary)
 	conversationA.Project.DisplayName = "alpha/project"
 	conversationA.Sessions[0].Project.DisplayName = "alpha/project"
@@ -469,6 +467,7 @@ func TestBrowserListFooterStatusDoesNotChangeWithSelectedProject(t *testing.T) {
 	conversationB.Project.DisplayName = "beta/project"
 	conversationB.Sessions[0].Project.DisplayName = "beta/project"
 
+	b.mainConversations = []conv.Conversation{conversationA, conversationB}
 	b.list.SetItems([]list.Item{conversationA, conversationB})
 	b.list.Select(0)
 	first := strings.Join(b.listFooterStatusParts(), "  ")

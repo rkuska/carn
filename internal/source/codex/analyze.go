@@ -84,14 +84,11 @@ func (Source) SyncCandidates(
 }
 
 func dirExists(path string) (bool, error) {
-	_, err := os.Stat(path)
+	exists, err := src.StatDir(path)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
-	if err != nil {
-		return false, fmt.Errorf("os.Stat: %w", err)
-	}
-	return true, nil
+	return exists, err
 }
 
 func analyzePath(sourceDir, rawDir, path string, analysis *src.Analysis) error {
@@ -126,7 +123,10 @@ func codexSyncStatus(sourceDir, rawDir, path string) (string, bool, bool, error)
 		return "", false, false, fmt.Errorf("os.Stat: %w", err)
 	}
 
-	needsSync, exists := codexFileNeedsSync(info, destPath)
+	needsSync, exists, syncErr := codexFileNeedsSync(info, destPath)
+	if syncErr != nil {
+		return "", false, false, fmt.Errorf("codexFileNeedsSync: %w", syncErr)
+	}
 	return destPath, needsSync, exists, nil
 }
 
@@ -160,13 +160,13 @@ func listRolloutPaths(root string) ([]string, error) {
 	return paths, nil
 }
 
-func codexFileNeedsSync(srcInfo os.FileInfo, dstPath string) (bool, bool) {
-	_, err := os.Stat(dstPath)
-	if os.IsNotExist(err) {
-		return true, false
+func codexFileNeedsSync(srcInfo os.FileInfo, dstPath string) (needsSync, exists bool, err error) {
+	dstInfo, statErr := os.Stat(dstPath)
+	if os.IsNotExist(statErr) {
+		return true, false, nil
 	}
-	if err != nil {
-		return true, true
+	if statErr != nil {
+		return false, false, fmt.Errorf("os.Stat: %w", statErr)
 	}
-	return src.FileNeedsSync(srcInfo, dstPath), true
+	return src.FileNeedsSyncInfo(srcInfo, dstInfo), true, nil
 }

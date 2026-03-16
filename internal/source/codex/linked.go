@@ -3,9 +3,11 @@ package codex
 import (
 	"context"
 	"fmt"
+	"runtime"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func loadLinkedTranscripts(ctx context.Context, sessions []conv.SessionMeta) ([]rolloutTranscript, error) {
@@ -22,20 +24,13 @@ func loadLinkedTranscripts(ctx context.Context, sessions []conv.SessionMeta) ([]
 	results := make([]rolloutTranscript, len(subagents))
 	valid := make([]bool, len(subagents))
 	group, groupCtx := errgroup.WithContext(ctx)
+	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
 
 	for i := range subagents {
 		index := i
 		meta := subagents[i]
 		group.Go(func() error {
-			transcript, err := loadRollout(groupCtx, meta)
-			if err != nil {
-				return fmt.Errorf("loadRollout_%s: %w", meta.ID, err)
-			}
-			if len(transcript.messages) > 0 {
-				results[index] = transcript
-				valid[index] = true
-			}
-			return nil
+			return loadSingleLinkedTranscript(groupCtx, sem, meta, &results[index], &valid[index])
 		})
 	}
 
@@ -50,4 +45,27 @@ func loadLinkedTranscripts(ctx context.Context, sessions []conv.SessionMeta) ([]
 		}
 	}
 	return linked, nil
+}
+
+func loadSingleLinkedTranscript(
+	ctx context.Context,
+	sem *semaphore.Weighted,
+	meta conv.SessionMeta,
+	result *rolloutTranscript,
+	ok *bool,
+) error {
+	if err := sem.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer sem.Release(1)
+
+	transcript, err := loadRollout(ctx, meta)
+	if err != nil {
+		return fmt.Errorf("loadRollout_%s: %w", meta.ID, err)
+	}
+	if len(transcript.messages) > 0 {
+		*result = transcript
+		*ok = true
+	}
+	return nil
 }

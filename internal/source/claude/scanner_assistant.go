@@ -92,7 +92,7 @@ func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls
 		switch block.Type {
 		case blockTypeText:
 			textJ.add(block.Text)
-		case "thinking":
+		case blockTypeThinking:
 			thinkJ.add(block.Thinking)
 		case blockTypeToolUse:
 			toolCalls = append(toolCalls, parsedToolCall{

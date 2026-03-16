@@ -38,7 +38,6 @@ func (m browserModel) prepareForResyncReload() browserModel {
 	m.openConversationID = ""
 	m.loadingConversationID = ""
 	m.sessionCache = make(map[string]conv.Session, m.browserCacheSize)
-	m.transcriptCache = make(map[string]conv.Session, m.browserCacheSize)
 	return m
 }
 

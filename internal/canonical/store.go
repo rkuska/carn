@@ -194,12 +194,12 @@ func (s *Store) needsRebuild(ctx context.Context, archiveDir string) (bool, erro
 		if errors.Is(err, fs.ErrNotExist) {
 			return true, nil
 		}
-		return true, nil
+		return true, fmt.Errorf("loadDB: %w", err)
 	}
 
 	meta, err := readSQLiteMeta(ctx, db)
 	if err != nil {
-		return true, nil
+		return true, fmt.Errorf("readSQLiteMeta: %w", err)
 	}
 	return !sqliteMetaCurrent(meta), nil
 }
@@ -255,7 +255,7 @@ func (s *Store) cacheCatalog(path string, conversations []conversation) ([]conve
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.catalog[path] = cloneConversations(conversations)
+	s.catalog[path] = conversations
 	return cloneConversations(conversations), nil
 }
 

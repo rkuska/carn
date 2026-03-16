@@ -32,6 +32,7 @@ const (
 	maxToolResultChars  = 500
 	blockTypeText       = "text"
 	blockTypeToolUse    = "tool_use"
+	blockTypeThinking   = "thinking"
 	jsonlScanBufferSize = 512 * 1024
 	jsonlSlugBufferSize = 4 * 1024
 )

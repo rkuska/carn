@@ -225,7 +225,11 @@ func extractJSONStringField(jsonStr, field string) (string, bool) {
 }
 
 func isCodexToolError(output string) bool {
-	lower := strings.ToLower(output)
+	check := output
+	if len(check) > 200 {
+		check = check[:200]
+	}
+	lower := strings.ToLower(check)
 	return strings.Contains(lower, "aborted by user") ||
 		strings.Contains(lower, "patch rejected") ||
 		strings.Contains(lower, "verification failed")

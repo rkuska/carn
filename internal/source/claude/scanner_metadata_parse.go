@@ -119,7 +119,7 @@ func assistantContentHasConversationContent(raw json.RawMessage) bool {
 			if block.Text != "" {
 				return true
 			}
-		case "thinking":
+		case blockTypeThinking:
 			if block.Thinking != "" {
 				return true
 			}

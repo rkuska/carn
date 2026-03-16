@@ -96,7 +96,6 @@ func (m browserModel) applyConversationsLoaded(
 	m.allConversations = msg.conversations
 	mainConvs := filterMainConversations(msg.conversations)
 	m.mainConversations = mainConvs
-	m.mainConversationCount = len(mainConvs)
 	m.deepSearchAvailable = msg.deepSearchAvailable
 	m.filter.values = extractFilterValues(mainConvs)
 	filtered := applyStructuredFilters(mainConvs, m.filter.dimensions)

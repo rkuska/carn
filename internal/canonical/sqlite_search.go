@@ -202,11 +202,16 @@ func appendSearchPreview(
 	terms []string,
 ) {
 	cacheKey, ok := cacheKeysByConversationID[conversationID]
-	if !ok || len(previews[cacheKey]) >= searchPreviewMaxPerConversation || !containsAllTerms(text, terms) {
+	if !ok || len(previews[cacheKey]) >= searchPreviewMaxPerConversation {
 		return
 	}
 
-	preview := matchPreview(text, terms)
+	lower := strings.ToLower(text)
+	if !containsAllTermsLower(lower, terms) {
+		return
+	}
+
+	preview := matchPreviewLower(text, lower, terms)
 	if preview == "" || slices.Contains(previews[cacheKey], preview) {
 		return
 	}
@@ -214,8 +219,7 @@ func appendSearchPreview(
 	previews[cacheKey] = append(previews[cacheKey], preview)
 }
 
-func containsAllTerms(text string, terms []string) bool {
-	lower := strings.ToLower(text)
+func containsAllTermsLower(lower string, terms []string) bool {
 	for _, term := range terms {
 		if !strings.Contains(lower, strings.ToLower(term)) {
 			return false
@@ -224,12 +228,11 @@ func containsAllTerms(text string, terms []string) bool {
 	return true
 }
 
-func matchPreview(text string, terms []string) string {
+func matchPreviewLower(text, lower string, terms []string) string {
 	if text == "" || len(terms) == 0 {
 		return ""
 	}
 
-	lower := strings.ToLower(text)
 	bestIndex := -1
 	bestTerm := ""
 	for _, term := range terms {
