@@ -123,6 +123,10 @@ func (m viewerModel) renderContent() viewerModel {
 	m, renderer, rendererErr = m.ensureRenderer()
 	contentWidth := m.contentWidth()
 
+	if m.markdownCache == nil {
+		m.markdownCache = make(map[string]string)
+	}
+
 	var sb strings.Builder
 	if header := renderConversationHeader(m.conversation, contentWidth, m.timestampFormat); header != "" {
 		sb.WriteString(header)
@@ -131,7 +135,7 @@ func (m viewerModel) renderContent() viewerModel {
 		sb.WriteString(planHeader)
 	}
 	for _, seg := range segments {
-		renderSegment(&sb, seg, renderer, rendererErr, contentWidth)
+		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache)
 	}
 
 	m.baseContent = sb.String()
@@ -145,16 +149,17 @@ func (m viewerModel) renderContent() viewerModel {
 	return m
 }
 
-func renderSegment(
+func renderSegmentCached(
 	sb *strings.Builder,
 	seg transcriptSegment,
 	renderer *glamour.TermRenderer,
 	rendererErr error,
 	contentWidth int,
+	mdCache map[string]string,
 ) {
 	switch seg.kind {
 	case segmentMarkdown:
-		appendMarkdownSegment(sb, seg.text, renderer, rendererErr)
+		appendMarkdownSegment(sb, seg.text, renderer, rendererErr, mdCache)
 	case segmentToolResult:
 		sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
 	case segmentRoleHeader:
@@ -173,11 +178,21 @@ func appendMarkdownSegment(
 	text string,
 	renderer *glamour.TermRenderer,
 	rendererErr error,
+	mdCache map[string]string,
 ) {
+	if mdCache != nil {
+		if cached, ok := mdCache[text]; ok {
+			sb.WriteString(cached)
+			return
+		}
+	}
 	if rendererErr == nil {
 		if rendered, err := renderer.Render(text); err == nil {
-			sb.WriteString(strings.TrimRight(rendered, "\n"))
-			sb.WriteString("\n")
+			result := strings.TrimRight(rendered, "\n") + "\n"
+			if mdCache != nil {
+				mdCache[text] = result
+			}
+			sb.WriteString(result)
 			return
 		}
 	}
@@ -199,6 +214,7 @@ func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error
 	}
 	m.renderer = renderer
 	m.renderWrap = wrapWidth
+	m.markdownCache = nil
 	return m, renderer, nil
 }
 

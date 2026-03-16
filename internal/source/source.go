@@ -137,6 +137,12 @@ func FileNeedsSync(srcInfo os.FileInfo, dstPath string) bool {
 	if err != nil {
 		return true
 	}
+	return FileNeedsSyncInfo(srcInfo, dstInfo)
+}
+
+// FileNeedsSyncInfo compares pre-obtained source and destination file info.
+// Use this when both infos are already available to avoid redundant stat calls.
+func FileNeedsSyncInfo(srcInfo, dstInfo os.FileInfo) bool {
 	if srcInfo.Size() != dstInfo.Size() {
 		return true
 	}

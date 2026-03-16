@@ -279,10 +279,7 @@ func insertSQLiteSessionRows(
 ) (int, error) {
 	count := 0
 	for ordinal, meta := range conv.Sessions {
-		toolCountsJSON, err := marshalToolCounts(meta.ToolCounts)
-		if err != nil {
-			return 0, fmt.Errorf("marshalToolCounts: %w", err)
-		}
+		toolCountsJSON := marshalToolCountsCached(meta.ToolCounts)
 		if _, err := stmt.ExecContext(
 			ctx,
 			conversationID,

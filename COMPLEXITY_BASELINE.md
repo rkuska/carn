@@ -26,18 +26,18 @@ None.
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
 | internal/canonical/message_codec.go | source | 240 | 77 | 254 |
-| internal/canonical/binary_codec.go | source | 224 | 75 | 251 |
+| internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
 | internal/source/codex/scan.go | source | 201 | 71 | 226 |
-| internal/canonical/sqlite_store_persist.go | source | 304 | 70 | 330 |
-| internal/app/transcript_segments.go | source | 352 | 67 | 397 |
+| internal/app/transcript_segments.go | source | 357 | 68 | 402 |
+| internal/canonical/sqlite_store_persist.go | source | 301 | 68 | 327 |
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
-| internal/source/claude/scanner_metadata.go | source | 349 | 66 | 381 |
+| internal/source/claude/scanner_metadata.go | source | 343 | 66 | 374 |
 | internal/canonical/store.go | source | 263 | 62 | 312 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
 | internal/canonical/sqlite_search.go | source | 245 | 60 | 276 |
 | internal/app/browser_filter_keys.go | source | 226 | 60 | 250 |
 | internal/app/browser_transcript.go | source | 225 | 60 | 260 |
-| internal/app/viewer_model.go | source | 332 | 35 | 364 |
+| internal/app/viewer_model.go | source | 333 | 35 | 365 |
 | internal/app/browser_test.go | test | 621 | 30 | 753 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 

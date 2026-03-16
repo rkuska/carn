@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bufio"
 	"context"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,7 @@ func TestJSONLLinesHandlesLargeLines(t *testing.T) {
 	t.Parallel()
 
 	reader := strings.NewReader(strings.Repeat("x", jsonlScanBufferSize+32) + "\n")
-	lines, err := collectJSONLLines(jsonlLines(reader, 32))
+	lines, err := collectJSONLLines(jsonlLines(bufio.NewReaderSize(reader, 32)))
 	require.NoError(t, err)
 	require.Len(t, lines, 1)
 	assert.Len(t, lines[0], jsonlScanBufferSize+32)
