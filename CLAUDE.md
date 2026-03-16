@@ -34,14 +34,14 @@ by `internal/config`.
 
 ```
 <provider raw sessions>
+  → archive.Pipeline.Analyze/Run()
+                                 provider-aware import analysis and sync flow
   → source.Backend.Scan()/ResolveIncremental()
                                  raw scan, metadata extraction, grouping
   → canonical.Store.RebuildAll() SQLite canonical store with transcript blobs
                                  and FTS search data
   → canonical.Store.List/Load()  browser list and transcript open
   → canonical.Store.DeepSearch() canonical deep search
-  → archive.Pipeline.Analyze/Run()
-                                 provider-aware import analysis and sync flow
   → app browser/viewer/transcript TUI
 ```
 
@@ -50,11 +50,18 @@ by `internal/config`.
 **Entry and composition**: `internal/app/run.go`, `internal/app/app.go`
 
 **TUI core**: `internal/app/browser_*.go`, `internal/app/viewer_*.go`,
-`internal/app/transcript_*.go`, `internal/app/import_overview*.go`
+`internal/app/transcript_*.go`, `internal/app/import_overview*.go`,
+`internal/app/import_sync_activity.go`
 
-**TUI support**: `internal/app/commands.go`, `internal/app/delegate.go`,
-`internal/app/footer.go`, `internal/app/help.go`, `internal/app/keys.go`,
-`internal/app/notifications.go`, `internal/app/styles.go`,
+**TUI support**: `internal/app/commands.go`, `internal/app/config_reload.go`,
+`internal/app/delegate.go`, `internal/app/export_names.go`,
+`internal/app/footer.go`, `internal/app/help.go`,
+`internal/app/help_overlay.go`, `internal/app/help_fit.go`,
+`internal/app/keys.go`, `internal/app/markdown_style.go`,
+`internal/app/notifications.go`, `internal/app/provider_display.go`,
+`internal/app/resync.go`, `internal/app/search_preview.go`,
+`internal/app/session_launcher.go`, `internal/app/styles.go`,
+`internal/app/tool_result_style.go`,
 `internal/app/conversation_header.go`, `internal/app/browser_store.go`,
 `internal/app/import_pipeline_binding.go`
 
@@ -74,17 +81,23 @@ by `internal/config`.
 
 ### Core types (`internal/conversation`)
 
+- `Provider` — claude/codex enum
+- `Role` — user/assistant/system enum
+- `MessageVisibility` — visible/hidden-system enum
+- `Project` — display name wrapper
+- `ResumeTarget` — provider, id, cwd for session resume
+- `Ref` — stable conversation identifier (provider + id)
 - `SessionMeta` — id, project, slug, timestamps, cwd, git branch, version,
   model, first message, counts, token usage, tool counts, subagent flag,
   file path
 - `Session` — `Meta` plus ordered `Messages`
-- `Message` — role, text, thinking, tool calls, tool results, plans,
-  sidechain flag, agent divider flag
+- `Message` — role, text, thinking, hidden thinking flag, visibility,
+  tool calls, tool results, plans, sidechain flag, agent divider flag
 - `ToolCall` — name and summary
 - `ToolResult` — tool name, summary, content, error flag, structured patch
 - `Conversation` — ref, name, project, chronological sessions, plan count,
   search preview
-- `TokenUsage`, `DiffHunk`, `Plan`, `Ref`, `Provider`
+- `TokenUsage`, `DiffHunk`, `Plan`
 
 ## How to write code
 
