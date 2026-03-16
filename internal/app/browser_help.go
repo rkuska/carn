@@ -57,7 +57,7 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "G", desc: "bottom"},
 		{key: "ctrl+f/b", desc: "page"},
 		{key: "/", desc: "search"},
-		{key: "f", desc: "filter"},
+		{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
 		m.deepSearchToggleItem(),
 		{key: "enter", desc: "open"},
 		{key: "r", desc: "resume"},
