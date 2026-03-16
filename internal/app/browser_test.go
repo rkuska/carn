@@ -418,7 +418,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 	var sawFocus bool
 	var sawLayout bool
 	for _, item := range items {
-		if item.key == "tab" && item.desc == "focus transcript" {
+		if item.key == "tab" && item.desc == "focus conversation" {
 			sawFocus = true
 		}
 		if item.key == "O" && item.desc == "fullscreen" {
@@ -611,7 +611,7 @@ func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
 
 	for _, section := range sections {
 		for _, item := range section.items {
-			assert.NotEqual(t, "copy transcript", item.desc)
+			assert.NotEqual(t, "copy", item.desc)
 			assert.NotEqual(t, "export markdown", item.desc)
 		}
 	}

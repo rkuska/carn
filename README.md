@@ -46,8 +46,8 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 
 - **r**esume a session in the original provider with correct working
   directory — works for both Claude and Codex sessions
-- Cop**y** to clipboard — pick a target: **c**onversation transcript,
-  **p**lan, or **r**aw source files
+- Cop**y** to clipboard — pick a target: **c**onversation, **p**lan,
+  or **r**aw source files
 - **e**xport conversation as Markdown
 - **o**pen conversation, plan, or raw files in `$EDITOR`
 - **R**esync from source directories without restarting
@@ -129,7 +129,7 @@ Press `?` at any time to open the help overlay.
 | `j` / `k` | Move up / down |
 | `gg` / `G` | Jump to top / bottom |
 | `ctrl+f` / `ctrl+b` | Page down / up |
-| `enter` | Open transcript |
+| `enter` | Open conversation |
 | `/` | Metadata search |
 | `ctrl+s` | Toggle deep **s**earch mode |
 | `f` | **f**ilter dialog |

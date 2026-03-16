@@ -61,7 +61,7 @@ func TestRenderHelpOverlayKeepsRowsWithinViewportWidth(t *testing.T) {
 					{
 						key:    "enter",
 						desc:   "open",
-						detail: "open the selected transcript in split view",
+						detail: "open the selected conversation in split view",
 					},
 					{
 						key:    "R",

@@ -20,7 +20,7 @@ type browserKeyMap struct {
 var browserKeys = browserKeyMap{
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
-		key.WithHelp("enter", "open transcript"),
+		key.WithHelp("enter", "open conversation"),
 	),
 	Search: key.NewBinding(
 		key.WithKeys("/"),
@@ -60,7 +60,7 @@ var browserKeys = browserKeyMap{
 	),
 	Close: key.NewBinding(
 		key.WithKeys("esc", "q"),
-		key.WithHelp("q/esc", "close transcript"),
+		key.WithHelp("q/esc", "close conversation"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -154,7 +154,7 @@ var viewerKeys = viewerKeyMap{
 	),
 	Copy: key.NewBinding(
 		key.WithKeys("y", "ctrl+y"),
-		key.WithHelp("y", "copy transcript"),
+		key.WithHelp("y", "copy"),
 	),
 	Export: key.NewBinding(
 		key.WithKeys("e", "ctrl+e"),

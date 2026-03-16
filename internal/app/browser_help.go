@@ -137,7 +137,7 @@ func (m browserModel) helpSections() []helpSection {
 	actions := []helpItem{
 		{key: "/", desc: "search", detail: "edit the list query for visible conversations"},
 		{key: "f", desc: "filter", detail: "open filter overlay to narrow by provider, project, model, etc."},
-		{key: "enter", desc: "open", detail: "open the selected transcript in split view"},
+		{key: "enter", desc: "open", detail: "open the selected conversation in split view"},
 		{key: "o", desc: "editor", detail: "open the selected raw session file in $EDITOR"},
 		{key: "r", desc: "resume", detail: "resume the selected session with its provider"},
 		m.resyncHelpItem(),
@@ -146,7 +146,7 @@ func (m browserModel) helpSections() []helpSection {
 		actions = append(actions,
 			withHelpDetail(m.focusActionItem(), m.focusActionDetail()),
 			withHelpDetail(m.layoutActionItem(), m.layoutActionDetail()),
-			helpItem{key: "q/esc", desc: "close", detail: "close the transcript pane and return to the list"},
+			helpItem{key: "q/esc", desc: "close", detail: "close the conversation and return to the list"},
 		)
 	} else {
 		actions = append(actions, helpItem{key: "q", desc: "quit", detail: "exit carn from the browser"})
@@ -186,7 +186,7 @@ func (m browserModel) deepSearchToggleItem() helpItem {
 	return helpItem{
 		key:    "ctrl+s",
 		desc:   "deep search",
-		detail: "search transcript contents in the local index instead of metadata",
+		detail: "search conversation contents in the local index instead of metadata",
 		toggle: true,
 		on:     m.search.mode == searchModeDeep,
 	}
@@ -221,7 +221,7 @@ func (m browserModel) focusActionItem() helpItem {
 	if m.focus == focusTranscript {
 		return helpItem{key: "tab", desc: "focus list"}
 	}
-	return helpItem{key: "tab", desc: "focus transcript"}
+	return helpItem{key: "tab", desc: "focus conversation"}
 }
 
 func (m browserModel) transcriptActionItems() []helpItem {
@@ -257,7 +257,7 @@ func (m browserModel) layoutActionDetail() string {
 	if m.transcriptMode == transcriptFullscreen {
 		return "return to split view with the conversation list"
 	}
-	return "expand the transcript to use the full window"
+	return "expand the conversation to use the full window"
 }
 
 func (m browserModel) focusActionDetail() string {

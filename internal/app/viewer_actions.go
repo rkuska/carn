@@ -243,7 +243,7 @@ func viewerActionTargetDetail(target actionTarget, mode viewerActionMode) string
 func viewerCopyTargetDetail(target actionTarget) string {
 	switch target {
 	case actionTargetConversation:
-		return "copy the visible conversation transcript to the clipboard"
+		return "copy the visible conversation to the clipboard"
 	case actionTargetPlan:
 		return "copy the selected plan to the clipboard"
 	case actionTargetRaw:
@@ -256,7 +256,7 @@ func viewerCopyTargetDetail(target actionTarget) string {
 func viewerOpenTargetDetail(target actionTarget) string {
 	switch target {
 	case actionTargetConversation:
-		return "open the visible conversation transcript in $EDITOR"
+		return "open the visible conversation in $EDITOR"
 	case actionTargetPlan:
 		return "open the selected plan in $EDITOR"
 	case actionTargetRaw:
