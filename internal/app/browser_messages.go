@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/rs/zerolog"
 )
 
 func (m browserModel) handleMsg(msg tea.Msg, cmds *[]tea.Cmd) browserModel {
@@ -252,6 +253,9 @@ func (m browserModel) selectedConversation() (conv.Conversation, bool) {
 }
 
 func (m browserModel) setNotification(n notification, cmds *[]tea.Cmd) browserModel {
+	if n.kind == notificationError {
+		zerolog.Ctx(m.ctx).Warn().Str("notification", n.text).Msg("error shown")
+	}
 	m.notification = n
 	*cmds = append(*cmds, clearNotificationAfter(n.kind))
 	return m
