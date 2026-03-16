@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type scanState struct {
-	meta          conv.SessionMeta
-	firstRecordTS time.Time
-	lastRole      conv.Role
-	lastText      string
-	link          subagentLink
+	meta       conv.SessionMeta
+	firstRawTS string
+	lastRawTS  string
+	lastRole   conv.Role
+	lastText   string
+	link       subagentLink
 }
 
 func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, error) {
@@ -34,24 +34,22 @@ func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, erro
 }
 
 func scanRollout(path string) (scannedRollout, bool, error) {
-	file, scanner, err := openScanner(path)
+	file, br, err := openReader(path)
 	if err != nil {
 		return scannedRollout{}, false, err
 	}
 	defer func() { _ = file.Close() }()
+	defer readerPool.Put(br)
 
+	var pc parseContext
 	state := newScanState(path)
-	for scanner.Scan() {
-		envelope, err := parseEnvelope(scanner.Bytes())
-		if err != nil {
-			return scannedRollout{}, false, err
+	dec := json.NewDecoder(br)
+	for dec.More() {
+		pc.reset()
+		if err := dec.Decode(&pc.rec); err != nil {
+			return scannedRollout{}, false, fmt.Errorf("json.Decode: %w", err)
 		}
-		if err := state.applyEnvelope(envelope); err != nil {
-			return scannedRollout{}, false, err
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return scannedRollout{}, false, fmt.Errorf("scanner.Err: %w", err)
+		state.applyRecord(&pc.rec)
 	}
 
 	return state.rollout()
@@ -61,102 +59,83 @@ func newScanState(path string) scanState {
 	return scanState{
 		meta: conv.SessionMeta{
 			FilePath:   path,
-			ToolCounts: make(map[string]int),
+			ToolCounts: make(map[string]int, 4),
 		},
 	}
 }
 
-func (s *scanState) applyEnvelope(envelope recordEnvelope) error {
-	s.observeRecordTimestamp(envelope.Timestamp)
+func (s *scanState) applyRecord(rec *codexRecord) {
+	s.observeRecordTimestamp(rec.Timestamp)
 
-	switch envelope.Type {
+	p := &rec.Payload
+	switch rec.Type {
 	case recordTypeSessionMeta:
-		return s.applySessionMeta(envelope.Payload)
+		s.applySessionMeta(p)
 	case recordTypeTurnContext:
-		return s.applyTurnContext(envelope.Payload)
+		s.applyTurnContext(p)
 	case recordTypeResponseItem:
-		return s.applyResponseItem(envelope.Payload)
+		s.applyResponseItem(p)
 	case recordTypeEventMsg:
-		return s.applyEvent(envelope.Payload)
-	default:
-		return nil
+		s.applyEvent(p)
 	}
 }
 
 func (s *scanState) observeRecordTimestamp(value string) {
-	ts := parseTimestamp(value)
-	if ts.IsZero() {
+	if value == "" {
+		return
+	}
+	if s.firstRawTS == "" {
+		s.firstRawTS = value
+	}
+	if value > s.lastRawTS {
+		s.lastRawTS = value
+	}
+}
+
+func (s *scanState) applySessionMeta(p *codexPayload) {
+	if s.meta.ID != "" && p.ID != s.meta.ID {
 		return
 	}
 
-	if s.meta.Timestamp.IsZero() {
-		s.firstRecordTS = ts
-	}
-	if ts.After(s.meta.LastTimestamp) {
-		s.meta.LastTimestamp = ts
-	}
-}
-
-func (s *scanState) applySessionMeta(raw json.RawMessage) error {
-	var payload sessionMetaPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_sessionMeta: %w", err)
-	}
-	if s.meta.ID != "" && payload.ID != s.meta.ID {
-		return nil
-	}
-
-	s.meta.ID = payload.ID
+	s.meta.ID = p.ID
 	s.meta.Slug = slugFromThreadID(s.meta.ID)
-	if ts := parseTimestamp(payload.Timestamp); !ts.IsZero() {
+	if ts := parseTimestamp(p.PayloadTS); !ts.IsZero() {
 		s.meta.Timestamp = ts
 	}
 	if s.meta.CWD == "" {
-		s.meta.CWD = payload.CWD
+		s.meta.CWD = p.CWD
 	}
 	if s.meta.Version == "" {
-		s.meta.Version = payload.CLIVersion
+		s.meta.Version = p.CLIVersion
 	}
 	if s.meta.Model == "" {
-		s.meta.Model = payload.ModelProvider
+		s.meta.Model = p.ModelProvider
 	}
 	if s.meta.GitBranch == "" {
-		s.meta.GitBranch = payload.Git.Branch
+		s.meta.GitBranch = p.Git.Branch
 	}
-	if link, ok := parseSubagentLink(payload.Source); ok {
+	if link, ok := parseSubagentLink(p.Source); ok {
 		s.link = link
 		s.meta.IsSubagent = true
 	}
-	return nil
 }
 
-func (s *scanState) applyTurnContext(raw json.RawMessage) error {
-	var payload turnContextPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_turnContext: %w", err)
+func (s *scanState) applyTurnContext(p *codexPayload) {
+	if p.CWD != "" {
+		s.meta.CWD = p.CWD
 	}
-	if payload.CWD != "" {
-		s.meta.CWD = payload.CWD
+	if p.Model != "" {
+		s.meta.Model = p.Model
 	}
-	if payload.Model != "" {
-		s.meta.Model = payload.Model
-	}
-	return nil
 }
 
-func (s *scanState) applyResponseItem(raw json.RawMessage) error {
-	var payload responseItemPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_responseItem: %w", err)
-	}
-
-	switch payload.Type {
+func (s *scanState) applyResponseItem(p *codexPayload) {
+	switch p.ItemType {
 	case responseTypeMessage:
-		s.recordMessage(classifyResponseMessage(payload.Role, payload.Content))
+		s.recordMessage(classifyResponseMessage(p.Role, p.Content))
 	case responseTypeFunctionCall, responseTypeCustomToolCall, responseTypeWebSearchCall:
-		s.recordToolCall(payload)
+		s.recordToolCall(p)
 	}
-	return nil
 }
 
 func (s *scanState) recordMessage(message visibleMessage, ok bool) {
@@ -176,30 +155,25 @@ func (s *scanState) recordMessage(message visibleMessage, ok bool) {
 	}
 }
 
-func (s *scanState) recordToolCall(payload responseItemPayload) {
-	call := buildToolCall(payload)
+func (s *scanState) recordToolCall(p *codexPayload) {
+	call := buildToolCall(p)
 	if call.Name == "" {
 		return
 	}
 	s.meta.ToolCounts[call.Name]++
 }
 
-func (s *scanState) applyEvent(raw json.RawMessage) error {
-	var payload eventPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_event: %w", err)
-	}
-	switch payload.Type {
+func (s *scanState) applyEvent(p *codexPayload) {
+	switch p.ItemType {
 	case eventTypeTokenCount:
-		s.meta.TotalUsage = usageFromEvent(payload)
+		s.meta.TotalUsage = usageFromPayload(p)
 	case eventTypeUserMessage:
-		s.recordMessage(classifyEventUserMessage(payload.Message))
+		s.recordMessage(classifyEventUserMessage(p.Message))
 	case eventTypeAgentMessage:
-		s.recordMessage(classifyEventAssistantMessage(payload.Message))
+		s.recordMessage(classifyEventAssistantMessage(p.Message))
 	case eventTypeTaskComplete:
-		s.recordMessage(classifyTaskCompleteMessage(payload.LastAgentMessage))
+		s.recordMessage(classifyTaskCompleteMessage(p.LastAgentMessage))
 	}
-	return nil
 }
 
 func (s *scanState) rollout() (scannedRollout, bool, error) {
@@ -209,8 +183,9 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 
 	meta := s.meta
 	if meta.Timestamp.IsZero() {
-		meta.Timestamp = s.firstRecordTS
+		meta.Timestamp = parseTimestamp(s.firstRawTS)
 	}
+	meta.LastTimestamp = parseTimestamp(s.lastRawTS)
 	if meta.LastTimestamp.IsZero() {
 		meta.LastTimestamp = meta.Timestamp
 	}

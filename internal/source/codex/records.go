@@ -6,20 +6,35 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-type recordEnvelope struct {
-	Timestamp string          `json:"timestamp"`
-	Type      string          `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
+var readerPool = sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, codexScanBufferSize) },
 }
 
-type sessionMetaPayload struct {
+// codexRecord is a flat struct that merges the outer JSONL envelope with the
+// nested payload object. A single json.Decode fills both levels, eliminating
+// the intermediate json.RawMessage copy that the old recordEnvelope required.
+type codexRecord struct {
+	Timestamp string       `json:"timestamp"`
+	Type      string       `json:"type"`
+	Payload   codexPayload `json:"payload"`
+}
+
+// codexPayload merges all payload types into a single struct. The decoder
+// populates only the fields present in each JSON record; the rest remain zero.
+// The envelope-level Type discriminator selects which fields are meaningful.
+type codexPayload struct {
+	// Discriminator for response_item and event_msg subtypes.
+	ItemType string `json:"type"`
+
+	// session_meta fields.
 	ID            string          `json:"id"`
-	Timestamp     string          `json:"timestamp"`
+	PayloadTS     string          `json:"timestamp"`
 	CWD           string          `json:"cwd"`
 	CLIVersion    string          `json:"cli_version"`
 	ModelProvider string          `json:"model_provider"`
@@ -27,25 +42,11 @@ type sessionMetaPayload struct {
 	Git           struct {
 		Branch string `json:"branch"`
 	} `json:"git"`
-}
 
-type turnContextPayload struct {
-	CWD   string `json:"cwd"`
+	// turn_context (CWD reused from session_meta).
 	Model string `json:"model"`
-}
 
-type contentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type summaryBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type responseItemPayload struct {
-	Type             string         `json:"type"`
+	// response_item fields.
 	Role             string         `json:"role"`
 	Name             string         `json:"name"`
 	Arguments        string         `json:"arguments"`
@@ -60,10 +61,8 @@ type responseItemPayload struct {
 		Query   string   `json:"query"`
 		Queries []string `json:"queries"`
 	} `json:"action"`
-}
 
-type eventPayload struct {
-	Type             string          `json:"type"`
+	// event_msg fields.
 	Message          string          `json:"message"`
 	Text             string          `json:"text"`
 	LastAgentMessage string          `json:"last_agent_message"`
@@ -78,6 +77,16 @@ type eventPayload struct {
 	} `json:"info"`
 }
 
+type contentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type summaryBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 type toolEventMeta struct {
 	call  conv.ToolCall
 	input string
@@ -89,23 +98,24 @@ type completedItemPayload struct {
 	Text string `json:"text"`
 }
 
-func openScanner(path string) (*os.File, *bufio.Scanner, error) {
+// parseContext holds a reusable codexRecord to avoid per-line heap allocations.
+// The rec struct is zeroed before each decode via reset().
+type parseContext struct {
+	rec codexRecord
+}
+
+func (pc *parseContext) reset() {
+	pc.rec = codexRecord{}
+}
+
+func openReader(path string) (*os.File, *bufio.Reader, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("os.Open: %w", err)
 	}
-
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 64*1024), codexScanBufferSize)
-	return file, scanner, nil
-}
-
-func parseEnvelope(line []byte) (recordEnvelope, error) {
-	var envelope recordEnvelope
-	if err := json.Unmarshal(line, &envelope); err != nil {
-		return recordEnvelope{}, fmt.Errorf("json.Unmarshal: %w", err)
-	}
-	return envelope, nil
+	br := readerPool.Get().(*bufio.Reader)
+	br.Reset(file)
+	return file, br, nil
 }
 
 func parseTimestamp(value string) time.Time {
@@ -142,8 +152,8 @@ func extractReasoningText(blocks []summaryBlock) string {
 	return strings.Join(parts, "\n")
 }
 
-func usageFromEvent(payload eventPayload) conv.TokenUsage {
-	usage := payload.Info.TotalTokenUsage
+func usageFromPayload(p *codexPayload) conv.TokenUsage {
+	usage := p.Info.TotalTokenUsage
 	return conv.TokenUsage{
 		InputTokens:          usage.InputTokens,
 		CacheReadInputTokens: usage.CachedInputTokens,
@@ -151,51 +161,67 @@ func usageFromEvent(payload eventPayload) conv.TokenUsage {
 	}
 }
 
-func buildToolCall(payload responseItemPayload) conv.ToolCall {
-	name := payload.Name
-	if payload.Type == responseTypeWebSearchCall {
+func buildToolCall(p *codexPayload) conv.ToolCall {
+	name := p.Name
+	if p.ItemType == responseTypeWebSearchCall {
 		name = "web_search"
 	}
 	return conv.ToolCall{
 		Name:    name,
-		Summary: buildToolSummary(payload),
+		Summary: buildToolSummary(p),
 	}
 }
 
-func buildToolSummary(payload responseItemPayload) string {
-	if payload.Type == responseTypeWebSearchCall {
-		if payload.Action.Query != "" {
-			return payload.Action.Query
+func buildToolSummary(p *codexPayload) string {
+	if p.ItemType == responseTypeWebSearchCall {
+		if p.Action.Query != "" {
+			return p.Action.Query
 		}
-		if len(payload.Action.Queries) > 0 {
-			return payload.Action.Queries[0]
+		if len(p.Action.Queries) > 0 {
+			return p.Action.Queries[0]
 		}
 		return ""
 	}
 
-	if payload.Arguments != "" {
-		var args map[string]any
-		if err := json.Unmarshal([]byte(payload.Arguments), &args); err == nil {
-			if cmd, ok := args["cmd"].(string); ok {
-				return cmd
-			}
+	if p.Arguments != "" {
+		if cmd, ok := extractJSONStringField(p.Arguments, "cmd"); ok {
+			return cmd
 		}
 	}
 
-	if payload.Name == toolNameApplyPatch {
+	if p.Name == toolNameApplyPatch {
 		return "apply patch"
 	}
 	return ""
 }
 
-func buildToolResult(payload responseItemPayload, meta toolEventMeta) conv.ToolResult {
+func buildToolResult(p *codexPayload, meta toolEventMeta) conv.ToolResult {
 	return conv.ToolResult{
 		ToolName:        meta.call.Name,
 		ToolSummary:     meta.call.Summary,
-		Content:         payload.Output,
-		IsError:         payload.Status == "failed" || payload.Status == "error" || isCodexToolError(payload.Output),
+		Content:         p.Output,
+		IsError:         p.Status == "failed" || p.Status == "error" || isCodexToolError(p.Output),
 		StructuredPatch: parseStructuredPatch(meta.input),
 	}
+}
+
+func extractJSONStringField(jsonStr, field string) (string, bool) {
+	marker := `"` + field + `":"`
+	idx := strings.Index(jsonStr, marker)
+	if idx == -1 {
+		return "", false
+	}
+	start := idx + len(marker)
+	for i := start; i < len(jsonStr); i++ {
+		if jsonStr[i] == '\\' {
+			i++ // skip escaped character
+			continue
+		}
+		if jsonStr[i] == '"' {
+			return jsonStr[start:i], true
+		}
+	}
+	return "", false
 }
 
 func isCodexToolError(output string) bool {

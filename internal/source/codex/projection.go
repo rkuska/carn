@@ -21,16 +21,18 @@ func joinText(parts []string) string {
 }
 
 func joinUniqueText(existing, added string) string {
-	switch {
-	case strings.TrimSpace(added) == "":
+	trimmedAdded := strings.TrimSpace(added)
+	if trimmedAdded == "" {
 		return existing
-	case strings.TrimSpace(existing) == "":
-		return added
-	case strings.TrimSpace(existing) == strings.TrimSpace(added):
-		return existing
-	default:
-		return existing + "\n\n" + added
 	}
+	trimmedExisting := strings.TrimSpace(existing)
+	if trimmedExisting == "" {
+		return added
+	}
+	if trimmedExisting == trimmedAdded {
+		return existing
+	}
+	return existing + "\n\n" + added
 }
 
 func appendUniquePlans(existing []conv.Plan, added []conv.Plan) []conv.Plan {

@@ -164,9 +164,9 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 			Text:              msg.text,
 			Thinking:          msg.thinking,
 			HasHiddenThinking: msg.hasHiddenThinking,
-			ToolCalls:         append([]conv.ToolCall(nil), msg.toolCalls...),
-			ToolResults:       append([]conv.ToolResult(nil), msg.toolResults...),
-			Plans:             append([]conv.Plan(nil), msg.plans...),
+			ToolCalls:         msg.toolCalls,
+			ToolResults:       msg.toolResults,
+			Plans:             msg.plans,
 			Visibility:        msg.visibility,
 			IsAgentDivider:    msg.isAgentDivider,
 		})

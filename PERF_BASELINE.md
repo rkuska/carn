@@ -18,8 +18,8 @@ Results (Apple M4 Pro, darwin/arm64):
 | --- | --- | ---: | ---: | ---: |
 | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 2,980,379 | 2,834,268 | 31,263 |
 | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,817,628 | 3,378,597 | 28,947 |
-| `internal/source/codex` | BenchmarkScanRollouts | 19,249,152 | 54,681,002 | 594,233 |
-| `internal/source/codex` | BenchmarkLoadConversation | 315,476 | 354,992 | 3,421 |
+| `internal/source/codex` | BenchmarkScanRollouts | 4,768,000 | 7,232,000 | 165,848 |
+| `internal/source/codex` | BenchmarkLoadConversation | 219,840 | 88,719 | 1,019 |
 | `internal/canonical` | BenchmarkLoadCatalogCold | 1,032,955 | 753,947 | 13,249 |
 | `internal/canonical` | BenchmarkLoadCatalogWarm | 14,174 | 99,280 | 9 |
 | `internal/canonical` | BenchmarkLoadSearchIndex | 4,721 | 384 | 13 |
