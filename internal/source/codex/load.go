@@ -51,28 +51,26 @@ func loadRollout(ctx context.Context, meta conv.SessionMeta) (rolloutTranscript,
 		return rolloutTranscript{}, fmt.Errorf("loadRollout: %w", errMissingPath)
 	}
 
-	file, scanner, err := openScanner(path)
+	file, br, err := openReader(path)
 	if err != nil {
 		return rolloutTranscript{}, err
 	}
 	defer func() { _ = file.Close() }()
+	defer readerPool.Put(br)
 
+	var pc parseContext
 	state := newLoadState(meta)
-	for scanner.Scan() {
+	dec := json.NewDecoder(br)
+	for dec.More() {
 		if err := ctx.Err(); err != nil {
 			return rolloutTranscript{}, fmt.Errorf("loadConversation_ctx: %w", err)
 		}
 
-		envelope, err := parseEnvelope(scanner.Bytes())
-		if err != nil {
-			return rolloutTranscript{}, err
+		pc.reset()
+		if err := dec.Decode(&pc.rec); err != nil {
+			return rolloutTranscript{}, fmt.Errorf("json.Decode: %w", err)
 		}
-		if err := state.applyEnvelope(envelope); err != nil {
-			return rolloutTranscript{}, err
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return rolloutTranscript{}, fmt.Errorf("scanner.Err: %w", err)
+		state.applyRecord(&pc.rec)
 	}
 
 	return state.transcript(), nil
@@ -90,131 +88,113 @@ func newLoadState(meta conv.SessionMeta) loadState {
 	}
 }
 
-func (s *loadState) applyEnvelope(envelope recordEnvelope) error {
-	switch envelope.Type {
+func (s *loadState) applyRecord(rec *codexRecord) {
+	p := &rec.Payload
+	switch rec.Type {
 	case recordTypeSessionMeta:
-		return s.applySessionMeta(envelope.Payload)
+		s.applySessionMeta(p)
 	case recordTypeResponseItem:
-		return s.applyResponseItem(envelope.Payload, parseTimestamp(envelope.Timestamp))
+		s.applyResponseItem(p, parseTimestamp(rec.Timestamp))
 	case recordTypeEventMsg:
-		return s.applyEvent(envelope.Payload, envelope.Timestamp)
-	default:
-		return nil
+		s.applyEvent(p, rec.Timestamp)
 	}
 }
 
-func (s *loadState) applySessionMeta(raw json.RawMessage) error {
-	var payload sessionMetaPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_sessionMeta: %w", err)
+func (s *loadState) applySessionMeta(p *codexPayload) {
+	if p.ID != "" && p.ID != s.meta.ID {
+		return
 	}
-	if payload.ID != "" && payload.ID != s.meta.ID {
-		return nil
-	}
-	if link, ok := parseSubagentLink(payload.Source); ok {
+	if link, ok := parseSubagentLink(p.Source); ok {
 		s.link = link
 	}
-	return nil
 }
 
-func (s *loadState) applyResponseItem(raw json.RawMessage, timestamp time.Time) error {
-	var payload responseItemPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_responseItem: %w", err)
-	}
-
-	switch payload.Type {
+func (s *loadState) applyResponseItem(p *codexPayload, timestamp time.Time) {
+	switch p.ItemType {
 	case responseTypeMessage:
-		s.applyMessage(payload, timestamp)
+		s.applyMessage(p, timestamp)
 	case responseTypeReasoning:
-		s.applyReasoning(payload, timestamp)
+		s.applyReasoning(p, timestamp)
 	case responseTypeFunctionCall, responseTypeCustomToolCall, responseTypeWebSearchCall:
-		s.applyToolCall(payload, timestamp)
+		s.applyToolCall(p, timestamp)
 	case responseTypeFunctionCallOutput, responseTypeCustomToolCallOutput:
-		s.applyToolResult(payload, timestamp)
+		s.applyToolResult(p, timestamp)
 	}
-	return nil
 }
 
-func (s *loadState) applyMessage(payload responseItemPayload, timestamp time.Time) {
-	message, ok := classifyResponseMessage(payload.Role, payload.Content)
+func (s *loadState) applyMessage(p *codexPayload, timestamp time.Time) {
+	message, ok := classifyResponseMessage(p.Role, p.Content)
 	if !ok {
 		return
 	}
 	s.applyClassifiedMessage(message, timestamp)
 }
 
-func (s *loadState) applyReasoning(payload responseItemPayload, timestamp time.Time) {
+func (s *loadState) applyReasoning(p *codexPayload, timestamp time.Time) {
 	s.markPendingTimestamp(timestamp)
-	if summary := extractReasoningText(payload.Summary); summary != "" {
+	if summary := extractReasoningText(p.Summary); summary != "" {
 		s.appendThinking(summary)
 		return
 	}
-	if strings.TrimSpace(payload.EncryptedContent) != "" {
+	if strings.TrimSpace(p.EncryptedContent) != "" {
 		s.pendingHiddenThinking = true
 	}
 }
 
-func (s *loadState) applyToolCall(payload responseItemPayload, timestamp time.Time) {
-	call := buildToolCall(payload)
+func (s *loadState) applyToolCall(p *codexPayload, timestamp time.Time) {
+	call := buildToolCall(p)
 	if call.Name == "" {
 		return
 	}
 
 	s.markPendingTimestamp(timestamp)
 	s.pendingCalls = append(s.pendingCalls, call)
-	s.callMeta[payload.CallID] = toolEventMeta{
+	s.callMeta[p.CallID] = toolEventMeta{
 		call:  call,
-		input: payload.Input,
+		input: p.Input,
 	}
 }
 
-func (s *loadState) applyToolResult(payload responseItemPayload, timestamp time.Time) {
-	meta := s.callMeta[payload.CallID]
+func (s *loadState) applyToolResult(p *codexPayload, timestamp time.Time) {
+	meta := s.callMeta[p.CallID]
 	if meta.call.Name == "" {
-		meta.call.Name = payload.CallID
+		meta.call.Name = p.CallID
 	}
 	s.markPendingTimestamp(timestamp)
-	s.pendingResults = append(s.pendingResults, buildToolResult(payload, meta))
+	s.pendingResults = append(s.pendingResults, buildToolResult(p, meta))
 }
 
-func (s *loadState) applyEvent(raw json.RawMessage, timestamp string) error {
-	var payload eventPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("json.Unmarshal_event: %w", err)
-	}
-
+func (s *loadState) applyEvent(p *codexPayload, timestamp string) {
 	ts := parseTimestamp(timestamp)
-	if s.applyEventMessage(payload, ts) {
-		return nil
+	if s.applyEventMessage(p, ts) {
+		return
 	}
 
-	switch payload.Type {
+	switch p.ItemType {
 	case eventTypeAgentReasoning:
 		s.markPendingTimestamp(ts)
-		s.appendThinking(payload.Text)
+		s.appendThinking(p.Text)
 	case eventTypeItemCompleted:
-		if plan, ok := extractCompletedPlan(payload.Item, ts); ok {
+		if plan, ok := extractCompletedPlan(p.Item, ts); ok {
 			s.applyPlan(plan, ts)
 		}
 	}
-	return nil
 }
 
-func (s *loadState) applyEventMessage(payload eventPayload, timestamp time.Time) bool {
-	switch payload.Type {
+func (s *loadState) applyEventMessage(p *codexPayload, timestamp time.Time) bool {
+	switch p.ItemType {
 	case eventTypeUserMessage:
-		if message, ok := classifyEventUserMessage(payload.Message); ok {
+		if message, ok := classifyEventUserMessage(p.Message); ok {
 			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true
 	case eventTypeAgentMessage:
-		if message, ok := classifyEventAssistantMessage(payload.Message); ok {
+		if message, ok := classifyEventAssistantMessage(p.Message); ok {
 			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true
 	case eventTypeTaskComplete:
-		if message, ok := classifyTaskCompleteMessage(payload.LastAgentMessage); ok {
+		if message, ok := classifyTaskCompleteMessage(p.LastAgentMessage); ok {
 			s.applyClassifiedMessage(message, timestamp)
 		}
 		return true

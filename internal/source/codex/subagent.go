@@ -30,12 +30,7 @@ type sourcePayload struct {
 }
 
 func parseSubagentLink(raw json.RawMessage) (subagentLink, bool) {
-	if len(raw) == 0 {
-		return subagentLink{}, false
-	}
-
-	var plain string
-	if err := json.Unmarshal(raw, &plain); err == nil {
+	if !startsWithByte(raw, '{') {
 		return subagentLink{}, false
 	}
 
@@ -143,4 +138,16 @@ func buildConversation(root scannedRollout, children []scannedRollout) conv.Conv
 		Project:  root.meta.Project,
 		Sessions: sessions,
 	}
+}
+
+func startsWithByte(b []byte, target byte) bool {
+	for _, c := range b {
+		switch c {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			return c == target
+		}
+	}
+	return false
 }
