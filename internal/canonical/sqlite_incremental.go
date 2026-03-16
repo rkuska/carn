@@ -31,7 +31,7 @@ func applySQLiteIncrementalRebuild(
 		return fmt.Errorf("deleteSQLiteConversations: %w", err)
 	}
 
-	groupedUnits := groupSearchUnitsByConversation(corpus)
+	groupedUnits := groupSearchUnitsByConversation(corpus, len(conversations))
 	if _, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, groupedUnits); err != nil {
 		return fmt.Errorf("insertSQLiteConversations: %w", err)
 	}

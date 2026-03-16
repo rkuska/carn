@@ -126,6 +126,9 @@ func (m viewerModel) renderContent() viewerModel {
 	if m.markdownCache == nil {
 		m.markdownCache = make(map[string]string)
 	}
+	if m.roleHeaderCache == nil {
+		m.roleHeaderCache = make(map[roleHeaderKey]string)
+	}
 
 	var sb strings.Builder
 	if header := renderConversationHeader(m.conversation, contentWidth, m.timestampFormat); header != "" {
@@ -135,11 +138,14 @@ func (m viewerModel) renderContent() viewerModel {
 		sb.WriteString(planHeader)
 	}
 	for _, seg := range segments {
-		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache)
+		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache)
 	}
 
 	m.baseContent = sb.String()
-	m = m.rebuildSearchIndex(m.baseContent)
+	if m.baseContent != m.lastIndexedContent {
+		m = m.rebuildSearchIndex(m.baseContent)
+		m.lastIndexedContent = m.baseContent
+	}
 	m.viewport.SetContent(m.baseContent)
 
 	if m.searchQuery != "" {
@@ -156,6 +162,7 @@ func renderSegmentCached(
 	rendererErr error,
 	contentWidth int,
 	mdCache map[string]string,
+	roleCache map[roleHeaderKey]string,
 ) {
 	switch seg.kind {
 	case segmentMarkdown:
@@ -163,7 +170,7 @@ func renderSegmentCached(
 	case segmentToolResult:
 		sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
 	case segmentRoleHeader:
-		sb.WriteString(renderRoleHeader(seg.role, contentWidth))
+		sb.WriteString(renderRoleHeaderCached(seg.role, contentWidth, roleCache))
 	case segmentThinking:
 		sb.WriteString(renderThinkingBlock(seg.text))
 	case segmentThinkingUnavailable:
@@ -215,7 +222,26 @@ func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error
 	m.renderer = renderer
 	m.renderWrap = wrapWidth
 	m.markdownCache = nil
+	m.roleHeaderCache = nil
 	return m, renderer, nil
+}
+
+type roleHeaderKey struct {
+	role  conv.Role
+	width int
+}
+
+func renderRoleHeaderCached(r conv.Role, width int, cache map[roleHeaderKey]string) string {
+	if cache != nil {
+		key := roleHeaderKey{role: r, width: width}
+		if cached, ok := cache[key]; ok {
+			return cached
+		}
+		result := renderRoleHeader(r, width)
+		cache[key] = result
+		return result
+	}
+	return renderRoleHeader(r, width)
 }
 
 func renderRoleHeader(r conv.Role, width int) string {

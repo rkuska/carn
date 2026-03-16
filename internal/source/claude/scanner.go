@@ -31,6 +31,7 @@ const (
 	maxFirstMessage     = 200
 	maxToolResultChars  = 500
 	blockTypeText       = "text"
+	blockTypeToolUse    = "tool_use"
 	jsonlScanBufferSize = 512 * 1024
 	jsonlSlugBufferSize = 4 * 1024
 )
@@ -224,30 +225,61 @@ func discoverProjectSessionFiles(
 	groupDirName string,
 	baseDir string,
 ) ([]sessionFile, error) {
-	mainFiles, err := filepath.Glob(filepath.Join(projDir, "*.jsonl"))
+	entries, err := os.ReadDir(projDir)
 	if err != nil {
-		return nil, fmt.Errorf("filepath.Glob_main: %w", err)
+		return nil, fmt.Errorf("os.ReadDir: %w", err)
 	}
 
-	subagentFiles, err := filepath.Glob(filepath.Join(projDir, "*/subagents/agent-*.jsonl"))
-	if err != nil {
-		return nil, fmt.Errorf("filepath.Glob_subagent: %w", err)
-	}
-
-	files := make([]sessionFile, 0, len(mainFiles)+len(subagentFiles))
-	for _, path := range mainFiles {
-		relPath, err := filepath.Rel(baseDir, path)
-		if err != nil {
-			return nil, fmt.Errorf("filepath.Rel_main: %w", err)
+	var files []sessionFile
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() {
+			if strings.HasSuffix(name, ".jsonl") {
+				path := filepath.Join(projDir, name)
+				relPath, err := filepath.Rel(baseDir, path)
+				if err != nil {
+					return nil, fmt.Errorf("filepath.Rel_main: %w", err)
+				}
+				files = append(files, sessionFile{
+					path:         path,
+					relPath:      relPath,
+					project:      proj,
+					groupDirName: groupDirName,
+				})
+			}
+			continue
 		}
-		files = append(files, sessionFile{
-			path:         path,
-			relPath:      relPath,
-			project:      proj,
-			groupDirName: groupDirName,
-		})
+
+		subFiles, err := discoverSubagentFiles(
+			filepath.Join(projDir, name, "subagents"),
+			proj, groupDirName, baseDir,
+		)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, subFiles...)
 	}
-	for _, path := range subagentFiles {
+
+	return files, nil
+}
+
+func discoverSubagentFiles(
+	subagentDir string,
+	proj project,
+	groupDirName string,
+	baseDir string,
+) ([]sessionFile, error) {
+	subEntries, err := os.ReadDir(subagentDir)
+	if err != nil {
+		return nil, nil // subagents dir may not exist
+	}
+	var files []sessionFile
+	for _, sub := range subEntries {
+		name := sub.Name()
+		if sub.IsDir() || !strings.HasPrefix(name, "agent-") || !strings.HasSuffix(name, ".jsonl") {
+			continue
+		}
+		path := filepath.Join(subagentDir, name)
 		relPath, err := filepath.Rel(baseDir, path)
 		if err != nil {
 			return nil, fmt.Errorf("filepath.Rel_subagent: %w", err)
@@ -260,6 +292,5 @@ func discoverProjectSessionFiles(
 			isSubagent:   true,
 		})
 	}
-
 	return files, nil
 }

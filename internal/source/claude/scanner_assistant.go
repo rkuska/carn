@@ -77,19 +77,28 @@ func (j *blockJoiner) result() string {
 	return j.b.String()
 }
 
-func extractAssistantContent(blocks []contentBlock) (text, thinking string, toolCalls []parsedToolCall) {
+func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls []parsedToolCall) {
 	var textJ, thinkJ blockJoiner
-	for _, block := range blocks {
+	toolUseCount := 0
+	for _, block := range pc.blocks {
+		if block.Type == blockTypeToolUse {
+			toolUseCount++
+		}
+	}
+	if toolUseCount > 0 {
+		toolCalls = make([]parsedToolCall, 0, toolUseCount)
+	}
+	for _, block := range pc.blocks {
 		switch block.Type {
 		case blockTypeText:
 			textJ.add(block.Text)
 		case "thinking":
 			thinkJ.add(block.Thinking)
-		case "tool_use":
+		case blockTypeToolUse:
 			toolCalls = append(toolCalls, parsedToolCall{
 				id:      block.ID,
 				name:    block.Name,
-				summary: summarizeToolCall(block.Name, block.Input),
+				summary: summarizeToolCallFast(block.Name, block.Input, pc),
 			})
 		}
 	}
@@ -103,7 +112,7 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 		return parsedMessage{}, false
 	}
 
-	text, thinking, toolCalls := extractAssistantContent(pc.blocks)
+	text, thinking, toolCalls := extractAssistantContent(pc)
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
 		return parsedMessage{}, false
 	}
@@ -134,12 +143,15 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 	}, true
 }
 
-func summarizeToolCall(name string, input json.RawMessage) string {
-	var params map[string]json.RawMessage
-	if err := json.Unmarshal(input, &params); err != nil {
+func summarizeToolCallFast(name string, input json.RawMessage, pc *parseContext) string {
+	pc.resetSummarizeParams()
+	if err := json.Unmarshal(input, &pc.summarizeParam); err != nil {
 		return name
 	}
+	return summarizeToolCallFromParams(name, pc.summarizeParam)
+}
 
+func summarizeToolCallFromParams(name string, params map[string]json.RawMessage) string {
 	if paramKey, ok := toolParamKey[name]; ok {
 		return extractStringParam(params, paramKey)
 	}

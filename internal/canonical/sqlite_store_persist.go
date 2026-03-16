@@ -90,7 +90,8 @@ func replaceSQLiteStoreContents(
 		}
 	}
 
-	counts, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, groupSearchUnitsByConversation(corpus))
+	groupedUnits := groupSearchUnitsByConversation(corpus, len(conversations))
+	counts, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, groupedUnits)
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversations: %w", err)
 	}

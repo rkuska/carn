@@ -190,8 +190,8 @@ func appendIncrementalResolution(
 	}
 	return nil
 }
-func groupSearchUnitsByConversation(corpus searchCorpus) map[string][]searchUnit {
-	grouped := make(map[string][]searchUnit)
+func groupSearchUnitsByConversation(corpus searchCorpus, conversationCount int) map[string][]searchUnit {
+	grouped := make(map[string][]searchUnit, conversationCount)
 	for _, unit := range corpus.units {
 		grouped[unit.conversationID] = append(grouped[unit.conversationID], unit)
 	}
