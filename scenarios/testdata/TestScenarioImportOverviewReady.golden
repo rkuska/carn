@@ -9,10 +9,9 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
                 ╭─  Import Workspace  ─────────────────────────────────────────────────────────────────╮                
                 │                                                                                      │                
-                │  Ready to Import   review complete; import and store build are ready                 │                
+                │  Ready to Import   review complete; import and local store rebuild are required      │                
                 │ Claude ~/source                                                                      │                
                 │ Archive ~/archive                                                                    │                
                 │ Config not found — press c to create                                                 │                
@@ -20,8 +19,9 @@
                 │ New 1  Update 0  Current 0                                                           │                
                 │                                                                                      │                
                 │                                                                                      │                
-                │     Will import 1 archive files and refresh the local store after confirmation.      │                
-                │                                Press Enter to import                                 │                
+                │            Local store rebuild required before deep search is available.             │                
+                │     Will import 1 archive files and rebuild the local store after confirmation.      │                
+                │                          Press Enter to import and rebuild                           │                
                 │                                                                                      │                
                 ╰──────────────────────────────────────────────────────────────────────────────────────╯                
                                                                                                                         

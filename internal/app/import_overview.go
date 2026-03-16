@@ -65,6 +65,7 @@ type importOverviewModel struct {
 	syncActivity arch.SyncActivity
 	result       arch.SyncResult
 	syncEvents   <-chan tea.Msg
+	syncErr      error
 
 	configFilePath string
 	configStatus   config.Status
@@ -236,14 +237,7 @@ func (m importOverviewModel) handleEnterKey() (importOverviewModel, tea.Cmd) {
 			m.done = true
 			return m, nil
 		}
-		m.phase = phaseSyncing
-		m.files = append([]string(nil), m.analysis.QueuedFiles...)
-		m.current = 0
-		m.total = len(m.files)
-		m.currentFile = ""
-		m.syncActivity = initialImportSyncActivity(m.analysis)
-		m.result = arch.SyncResult{}
-		return m, startImportSyncCmd(m.ctx, m.pipeline)
+		return m.startSync()
 	case phaseDone:
 		m.done = true
 		return m, nil
@@ -261,7 +255,20 @@ func (m importOverviewModel) handleAnalysisFinished(msg analysisFinishedMsg) (im
 	m.phase = phaseReady
 	m.analysis = msg.analysis
 	m.analysisEvents = nil
+	m.syncErr = nil
 	return m, nil
+}
+
+func (m importOverviewModel) startSync() (importOverviewModel, tea.Cmd) {
+	m.phase = phaseSyncing
+	m.files = append([]string(nil), m.analysis.QueuedFiles...)
+	m.current = 0
+	m.total = len(m.files)
+	m.currentFile = ""
+	m.syncActivity = initialImportSyncActivity(m.analysis)
+	m.result = arch.SyncResult{}
+	m.syncErr = nil
+	return m, startImportSyncCmd(m.ctx, m.pipeline)
 }
 
 func (m importOverviewModel) handleConfigureKey() (importOverviewModel, tea.Cmd) {
@@ -286,12 +293,18 @@ func (m importOverviewModel) handleSyncProgress(msg importSyncProgressMsg) (impo
 }
 
 func (m importOverviewModel) handleSyncFinished(msg importSyncFinishedMsg) (importOverviewModel, tea.Cmd) {
-	m.phase = phaseDone
 	m.result = msg.result
-	m.current = m.total
 	m.currentFile = ""
 	m.syncActivity = ""
 	m.syncEvents = nil
+	if msg.err != nil {
+		m.phase = phaseReady
+		m.syncErr = msg.err
+		return m, nil
+	}
+	m.phase = phaseDone
+	m.syncErr = nil
+	m.current = m.total
 	return m, nil
 }
 

@@ -11,14 +11,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
 	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/rs/zerolog"
 )
 
 // Messages
 
 type conversationsLoadedMsg struct {
-	conversations       []conv.Conversation
-	deepSearchAvailable bool
+	conversations []conv.Conversation
 }
 
 type sessionsLoadErrorMsg struct {
@@ -49,15 +47,8 @@ func loadSessionsCmdWithStore(
 			return conversations[i].Timestamp().After(conversations[j].Timestamp())
 		})
 
-		_, deepSearchAvailable, err := store.DeepSearch(ctx, archiveDir, "", conversations)
-		if err != nil {
-			deepSearchAvailable = false
-			zerolog.Ctx(ctx).Debug().Err(err).Msg("deep search unavailable during browser load")
-		}
-
 		return conversationsLoadedMsg{
-			conversations:       conversations,
-			deepSearchAvailable: deepSearchAvailable,
+			conversations: conversations,
 		}
 	}
 }

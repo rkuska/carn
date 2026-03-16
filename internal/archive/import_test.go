@@ -120,7 +120,7 @@ func TestPipelineAnalyzeMissingSource(t *testing.T) {
 	assert.Zero(t, analysis.Projects)
 	assert.Zero(t, analysis.FilesInspected)
 	assert.Empty(t, analysis.QueuedFiles)
-	assert.False(t, analysis.StoreNeedsBuild)
+	assert.True(t, analysis.StoreNeedsBuild)
 }
 
 func TestPipelineAnalyzeContextCanceled(t *testing.T) {
@@ -170,6 +170,27 @@ func TestPipelineRunReportsSyncActivities(t *testing.T) {
 	assert.Equal(t, "session-1.jsonl", progress[0].File)
 	assert.Equal(t, SyncActivityRebuildingStore, progress[1].Activity)
 	assert.Empty(t, progress[1].File)
+}
+
+func TestPipelineRunBuildsStoreWhenArchiveIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	archiveDir := filepath.Join(dir, "archive")
+	source := claude.New()
+	store := canonical.New(source)
+	pipeline := New(Config{
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: filepath.Join(dir, "missing")},
+		ArchiveDir: archiveDir,
+	}, store, source)
+
+	result, err := pipeline.Run(context.Background(), nil)
+	require.NoError(t, err)
+	assert.True(t, result.StoreBuilt)
+
+	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.False(t, needsRebuild)
 }
 
 func makeJSONLRecord(recordType, slug, sessionID string) string {

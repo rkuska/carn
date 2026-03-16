@@ -31,15 +31,15 @@ None.
 | internal/source/claude/scanner_metadata.go | source | 374 | 69 | 405 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/canonical/sqlite_store_persist.go | source | 302 | 68 | 328 |
+| internal/canonical/store.go | source | 273 | 67 | 323 |
 | internal/source/claude/scanner.go | source | 263 | 64 | 299 |
-| internal/canonical/store.go | source | 263 | 62 | 312 |
 | internal/app/viewer_render.go | source | 266 | 61 | 295 |
 | internal/source/codex/scan.go | source | 178 | 61 | 201 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
-| internal/canonical/sqlite_search.go | source | 247 | 60 | 279 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/app/viewer_model.go | source | 335 | 35 | 367 |
 | internal/app/browser_test.go | test | 621 | 30 | 752 |
+| internal/app/import_overview_test.go | test | 612 | 12 | 707 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 
 ## Notes

@@ -21,7 +21,6 @@ type deepSearchResultMsg struct {
 	revision      int
 	query         string
 	conversations []conv.Conversation
-	available     bool
 	err           error
 }
 
@@ -156,10 +155,6 @@ func (m browserModel) startDeepSearch(cmds *[]tea.Cmd) browserModel {
 	if m.search.query == "" {
 		return m.applyFullConversationList(cmds)
 	}
-	if !m.deepSearchAvailable {
-		m.search.status = searchStatusIdle
-		return m
-	}
 
 	searchCtx, cancel := context.WithCancel(m.ctx)
 	m.searchCancel = cancel
@@ -187,7 +182,7 @@ func deepSearchRepositoryCmd(
 	store browserStore,
 ) tea.Cmd {
 	return func() tea.Msg {
-		conversations, available, err := store.DeepSearch(
+		conversations, err := store.DeepSearch(
 			ctx,
 			archiveDir,
 			query,
@@ -197,7 +192,6 @@ func deepSearchRepositoryCmd(
 			revision:      revision,
 			query:         query,
 			conversations: conversations,
-			available:     available,
 			err:           err,
 		}
 	}
@@ -229,12 +223,6 @@ func (m browserModel) toggleSearchMode(cmds *[]tea.Cmd) browserModel {
 		m.search.status = searchStatusIdle
 		m.search.revision++
 		return m.applyMetadataSearch(cmds)
-	}
-	if !m.deepSearchAvailable {
-		return m.setNotification(
-			infoNotification("deep search unavailable; re-import to rebuild the local index").notification,
-			cmds,
-		)
 	}
 
 	m.search.mode = searchModeDeep

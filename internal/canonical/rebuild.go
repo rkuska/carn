@@ -16,7 +16,7 @@ import (
 const (
 	storeSchemaVersion       = 5
 	storeProjectionVersion   = 5
-	storeSearchCorpusVersion = 2
+	storeSearchCorpusVersion = 3
 )
 
 type searchUnit struct {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/rkuska/carn/internal/canonical"
@@ -15,7 +16,7 @@ type browserStore interface {
 		ctx context.Context,
 		archiveDir, query string,
 		conversations []conv.Conversation,
-	) ([]conv.Conversation, bool, error)
+	) ([]conv.Conversation, error)
 }
 
 type canonicalBrowserStore struct {
@@ -58,13 +59,16 @@ func (s canonicalBrowserStore) DeepSearch(
 	ctx context.Context,
 	archiveDir, query string,
 	conversations []conv.Conversation,
-) ([]conv.Conversation, bool, error) {
+) ([]conv.Conversation, error) {
 	results, available, err := s.store.DeepSearch(ctx, archiveDir, query, conversations)
 	if err != nil {
-		return nil, false, fmt.Errorf("store.DeepSearch: %w", err)
+		return nil, fmt.Errorf("store.DeepSearch: %w", err)
+	}
+	if !available {
+		return nil, errors.New("store.DeepSearch: deep search store unavailable")
 	}
 	precomputeConversationDisplay(results)
-	return results, available, nil
+	return results, nil
 }
 
 func precomputeConversationDisplay(conversations []conv.Conversation) {

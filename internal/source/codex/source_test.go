@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -186,6 +187,64 @@ func TestAnalyzeReportsSyncCandidates(t *testing.T) {
 	assert.Equal(t, "sessions", progresses[0].CurrentUnit)
 }
 
+func TestScanAndLoadAcceptStringReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	rawDir := t.TempDir()
+	writeCodexRolloutFixture(t, rawDir, "rollout-2026-03-16T10-00-00-thread-string-summary.jsonl", []map[string]any{
+		{
+			"timestamp": "2026-03-16T10:00:00Z",
+			"type":      recordTypeSessionMeta,
+			"payload": map[string]any{
+				"id":             "thread-string-summary",
+				"timestamp":      "2026-03-16T10:00:00Z",
+				"cwd":            "/workspace/project",
+				"cli_version":    "0.114.0",
+				"model_provider": "openai",
+				"git":            map[string]any{"branch": "main"},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:01Z",
+			"type":      recordTypeEventMsg,
+			"payload": map[string]any{
+				"type":    eventTypeUserMessage,
+				"message": "Explain the parser.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type":    responseTypeReasoning,
+				"summary": "Inspecting rollout schema drift.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:03Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type": responseTypeMessage,
+				"role": responseRoleAssistant,
+				"content": []map[string]any{
+					{"type": "output_text", "text": "Parser updated."},
+				},
+			},
+		},
+	})
+
+	conversations, err := New().Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := New().Load(context.Background(), conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, conv.RoleAssistant, session.Messages[1].Role)
+	assert.Equal(t, "Inspecting rollout schema drift.", session.Messages[1].Thinking)
+	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
+}
+
 func TestSourceOwnsSyncCandidates(t *testing.T) {
 	t.Parallel()
 
@@ -284,4 +343,22 @@ func copyCodexFixtureDir(tb testing.TB) string {
 	})
 	require.NoError(tb, err)
 	return dstDir
+}
+
+func writeCodexRolloutFixture(tb testing.TB, rawDir, name string, lines []map[string]any) {
+	tb.Helper()
+
+	encoded := make([]byte, 0, len(lines)*128)
+	for i, line := range lines {
+		raw, err := json.Marshal(line)
+		require.NoError(tb, err)
+		encoded = append(encoded, raw...)
+		if i < len(lines)-1 {
+			encoded = append(encoded, '\n')
+		}
+	}
+
+	path := filepath.Join(rawDir, name)
+	require.NoError(tb, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(tb, os.WriteFile(path, encoded, 0o644))
 }

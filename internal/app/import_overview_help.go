@@ -5,6 +5,8 @@ import (
 	"github.com/rkuska/carn/internal/config"
 )
 
+const readyActionRetry = "retry"
+
 func (m importOverviewModel) footerView() string {
 	if m.helpOpen {
 		return renderHelpFooter(
@@ -37,12 +39,7 @@ func (m importOverviewModel) footerItems() []helpItem {
 				{key: "q", desc: "quit", detail: "exit carn before importing", priority: helpPriorityHigh},
 			}
 		}
-		action := "continue"
-		detail := "open the browser without importing anything"
-		if m.analysis.NeedsSync() {
-			action = "import"
-			detail = "import queued files and rebuild the local store"
-		}
+		action, detail := m.readyFooterAction()
 		return []helpItem{
 			{key: "enter", desc: action, detail: detail},
 			{key: "c", desc: "configure", detail: "open the import configuration in $EDITOR", priority: helpPriorityHigh},
@@ -63,6 +60,30 @@ func (m importOverviewModel) footerItems() []helpItem {
 	default:
 		return nil
 	}
+}
+
+func (m importOverviewModel) readyFooterAction() (string, string) {
+	if !m.analysis.NeedsSync() {
+		return "continue", "open the browser without importing anything"
+	}
+
+	if m.syncErr != nil {
+		if m.analysis.QueuedFileCount() == 0 {
+			return readyActionRetry, "retry rebuilding the local store before opening the browser"
+		}
+		if m.analysis.StoreNeedsBuild {
+			return readyActionRetry, "retry importing queued files and rebuilding the local store"
+		}
+		return readyActionRetry, "retry importing queued files and refreshing the local store"
+	}
+
+	if m.analysis.QueuedFileCount() == 0 {
+		return "rebuild", "rebuild the local store before opening the browser"
+	}
+	if m.analysis.StoreNeedsBuild {
+		return "import", "import queued files and rebuild the local store"
+	}
+	return "import", "import queued files and refresh the local store"
 }
 
 func (m importOverviewModel) helpSections() []helpSection {

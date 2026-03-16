@@ -108,7 +108,7 @@ func TestImportOverviewReadyWithSyncStartsSync(t *testing.T) {
 	m.width = 120
 	m.height = 40
 
-	m, _ = m.Update(analysisFinishedMsg{
+	m, cmd := m.Update(analysisFinishedMsg{
 		analysis: arch.ImportAnalysis{
 			ArchiveDir:       cfg.ArchiveDir,
 			QueuedFiles:      []string{filepath.Join(testImportOverviewSourceDir(cfg), "a.jsonl")},
@@ -117,11 +117,63 @@ func TestImportOverviewReadyWithSyncStartsSync(t *testing.T) {
 		},
 	})
 
-	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Equal(t, phaseReady, m.phase)
+	assert.Nil(t, cmd)
 
+	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Equal(t, phaseSyncing, m.phase)
 	assert.Equal(t, 1, m.total)
 	require.NotNil(t, cmd)
+	requireMsgType[importSyncStartedMsg](t, cmd())
+}
+
+func TestImportOverviewReadyWithStoreRebuildExplainsRequirement(t *testing.T) {
+	t.Parallel()
+
+	cfg := testImportOverviewConfig(t)
+	m := newImportOverviewModel(context.Background(), cfg, "", false)
+	m.width = 120
+	m.height = 40
+	m.phase = phaseReady
+	m.analysis = arch.ImportAnalysis{
+		ArchiveDir:      cfg.ArchiveDir,
+		StoreNeedsBuild: true,
+	}
+
+	view := ansi.Strip(m.View())
+	assertContainsAll(
+		t,
+		view,
+		"local store rebuild is required",
+		"Local store rebuild required before deep search is available.",
+		"Will rebuild the local store after confirmation.",
+		"Press Enter to rebuild",
+	)
+}
+
+func TestImportOverviewReadyWithImportAndStoreRebuildExplainsRequirement(t *testing.T) {
+	t.Parallel()
+
+	cfg := testImportOverviewConfig(t)
+	m := newImportOverviewModel(context.Background(), cfg, "", false)
+	m.width = 120
+	m.height = 40
+	m.phase = phaseReady
+	m.analysis = arch.ImportAnalysis{
+		ArchiveDir:      cfg.ArchiveDir,
+		QueuedFiles:     []string{"a.jsonl"},
+		StoreNeedsBuild: true,
+	}
+
+	view := ansi.Strip(m.View())
+	assertContainsAll(
+		t,
+		view,
+		"import and local store rebuild are required",
+		"Local store rebuild required before deep search is available.",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
+		"Press Enter to import and rebuild",
+	)
 }
 
 func TestImportOverviewSyncCompletion(t *testing.T) {
@@ -154,6 +206,36 @@ func TestImportOverviewSyncCompletion(t *testing.T) {
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.True(t, m.done)
+}
+
+func TestImportOverviewSyncFailureStaysInReadyState(t *testing.T) {
+	t.Parallel()
+
+	m := newImportOverviewModel(context.Background(), testImportOverviewConfig(t), "", false)
+	m.width = 120
+	m.height = 40
+	m.phase = phaseSyncing
+	m.analysis = arch.ImportAnalysis{
+		QueuedFiles:     []string{"a.jsonl"},
+		StoreNeedsBuild: true,
+	}
+
+	m, _ = m.Update(importSyncFinishedMsg{
+		err: errors.New("rebuild boom"),
+	})
+
+	assert.Equal(t, phaseReady, m.phase)
+	assert.ErrorContains(t, m.syncErr, "rebuild boom")
+	assert.False(t, m.done)
+
+	view := ansi.Strip(m.View())
+	assertContainsAll(
+		t,
+		view,
+		"Import failed: rebuild boom",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
+		"Press Enter to retry import and rebuild",
+	)
 }
 
 func TestImportOverviewAnalysisProgressUpdatesDashboardState(t *testing.T) {
@@ -392,6 +474,25 @@ func TestImportOverviewRenderActivityBlockCentersAllStates(t *testing.T) {
 			blockWidth: 80,
 		},
 		{
+			name: "ready after sync failure",
+			model: func() importOverviewModel {
+				m := newImportOverviewModel(context.Background(), cfg, "", false)
+				m.phase = phaseReady
+				m.analysis = arch.ImportAnalysis{
+					ArchiveDir:      cfg.ArchiveDir,
+					QueuedFiles:     []string{"a.jsonl"},
+					StoreNeedsBuild: true,
+				}
+				m.syncErr = errors.New("rebuild boom")
+				return m
+			},
+			contains: []string{
+				"Import failed: rebuild boom",
+				"Press Enter to retry import and rebuild",
+			},
+			blockWidth: 80,
+		},
+		{
 			name: "ready without sync",
 			model: func() importOverviewModel {
 				m := newImportOverviewModel(context.Background(), cfg, "", false)
@@ -519,8 +620,9 @@ func TestImportOverviewUsesPipelineMessages(t *testing.T) {
 	m, cmd = m.Update(cmd())
 	require.NotNil(t, cmd)
 	assert.Equal(t, "proj-a", m.analysisProgress.CurrentProject)
-	m, _ = m.Update(cmd())
+	m, cmd = m.Update(cmd())
 	assert.Equal(t, phaseReady, m.phase)
+	require.Nil(t, cmd)
 
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
@@ -560,8 +662,9 @@ func TestImportOverviewStoreRebuildOnlyShowsSpinnerState(t *testing.T) {
 	analysisMsg := requireMsgType[importAnalysisStartedMsg](t, startImportAnalysisCmd(context.Background(), pipeline)())
 	m, cmd := m.Update(analysisMsg)
 	require.NotNil(t, cmd)
-	m, _ = m.Update(cmd())
+	m, cmd = m.Update(cmd())
 	require.Equal(t, phaseReady, m.phase)
+	require.Nil(t, cmd)
 
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
