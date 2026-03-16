@@ -2,6 +2,7 @@ package canonical
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	src "github.com/rkuska/carn/internal/source"
@@ -97,6 +98,54 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 1)
 	assert.Equal(t, "updated line", session.Messages[0].Text)
+}
+
+func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsStale(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	convValue := writeTestConversation(t, rawDir, "project-a", "session-1", "slug-1", []string{
+		"first line",
+	})
+	source := &stubIncrementalSource{
+		provider:          conversationProvider("claude"),
+		scanConversations: []conversation{convValue},
+		sessions: map[string]sessionFull{
+			convValue.CacheKey(): {
+				Meta: sessionMeta{ID: "session-1"},
+				Messages: []message{
+					{Role: role("assistant"), Text: "first line"},
+				},
+			},
+		},
+	}
+	store := New(source)
+	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+
+	setSQLiteMetaValue(t, archiveDir, metaSearchKey, strconv.Itoa(storeSearchCorpusVersion-1))
+	source.scanConversations = []conversation{convValue}
+	source.sessions[convValue.CacheKey()] = sessionFull{
+		Meta: sessionMeta{ID: "session-1"},
+		Messages: []message{
+			{Role: role("assistant"), Text: "rebuilt line"},
+		},
+	}
+
+	rawPath := convValue.Sessions[0].FilePath
+	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath}))
+
+	assert.Equal(t, 2, source.scanCalls)
+	assert.Zero(t, source.resolveCalls)
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 1)
+	assert.Equal(t, "rebuilt line", session.Messages[0].Text)
 }
 
 func TestGroupSearchUnitsByConversation(t *testing.T) {

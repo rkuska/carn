@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,19 @@ func TestBuildDeepSearchItemsNoMatchWhenQueryAbsent(t *testing.T) {
 	assert.Empty(t, items[0].matchRanges.preview)
 }
 
+func TestBuildDeepSearchItemsPrefersSearchPreviewOverFirstMessage(t *testing.T) {
+	t.Parallel()
+
+	conversation := testConv("one")
+	conversation.Sessions[0].FirstMessage = "first message fallback"
+	conversation.SetSearchPreview("actual matched preview")
+
+	items := buildDeepSearchItems("matched", []conv.Conversation{conversation})
+	require.Len(t, items, 1)
+	assert.Equal(t, "actual matched preview", items[0].preview)
+	assert.False(t, strings.Contains(items[0].preview, "fallback"))
+}
+
 func TestBrowserSearchBindingUsesSlash(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +125,6 @@ func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
-	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
 	b.search.editing = true
@@ -161,7 +174,6 @@ func TestBrowserToggleDeepSearchShowsScopeNotification(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
-	b.deepSearchAvailable = true
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
 
@@ -183,13 +195,11 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 			"alpha": {alpha},
 			"beta":  {beta},
 		},
-		deepSearchAvailable: true,
 	}
 
 	b := testBrowser(t)
 	b.store = store
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.deepSearchAvailable = true
 	b.mainConversations = b.search.baseConversations
 
 	var cmds []tea.Cmd
@@ -245,39 +255,6 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 }
 
-func TestBrowserIgnoresStaleUnavailableDeepSearchResults(t *testing.T) {
-	t.Parallel()
-
-	alpha := testNamedConversation("alpha-id", "alpha-session")
-	beta := testNamedConversation("beta-id", "beta-session")
-
-	b := testBrowser(t)
-	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversations = b.search.baseConversations
-	b.deepSearchAvailable = true
-	var cmds []tea.Cmd
-	b = b.applyFullConversationList(&cmds)
-
-	b.search.mode = searchModeDeep
-	b.search.query = "beta"
-	b.search.revision = 3
-	b.search.status = searchStatusSearching
-	b.search.visibleConversations = []conv.Conversation{beta}
-	b = b.setSearchItems(buildDeepSearchItems("beta", []conv.Conversation{beta}), &cmds)
-
-	b, _ = b.Update(deepSearchResultMsg{
-		revision:  2,
-		query:     "alpha",
-		available: false,
-	})
-
-	assert.True(t, b.deepSearchAvailable)
-	assert.Equal(t, searchModeDeep, b.search.mode)
-	assert.Equal(t, searchStatusSearching, b.search.status)
-	require.Len(t, b.search.visibleConversations, 1)
-	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
-}
-
 func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	t.Parallel()
 
@@ -288,14 +265,12 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 		deepSearchResults: map[string][]conv.Conversation{
 			"beta-browser": {beta},
 		},
-		deepSearchAvailable: true,
 	}
 
 	b := testBrowser(t)
 	b.store = store
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
 	b.mainConversations = b.search.baseConversations
-	b.deepSearchAvailable = true
 
 	var cmds []tea.Cmd
 	b = b.setSearchQuery("beta-browser", &cmds)
@@ -316,24 +291,28 @@ func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 }
 
-func TestBrowserToggleDeepSearchWhenUnavailableShowsNotification(t *testing.T) {
+func TestBrowserDeepSearchErrorShowsNotification(t *testing.T) {
 	t.Parallel()
 
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	store := &fakeBrowserStore{deepSearchErr: assert.AnError}
+
 	b := testBrowser(t)
-	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
+	b.store = store
+	b.search.baseConversations = []conv.Conversation{alpha}
+	b.mainConversations = b.search.baseConversations
+
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
-	b.deepSearchAvailable = false
-
+	cmds = nil
+	b = b.setSearchQuery("alpha", &cmds)
 	b = b.toggleSearchMode(&cmds)
+	require.NotEmpty(t, cmds)
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmds[len(cmds)-1]()))
 
-	assert.Equal(t, searchModeMetadata, b.search.mode)
+	assert.Equal(t, searchModeDeep, b.search.mode)
 	assert.Equal(t, searchStatusIdle, b.search.status)
-	assert.Equal(
-		t,
-		"deep search unavailable; re-import to rebuild the local index",
-		b.notification.text,
-	)
+	assert.Equal(t, "deep search failed: assert.AnError general error for testing", b.notification.text)
 }
 
 func testNamedConversation(id, slug string) conv.Conversation {

@@ -77,7 +77,7 @@ var sqliteSchemaStatements = []string{
 		content='search_chunks',
 		content_rowid='id',
 		tokenize='unicode61 remove_diacritics 2',
-		detail='none'
+		detail='full'
 	)`,
 	`CREATE INDEX IF NOT EXISTS conversations_last_timestamp_idx ON conversations(last_timestamp_ns DESC)`,
 	`CREATE INDEX IF NOT EXISTS conversation_sessions_conversation_idx ON conversation_sessions(conversation_id, ordinal)`,

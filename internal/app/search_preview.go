@@ -3,6 +3,7 @@ package app
 import (
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -112,7 +113,7 @@ func findQueryMatchIndices(text, query string) []int {
 		return nil
 	}
 
-	words := strings.Fields(query)
+	words := searchPreviewTerms(query)
 	if len(words) == 0 {
 		return nil
 	}
@@ -129,6 +130,12 @@ func findQueryMatchIndices(text, query string) []int {
 
 	slices.Sort(indices)
 	return slices.Compact(indices)
+}
+
+func searchPreviewTerms(query string) []string {
+	return strings.FieldsFunc(query, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
 }
 
 func findWordIndices(indices []int, lower, wordLower string) []int {

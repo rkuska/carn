@@ -3,7 +3,6 @@ package archive
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -124,20 +123,10 @@ func formatProgressUnit(provider conv.Provider, unit string) string {
 	return string(provider) + " / " + unit
 }
 
-func (p Pipeline) hasAnyRawFiles() bool {
-	for _, configured := range p.configuredBackends() {
-		if _, err := os.Stat(p.rawDir(configured.backend.Provider())); err == nil {
-			return true
-		}
-	}
-	return false
-}
-
 func (p Pipeline) storeNeedsBuild(ctx context.Context, analysis ImportAnalysis) (bool, error) {
 	storeNeedsBuild, err := p.store.NeedsRebuild(ctx, p.cfg.ArchiveDir)
 	if err != nil {
 		return false, fmt.Errorf("analyze_store.NeedsRebuild: %w", err)
 	}
-	hasFiles := p.hasAnyRawFiles() || len(analysis.QueuedFiles) > 0
-	return hasFiles && storeNeedsBuild, nil
+	return storeNeedsBuild, nil
 }

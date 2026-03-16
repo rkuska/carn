@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,18 @@ func TestFindQueryMatchIndices(t *testing.T) {
 			query: "ab ab",
 			want:  []int{0, 1, 6, 7},
 		},
+		{
+			name:  "underscore query splits like fts separators",
+			text:  "use generate uuid for ids",
+			query: "GENERATE_UUID",
+			want:  []int{4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16},
+		},
+		{
+			name:  "slash query splits like fts separators",
+			text:  "use foo bar for route parsing",
+			query: "foo/bar",
+			want:  []int{4, 5, 6, 8, 9, 10},
+		},
 	}
 
 	for _, tc := range tests {
@@ -108,4 +121,58 @@ func TestFindQueryMatchIndices(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestSplitItemMatchesKeepsMetadataAndPreviewRangesSeparated(t *testing.T) {
+	t.Parallel()
+
+	title := "separator-query"
+	metadata := "Codex  archive metadata"
+	preview := "preview archive match"
+	full := joinConversationRowText(title, metadata, preview)
+	matchAt := strings.LastIndex(full, "archive")
+	assert.GreaterOrEqual(t, matchAt, 0)
+
+	matches := make([]int, len("archive"))
+	for i := range matches {
+		matches[i] = matchAt + i
+	}
+
+	got := splitItemMatches(title, metadata, preview, matches)
+	assert.Empty(t, got.title)
+	assert.Empty(t, got.metadata)
+
+	previewRunes := []rune(preview)
+	var highlighted strings.Builder
+	for _, idx := range got.preview {
+		highlighted.WriteRune(previewRunes[idx])
+	}
+	assert.Equal(t, "archive", highlighted.String())
+}
+
+func TestSplitItemMatchesHandlesUnicodeAcrossPreviewLines(t *testing.T) {
+	t.Parallel()
+
+	title := "unicode"
+	metadata := "Claude  2 msgs"
+	preview := "naive cache line\nnaive helper line"
+	full := joinConversationRowText(title, metadata, preview)
+	matchAt := strings.Index(full, "helper")
+	assert.GreaterOrEqual(t, matchAt, 0)
+
+	matches := make([]int, len("helper"))
+	for i := range matches {
+		matches[i] = matchAt + i
+	}
+
+	got := splitItemMatches(title, metadata, preview, matches)
+	assert.Empty(t, got.title)
+	assert.Empty(t, got.metadata)
+
+	previewRunes := []rune(preview)
+	var highlighted strings.Builder
+	for _, idx := range got.preview {
+		highlighted.WriteRune(previewRunes[idx])
+	}
+	assert.Equal(t, "helper", highlighted.String())
 }

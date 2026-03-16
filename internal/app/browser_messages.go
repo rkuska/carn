@@ -97,15 +97,10 @@ func (m browserModel) applyConversationsLoaded(
 	m.allConversations = msg.conversations
 	mainConvs := filterMainConversations(msg.conversations)
 	m.mainConversations = mainConvs
-	m.deepSearchAvailable = msg.deepSearchAvailable
 	m.filter.values = extractFilterValues(mainConvs)
 	filtered := applyStructuredFilters(mainConvs, m.filter.dimensions)
 	m.search.baseConversations = filtered
 	m.search.visibleConversations = filtered
-	if !m.deepSearchAvailable && m.search.mode == searchModeDeep {
-		m.search.mode = searchModeMetadata
-		m.search.status = searchStatusIdle
-	}
 	if m.search.query == "" {
 		m = m.applyFullConversationList(cmds)
 	} else {
@@ -127,19 +122,6 @@ func (m browserModel) applyDeepSearchResult(
 		m.searchCancel = nil
 		return m.setNotification(
 			errorNotification(fmt.Sprintf("deep search failed: %v", msg.err)).notification,
-			cmds,
-		)
-	}
-	if !msg.available {
-		m.search.status = searchStatusIdle
-		m.searchCancel = nil
-		m.deepSearchAvailable = false
-		if m.search.mode == searchModeDeep {
-			m.search.mode = searchModeMetadata
-			m = m.applyMetadataSearch(cmds)
-		}
-		return m.setNotification(
-			infoNotification("deep search unavailable; re-import to rebuild the local index").notification,
 			cmds,
 		)
 	}

@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,7 +57,7 @@ type codexPayload struct {
 	Status           string         `json:"status"`
 	EncryptedContent string         `json:"encrypted_content"`
 	Content          []contentBlock `json:"content"`
-	Summary          []summaryBlock `json:"summary"`
+	Summary          summaryBlocks  `json:"summary"`
 	Action           struct {
 		Query   string   `json:"query"`
 		Queries []string `json:"queries"`
@@ -85,6 +86,58 @@ type contentBlock struct {
 type summaryBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+}
+
+type summaryBlocks []summaryBlock
+
+func (s *summaryBlocks) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*s = nil
+		return nil
+	}
+
+	switch data[0] {
+	case '[':
+		return s.unmarshalArray(data)
+	case '{':
+		return s.unmarshalObject(data)
+	case '"':
+		return s.unmarshalString(data)
+	default:
+		return fmt.Errorf("summaryBlocks.UnmarshalJSON: unsupported JSON token %q", data[0])
+	}
+}
+
+func (s *summaryBlocks) unmarshalArray(data []byte) error {
+	var blocks []summaryBlock
+	if err := json.Unmarshal(data, &blocks); err != nil {
+		return fmt.Errorf("summaryBlocks.UnmarshalJSON_array: %w", err)
+	}
+	*s = blocks
+	return nil
+}
+
+func (s *summaryBlocks) unmarshalObject(data []byte) error {
+	var block summaryBlock
+	if err := json.Unmarshal(data, &block); err != nil {
+		return fmt.Errorf("summaryBlocks.UnmarshalJSON_object: %w", err)
+	}
+	*s = []summaryBlock{block}
+	return nil
+}
+
+func (s *summaryBlocks) unmarshalString(data []byte) error {
+	var text string
+	if err := json.Unmarshal(data, &text); err != nil {
+		return fmt.Errorf("summaryBlocks.UnmarshalJSON_string: %w", err)
+	}
+	if strings.TrimSpace(text) == "" {
+		*s = nil
+		return nil
+	}
+	*s = []summaryBlock{{Type: "summary_text", Text: text}}
+	return nil
 }
 
 type toolEventMeta struct {
@@ -142,7 +195,7 @@ func extractMessageText(blocks []contentBlock) string {
 	return strings.Join(parts, "\n")
 }
 
-func extractReasoningText(blocks []summaryBlock) string {
+func extractReasoningText(blocks summaryBlocks) string {
 	parts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
 		if block.Text != "" {

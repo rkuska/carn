@@ -35,7 +35,7 @@ func (m importOverviewModel) viewDashboard() string {
 }
 
 func (m importOverviewModel) renderDashboardHeader(width int) string {
-	pill := renderImportStatusPill(m.phase, m.result.Failed > 0 || m.importBlocked())
+	pill := renderImportStatusPill(m.phase, m.result.Failed > 0 || m.importBlocked() || m.syncErr != nil)
 	subtitle := styleSubtitle.Render(m.dashboardSubtitle())
 
 	if lipgloss.Width(pill)+2+lipgloss.Width(subtitle) <= width {
@@ -67,8 +67,23 @@ func (m importOverviewModel) readySubtitle() string {
 	if m.analysis.Err != nil {
 		return "analysis finished with errors"
 	}
+	if m.syncErr != nil {
+		if m.analysis.StoreNeedsBuild {
+			if m.analysis.QueuedFileCount() > 0 {
+				return "previous import attempt failed; import and local store rebuild are still required"
+			}
+			return "previous import attempt failed; local store rebuild is still required"
+		}
+		return "previous import attempt failed; import is still required"
+	}
+	if m.analysis.StoreNeedsBuild {
+		if m.analysis.QueuedFileCount() > 0 {
+			return "review complete; import and local store rebuild are required"
+		}
+		return "review complete; local store rebuild is required"
+	}
 	if m.analysis.NeedsSync() {
-		return "review complete; import and store build are ready"
+		return "review complete; import is ready"
 	}
 	return archiveMatchesSourceSubtitle
 }

@@ -128,6 +128,36 @@ func TestDeepSearchRenderHighlightsSingleWordQuery(t *testing.T) {
 		"single-word query should produce highlighted output different from unhighlighted")
 }
 
+func TestDeepSearchRenderHighlightsUnderscoreQueryAcrossTokenizerSeparators(t *testing.T) {
+	t.Parallel()
+
+	conv := testConv(testConversationIDPrimary)
+	conv.SetSearchPreview("use generate uuid for ids")
+
+	highlighted := renderDeepSearchView(t, "GENERATE_UUID", conv)
+	unhighlighted := renderDeepSearchView(t, "", conv)
+
+	strippedHighlighted := ansi.Strip(highlighted)
+	assert.Contains(t, strippedHighlighted, "generate uuid")
+	assert.NotEqual(t, highlighted, unhighlighted,
+		"underscore query should highlight separator-equivalent preview text")
+}
+
+func TestDeepSearchRenderHighlightsSlashQueryAcrossTokenizerSeparators(t *testing.T) {
+	t.Parallel()
+
+	conv := testConv(testConversationIDPrimary)
+	conv.SetSearchPreview("use foo bar for route parsing")
+
+	highlighted := renderDeepSearchView(t, "foo/bar", conv)
+	unhighlighted := renderDeepSearchView(t, "", conv)
+
+	strippedHighlighted := ansi.Strip(highlighted)
+	assert.Contains(t, strippedHighlighted, "foo bar")
+	assert.NotEqual(t, highlighted, unhighlighted,
+		"slash query should highlight separator-equivalent preview text")
+}
+
 func TestDeepSearchRenderHighlightsAcrossPreviewLines(t *testing.T) {
 	t.Parallel()
 

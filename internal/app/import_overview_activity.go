@@ -40,32 +40,84 @@ func (m importOverviewModel) analyzingActivityLines(width int) []string {
 }
 
 func (m importOverviewModel) readyActivityLines(width int) []string {
-	var lines []string
 	if m.configStatus == config.StatusInvalid {
-		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Config is invalid: %v", m.configErr), width, false))
-		lines = append(lines, renderKeyHint("Press ", "c", " to fix"))
-		return lines
+		return []string{
+			ansi.Hardwrap(fmt.Sprintf("Config is invalid: %v", m.configErr), width, false),
+			renderKeyHint("Press ", "c", " to fix"),
+		}
 	}
 	if m.analysis.Err != nil {
-		lines = append(lines, ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false))
-		lines = append(lines, renderKeyHint("Press ", "q", " to quit"))
-		return lines
-	}
-	if m.analysis.NeedsSync() {
-		message := fmt.Sprintf(
-			"Will import %d archive files and refresh the local store after confirmation.",
-			m.analysis.QueuedFileCount(),
-		)
-		if m.analysis.QueuedFileCount() == 0 {
-			message = "Will rebuild the local store after confirmation."
+		return []string{
+			ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false),
+			renderKeyHint("Press ", "q", " to quit"),
 		}
-		lines = append(lines, ansi.Hardwrap(message, width, false))
-		lines = append(lines, renderKeyHint("Press ", "Enter", " to import"))
-	} else {
-		lines = append(lines, ansi.Hardwrap("No import needed. Archived files already match the source.", width, false))
-		lines = append(lines, renderKeyHint("Press ", "Enter", " to continue"))
 	}
+
+	lines := m.readyFailureLines(width)
+	if m.analysis.NeedsSync() {
+		return append(lines, m.readySyncLines(width)...)
+	}
+	return append(lines,
+		ansi.Hardwrap("No import needed. Archived files already match the source.", width, false),
+		renderKeyHint("Press ", "Enter", " to continue"),
+	)
+}
+
+func (m importOverviewModel) readyFailureLines(width int) []string {
+	if m.syncErr == nil {
+		return nil
+	}
+	return []string{ansi.Hardwrap(fmt.Sprintf("Import failed: %v", m.syncErr), width, false)}
+}
+
+func (m importOverviewModel) readySyncLines(width int) []string {
+	queuedFiles := m.analysis.QueuedFileCount()
+	lines := make([]string, 0, 3)
+	if m.analysis.StoreNeedsBuild {
+		lines = append(lines, ansi.Hardwrap("Local store rebuild required before deep search is available.", width, false))
+	}
+	lines = append(lines, ansi.Hardwrap(m.readySyncMessage(queuedFiles), width, false))
+	lines = append(lines, m.readySyncKeyHint(queuedFiles))
 	return lines
+}
+
+func (m importOverviewModel) readySyncMessage(queuedFiles int) string {
+	switch {
+	case queuedFiles == 0:
+		return "Will rebuild the local store after confirmation."
+	case m.analysis.StoreNeedsBuild:
+		return fmt.Sprintf(
+			"Will import %d archive files and rebuild the local store after confirmation.",
+			queuedFiles,
+		)
+	default:
+		return fmt.Sprintf(
+			"Will import %d archive files and refresh the local store after confirmation.",
+			queuedFiles,
+		)
+	}
+}
+
+func (m importOverviewModel) readySyncKeyHint(queuedFiles int) string {
+	if m.syncErr == nil {
+		switch {
+		case queuedFiles == 0:
+			return renderKeyHint("Press ", "Enter", " to rebuild")
+		case m.analysis.StoreNeedsBuild:
+			return renderKeyHint("Press ", "Enter", " to import and rebuild")
+		default:
+			return renderKeyHint("Press ", "Enter", " to import")
+		}
+	}
+
+	switch {
+	case queuedFiles == 0:
+		return renderKeyHint("Press ", "Enter", " to retry rebuild")
+	case m.analysis.StoreNeedsBuild:
+		return renderKeyHint("Press ", "Enter", " to retry import and rebuild")
+	default:
+		return renderKeyHint("Press ", "Enter", " to retry import")
+	}
 }
 
 func (m importOverviewModel) syncingActivityLines(width int) []string {

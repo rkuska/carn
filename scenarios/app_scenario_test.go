@@ -75,8 +75,10 @@ func TestScenarioEmptyWorkspaceContinuesToBrowser(t *testing.T) {
 	workspace := helpers.NewWorkspace(t)
 	harness := newScenarioHarness(t, workspace, 120, 40)
 	harness.waitForText(t, "Import Workspace")
-	harness.waitForText(t, "No import needed. Archived files already match the source.")
+	harness.waitForText(t, "Will rebuild the local store after confirmation.")
 
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
 	harness.pressEnter()
 	harness.waitForText(t, "No items.")
 
@@ -98,7 +100,7 @@ func TestScenarioImportAndOpenTranscript(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 1 archive files and refresh the local store after confirmation.",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()
@@ -123,7 +125,7 @@ func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 8 archive files and refresh the local store after confirmation.",
+		"Will import 8 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()
@@ -140,12 +142,43 @@ func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
 	harness.quit(t)
 }
 
+func TestScenarioDeepSearchSeparatorQueryShowsPreview(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		Project:       "project-a",
+		FileName:      "session-uuid.jsonl",
+		Slug:          "uuid-session",
+		SessionID:     "session-uuid",
+		UserText:      "How should ids be generated?",
+		AssistantText: "Use generate uuid for ids.",
+	})
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 1 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "uuid-session")
+
+	harness.program.Send(tea.KeyPressMsg{Code: '/', Text: "/"})
+	harness.program.Send(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	for _, r := range "GENERATE_UUID" {
+		harness.program.Send(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	harness.waitForText(t, "generate uuid")
+	harness.quit(t)
+}
+
 func TestScenarioEmptyWorkspaceNarrowLayout(t *testing.T) {
 	workspace := helpers.NewWorkspace(t)
 	harness := newScenarioHarness(t, workspace, 72, 28)
 	harness.waitForText(t, "Import Workspace")
-	harness.waitForText(t, "No import needed. Archived files already match the source.")
+	harness.waitForText(t, "Will rebuild the local store after confirmation.")
 
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
 	harness.pressEnter()
 	harness.waitForText(t, "No items.")
 
@@ -168,7 +201,7 @@ func TestScenarioImportOverviewReady(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 1 archive files and refresh the local store after confirmation.",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.quit(t)
@@ -180,7 +213,7 @@ func importFixtureCorpus(t *testing.T, harness *programHarness) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 8 archive files and refresh the local store after confirmation.",
+		"Will import 8 archive files and rebuild the local store after confirmation.",
 	)
 	harness.pressEnter()
 	harness.waitForText(t, "import finished and refreshed the local store")
@@ -243,7 +276,7 @@ func TestScenarioImportOverviewDone(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 1 archive files and refresh the local store after confirmation.",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()
@@ -263,7 +296,7 @@ func TestScenarioImportCodexHiddenThinking(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 4 archive files and refresh the local store after confirmation.",
+		"Will import 4 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()
@@ -323,7 +356,7 @@ EOF
 	harness.pressKey('c')
 	harness.waitForText(
 		t,
-		"Will import 1 archive files and refresh the local store after confirmation.",
+		"Will import 1 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()

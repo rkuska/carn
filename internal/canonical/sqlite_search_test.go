@@ -49,20 +49,24 @@ func TestBuildFTSQuery(t *testing.T) {
 	}
 }
 
-func TestBuildSearchPreviewQueryUsesPerConversationRowLimit(t *testing.T) {
+func TestBuildDeepSearchQueryUsesSingleMatchPass(t *testing.T) {
 	t.Parallel()
 
-	query, args := buildSearchPreviewQuery([]int64{11, 22})
+	query, args := buildDeepSearchQuery(`"GENERATE_UUID"*`)
 
-	assert.Contains(t, query, "ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY ordinal ASC)")
-	assert.Contains(t, query, "match_row <= ?")
-	require.Len(t, args, 3)
-	assert.EqualValues(t, 11, args[0])
-	assert.EqualValues(t, 22, args[1])
-	assert.Equal(t, searchPreviewFetchRowsPerConversation, args[2])
+	assert.Equal(t, 1, strings.Count(query, "search_fts MATCH ?"))
+	assert.Contains(t, query, "snippet(search_fts, 0, '', '', '...',")
+	assert.Contains(t, query, "ranked_conversations AS")
+	assert.Contains(t, query, "LEFT JOIN ranked_previews")
+	assert.Contains(t, query, "GROUP BY conversation_id, preview")
+	assert.Contains(t, query, "ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY first_ordinal ASC)")
+	assert.Contains(t, query, "rp.preview_row <= ?")
+	require.Len(t, args, 2)
+	assert.Equal(t, `"GENERATE_UUID"*`, args[0])
+	assert.Equal(t, searchPreviewMaxPerConversation, args[1])
 }
 
-func TestReadSearchPreviewsReturnsThreeUniquePreviewsPerConversation(t *testing.T) {
+func TestReadSearchPreviewsDeduplicatesBeforeApplyingConversationLimit(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
@@ -81,28 +85,32 @@ func TestReadSearchPreviewsReturnsThreeUniquePreviewsPerConversation(t *testing.
 	}
 
 	repeated := strings.Repeat("important repeated line ", 8)
-	corpus := searchCorpus{units: []searchUnit{
-		{conversationID: conversationValue.CacheKey(), ordinal: 0, text: repeated},
-		{conversationID: conversationValue.CacheKey(), ordinal: 1, text: repeated},
-		{conversationID: conversationValue.CacheKey(), ordinal: 2, text: repeated},
-		{conversationID: conversationValue.CacheKey(), ordinal: 3, text: repeated},
-		{conversationID: conversationValue.CacheKey(), ordinal: 4, text: repeated},
-		{
+	units := make([]searchUnit, 0, 15)
+	for ordinal := range 12 {
+		units = append(units, searchUnit{
 			conversationID: conversationValue.CacheKey(),
-			ordinal:        5,
+			ordinal:        ordinal,
+			text:           repeated,
+		})
+	}
+	units = append(units,
+		searchUnit{
+			conversationID: conversationValue.CacheKey(),
+			ordinal:        12,
 			text:           strings.Repeat("before ", 8) + "important alpha unique line" + strings.Repeat(" after", 8),
 		},
-		{
+		searchUnit{
 			conversationID: conversationValue.CacheKey(),
-			ordinal:        6,
+			ordinal:        13,
 			text:           strings.Repeat("before ", 8) + "important beta unique line" + strings.Repeat(" after", 8),
 		},
-		{
+		searchUnit{
 			conversationID: conversationValue.CacheKey(),
-			ordinal:        7,
+			ordinal:        14,
 			text:           strings.Repeat("before ", 8) + "important gamma unique line" + strings.Repeat(" after", 8),
 		},
-	}}
+	)
+	corpus := searchCorpus{units: units}
 
 	writeSQLiteTestStore(t, archiveDir, []conversation{conversationValue}, map[string]sessionFull{
 		conversationValue.CacheKey(): {
@@ -125,17 +133,93 @@ func TestReadSearchPreviewsReturnsThreeUniquePreviewsPerConversation(t *testing.
 	require.NoError(t, err)
 	require.Len(t, matches, 1)
 
-	conversationIDs := []int64{matches[0].id}
-	previews, err := readSearchPreviews(
-		context.Background(),
-		db,
-		conversationIDs,
-		matches,
-		searchTerms("important"),
-	)
+	require.Len(t, matches[0].previews, 3)
+	assert.Contains(t, matches[0].previews[0], "important repeated line")
+	assert.Contains(t, matches[0].previews[1], "important alpha unique line")
+	assert.Contains(t, matches[0].previews[2], "important beta unique line")
+}
+
+func TestReadSearchPreviewsGroupsDedupedPreviewsPerConversation(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	first := testSQLiteConversation("s1")
+	second := testSQLiteConversation("s2")
+	second.Sessions[0].Timestamp = second.Sessions[0].Timestamp.Add(time.Minute)
+	second.Sessions[0].LastTimestamp = second.Sessions[0].LastTimestamp.Add(time.Minute)
+
+	corpus := searchCorpus{units: []searchUnit{
+		{conversationID: first.CacheKey(), ordinal: 0, text: strings.Repeat("common first ", 8) + "important repeated alpha"},
+		{conversationID: first.CacheKey(), ordinal: 1, text: strings.Repeat("common first ", 8) + "important repeated alpha"},
+		{conversationID: first.CacheKey(), ordinal: 2, text: strings.Repeat("before ", 8) + "important unique first"},
+		{
+			conversationID: second.CacheKey(),
+			ordinal:        0,
+			text:           strings.Repeat("common second ", 8) + "important repeated beta",
+		},
+		{
+			conversationID: second.CacheKey(),
+			ordinal:        1,
+			text:           strings.Repeat("common second ", 8) + "important repeated beta",
+		},
+		{conversationID: second.CacheKey(), ordinal: 2, text: strings.Repeat("before ", 8) + "important unique second"},
+	}}
+
+	writeSQLiteTestStore(t, archiveDir, []conversation{first, second}, map[string]sessionFull{
+		first.CacheKey():  {Meta: first.Sessions[0]},
+		second.CacheKey(): {Meta: second.Sessions[0]},
+	}, corpus)
+
+	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)
-	require.Len(t, previews[conversationValue.CacheKey()], 3)
-	assert.Contains(t, previews[conversationValue.CacheKey()][0], "important repeated line")
-	assert.Contains(t, previews[conversationValue.CacheKey()][1], "important alpha unique line")
-	assert.Contains(t, previews[conversationValue.CacheKey()][2], "important beta unique line")
+	defer func() { _ = db.Close() }()
+
+	matches, err := readRankedConversationMatches(context.Background(), db, buildFTSQuery("important"))
+	require.NoError(t, err)
+	require.Len(t, matches, 2)
+
+	previewsByCacheKey := make(map[string][]string, len(matches))
+	for _, match := range matches {
+		previewsByCacheKey[match.cacheKey] = match.previews
+	}
+
+	require.Len(t, previewsByCacheKey[first.CacheKey()], 2)
+	assert.Contains(t, previewsByCacheKey[first.CacheKey()][0], "important repeated alpha")
+	assert.Contains(t, previewsByCacheKey[first.CacheKey()][1], "important unique first")
+
+	require.Len(t, previewsByCacheKey[second.CacheKey()], 2)
+	assert.Contains(t, previewsByCacheKey[second.CacheKey()][0], "important repeated beta")
+	assert.Contains(t, previewsByCacheKey[second.CacheKey()][1], "important unique second")
+}
+
+func TestReadSearchPreviewsUsesStableSnippetEllipses(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	conversationValue := testSQLiteConversation("s1")
+	longChunk := strings.Join([]string{
+		"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november",
+		"important needle",
+		"oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu",
+	}, " ")
+
+	writeSQLiteTestStore(t, archiveDir, []conversation{conversationValue}, map[string]sessionFull{
+		conversationValue.CacheKey(): {Meta: conversationValue.Sessions[0]},
+	}, searchCorpus{units: []searchUnit{{
+		conversationID: conversationValue.CacheKey(),
+		ordinal:        0,
+		text:           longChunk,
+	}}})
+
+	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	matches, err := readRankedConversationMatches(context.Background(), db, buildFTSQuery("needle"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
+
+	require.Len(t, matches[0].previews, 1)
+	assert.Contains(t, matches[0].previews[0], "important needle")
+	assert.Contains(t, matches[0].previews[0], "...")
 }

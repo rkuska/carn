@@ -136,6 +136,17 @@ func (s *Store) DeepSearch(
 	query string,
 	conversations []conv.Conversation,
 ) ([]conv.Conversation, bool, error) {
+	needsRebuild, err := s.needsRebuild(ctx, archiveDir)
+	if err != nil {
+		return nil, false, fmt.Errorf("needsRebuild: %w", err)
+	}
+	if needsRebuild {
+		if query == "" {
+			return conversations, false, nil
+		}
+		return nil, false, nil
+	}
+
 	db, err := s.loadDB(ctx, archiveDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

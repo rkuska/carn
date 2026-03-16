@@ -47,7 +47,6 @@ type browserModel struct {
 	notification              notification
 	searchInput               textinput.Model
 	search                    browserSearchState
-	deepSearchAvailable       bool
 	sessionCache              map[string]conv.Session
 	searchCancel              context.CancelFunc
 	openConversationID        string
@@ -129,10 +128,9 @@ func newBrowserModelWithStore(
 			mode:   searchModeMetadata,
 			status: searchStatusIdle,
 		},
-		filter:              newBrowserFilterState(),
-		sessionCache:        make(map[string]conv.Session, cacheSize),
-		deepSearchAvailable: true,
-		resyncSpinner:       s,
+		filter:        newBrowserFilterState(),
+		sessionCache:  make(map[string]conv.Session, cacheSize),
+		resyncSpinner: s,
 	}
 }
 

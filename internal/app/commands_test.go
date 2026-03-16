@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,14 +14,14 @@ import (
 )
 
 type fakeBrowserStore struct {
-	listResult          []conv.Conversation
-	listErr             error
-	loadResult          conv.Session
-	loadErr             error
-	loadCalls           int
-	deepSearchResults   map[string][]conv.Conversation
-	deepSearchErr       error
-	deepSearchAvailable bool
+	listResult        []conv.Conversation
+	listErr           error
+	loadResult        conv.Session
+	loadErr           error
+	loadCalls         int
+	deepSearchCalls   int
+	deepSearchResults map[string][]conv.Conversation
+	deepSearchErr     error
 }
 
 func (s *fakeBrowserStore) List(context.Context, string) ([]conv.Conversation, error) {
@@ -43,17 +42,18 @@ func (s *fakeBrowserStore) DeepSearch(
 	_ string,
 	query string,
 	conversations []conv.Conversation,
-) ([]conv.Conversation, bool, error) {
+) ([]conv.Conversation, error) {
+	s.deepSearchCalls++
 	if s.deepSearchErr != nil {
-		return conversations, false, s.deepSearchErr
+		return conversations, s.deepSearchErr
 	}
 	if query == "" {
-		return conversations, s.deepSearchAvailable, nil
+		return conversations, nil
 	}
 	if results, ok := s.deepSearchResults[query]; ok {
-		return results, s.deepSearchAvailable, nil
+		return results, nil
 	}
-	return nil, s.deepSearchAvailable, nil
+	return nil, nil
 }
 
 func TestExportTextReturnsSuccessNotification(t *testing.T) {
@@ -167,7 +167,7 @@ func TestOpenConversationCmdCachedWithStoreUsesCachedSession(t *testing.T) {
 	assert.Zero(t, store.loadCalls)
 }
 
-func TestLoadSessionsCmdWithStoreIgnoresDeepSearchErrors(t *testing.T) {
+func TestLoadSessionsCmdWithStoreDoesNotProbeDeepSearch(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeBrowserStore{
@@ -178,7 +178,6 @@ func TestLoadSessionsCmdWithStoreIgnoresDeepSearchErrors(t *testing.T) {
 				Project:   conv.Project{DisplayName: "proj"},
 			}),
 		},
-		deepSearchErr: errors.New("corrupt search index"),
 	}
 
 	msg := loadSessionsCmdWithStore(
@@ -189,5 +188,5 @@ func TestLoadSessionsCmdWithStoreIgnoresDeepSearchErrors(t *testing.T) {
 
 	loaded := requireMsgType[conversationsLoadedMsg](t, msg)
 	require.Len(t, loaded.conversations, 1)
-	assert.False(t, loaded.deepSearchAvailable)
+	assert.Zero(t, store.deepSearchCalls)
 }
