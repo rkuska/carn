@@ -69,6 +69,7 @@ type importOverviewModel struct {
 	configFilePath string
 	configStatus   config.Status
 	configErr      error
+	logFilePath    string
 
 	done     bool
 	width    int
@@ -83,6 +84,7 @@ func newImportOverviewModelWithPipelineConfig(
 	configFilePath string,
 	configStatus config.Status,
 	configErr error,
+	logFilePath string,
 ) importOverviewModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -108,6 +110,7 @@ func newImportOverviewModelWithPipelineConfig(
 		configFilePath: configFilePath,
 		configStatus:   configStatus,
 		configErr:      configErr,
+		logFilePath:    logFilePath,
 	}
 }
 
@@ -125,6 +128,7 @@ func newImportOverviewModelWithPipeline(
 		configFilePath,
 		configStatusFromExists(configFileExists),
 		nil,
+		"",
 	)
 }
 

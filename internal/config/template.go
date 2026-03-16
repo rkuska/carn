@@ -11,7 +11,7 @@ func DefaultTemplate() string {
 # archive_dir = "~/.local/share/carn"
 # claude_source_dir = "~/.claude/projects"
 # codex_source_dir = "~/.codex/sessions"
-# log_file = "/tmp/carn.log"
+# log_file = "~/.local/state/carn/carn.log"
 
 # Display preferences.
 [display]
@@ -25,5 +25,14 @@ func DefaultTemplate() string {
 [search]
 # Milliseconds to wait before triggering a deep search query.
 # deep_search_debounce_ms = 200
+
+# Logging behavior.
+[logging]
+# Log verbosity: debug, info, warn, error.
+# level = "info"
+# Maximum log file size in megabytes before rotation.
+# max_size_mb = 10
+# Number of rotated log files to keep.
+# max_backups = 3
 `
 }

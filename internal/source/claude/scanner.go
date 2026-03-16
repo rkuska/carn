@@ -130,6 +130,8 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error)
 	if err != nil {
 		return nil, fmt.Errorf("scanSessionFilesParallel: %w", err)
 	}
+
+	log.Info().Int("sessions", len(sessions)).Msg("claude source scan completed")
 	return sessions, nil
 }
 

@@ -99,6 +99,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 		SourceDirs: appCfg.SourceDirs,
 		ArchiveDir: appCfg.ArchiveDir,
 	}
+	m.logFilePath = appCfg.LogFile
 	m.pipeline = m.pipelineFactory(m.cfg)
 	m.importOverview = newImportOverviewModelWithPipelineConfig(
 		m.ctx,
@@ -107,6 +108,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 		appCfg.ConfigFilePath,
 		appCfg.ConfigStatus,
 		appCfg.ConfigErr,
+		appCfg.LogFile,
 	)
 	m.importOverview.width = m.width
 	m.importOverview.height = m.height
@@ -114,6 +116,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 	m.browser = newBrowserModelWithStore(
 		m.ctx,
 		appCfg.ArchiveDir,
+		appCfg.LogFile,
 		appCfg.GlamourStyle,
 		appCfg.TimestampFormat,
 		appCfg.BrowserCacheSize,
@@ -133,7 +136,7 @@ func (m appModel) currentConfig() config.Config {
 			ArchiveDir:      m.cfg.ArchiveDir,
 			ClaudeSourceDir: m.cfg.SourceDirFor(conv.ProviderClaude),
 			CodexSourceDir:  m.cfg.SourceDirFor(conv.ProviderCodex),
-			LogFile:         config.DefaultLogFile,
+			LogFile:         m.logFilePath,
 		},
 		Display: config.DisplayConfig{
 			TimestampFormat:  m.browser.timestampFormat,
@@ -150,6 +153,7 @@ func configStateToAppConfig(state config.State, glamourStyle string) Config {
 	return Config{
 		SourceDirs:           archiveCfg.SourceDirs,
 		ArchiveDir:           archiveCfg.ArchiveDir,
+		LogFile:              state.Config.Paths.LogFile,
 		GlamourStyle:         glamourStyle,
 		TimestampFormat:      state.Config.Display.TimestampFormat,
 		BrowserCacheSize:     state.Config.Display.BrowserCacheSize,

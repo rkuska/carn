@@ -127,3 +127,14 @@ func withHelpDetail(item helpItem, detail string) helpItem {
 	item.detail = detail
 	return item
 }
+
+func logInfoSection(logFilePath string) helpSection {
+	return helpSection{
+		title: "Info",
+		items: []helpItem{{
+			key:    "Log file",
+			desc:   shortenPath(logFilePath),
+			detail: "diagnostic logs written here",
+		}},
+	}
+}

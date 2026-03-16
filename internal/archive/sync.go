@@ -150,11 +150,18 @@ func syncCandidates(
 		return SyncResult{}, fmt.Errorf("syncCandidates_errgroup.Wait: %w", err)
 	}
 
-	return SyncResult{
+	result := SyncResult{
 		Copied:  int(copied.Load()),
 		Skipped: 0,
 		Failed:  int(failed.Load()),
 		Elapsed: time.Since(start),
 		files:   results,
-	}, nil
+	}
+
+	log.Info().
+		Int("copied", result.Copied).
+		Int("failed", result.Failed).
+		Msg("sync completed")
+
+	return result, nil
 }

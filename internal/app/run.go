@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,6 +17,7 @@ import (
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
 	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -27,6 +29,7 @@ const (
 type Config struct {
 	SourceDirs           map[conv.Provider]string
 	ArchiveDir           string
+	LogFile              string
 	GlamourStyle         string
 	TimestampFormat      string
 	BrowserCacheSize     int
@@ -43,14 +46,35 @@ func Run() error {
 		return fmt.Errorf("config.LoadState: %w", err)
 	}
 
-	logFile, err := os.OpenFile(state.Config.Paths.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return fmt.Errorf("os.OpenFile: %w", err)
+	if err := os.MkdirAll(filepath.Dir(state.Config.Paths.LogFile), 0o755); err != nil {
+		return fmt.Errorf("os.MkdirAll: %w", err)
 	}
-	defer func() { _ = logFile.Close() }()
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: logFile, NoColor: true}).With().Timestamp().Logger()
+	level, err := config.ParseLogLevel(state.Config.Logging.Level)
+	if err != nil {
+		return fmt.Errorf("config.ParseLogLevel: %w", err)
+	}
+	if os.Getenv("DEBUG") == "1" {
+		level = zerolog.DebugLevel
+	}
+
+	logWriter := &lumberjack.Logger{
+		Filename:   state.Config.Paths.LogFile,
+		MaxSize:    state.Config.Logging.MaxSizeMB,
+		MaxBackups: state.Config.Logging.MaxBackups,
+		Compress:   true,
+	}
+	defer func() { _ = logWriter.Close() }()
+
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: logWriter, NoColor: true}).
+		With().Timestamp().Logger().Level(level)
 	ctx := logger.WithContext(context.Background())
+
+	logger.Info().
+		Str("log_file", state.Config.Paths.LogFile).
+		Str("log_level", level.String()).
+		Str("archive_dir", state.Config.Paths.ArchiveDir).
+		Msg("carn started")
 
 	// Detect terminal background before Bubble Tea takes over stdin.
 	// glamour.WithAutoStyle() sends an OSC 11 query on every call, whose

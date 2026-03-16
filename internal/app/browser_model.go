@@ -62,11 +62,14 @@ type browserModel struct {
 	resync                    browserResyncState
 	resyncSpinner             spinner.Model
 	pendingResyncTranscriptID string
+	logFilePath               string
 }
 
 func newBrowserModelWithStore(
 	ctx context.Context,
-	archiveDir, glamourStyle string,
+	archiveDir string,
+	logFilePath string,
+	glamourStyle string,
 	timestampFormat string,
 	cacheSize int,
 	debounceMs int,
@@ -112,6 +115,7 @@ func newBrowserModelWithStore(
 	return browserModel{
 		ctx:                  ctx,
 		archiveDir:           archiveDir,
+		logFilePath:          logFilePath,
 		store:                store,
 		launcher:             resolveSessionLauncher(launchers...),
 		glamourStyle:         glamourStyle,
@@ -143,6 +147,7 @@ func newBrowserModel(
 	return newBrowserModelWithStore(
 		ctx,
 		archiveDir,
+		"",
 		glamourStyle,
 		timestampFormat,
 		cacheSize,

@@ -108,6 +108,77 @@ browser_cache_size = 0
 		assert.ErrorContains(t, state.Err, "validate")
 		assertConfigMatchesDefaults(t, state.Config)
 	})
+
+	t.Run("logging config overrides defaults", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		writeConfigFile(t, `
+[logging]
+level = "debug"
+max_size_mb = 5
+max_backups = 2
+`)
+
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusLoaded, state.Status)
+		assert.Equal(t, "debug", state.Config.Logging.Level)
+		assert.Equal(t, 5, state.Config.Logging.MaxSizeMB)
+		assert.Equal(t, 2, state.Config.Logging.MaxBackups)
+	})
+
+	t.Run("invalid log level returns invalid status", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		writeConfigFile(t, `
+[logging]
+level = "verbose"
+`)
+
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusInvalid, state.Status)
+		require.Error(t, state.Err)
+		assert.ErrorContains(t, state.Err, "invalid log level")
+	})
+
+	t.Run("invalid max_size_mb returns invalid status", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		writeConfigFile(t, `
+[logging]
+max_size_mb = 0
+`)
+
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusInvalid, state.Status)
+		require.Error(t, state.Err)
+		assert.ErrorContains(t, state.Err, "max_size_mb")
+	})
+
+	t.Run("invalid max_backups returns invalid status", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		writeConfigFile(t, `
+[logging]
+max_backups = -1
+`)
+
+		state, err := LoadState()
+		require.NoError(t, err)
+		assert.Equal(t, StatusInvalid, state.Status)
+		require.Error(t, state.Err)
+		assert.ErrorContains(t, state.Err, "max_backups")
+	})
 }
 
 func TestLoad(t *testing.T) {
@@ -187,10 +258,44 @@ func assertConfigMatchesDefaults(t *testing.T, cfg Config) {
 	assert.Equal(t, filepath.Join(home, DefaultArchiveDir), cfg.Paths.ArchiveDir)
 	assert.Equal(t, filepath.Join(home, DefaultClaudeSourceDir), cfg.Paths.ClaudeSourceDir)
 	assert.Equal(t, filepath.Join(home, DefaultCodexSourceDir), cfg.Paths.CodexSourceDir)
-	assert.Equal(t, DefaultLogFile, cfg.Paths.LogFile)
+	assert.Equal(t, filepath.Join(home, DefaultLogDir, DefaultLogFileName), cfg.Paths.LogFile)
 	assert.Equal(t, DefaultTimestampFormat, cfg.Display.TimestampFormat)
 	assert.Equal(t, DefaultBrowserCacheSize, cfg.Display.BrowserCacheSize)
 	assert.Equal(t, DefaultDeepSearchDebounceMs, cfg.Search.DeepSearchDebounceMs)
+	assert.Equal(t, DefaultLogLevel, cfg.Logging.Level)
+	assert.Equal(t, DefaultMaxSizeMB, cfg.Logging.MaxSizeMB)
+	assert.Equal(t, DefaultMaxBackups, cfg.Logging.MaxBackups)
+}
+
+func TestParseLogLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    int8
+		wantErr bool
+	}{
+		{name: "empty defaults to info", input: "", want: 1},
+		{name: "debug", input: "debug", want: 0},
+		{name: "info", input: "info", want: 1},
+		{name: "warn", input: "warn", want: 2},
+		{name: "error", input: "error", want: 3},
+		{name: "unknown returns error", input: "trace", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseLogLevel(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, int8(got))
+		})
+	}
 }
 
 func writeConfigFile(t *testing.T, tomlContent string) {
