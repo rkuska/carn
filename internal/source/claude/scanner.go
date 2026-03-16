@@ -12,11 +12,20 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+var scanReaderPool = sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, jsonlScanBufferSize) },
+}
+
+var slugReaderPool = sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, jsonlSlugBufferSize) },
+}
 
 const (
 	maxFirstMessage     = 200
@@ -44,9 +53,8 @@ type parsedSessionMessagesResult struct {
 	ok       bool
 }
 
-func jsonlLines(r io.Reader, bufferSize int) iter.Seq2[[]byte, error] {
+func jsonlLines(br *bufio.Reader) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
-		br := bufio.NewReaderSize(r, bufferSize)
 		var overflow []byte
 
 		yieldLine := func(line []byte) bool {

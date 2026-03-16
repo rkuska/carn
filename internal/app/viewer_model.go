@@ -53,6 +53,7 @@ type viewerModel struct {
 	searchLines          []searchLineIndex
 	renderer             *glamour.TermRenderer
 	renderWrap           int
+	markdownCache        map[string]string
 	pendingGotoTopKey    bool
 	planExpanded         bool
 	actionMode           viewerActionMode

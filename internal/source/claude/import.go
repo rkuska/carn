@@ -1,14 +1,32 @@
 package claude
 
 import (
+	"bufio"
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	src "github.com/rkuska/carn/internal/source"
 )
+
+var slugMarker = []byte(`"slug":"`)
+
+// extractSlugFast extracts the slug field from a raw JSON line using
+// byte scanning instead of a full json.Unmarshal.
+func extractSlugFast(line []byte) string {
+	idx := bytes.Index(line, slugMarker)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(slugMarker)
+	end := bytes.IndexByte(line[start:], '"')
+	if end <= 0 {
+		return ""
+	}
+	return string(line[start : start+end])
+}
 
 type ProjectAnalysis struct {
 	FilesInspected   int
@@ -189,19 +207,18 @@ func classifyProjectFile(file sessionFile, sourceDir, rawDir, dirName string) (c
 	}
 	dstPath := filepath.Join(rawDir, rel)
 
-	info, err := os.Stat(file.path)
+	srcInfo, err := os.Stat(file.path)
 	if err != nil {
 		return classifiedFile{}, false
 	}
 
-	dstExists := true
-	if _, err := os.Stat(dstPath); os.IsNotExist(err) {
-		dstExists = false
-	}
+	dstInfo, dstErr := os.Stat(dstPath)
+	dstExists := dstErr == nil
+	needsSync := !dstExists || src.FileNeedsSyncInfo(srcInfo, dstInfo)
 
 	return classifiedFile{
 		gk:        gk,
-		needsSync: src.FileNeedsSync(info, dstPath),
+		needsSync: needsSync,
 		dstExists: dstExists,
 		srcPath:   file.path,
 		dstPath:   dstPath,
@@ -229,22 +246,19 @@ func extractSessionSlug(filePath string) (string, error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	for line, err := range jsonlLines(file, jsonlSlugBufferSize) {
+	br := slugReaderPool.Get().(*bufio.Reader)
+	br.Reset(file)
+	defer slugReaderPool.Put(br)
+
+	for line, err := range jsonlLines(br) {
 		if err != nil {
 			return "", fmt.Errorf("extractSessionSlug_jsonlLines: %w", err)
 		}
 		if extractType(line) != "user" {
 			continue
 		}
-
-		var rec struct {
-			Slug string `json:"slug"`
-		}
-		if err := json.Unmarshal(line, &rec); err != nil {
-			return "", fmt.Errorf("json.Unmarshal: %w", err)
-		}
-		if rec.Slug != "" {
-			return rec.Slug, nil
+		if slug := extractSlugFast(line); slug != "" {
+			return slug, nil
 		}
 	}
 

@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -33,27 +34,6 @@ var (
 	recordTypeUser      = []byte(`"type":"user"`)
 	recordTypeAssistant = []byte(`"type":"assistant"`)
 )
-
-type jsonRecord struct {
-	Type          string          `json:"type"`
-	SessionID     string          `json:"sessionId"`
-	Slug          string          `json:"slug"`
-	CWD           string          `json:"cwd"`
-	GitBranch     string          `json:"gitBranch"`
-	Version       string          `json:"version"`
-	Timestamp     string          `json:"timestamp"`
-	Message       json.RawMessage `json:"message"`
-	IsSidechain   bool            `json:"isSidechain"`
-	IsMeta        bool            `json:"isMeta"`
-	ToolUseResult json.RawMessage `json:"toolUseResult"`
-}
-
-type jsonMessage struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	Model   string          `json:"model"`
-	Usage   *jsonUsage      `json:"usage"`
-}
 
 type jsonUsage struct {
 	InputTokens              int `json:"input_tokens"`
@@ -146,6 +126,10 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 	defer func() { _ = file.Close() }()
 
+	br := scanReaderPool.Get().(*bufio.Reader)
+	br.Reset(file)
+	defer scanReaderPool.Put(br)
+
 	result := scannedSession{
 		meta: sessionMeta{FilePath: filePath, Project: proj},
 	}
@@ -156,7 +140,7 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 		},
 	}
 
-	for line, err := range jsonlLines(file, jsonlScanBufferSize) {
+	for line, err := range jsonlLines(br) {
 		if err := ctx.Err(); err != nil {
 			return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", err)
 		}
@@ -364,9 +348,18 @@ func yieldToolNames(line []byte) iter.Seq[string] {
 	}
 }
 
+var isSidechainMarker = []byte(`"isSidechain":`)
+
 func extractIsSidechain(line []byte) bool {
-	return bytes.Contains(line, []byte(`"isSidechain":true`)) ||
-		bytes.Contains(line, []byte(`"isSidechain": true`))
+	idx := bytes.Index(line, isSidechainMarker)
+	if idx == -1 {
+		return false
+	}
+	pos := idx + len(isSidechainMarker)
+	for pos < len(line) && line[pos] == ' ' {
+		pos++
+	}
+	return pos < len(line) && line[pos] == 't'
 }
 
 func aggregateUsage(messages []parsedMessage) tokenUsage {

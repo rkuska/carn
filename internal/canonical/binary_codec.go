@@ -64,15 +64,29 @@ func writeString(w *bufio.Writer, value string) error {
 }
 
 func readString(r *bufio.Reader) (string, error) {
+	s, _, err := readStringBuf(r, nil)
+	return s, err
+}
+
+// readStringBuf reads a length-prefixed string, reusing buf when large enough.
+// Returns the string, the (possibly grown) buffer, and any error.
+func readStringBuf(r *bufio.Reader, buf []byte) (string, []byte, error) {
 	length, err := readUint(r)
 	if err != nil {
-		return "", fmt.Errorf("readUint: %w", err)
+		return "", buf, fmt.Errorf("readUint: %w", err)
 	}
-	buf := make([]byte, length)
+	if length == 0 {
+		return "", buf, nil
+	}
+	if cap(buf) < int(length) {
+		buf = make([]byte, length)
+	} else {
+		buf = buf[:length]
+	}
 	if _, err := io.ReadFull(r, buf); err != nil {
-		return "", fmt.Errorf("io.ReadFull: %w", err)
+		return "", buf, fmt.Errorf("io.ReadFull: %w", err)
 	}
-	return string(buf), nil
+	return string(buf), buf, nil
 }
 
 func writeUint(w *bufio.Writer, value uint64) error {
@@ -129,18 +143,17 @@ func readBool(r *bufio.Reader) (bool, error) {
 }
 
 type binReader struct {
-	r   *bufio.Reader
-	err error
+	r      *bufio.Reader
+	err    error
+	strBuf []byte
 }
 
 func (br *binReader) readString() string {
 	if br.err != nil {
 		return ""
 	}
-	value, err := readString(br.r)
-	if err != nil {
-		br.err = err
-	}
+	var value string
+	value, br.strBuf, br.err = readStringBuf(br.r, br.strBuf)
 	return value
 }
 

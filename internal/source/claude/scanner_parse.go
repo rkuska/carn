@@ -17,7 +17,7 @@ import (
 // parseRecord is a flat struct that merges the outer JSONL record with the
 // nested message object. A single json.Decode fills both levels, eliminating
 // the intermediate json.RawMessage copy for the "message" field.
-// Used only in the parse phase; the metadata scan path keeps jsonRecord.
+// Used only in the parse phase; the metadata scan path uses metadataRecord.
 type parseRecord struct {
 	Type          string          `json:"type"`
 	SessionID     string          `json:"sessionId"`
@@ -85,25 +85,33 @@ func parseAndIndexLine(
 }
 
 func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parsedMessage, error) {
+	var pc parseContext
+	return parseSessionWithContext(ctx, filePath, &pc)
+}
+
+func parseSessionWithContext(ctx context.Context, filePath string, pc *parseContext) ([]parsedMessage, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("os.Open: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
+	br := scanReaderPool.Get().(*bufio.Reader)
+	br.Reset(file)
+	defer scanReaderPool.Put(br)
+
 	messages := make([]parsedMessage, 0, 32)
 	toolCallIndex := make(map[string]parsedToolCall)
-	var pc parseContext
-	dec := json.NewDecoder(bufio.NewReaderSize(file, jsonlScanBufferSize))
+	dec := json.NewDecoder(br)
 	for dec.More() {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("parseSessionMessagesDetailed_ctx: %w", err)
+			return nil, fmt.Errorf("parseSessionWithContext_ctx: %w", err)
 		}
 		pc.reset()
 		if err := dec.Decode(&pc.rec); err != nil {
-			return nil, fmt.Errorf("parseSessionMessagesDetailed_decode: %w", err)
+			return nil, fmt.Errorf("parseSessionWithContext_decode: %w", err)
 		}
-		if msg, ok := parseAndIndexLine(ctx, &pc, toolCallIndex); ok {
+		if msg, ok := parseAndIndexLine(ctx, pc, toolCallIndex); ok {
 			messages = append(messages, msg)
 		}
 	}
@@ -156,12 +164,15 @@ func parseConversationPathsParallel(ctx context.Context, paths []string) ([]pars
 			}
 			defer sem.Release(1)
 
-			msgs, err := parseSessionMessagesDetailed(groupCtx, path)
+			// parseContext is reused across sequential file parses within
+			// the same goroutine — the blocks slice retains its backing array.
+			var pc parseContext
+			msgs, err := parseSessionWithContext(groupCtx, path, &pc)
 			if err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("parseSessionMessagesDetailed_%s: %w", path, err)
+					return fmt.Errorf("parseSessionWithContext_%s: %w", path, err)
 				}
-				log.Debug().Err(err).Msgf("parseSessionMessagesDetailed failed for %s", path)
+				log.Debug().Err(err).Msgf("parseSessionWithContext failed for %s", path)
 				return nil
 			}
 

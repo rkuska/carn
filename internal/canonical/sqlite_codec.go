@@ -35,15 +35,15 @@ func decodeSessionBlob(blob []byte) (sessionFull, error) {
 	return readSessionFull(bufio.NewReader(bytes.NewReader(blob)))
 }
 
-func marshalToolCounts(counts map[string]int) (string, error) {
+func marshalToolCountsCached(counts map[string]int) string {
 	if len(counts) == 0 {
-		return "", nil
+		return ""
 	}
 	raw, err := json.Marshal(counts)
 	if err != nil {
-		return "", fmt.Errorf("json.Marshal: %w", err)
+		return ""
 	}
-	return string(raw), nil
+	return string(raw)
 }
 
 func unmarshalToolCounts(raw string) (map[string]int, error) {

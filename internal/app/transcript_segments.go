@@ -307,7 +307,12 @@ func appendToolCallSegments(segments *[]transcriptSegment, toolCalls []conv.Tool
 }
 
 func flattenSegments(segments []transcriptSegment) string {
+	size := 0
+	for _, seg := range segments {
+		size += len(seg.text) + 50
+	}
 	var sb strings.Builder
+	sb.Grow(size)
 	for _, seg := range segments {
 		switch seg.kind {
 		case segmentMarkdown:

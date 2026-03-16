@@ -8,7 +8,26 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func initSessionMeta(meta *sessionMeta, rec jsonRecord) {
+// metadataRecord flattens the outer JSONL record and the nested message object
+// into a single struct for one-pass JSON decoding. This avoids the double
+// unmarshal that jsonRecord + jsonMessage required.
+type metadataRecord struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	Slug      string `json:"slug"`
+	CWD       string `json:"cwd"`
+	GitBranch string `json:"gitBranch"`
+	Version   string `json:"version"`
+	Timestamp string `json:"timestamp"`
+	IsMeta    bool   `json:"isMeta"`
+	Message   struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+		Model   string          `json:"model"`
+	} `json:"message"`
+}
+
+func initSessionMetaFromRecord(meta *sessionMeta, rec metadataRecord) {
 	meta.ID = rec.SessionID
 	meta.Slug = rec.Slug
 	meta.CWD = rec.CWD
@@ -24,9 +43,9 @@ func initSessionMeta(meta *sessionMeta, rec jsonRecord) {
 	}
 }
 
-func applyUserMetadata(meta *sessionMeta, rec jsonRecord) {
+func applyUserMetadata(meta *sessionMeta, rec metadataRecord) {
 	if meta.ID == "" {
-		initSessionMeta(meta, rec)
+		initSessionMetaFromRecord(meta, rec)
 	}
 	if meta.Slug == "" && rec.Slug != "" {
 		meta.Slug = rec.Slug
@@ -46,7 +65,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 		return false, nil
 	}
 
-	var rec jsonRecord
+	var rec metadataRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return false, fmt.Errorf("json.Unmarshal: %w", err)
 	}
@@ -56,12 +75,7 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 		return false, nil
 	}
 
-	var msg jsonMessage
-	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return false, fmt.Errorf("json.Unmarshal message: %w", err)
-	}
-
-	content, toolResults := extractUserContent(msg.Content)
+	content, toolResults := extractUserContent(rec.Message.Content)
 	hasContent := len(toolResults) > 0 || isUserContentText(content)
 	if !*found && isUserContentText(content) {
 		meta.FirstMessage = conv.Truncate(content, maxFirstMessage)
@@ -80,22 +94,17 @@ func parseAssistantRecord(
 		return false, nil
 	}
 
-	var rec jsonRecord
+	var rec metadataRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return false, fmt.Errorf("json.Unmarshal: %w", err)
 	}
 
-	var msg jsonMessage
-	if err := json.Unmarshal(rec.Message, &msg); err != nil {
-		return false, fmt.Errorf("json.Unmarshal message: %w", err)
-	}
-
-	if !*found && msg.Model != "" {
-		meta.Model = msg.Model
+	if !*found && rec.Message.Model != "" {
+		meta.Model = rec.Message.Model
 		*found = true
 	}
 
-	return assistantContentHasConversationContent(msg.Content), nil
+	return assistantContentHasConversationContent(rec.Message.Content), nil
 }
 
 func assistantContentHasConversationContent(raw json.RawMessage) bool {
