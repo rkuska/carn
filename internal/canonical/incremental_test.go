@@ -106,7 +106,7 @@ func TestGroupSearchUnitsByConversation(t *testing.T) {
 		{conversationID: "a", text: "first"},
 		{conversationID: "a", text: "second"},
 		{conversationID: "b", text: "third"},
-	}})
+	}}, 2)
 
 	assert.Len(t, grouped["a"], 2)
 	assert.Len(t, grouped["b"], 1)

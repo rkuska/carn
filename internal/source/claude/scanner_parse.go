@@ -42,8 +42,10 @@ type parseRecord struct {
 // The blocks slice retains its backing array across calls — json.Unmarshal
 // reuses the capacity, only overwriting fields present in each JSON record.
 type parseContext struct {
-	rec    parseRecord
-	blocks []contentBlock
+	rec            parseRecord
+	blocks         []contentBlock
+	toolCallIndex  map[string]parsedToolCall
+	summarizeParam map[string]json.RawMessage
 }
 
 func (pc *parseContext) reset() {
@@ -51,10 +53,25 @@ func (pc *parseContext) reset() {
 	pc.blocks = pc.blocks[:0]
 }
 
+func (pc *parseContext) resetToolCallIndex() {
+	if pc.toolCallIndex == nil {
+		pc.toolCallIndex = make(map[string]parsedToolCall)
+	} else {
+		clear(pc.toolCallIndex)
+	}
+}
+
+func (pc *parseContext) resetSummarizeParams() {
+	if pc.summarizeParam == nil {
+		pc.summarizeParam = make(map[string]json.RawMessage)
+	} else {
+		clear(pc.summarizeParam)
+	}
+}
+
 func parseAndIndexLine(
 	ctx context.Context,
 	pc *parseContext,
-	toolCallIndex map[string]parsedToolCall,
 ) (parsedMessage, bool) {
 	switch role(pc.rec.Type) {
 	case roleUser:
@@ -63,7 +80,7 @@ func parseAndIndexLine(
 			return parsedMessage{}, false
 		}
 		for i, result := range msg.toolResults {
-			if toolCall, found := toolCallIndex[result.toolUseID]; found {
+			if toolCall, found := pc.toolCallIndex[result.toolUseID]; found {
 				msg.toolResults[i].toolName = toolCall.name
 				msg.toolResults[i].toolSummary = toolCall.summary
 			}
@@ -76,7 +93,7 @@ func parseAndIndexLine(
 		}
 		for _, toolCall := range msg.toolCalls {
 			if toolCall.id != "" {
-				toolCallIndex[toolCall.id] = toolCall
+				pc.toolCallIndex[toolCall.id] = toolCall
 			}
 		}
 		return msg, true
@@ -101,7 +118,7 @@ func parseSessionWithContext(ctx context.Context, filePath string, pc *parseCont
 	defer scanReaderPool.Put(br)
 
 	messages := make([]parsedMessage, 0, 32)
-	toolCallIndex := make(map[string]parsedToolCall)
+	pc.resetToolCallIndex()
 	dec := json.NewDecoder(br)
 	for dec.More() {
 		if err := ctx.Err(); err != nil {
@@ -111,7 +128,7 @@ func parseSessionWithContext(ctx context.Context, filePath string, pc *parseCont
 		if err := dec.Decode(&pc.rec); err != nil {
 			return nil, fmt.Errorf("parseSessionWithContext_decode: %w", err)
 		}
-		if msg, ok := parseAndIndexLine(ctx, pc, toolCallIndex); ok {
+		if msg, ok := parseAndIndexLine(ctx, pc); ok {
 			messages = append(messages, msg)
 		}
 	}

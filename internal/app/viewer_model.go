@@ -54,6 +54,8 @@ type viewerModel struct {
 	renderer             *glamour.TermRenderer
 	renderWrap           int
 	markdownCache        map[string]string
+	roleHeaderCache      map[roleHeaderKey]string
+	lastIndexedContent   string
 	pendingGotoTopKey    bool
 	planExpanded         bool
 	actionMode           viewerActionMode

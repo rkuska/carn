@@ -303,17 +303,39 @@ func extractUsage(line []byte) tokenUsage {
 	return tokenUsage{}
 }
 
+var usageFields = []struct {
+	marker []byte
+	offset func(*tokenUsage) *int
+}{
+	{[]byte(`"input_tokens":`), func(u *tokenUsage) *int { return &u.InputTokens }},
+	{[]byte(`"output_tokens":`), func(u *tokenUsage) *int { return &u.OutputTokens }},
+	{[]byte(`"cache_creation_input_tokens":`), func(u *tokenUsage) *int { return &u.CacheCreationInputTokens }},
+	{[]byte(`"cache_read_input_tokens":`), func(u *tokenUsage) *int { return &u.CacheReadInputTokens }},
+}
+
 func parseUsageObject(raw []byte) tokenUsage {
-	var usage jsonUsage
-	if err := json.Unmarshal(raw, &usage); err != nil {
-		return tokenUsage{}
+	var usage tokenUsage
+	for _, field := range usageFields {
+		idx := bytes.Index(raw, field.marker)
+		if idx == -1 {
+			continue
+		}
+		pos := idx + len(field.marker)
+		for pos < len(raw) && raw[pos] == ' ' {
+			pos++
+		}
+		n := 0
+		found := false
+		for pos < len(raw) && raw[pos] >= '0' && raw[pos] <= '9' {
+			n = n*10 + int(raw[pos]-'0')
+			pos++
+			found = true
+		}
+		if found {
+			*field.offset(&usage) = n
+		}
 	}
-	return tokenUsage{
-		InputTokens:              usage.InputTokens,
-		CacheCreationInputTokens: usage.CacheCreationInputTokens,
-		CacheReadInputTokens:     usage.CacheReadInputTokens,
-		OutputTokens:             usage.OutputTokens,
-	}
+	return usage
 }
 
 func yieldToolNames(line []byte) iter.Seq[string] {

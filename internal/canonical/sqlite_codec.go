@@ -13,6 +13,10 @@ var blobBufferPool = sync.Pool{
 	New: func() any { return bytes.NewBuffer(make([]byte, 0, 8192)) },
 }
 
+var blobReaderPool = sync.Pool{
+	New: func() any { return bufio.NewReader(nil) },
+}
+
 func encodeSessionBlob(session sessionFull) ([]byte, error) {
 	buf := blobBufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
@@ -32,7 +36,10 @@ func encodeSessionBlob(session sessionFull) ([]byte, error) {
 }
 
 func decodeSessionBlob(blob []byte) (sessionFull, error) {
-	return readSessionFull(bufio.NewReader(bytes.NewReader(blob)))
+	br := blobReaderPool.Get().(*bufio.Reader)
+	br.Reset(bytes.NewReader(blob))
+	defer blobReaderPool.Put(br)
+	return readSessionFull(br)
 }
 
 func marshalToolCountsCached(counts map[string]int) string {
