@@ -14,6 +14,19 @@ Enter
 Sleep 1s
 Enter
 
+# Filter
+Type "f"
+Sleep 1s
+Enter
+Space
+Sleep 500ms
+Enter
+Down
+Type "/claude-search"
+Enter
+Sleep 500ms
+Type "q"
+
 # Navigate conversation list
 Down 3
 Sleep 200ms
