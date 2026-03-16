@@ -199,14 +199,18 @@ func renderBorderTop(title string, width int, fg, bg color.Color) string {
 
 func renderFramedPane(title string, width, bodyHeight int, borderColor color.Color, content string) string {
 	topBorder := renderBorderTop(title, width, borderColor, borderColor)
+	innerWidth := max(width-2, 1)
+	bodyContent := lipgloss.NewStyle().
+		Width(innerWidth).
+		Height(bodyHeight).
+		MaxHeight(bodyHeight).
+		Render(content)
 	body := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderTop(false).
 		BorderForeground(borderColor).
 		Width(width).
-		Height(bodyHeight).
-		MaxHeight(bodyHeight + 1).
-		Render(content)
+		Render(bodyContent)
 	return topBorder + "\n" + body
 }
 
