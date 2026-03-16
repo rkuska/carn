@@ -52,8 +52,8 @@ func transcriptFooterItems(opts transcriptOptions, content contentFlags) []helpI
 	}
 	items = append(items, transcriptToggleItems(opts, content)...)
 	items = append(items,
-		helpItem{key: "y", desc: "copy", detail: "choose what to copy from this transcript"},
-		helpItem{key: "e", desc: "export", detail: "export the visible transcript as Markdown", priority: helpPriorityHigh},
+		helpItem{key: "y", desc: "copy", detail: "choose what to copy from this conversation"},
+		helpItem{key: "e", desc: "export", detail: "export the conversation as Markdown", priority: helpPriorityHigh},
 		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
 		helpItem{key: "q/esc", desc: "back", priority: helpPriorityHigh},
 	)
@@ -68,11 +68,11 @@ func transcriptHelpSections(
 	actions := []helpItem{
 		{key: "/", desc: "search", detail: "search inside the visible transcript"},
 		{key: "n / N", desc: "match", detail: "jump to the next or previous search match"},
-		{key: "y", desc: "copy", detail: "copy the conversation, a plan, or the raw transcript"},
-		{key: "o", desc: "open", detail: "open the conversation, a plan, or the raw transcript in $EDITOR"},
-		{key: "e", desc: "export", detail: "export the visible transcript as Markdown"},
+		{key: "y", desc: "copy", detail: "copy the conversation, a plan, or the raw source"},
+		{key: "o", desc: "open", detail: "open the conversation, a plan, or the raw source in $EDITOR"},
+		{key: "e", desc: "export", detail: "export the conversation as Markdown"},
 		{key: "r", desc: "resume", detail: "resume the session with its original provider"},
-		{key: "q/esc", desc: "back", detail: "close the transcript view"},
+		{key: "q/esc", desc: "back", detail: "close the conversation"},
 	}
 	actions = append(actions, extraActions...)
 
