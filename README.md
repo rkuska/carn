@@ -11,6 +11,8 @@ They live as raw JSONL files scattered under `~/.claude/projects/` and
 gives you a fast, searchable TUI to browse conversations, read
 transcripts, and **r**esume sessions — without leaving the terminal.
 
+![carn demo](docs/demo.gif)
+
 ## Features
 
 **Browsing**
