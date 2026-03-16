@@ -71,6 +71,7 @@ func (m importOverviewModel) helpSections() []helpSection {
 			title: "Actions",
 			items: m.footerItems(),
 		},
+		logInfoSection(m.logFilePath),
 	}
 }
 

@@ -57,6 +57,8 @@ func rebuildCanonicalStore(
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
 
+	zerolog.Ctx(ctx).Info().Msg("starting full canonical rebuild")
+
 	if err := store.invalidateDB(archiveDir); err != nil {
 		return fmt.Errorf("invalidateDB: %w", err)
 	}
@@ -81,6 +83,8 @@ func rebuildCanonicalStore(
 	); err != nil {
 		return fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
 	}
+
+	zerolog.Ctx(ctx).Info().Int("conversations", len(conversations)).Msg("canonical rebuild completed")
 	return nil
 }
 

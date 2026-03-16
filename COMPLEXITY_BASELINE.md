@@ -27,12 +27,13 @@ None.
 | --- | --- | ---: | ---: | ---: |
 | internal/canonical/message_codec.go | source | 240 | 77 | 254 |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
+| internal/config/config.go | source | 313 | 71 | 370 |
 | internal/source/codex/scan.go | source | 201 | 71 | 226 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/canonical/sqlite_store_persist.go | source | 302 | 68 | 328 |
 | internal/source/codex/load.go | source | 279 | 67 | 313 |
 | internal/source/claude/scanner_metadata.go | source | 365 | 66 | 396 |
-| internal/source/claude/scanner.go | source | 261 | 64 | 296 |
+| internal/source/claude/scanner.go | source | 262 | 64 | 298 |
 | internal/canonical/store.go | source | 263 | 62 | 312 |
 | internal/app/viewer_render.go | source | 265 | 61 | 294 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |

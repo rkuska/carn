@@ -18,6 +18,7 @@ type appModel struct {
 	ctx             context.Context
 	cfg             arch.Config
 	glamourStyle    string
+	logFilePath     string
 	pipeline        importPipeline
 	pipelineFactory func(arch.Config) importPipeline
 	store           browserStore
@@ -42,6 +43,7 @@ func newAppModelWithDeps(
 		ctx:             ctx,
 		cfg:             cfg,
 		glamourStyle:    appCfg.GlamourStyle,
+		logFilePath:     appCfg.LogFile,
 		pipeline:        pipeline,
 		pipelineFactory: func(nextCfg arch.Config) importPipeline { return pipeline },
 		store:           store,

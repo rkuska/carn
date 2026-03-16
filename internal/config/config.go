@@ -11,16 +11,21 @@ import (
 	"github.com/BurntSushi/toml"
 	arch "github.com/rkuska/carn/internal/archive"
 	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/rs/zerolog"
 )
 
 const (
 	DefaultArchiveDir           = ".local/share/carn"
 	DefaultClaudeSourceDir      = ".claude/projects"
 	DefaultCodexSourceDir       = ".codex/sessions"
-	DefaultLogFile              = "/tmp/carn.log"
+	DefaultLogDir               = ".local/state/carn"
+	DefaultLogFileName          = "carn.log"
 	DefaultTimestampFormat      = "2006-01-02 15:04"
 	DefaultBrowserCacheSize     = 20
 	DefaultDeepSearchDebounceMs = 200
+	DefaultLogLevel             = "info"
+	DefaultMaxSizeMB            = 10
+	DefaultMaxBackups           = 3
 )
 
 type Status string
@@ -45,6 +50,7 @@ type Config struct {
 	Paths   PathsConfig
 	Display DisplayConfig
 	Search  SearchConfig
+	Logging LoggingConfig
 }
 
 type PathsConfig struct {
@@ -61,6 +67,12 @@ type DisplayConfig struct {
 
 type SearchConfig struct {
 	DeepSearchDebounceMs int
+}
+
+type LoggingConfig struct {
+	Level      string
+	MaxSizeMB  int
+	MaxBackups int
 }
 
 // ArchiveConfig derives an archive.Config from the resolved configuration.
@@ -147,7 +159,7 @@ func defaults(home string) Config {
 			ArchiveDir:      filepath.Join(home, DefaultArchiveDir),
 			ClaudeSourceDir: filepath.Join(home, DefaultClaudeSourceDir),
 			CodexSourceDir:  filepath.Join(home, DefaultCodexSourceDir),
-			LogFile:         DefaultLogFile,
+			LogFile:         filepath.Join(home, DefaultLogDir, DefaultLogFileName),
 		},
 		Display: DisplayConfig{
 			TimestampFormat:  DefaultTimestampFormat,
@@ -155,6 +167,11 @@ func defaults(home string) Config {
 		},
 		Search: SearchConfig{
 			DeepSearchDebounceMs: DefaultDeepSearchDebounceMs,
+		},
+		Logging: LoggingConfig{
+			Level:      DefaultLogLevel,
+			MaxSizeMB:  DefaultMaxSizeMB,
+			MaxBackups: DefaultMaxBackups,
 		},
 	}
 }
@@ -165,6 +182,7 @@ type rawConfig struct {
 	Paths   *rawPaths   `toml:"paths"`
 	Display *rawDisplay `toml:"display"`
 	Search  *rawSearch  `toml:"search"`
+	Logging *rawLogging `toml:"logging"`
 }
 
 type rawPaths struct {
@@ -183,6 +201,12 @@ type rawSearch struct {
 	DeepSearchDebounceMs *int `toml:"deep_search_debounce_ms"`
 }
 
+type rawLogging struct {
+	Level      *string `toml:"level"`
+	MaxSizeMB  *int    `toml:"max_size_mb"`
+	MaxBackups *int    `toml:"max_backups"`
+}
+
 func overlayFile(cfg *Config, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -197,6 +221,7 @@ func overlayFile(cfg *Config, path string) error {
 	overlayRawPaths(&cfg.Paths, raw.Paths)
 	overlayRawDisplay(&cfg.Display, raw.Display)
 	overlayRawSearch(&cfg.Search, raw.Search)
+	overlayRawLogging(&cfg.Logging, raw.Logging)
 	return nil
 }
 
@@ -239,6 +264,21 @@ func overlayRawSearch(dst *SearchConfig, src *rawSearch) {
 	}
 }
 
+func overlayRawLogging(dst *LoggingConfig, src *rawLogging) {
+	if src == nil {
+		return
+	}
+	if src.Level != nil {
+		dst.Level = *src.Level
+	}
+	if src.MaxSizeMB != nil {
+		dst.MaxSizeMB = *src.MaxSizeMB
+	}
+	if src.MaxBackups != nil {
+		dst.MaxBackups = *src.MaxBackups
+	}
+}
+
 func expandPaths(cfg *Config, home string) {
 	if home == "" {
 		return
@@ -272,7 +312,50 @@ func validate(cfg Config) error {
 	if cfg.Search.DeepSearchDebounceMs < 0 {
 		return fmt.Errorf("deep_search_debounce_ms must be >= 0, got %d", cfg.Search.DeepSearchDebounceMs)
 	}
+	if err := validateLogLevel(cfg.Logging.Level); err != nil {
+		return err
+	}
+	if cfg.Logging.MaxSizeMB < 1 {
+		return fmt.Errorf("max_size_mb must be >= 1, got %d", cfg.Logging.MaxSizeMB)
+	}
+	if cfg.Logging.MaxBackups < 1 {
+		return fmt.Errorf("max_backups must be >= 1, got %d", cfg.Logging.MaxBackups)
+	}
 	return nil
+}
+
+var validLogLevels = map[string]bool{
+	"debug": true,
+	"info":  true,
+	"warn":  true,
+	"error": true,
+}
+
+func validateLogLevel(level string) error {
+	if level == "" {
+		return nil
+	}
+	if !validLogLevels[level] {
+		return fmt.Errorf("invalid log level %q, must be one of: debug, info, warn, error", level)
+	}
+	return nil
+}
+
+// ParseLogLevel converts a level name to a zerolog level constant.
+// An empty string defaults to info level.
+func ParseLogLevel(s string) (zerolog.Level, error) {
+	switch s {
+	case "", "info":
+		return zerolog.InfoLevel, nil
+	case "debug":
+		return zerolog.DebugLevel, nil
+	case "warn":
+		return zerolog.WarnLevel, nil
+	case "error":
+		return zerolog.ErrorLevel, nil
+	default:
+		return zerolog.InfoLevel, fmt.Errorf("parseLogLevel: unknown level %q", s)
+	}
 }
 
 func pathExists(path string) (bool, error) {

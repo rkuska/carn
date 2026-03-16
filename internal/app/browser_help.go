@@ -127,7 +127,11 @@ func (m browserModel) helpSections() []helpSection {
 		extraActions = append(extraActions,
 			withHelpDetail(m.layoutActionItem(), m.layoutActionDetail()),
 		)
-		return m.viewer.helpSections(extraActions)
+		sections := m.viewer.helpSections(extraActions)
+		if !m.viewer.hasActiveOverlay() {
+			sections = append(sections, logInfoSection(m.logFilePath))
+		}
+		return sections
 	}
 
 	actions := []helpItem{
@@ -166,6 +170,7 @@ func (m browserModel) helpSections() []helpSection {
 			title: "Toggles",
 			items: []helpItem{m.deepSearchToggleItem()},
 		},
+		logInfoSection(m.logFilePath),
 	}
 }
 

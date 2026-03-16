@@ -258,7 +258,7 @@ func defaultConfig(t *testing.T) config.Config {
 			ArchiveDir:      filepath.Join(home, config.DefaultArchiveDir),
 			ClaudeSourceDir: filepath.Join(home, config.DefaultClaudeSourceDir),
 			CodexSourceDir:  filepath.Join(home, config.DefaultCodexSourceDir),
-			LogFile:         config.DefaultLogFile,
+			LogFile:         filepath.Join(home, config.DefaultLogDir, config.DefaultLogFileName),
 		},
 		Display: config.DisplayConfig{
 			TimestampFormat:  config.DefaultTimestampFormat,
@@ -266,6 +266,11 @@ func defaultConfig(t *testing.T) config.Config {
 		},
 		Search: config.SearchConfig{
 			DeepSearchDebounceMs: config.DefaultDeepSearchDebounceMs,
+		},
+		Logging: config.LoggingConfig{
+			Level:      config.DefaultLogLevel,
+			MaxSizeMB:  config.DefaultMaxSizeMB,
+			MaxBackups: config.DefaultMaxBackups,
 		},
 	}
 }

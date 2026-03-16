@@ -50,7 +50,10 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
+	m.browser = newBrowserModelWithStore(
+		context.Background(), cfg.ArchiveDir, "", "dark",
+		"2006-01-02 15:04", 20, 200, store,
+	)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -90,7 +93,10 @@ func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
+	m.browser = newBrowserModelWithStore(
+		context.Background(), cfg.ArchiveDir, "", "dark",
+		"2006-01-02 15:04", 20, 200, store,
+	)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -165,7 +171,10 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
+	m.browser = newBrowserModelWithStore(
+		context.Background(), cfg.ArchiveDir, "", "dark",
+		"2006-01-02 15:04", 20, 200, store,
+	)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -306,7 +315,10 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
+	m.browser = newBrowserModelWithStore(
+		context.Background(), cfg.ArchiveDir, "", "dark",
+		"2006-01-02 15:04", 20, 200, store,
+	)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
@@ -428,7 +440,10 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(context.Background(), cfg.ArchiveDir, "dark", "2006-01-02 15:04", 20, 200, store)
+	m.browser = newBrowserModelWithStore(
+		context.Background(), cfg.ArchiveDir, "", "dark",
+		"2006-01-02 15:04", 20, 200, store,
+	)
 	m.browser.width = 120
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()

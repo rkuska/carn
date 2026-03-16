@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	src "github.com/rkuska/carn/internal/source"
+	"github.com/rs/zerolog"
 )
 
 func hasChangedRawPaths(changedRawPaths map[conversationProvider][]string) bool {
@@ -70,6 +71,10 @@ func tryIncrementalRebuildWithSources(
 	); err != nil {
 		return fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
 	}
+
+	zerolog.Ctx(ctx).Info().
+		Int("changed", len(resolution.Conversations)).
+		Msg("incremental rebuild completed")
 	return nil
 }
 
