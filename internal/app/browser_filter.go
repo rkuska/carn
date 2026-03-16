@@ -36,10 +36,11 @@ const (
 )
 
 type dimensionFilter struct {
-	selected  map[string]bool
-	regex     string
-	useRegex  bool
-	boolState boolFilterState
+	selected   map[string]bool
+	regex      string
+	compiledRe *regexp.Regexp
+	useRegex   bool
+	boolState  boolFilterState
 }
 
 func (f dimensionFilter) isActive() bool {
@@ -183,6 +184,18 @@ func conversationDimensionValue(c conv.Conversation, dim filterDimension) string
 	}
 }
 
+func (f dimensionFilter) matchesRegex(value string) bool {
+	re := f.compiledRe
+	if re == nil {
+		var err error
+		re, err = regexp.Compile(f.regex)
+		if err != nil {
+			return true
+		}
+	}
+	return re.MatchString(value)
+}
+
 func matchesDimensionFilter(c conv.Conversation, dim filterDimension, f dimensionFilter) bool {
 	if !f.isActive() {
 		return true
@@ -202,11 +215,7 @@ func matchesDimensionFilter(c conv.Conversation, dim filterDimension, f dimensio
 	}
 
 	if f.useRegex && f.regex != "" {
-		re, err := regexp.Compile(f.regex)
-		if err != nil {
-			return true
-		}
-		return re.MatchString(value)
+		return f.matchesRegex(value)
 	}
 
 	if len(f.selected) > 0 {

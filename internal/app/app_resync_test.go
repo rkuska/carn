@@ -323,7 +323,7 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	m.browser.height = 40
 	m.browser = m.browser.updateLayout()
 	m.browser.search.baseConversations = []conv.Conversation{alpha, beta}
-	m.browser.mainConversationCount = 2
+	m.browser.mainConversations = []conv.Conversation{alpha, beta}
 	m.browser.transcriptMode = transcriptFullscreen
 	m.browser.focus = focusTranscript
 	m.browser.search.visibleConversations = []conv.Conversation{alpha, beta}

@@ -200,6 +200,17 @@ func FindInsertPosition[T any](items []T, anchor time.Time, timestamp func(T) ti
 	return pos
 }
 
+// FirstNonZeroTime returns the first non-zero time from items,
+// or zero if none found.
+func FirstNonZeroTime[T any](items []T, timestamp func(T) time.Time) time.Time {
+	for _, item := range items {
+		if ts := timestamp(item); !ts.IsZero() {
+			return ts
+		}
+	}
+	return time.Time{}
+}
+
 // ValidateResumeTarget applies the shared strict resume policy.
 func ValidateResumeTarget(target conv.ResumeTarget) error {
 	if target.ID == "" {

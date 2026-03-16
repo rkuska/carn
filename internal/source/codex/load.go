@@ -250,16 +250,15 @@ func (s *loadState) applyPlan(plan conv.Plan, timestamp time.Time) {
 func (s *loadState) flushAssistant(text string, timestamp time.Time) {
 	thinking := joinText(s.thinkingParts)
 	hasHiddenThinking := s.pendingHiddenThinking && strings.TrimSpace(thinking) == ""
-	s.messages = appendParsedAssistantMessage(
-		s.messages,
-		thinking,
-		hasHiddenThinking,
-		s.pendingCalls,
-		s.pendingResults,
-		s.pendingPlans,
-		text,
-		maxTime(s.pendingTimestamp, timestamp),
-	)
+	s.messages = appendParsedAssistantMessage(s.messages, assistantContent{
+		thinking:          thinking,
+		hasHiddenThinking: hasHiddenThinking,
+		calls:             s.pendingCalls,
+		results:           s.pendingResults,
+		plans:             s.pendingPlans,
+		text:              text,
+		timestamp:         maxTime(s.pendingTimestamp, timestamp),
+	})
 	s.thinkingParts = s.thinkingParts[:0]
 	s.pendingHiddenThinking = false
 	s.pendingCalls = s.pendingCalls[:0]

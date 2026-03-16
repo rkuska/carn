@@ -10,6 +10,9 @@ import (
 )
 
 func joinText(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
 	filtered := make([]string, 0, len(parts))
 	for _, part := range parts {
 		if strings.TrimSpace(part) == "" {
@@ -38,6 +41,9 @@ func joinUniqueText(existing, added string) string {
 func appendUniquePlans(existing []conv.Plan, added []conv.Plan) []conv.Plan {
 	if len(added) == 0 {
 		return existing
+	}
+	if len(existing) == 0 {
+		return append(existing, added...)
 	}
 
 	seen := make(map[string]struct{}, len(existing))

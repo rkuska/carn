@@ -97,9 +97,9 @@ func (m browserModel) listFooterStatusParts() []string {
 		status = append(status, "[split]")
 	}
 
-	info := fmt.Sprintf("%d sessions", m.mainConversationCount)
+	info := fmt.Sprintf("%d sessions", len(m.mainConversations))
 	if m.search.query != "" {
-		info = fmt.Sprintf("%d/%d sessions", len(m.search.visibleConversations), m.mainConversationCount)
+		info = fmt.Sprintf("%d/%d sessions", len(m.search.visibleConversations), len(m.mainConversations))
 		status = append(status, fmt.Sprintf("/%s", m.search.query))
 	}
 	return append(status, info)

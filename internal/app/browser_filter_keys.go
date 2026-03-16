@@ -231,7 +231,8 @@ func (m browserModel) handleFilterRegexKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd)
 func (m browserModel) filterApplyRegex(dim filterDimension, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
 	regex := m.filter.regexInput.Value()
 	if regex != "" {
-		if _, err := regexp.Compile(regex); err != nil {
+		re, err := regexp.Compile(regex)
+		if err != nil {
 			m = m.setNotification(
 				errorNotification("invalid regex: "+err.Error()).notification,
 				cmds,
@@ -239,8 +240,9 @@ func (m browserModel) filterApplyRegex(dim filterDimension, cmds *[]tea.Cmd) (br
 			return m, nil
 		}
 		m.filter.dimensions[dim] = dimensionFilter{
-			useRegex: true,
-			regex:    regex,
+			useRegex:   true,
+			regex:      regex,
+			compiledRe: re,
 		}
 		m = m.applyFilterChange(cmds)
 	}

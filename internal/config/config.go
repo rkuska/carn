@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	arch "github.com/rkuska/carn/internal/archive"
@@ -300,11 +299,8 @@ func expandTilde(path, home string) string {
 }
 
 func validate(cfg Config) error {
-	// Validate timestamp format by attempting a format operation.
-	ref := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
-	result := ref.Format(cfg.Display.TimestampFormat)
-	if result == "" {
-		return fmt.Errorf("invalid timestamp_format: %q", cfg.Display.TimestampFormat)
+	if cfg.Display.TimestampFormat == "" {
+		return fmt.Errorf("timestamp_format must not be empty")
 	}
 	if cfg.Display.BrowserCacheSize < 1 {
 		return fmt.Errorf("browser_cache_size must be >= 1, got %d", cfg.Display.BrowserCacheSize)

@@ -92,15 +92,12 @@ func (m browserModel) toggleFocus() browserModel {
 }
 
 func (m browserModel) openTranscript(conversation conv.Conversation) (browserModel, tea.Cmd) {
-	if session, ok := m.transcriptCache[conversation.CacheKey()]; ok {
+	if session, ok := m.sessionCache[conversation.CacheKey()]; ok {
 		return m.installViewer(session, conversation), nil
 	}
 
 	m.openConversationID = ""
 	m.loadingConversationID = conversation.CacheKey()
-	if session, ok := m.sessionCache[conversation.CacheKey()]; ok {
-		return m, openConversationCmdCachedWithStore(conversation, session)
-	}
 	return m, openConversationCmdWithStore(m.ctx, m.archiveDir, conversation, m.store)
 }
 
@@ -111,7 +108,6 @@ func (m browserModel) installViewer(session conv.Session, conversation conv.Conv
 	}
 	m.openConversationID = key
 	m.loadingConversationID = ""
-	m.transcriptCache[key] = session
 	m.sessionCache[key] = session
 	m = m.addToCache(key)
 
@@ -244,7 +240,6 @@ func (m browserModel) addToCache(id string) browserModel {
 		evictID := m.cacheOrder[0]
 		m.cacheOrder = m.cacheOrder[1:]
 		delete(m.sessionCache, evictID)
-		delete(m.transcriptCache, evictID)
 	}
 	return m
 }

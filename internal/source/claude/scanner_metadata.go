@@ -31,8 +31,9 @@ type metadataScanState struct {
 }
 
 var (
-	recordTypeUser      = []byte(`"type":"user"`)
-	recordTypeAssistant = []byte(`"type":"assistant"`)
+	typeMarker                = []byte(`"type":"`)
+	recordTypeUserSuffix      = []byte("user")
+	recordTypeAssistantSuffix = []byte("assistant")
 )
 
 type jsonUsage struct {
@@ -165,13 +166,21 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 }
 
 func extractType(line []byte) string {
-	if bytes.Contains(line, recordTypeAssistant) {
-		return "assistant"
+	remaining := line
+	for {
+		idx := bytes.Index(remaining, typeMarker)
+		if idx == -1 {
+			return ""
+		}
+		rest := remaining[idx+len(typeMarker):]
+		if bytes.HasPrefix(rest, recordTypeUserSuffix) {
+			return "user"
+		}
+		if bytes.HasPrefix(rest, recordTypeAssistantSuffix) {
+			return "assistant"
+		}
+		remaining = rest
 	}
-	if bytes.Contains(line, recordTypeUser) {
-		return "user"
-	}
-	return ""
 }
 
 func extractUserContent(raw json.RawMessage) (string, []parsedToolResult) {

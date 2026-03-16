@@ -20,21 +20,31 @@ type parsedMessage struct {
 	isAgentDivider    bool
 }
 
-func appendParsedAssistantMessage(
-	messages []parsedMessage,
-	thinking string,
-	hasHiddenThinking bool,
-	calls []conv.ToolCall,
-	results []conv.ToolResult,
-	plans []conv.Plan,
-	text string,
-	timestamp time.Time,
-) []parsedMessage {
-	if assistantMessageEmpty(thinking, hasHiddenThinking, calls, results, plans, text) {
+type assistantContent struct {
+	thinking          string
+	hasHiddenThinking bool
+	calls             []conv.ToolCall
+	results           []conv.ToolResult
+	plans             []conv.Plan
+	text              string
+	timestamp         time.Time
+}
+
+func (c assistantContent) empty() bool {
+	return c.text == "" &&
+		c.thinking == "" &&
+		!c.hasHiddenThinking &&
+		len(c.calls) == 0 &&
+		len(c.results) == 0 &&
+		len(c.plans) == 0
+}
+
+func appendParsedAssistantMessage(messages []parsedMessage, c assistantContent) []parsedMessage {
+	if c.empty() {
 		return messages
 	}
 
-	msg := newParsedAssistantMessage(thinking, hasHiddenThinking, calls, results, plans, text, timestamp)
+	msg := newParsedAssistantMessage(c)
 
 	if len(messages) == 0 {
 		return append(messages, msg)
@@ -47,40 +57,16 @@ func appendParsedAssistantMessage(
 	return append(messages, msg)
 }
 
-func assistantMessageEmpty(
-	thinking string,
-	hasHiddenThinking bool,
-	calls []conv.ToolCall,
-	results []conv.ToolResult,
-	plans []conv.Plan,
-	text string,
-) bool {
-	return text == "" &&
-		thinking == "" &&
-		!hasHiddenThinking &&
-		len(calls) == 0 &&
-		len(results) == 0 &&
-		len(plans) == 0
-}
-
-func newParsedAssistantMessage(
-	thinking string,
-	hasHiddenThinking bool,
-	calls []conv.ToolCall,
-	results []conv.ToolResult,
-	plans []conv.Plan,
-	text string,
-	timestamp time.Time,
-) parsedMessage {
+func newParsedAssistantMessage(c assistantContent) parsedMessage {
 	return parsedMessage{
 		role:              conv.RoleAssistant,
-		timestamp:         timestamp,
-		text:              text,
-		thinking:          thinking,
-		hasHiddenThinking: hasHiddenThinking,
-		toolCalls:         append([]conv.ToolCall(nil), calls...),
-		toolResults:       append([]conv.ToolResult(nil), results...),
-		plans:             append([]conv.Plan(nil), plans...),
+		timestamp:         c.timestamp,
+		text:              c.text,
+		thinking:          c.thinking,
+		hasHiddenThinking: c.hasHiddenThinking,
+		toolCalls:         append([]conv.ToolCall(nil), c.calls...),
+		toolResults:       append([]conv.ToolResult(nil), c.results...),
+		plans:             append([]conv.Plan(nil), c.plans...),
 	}
 }
 

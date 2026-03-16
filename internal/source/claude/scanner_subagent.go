@@ -10,6 +10,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/rs/zerolog"
 )
 
@@ -72,12 +73,9 @@ func linkedTranscriptTitle(messages []parsedMessage) string {
 }
 
 func firstTimestamp(messages []parsedMessage) time.Time {
-	for _, msg := range messages {
-		if !msg.timestamp.IsZero() {
-			return msg.timestamp
-		}
-	}
-	return time.Time{}
+	return src.FirstNonZeroTime(messages, func(msg parsedMessage) time.Time {
+		return msg.timestamp
+	})
 }
 
 func parseConversationWithSubagents(ctx context.Context, conv conversation) (sessionFull, error) {

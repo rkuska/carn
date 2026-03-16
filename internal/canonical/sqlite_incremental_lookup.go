@@ -236,18 +236,10 @@ func loadSQLiteConversationSessionsByRowID(
 			return fmt.Errorf("rows.Scan: %w", err)
 		}
 
+		if err := finalizeSessionMeta(&meta, timestampNS, lastTimestampNS, toolCountsJSON, isSubagent); err != nil {
+			return fmt.Errorf("finalizeSessionMeta: %w", err)
+		}
 		meta.Project = convValue.Project
-		if timestampNS != 0 {
-			meta.Timestamp = unixTime(timestampNS)
-		}
-		if lastTimestampNS != 0 {
-			meta.LastTimestamp = unixTime(lastTimestampNS)
-		}
-		meta.IsSubagent = isSubagent == 1
-		meta.ToolCounts, err = unmarshalToolCounts(toolCountsJSON)
-		if err != nil {
-			return fmt.Errorf("unmarshalToolCounts: %w", err)
-		}
 		convValue.Sessions = append(convValue.Sessions, meta)
 	}
 	if err := rows.Err(); err != nil {

@@ -44,13 +44,11 @@ type browserModel struct {
 	mainConversations         []conv.Conversation
 	width                     int
 	height                    int
-	mainConversationCount     int
 	notification              notification
 	searchInput               textinput.Model
 	search                    browserSearchState
 	deepSearchAvailable       bool
 	sessionCache              map[string]conv.Session
-	transcriptCache           map[string]conv.Session
 	searchCancel              context.CancelFunc
 	openConversationID        string
 	loadingConversationID     string
@@ -133,7 +131,6 @@ func newBrowserModelWithStore(
 		},
 		filter:              newBrowserFilterState(),
 		sessionCache:        make(map[string]conv.Session, cacheSize),
-		transcriptCache:     make(map[string]conv.Session, cacheSize),
 		deepSearchAvailable: true,
 		resyncSpinner:       s,
 	}
