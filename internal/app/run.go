@@ -71,6 +71,8 @@ func Run() error {
 	ctx := logger.WithContext(context.Background())
 
 	logger.Info().
+		Str("version", version).
+		Str("commit", commit).
 		Str("log_file", state.Config.Paths.LogFile).
 		Str("log_level", level.String()).
 		Str("archive_dir", state.Config.Paths.ArchiveDir).

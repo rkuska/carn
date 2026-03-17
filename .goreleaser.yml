@@ -1,0 +1,58 @@
+version: 2
+
+builds:
+  - main: .
+    binary: carn
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/rkuska/carn/internal/app.version={{.Version}}
+      - -X github.com/rkuska/carn/internal/app.commit={{.ShortCommit}}
+      - -X github.com/rkuska/carn/internal/app.date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^style:"
+      - "^chore:"
+
+release:
+  github:
+    owner: rkuska
+    name: carn
+  prerelease: auto
+
+brews:
+  - repository:
+      owner: rkuska
+      name: homebrew-carn
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/rkuska/carn"
+    description: "Terminal UI for browsing local Claude and Codex session archives"
+    license: "GPL-3.0"
+    install: |
+      bin.install "carn"
+    test: |
+      assert_match "carn", shell_output("#{bin}/carn --version")

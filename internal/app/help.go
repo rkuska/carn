@@ -138,3 +138,13 @@ func logInfoSection(logFilePath string) helpSection {
 		}},
 	}
 }
+
+func versionInfoSection() helpSection {
+	return helpSection{
+		title: "Build",
+		items: []helpItem{{
+			key:  "Version",
+			desc: VersionInfo(),
+		}},
+	}
+}

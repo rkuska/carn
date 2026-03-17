@@ -93,6 +93,7 @@ func (m importOverviewModel) helpSections() []helpSection {
 			items: m.footerItems(),
 		},
 		logInfoSection(m.logFilePath),
+		versionInfoSection(),
 	}
 }
 
