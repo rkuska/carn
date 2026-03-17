@@ -21,10 +21,12 @@ builds:
       - -trimpath
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -44,15 +46,12 @@ release:
     name: carn
   prerelease: auto
 
-brews:
-  - repository:
+homebrew_casks:
+  - binaries:
+      - carn
+    repository:
       owner: rkuska
       name: homebrew-carn
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/rkuska/carn"
     description: "Terminal UI for browsing local Claude and Codex session archives"
-    license: "GPL-3.0"
-    install: |
-      bin.install "carn"
-    test: |
-      assert_match "carn", shell_output("#{bin}/carn --version")
