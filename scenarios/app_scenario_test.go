@@ -125,7 +125,7 @@ func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 8 archive files and rebuild the local store after confirmation.",
+		"Will import 9 archive files and rebuild the local store after confirmation.",
 	)
 
 	harness.pressEnter()
@@ -212,7 +212,7 @@ func importFixtureCorpus(t *testing.T, harness *programHarness) {
 	harness.waitForText(t, "Import Workspace")
 	harness.waitForText(
 		t,
-		"Will import 8 archive files and rebuild the local store after confirmation.",
+		"Will import 9 archive files and rebuild the local store after confirmation.",
 	)
 	harness.pressEnter()
 	harness.waitForText(t, "import finished and refreshed the local store")

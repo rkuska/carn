@@ -1,5 +1,5 @@
 ╭─  Conversations  ───────────────────────────────────────╮ ╭─  work/sample-project / plan-session  2026-03-08 10:00  ─╮
-│  6 items                                                │ │ ╭──────────────────────────────────────────────────────╮ │
+│  7 items                                                │ │ ╭──────────────────────────────────────────────────────╮ │
 │                                                         │ │ │  2 plans                                             │ │
 │  work/sample-project / subagent-parent  2026-03-09 10:00│ │ │ provider Claude  model claude-sonnet-4               │ │
 │  Claude  claude-opus-4-1  3 msgs  0k tokens  8s         │ │ │ version 1.0.0  branch main  duration 30s  msgs 7     │ │
@@ -25,9 +25,9 @@
 │  Claude  claude-2.1  2 msgs  4s                         │ │ │                                                      │ │
 │  Can you read the older transcript?                     │ │ │ # Rollback Plan                                      │ │
 │                                                         │ │ │                                                      │ │
-│                                                         │ │ │ ## Step 1                                            │ │
-│                                                         │ │ │ Restore backup                                       │ │
-│                                                         │ │ │                                                      │ │
+│  work/sample-project / signed-thinking  2026-03-05 10...│ │ │ ## Step 1                                            │ │
+│  Claude  1.0.1  claude-opus-4-6  2 msgs  0k tokens  3s  │ │ │ Restore backup                                       │ │
+│  Analyze the code.                                      │ │ │                                                      │ │
 │                                                         │ │ │ ## Step 2                                            │ │
 │                                                         │ │ │ Verify integrity                                     │ │
 │                                                         │ │ ╰──────────────────────────────────────────────────────╯ │

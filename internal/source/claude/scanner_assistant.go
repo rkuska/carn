@@ -73,13 +73,14 @@ func (j *blockJoiner) result() string {
 
 func extractAssistantContent(
 	raw json.RawMessage,
-) (text, thinking string, toolCalls []toolCall, toolCallIDs []string, ok bool) {
+) (text, thinking string, hasHiddenThinking bool, toolCalls []toolCall, toolCallIDs []string, ok bool) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '[' {
-		return "", "", nil, nil, false
+		return "", "", false, nil, nil, false
 	}
 
 	var textJ, thinkJ blockJoiner
+	hiddenThinking := false
 	parseOK := true
 	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
 		if !parseOK {
@@ -93,6 +94,7 @@ func extractAssistantContent(
 			value,
 			&textJ,
 			&thinkJ,
+			&hiddenThinking,
 			&toolCalls,
 			&toolCallIDs,
 		); err != nil {
@@ -100,15 +102,16 @@ func extractAssistantContent(
 		}
 	})
 	if err != nil || !parseOK {
-		return "", "", nil, nil, false
+		return "", "", false, nil, nil, false
 	}
-	return textJ.result(), thinkJ.result(), toolCalls, toolCallIDs, true
+	return textJ.result(), thinkJ.result(), hiddenThinking, toolCalls, toolCallIDs, true
 }
 
 func appendAssistantContentBlock(
 	value []byte,
 	textJ *blockJoiner,
 	thinkJ *blockJoiner,
+	hiddenThinking *bool,
 	toolCalls *[]toolCall,
 	toolCallIDs *[]string,
 ) error {
@@ -121,7 +124,14 @@ func appendAssistantContentBlock(
 	case blockTypeText:
 		return appendAssistantTextBlock(value, textJ)
 	case blockTypeThinking:
-		return appendAssistantThinkingBlock(value, thinkJ)
+		hidden, err := appendAssistantThinkingBlock(value, thinkJ)
+		if err != nil {
+			return err
+		}
+		if hidden {
+			*hiddenThinking = true
+		}
+		return nil
 	case blockTypeToolUse:
 		return appendAssistantToolUseBlock(value, toolCalls, toolCallIDs)
 	default:
@@ -138,13 +148,22 @@ func appendAssistantTextBlock(value []byte, textJ *blockJoiner) error {
 	return nil
 }
 
-func appendAssistantThinkingBlock(value []byte, thinkJ *blockJoiner) error {
+func appendAssistantThinkingBlock(value []byte, thinkJ *blockJoiner) (bool, error) {
 	blockThinking, _, err := jsonStringField(value, "thinking")
 	if err != nil {
-		return fmt.Errorf("appendAssistantThinkingBlock_thinking: %w", err)
+		return false, fmt.Errorf("appendAssistantThinkingBlock_thinking: %w", err)
 	}
-	thinkJ.add(blockThinking)
-	return nil
+	if blockThinking != "" {
+		thinkJ.add(blockThinking)
+		return false, nil
+	}
+	// Empty thinking text with a signature indicates signed/encrypted thinking
+	// where the content is not available for display.
+	_, hasSignature, err := jsonStringField(value, "signature")
+	if err != nil {
+		return false, fmt.Errorf("appendAssistantThinkingBlock_signature: %w", err)
+	}
+	return hasSignature, nil
 }
 
 func appendAssistantToolUseBlock(
@@ -174,12 +193,12 @@ func appendAssistantToolUseBlock(
 }
 
 func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, []string, bool) {
-	text, thinking, toolCalls, toolCallIDs, ok := extractAssistantContent(pc.rec.Message.Content)
+	text, thinking, hiddenThinking, toolCalls, toolCallIDs, ok := extractAssistantContent(pc.rec.Message.Content)
 	if !ok {
 		zerolog.Ctx(ctx).Debug().Msg("failed to parse assistant content blocks")
 		return parsedMessage{}, nil, false
 	}
-	if text == "" && thinking == "" && len(toolCalls) == 0 {
+	if text == "" && thinking == "" && !hiddenThinking && len(toolCalls) == 0 {
 		return parsedMessage{}, nil, false
 	}
 
@@ -193,13 +212,17 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 		}
 	}
 
+	// Hidden thinking is only relevant when no visible thinking text exists.
+	hasHiddenThinking := hiddenThinking && thinking == ""
+
 	return parsedMessage{
 		message: message{
-			Role:        roleAssistant,
-			Text:        text,
-			Thinking:    thinking,
-			ToolCalls:   toolCalls,
-			IsSidechain: pc.rec.IsSidechain,
+			Role:              roleAssistant,
+			Text:              text,
+			Thinking:          thinking,
+			HasHiddenThinking: hasHiddenThinking,
+			ToolCalls:         toolCalls,
+			IsSidechain:       pc.rec.IsSidechain,
 		},
 		timestamp: parseRecordTimestamp(pc.rec.Timestamp),
 		usage:     usage,
