@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/rs/zerolog"
+
 	arch "github.com/rkuska/carn/internal/archive"
 	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/rs/zerolog"
 )
 
 const (

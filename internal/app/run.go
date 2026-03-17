@@ -10,14 +10,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/rs/zerolog"
+	"gopkg.in/natefinch/lumberjack.v2"
+
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
-	"github.com/rs/zerolog"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -46,8 +47,8 @@ func Run() error {
 		return fmt.Errorf("config.LoadState: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(state.Config.Paths.LogFile), 0o755); err != nil {
-		return fmt.Errorf("os.MkdirAll: %w", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(state.Config.Paths.LogFile), 0o755); mkdirErr != nil {
+		return fmt.Errorf("os.MkdirAll: %w", mkdirErr)
 	}
 
 	level, err := config.ParseLogLevel(state.Config.Logging.Level)
@@ -64,10 +65,14 @@ func Run() error {
 		MaxBackups: state.Config.Logging.MaxBackups,
 		Compress:   true,
 	}
-	defer func() { _ = logWriter.Close() }()
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: logWriter, NoColor: true}).
 		With().Timestamp().Logger().Level(level)
+	defer func() {
+		if closeErr := logWriter.Close(); closeErr != nil {
+			logger.Warn().Err(closeErr).Msg("logWriter.Close")
+		}
+	}()
 	ctx := logger.WithContext(context.Background())
 
 	logger.Info().

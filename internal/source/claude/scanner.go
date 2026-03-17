@@ -97,8 +97,8 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error)
 	log := zerolog.Ctx(ctx)
 	var files []sessionFile
 	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("scanSessions_ctx: %w", err)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, fmt.Errorf("scanSessions_ctx: %w", ctxErr)
 		}
 		if !entry.IsDir() {
 			continue
@@ -106,14 +106,14 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, error)
 
 		projDir := filepath.Join(baseDir, entry.Name())
 		proj := projectFromDirName(entry.Name())
-		projectFiles, err := discoverProjectSessionFiles(
+		projectFiles, discoverErr := discoverProjectSessionFiles(
 			projDir,
 			project{DisplayName: proj.displayName},
 			proj.dirName,
 			baseDir,
 		)
-		if err != nil {
-			log.Warn().Err(err).Msgf("discoverProjectSessionFiles failed for %s", projDir)
+		if discoverErr != nil {
+			log.Warn().Err(discoverErr).Msgf("discoverProjectSessionFiles failed for %s", projDir)
 			continue
 		}
 		files = append(files, projectFiles...)

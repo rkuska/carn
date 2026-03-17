@@ -27,22 +27,22 @@ None.
 | --- | --- | ---: | ---: | ---: |
 | internal/canonical/message_codec.go | source | 240 | 77 | 254 |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
-| internal/config/config.go | source | 310 | 71 | 366 |
-| internal/source/claude/scanner_assistant.go | source | 244 | 69 | 272 |
+| internal/canonical/sqlite_store_persist.go | source | 341 | 72 | 370 |
+| internal/config/config.go | source | 310 | 71 | 367 |
+| internal/source/claude/scanner_assistant.go | source | 247 | 71 | 276 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
+| internal/canonical/sqlite_db.go | source | 273 | 67 | 297 |
 | internal/canonical/store.go | source | 273 | 67 | 323 |
-| internal/source/claude/scanner_parse.go | source | 258 | 64 | 299 |
-| internal/canonical/sqlite_db.go | source | 266 | 63 | 290 |
+| internal/source/claude/scanner_parse.go | source | 265 | 67 | 306 |
 | internal/source/claude/scanner_record_fast.go | source | 174 | 63 | 193 |
 | internal/source/codex/load.go | source | 267 | 62 | 300 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/codex/scan_fast.go | source | 226 | 60 | 255 |
-| internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 194 |
-| internal/canonical/sqlite_store_persist.go | source | 315 | 59 | 343 |
+| internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
 | internal/source/codex/json_field.go | source | 318 | 43 | 341 |
-| internal/app/viewer_model.go | source | 335 | 35 | 367 |
-| internal/app/import_overview_test.go | test | 612 | 12 | 707 |
-| internal/app/transcript_test.go | test | 775 | 9 | 891 |
+| internal/app/viewer_model.go | source | 335 | 35 | 368 |
+| internal/app/import_overview_test.go | test | 612 | 12 | 708 |
+| internal/app/transcript_test.go | test | 775 | 9 | 892 |
 
 ## Notes
 

@@ -19,7 +19,7 @@ func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
 	content := `{"type":"user","sessionId":"s1","slug":"demo","message":{"role":"user","content":"hello"}}`
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
-	conversation := conversation{
+	conv := conversation{
 		Name:    "demo",
 		Project: project{DisplayName: "test"},
 		Sessions: []sessionMeta{{
@@ -34,7 +34,7 @@ func TestParseConversationReturnsContextErrorWhenCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := parseConversationWithSubagents(ctx, conversation)
+	_, err := parseConversationWithSubagents(ctx, conv)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "parseConversation_ctx")
 }

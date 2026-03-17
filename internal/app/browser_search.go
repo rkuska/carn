@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"charm.land/bubbles/v2/list"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

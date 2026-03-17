@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/rkuska/carn/internal/source/claude"
 )
 
 type fakeBrowserStore struct {
@@ -151,9 +152,7 @@ func TestResumeSessionCmdReturnsErrorNotificationForInvalidCWD(t *testing.T) {
 func TestOpenConversationCmdCachedWithStoreUsesCachedSession(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeBrowserStore{
-		loadResult: testSession("loaded"),
-	}
+	store := &fakeBrowserStore{}
 	cached := testSession("cached")
 	conversation := singleSessionConversation(cached.Meta)
 

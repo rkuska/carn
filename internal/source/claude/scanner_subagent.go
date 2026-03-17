@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
-	"github.com/rs/zerolog"
 )
 
 func findSubagentFiles(parentFilePath string) []string {

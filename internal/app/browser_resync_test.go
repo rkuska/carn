@@ -7,9 +7,10 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	arch "github.com/rkuska/carn/internal/archive"
 )
 
 func TestBrowserListFooterHidesResyncAndEditorActions(t *testing.T) {

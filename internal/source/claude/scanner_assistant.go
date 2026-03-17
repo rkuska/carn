@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 var toolParamKey = map[string]string{
@@ -233,7 +234,10 @@ func parseRecordTimestamp(value string) time.Time {
 	if value == "" {
 		return time.Time{}
 	}
-	timestamp, _ := time.Parse(time.RFC3339Nano, value)
+	timestamp, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}
+	}
 	return timestamp
 }
 

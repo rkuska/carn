@@ -96,19 +96,26 @@ func (c projectFileClassifier) classify(file sessionFile) (classifiedFile, bool)
 	}, true
 }
 
-func readSessionSlugAndInfo(filePath string) (string, fs.FileInfo, error) {
+func readSessionSlugAndInfo(filePath string) (_ string, _ fs.FileInfo, retErr error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", nil, fmt.Errorf("os.Open: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && retErr == nil {
+			retErr = fmt.Errorf("file.Close: %w", closeErr)
+		}
+	}()
 
 	info, err := file.Stat()
 	if err != nil {
 		return "", nil, fmt.Errorf("file.Stat: %w", err)
 	}
 
-	br := slugReaderPool.Get().(*bufio.Reader)
+	br, ok := slugReaderPool.Get().(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReaderSize(nil, jsonlSlugBufferSize)
+	}
 	br.Reset(file)
 	defer slugReaderPool.Put(br)
 

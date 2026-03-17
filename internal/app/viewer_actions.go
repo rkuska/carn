@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

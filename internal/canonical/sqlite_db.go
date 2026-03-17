@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/rs/zerolog"
 	_ "modernc.org/sqlite"
 )
 
@@ -113,7 +114,9 @@ func openSQLiteDB(ctx context.Context, path string, useWAL bool) (*sql.DB, error
 	db.SetMaxOpenConns(1)
 
 	if err := configureSQLiteDB(ctx, db, useWAL); err != nil {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("db.Close")
+		}
 		return nil, fmt.Errorf("configureSQLiteDB: %w", err)
 	}
 	return db, nil
@@ -202,7 +205,11 @@ func readSQLiteMeta(ctx context.Context, db *sql.DB) (map[string]string, error) 
 	if err != nil {
 		return nil, fmt.Errorf("db.QueryContext: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("rows.Close")
+		}
+	}()
 
 	meta := make(map[string]string, 3)
 	for rows.Next() {

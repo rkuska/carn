@@ -30,7 +30,12 @@ var blobReaderPool = sync.Pool{
 }
 
 func withEncodedSessionBlob(session sessionFull, use func([]byte) error) error {
-	state := blobEncoderPool.Get().(*blobEncoderState)
+	state, ok := blobEncoderPool.Get().(*blobEncoderState)
+	if !ok {
+		state = &blobEncoderState{}
+		state.buf.Grow(32768)
+		state.writer = bufio.NewWriter(&state.buf)
+	}
 	state.buf.Reset()
 	state.writer.Reset(&state.buf)
 	defer blobEncoderPool.Put(state)
@@ -48,7 +53,10 @@ func withEncodedSessionBlob(session sessionFull, use func([]byte) error) error {
 }
 
 func decodeSessionBlob(blob []byte) (sessionFull, error) {
-	br := blobReaderPool.Get().(*bufio.Reader)
+	br, ok := blobReaderPool.Get().(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReader(nil)
+	}
 	br.Reset(bytes.NewReader(blob))
 	defer blobReaderPool.Put(br)
 	return readSessionFull(br)

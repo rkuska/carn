@@ -9,10 +9,11 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	arch "github.com/rkuska/carn/internal/archive"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	arch "github.com/rkuska/carn/internal/archive"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const testResyncBetaSlug = "beta"
@@ -59,7 +60,7 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	m.browser = m.browser.updateLayout()
 
 	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
-	updated := nextModel.(appModel)
+	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	assert.True(t, updated.browser.resync.active)
 	startBatch := requireMsgType[tea.BatchMsg](t, cmd())
@@ -67,11 +68,11 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 
 	started := requireMsgType[importAnalysisStartedMsg](t, startBatch[0]())
 	nextModel, cmd = updated.Update(started)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	assert.False(t, updated.browser.resync.active)
@@ -102,16 +103,16 @@ func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
 	m.browser = m.browser.updateLayout()
 
 	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
-	updated := nextModel.(appModel)
+	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
 
 	nextModel, cmd = updated.Update(started)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	assert.False(t, updated.browser.resync.active)
@@ -215,37 +216,37 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 	)
 
 	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
-	updated := nextModel.(appModel)
+	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	startBatch := requireMsgType[tea.BatchMsg](t, cmd())
 	assert.Len(t, startBatch, 2)
 	started := requireMsgType[importAnalysisStartedMsg](t, startBatch[0]())
 
 	nextModel, cmd = updated.Update(started)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	syncStarted := requireMsgType[importSyncStartedMsg](t, cmd())
 
 	nextModel, cmd = updated.Update(syncStarted)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	reloadBatch := requireMsgType[tea.BatchMsg](t, cmd())
 	assert.Len(t, reloadBatch, 2)
 
 	nextModel, cmd = updated.Update(reloadBatch[0]())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, _ = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 
 	assert.False(t, updated.browser.resync.active)
 	assert.Equal(t, 1, store.loadCalls)
@@ -356,35 +357,35 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	)
 
 	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
-	updated := nextModel.(appModel)
+	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
 
 	nextModel, cmd = updated.Update(started)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	syncStarted := requireMsgType[importSyncStartedMsg](t, cmd())
 
 	nextModel, cmd = updated.Update(syncStarted)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	reloadBatch := requireMsgType[tea.BatchMsg](t, cmd())
 	assert.Len(t, reloadBatch, 2)
 
 	nextModel, cmd = updated.Update(reloadBatch[0]())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, _ = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 
 	assert.Equal(t, 1, store.loadCalls)
 	assert.Equal(t, alphaPath, updated.browser.viewer.session.Meta.FilePath)
@@ -480,42 +481,42 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	)
 
 	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
-	updated := nextModel.(appModel)
+	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
 
 	nextModel, cmd = updated.Update(started)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	syncStarted := requireMsgType[importSyncStartedMsg](t, cmd())
 
 	nextModel, cmd = updated.Update(syncStarted)
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(cmd())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	reloadBatch := requireMsgType[tea.BatchMsg](t, cmd())
 	assert.Len(t, reloadBatch, 2)
 
 	nextModel, cmd = updated.Update(reloadBatch[0]())
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, cmd = updated.Update(deepSearchDebounceMsg{
 		revision: updated.browser.search.revision,
 		query:    updated.browser.search.query,
 	})
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, _ = updated.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
-	updated = nextModel.(appModel)
+	updated = requireAs[appModel](t, nextModel)
 
 	assert.Zero(t, store.loadCalls)
 	assert.Equal(t, transcriptClosed, updated.browser.transcriptMode)

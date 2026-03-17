@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 func writeCanonicalStoreAtomically(
@@ -19,9 +21,13 @@ func writeCanonicalStoreAtomically(
 		if err != nil {
 			return fmt.Errorf("openSQLiteDB: %w", err)
 		}
-		defer func() { _ = db.Close() }()
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("db.Close")
+			}
+		}()
 
-		if err := configureSQLiteBulkLoadDB(ctx, db); err != nil {
+		if err = configureSQLiteBulkLoadDB(ctx, db); err != nil {
 			return fmt.Errorf("configureSQLiteBulkLoadDB: %w", err)
 		}
 
@@ -43,7 +49,7 @@ func writeCanonicalStoreAtomically(
 }
 
 func withCanonicalStoreTempDB(
-	_ context.Context,
+	ctx context.Context,
 	archiveDir string,
 	run func(tempPath string) error,
 ) error {
@@ -60,7 +66,11 @@ func withCanonicalStoreTempDB(
 	if err := tempFile.Close(); err != nil {
 		return fmt.Errorf("tempFile.Close: %w", err)
 	}
-	defer func() { _ = os.Remove(tempPath) }()
+	defer func() {
+		if err := os.Remove(tempPath); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("os.Remove")
+		}
+	}()
 	if err := run(tempPath); err != nil {
 		return err
 	}
@@ -128,7 +138,9 @@ func prepareSQLiteConversationStatements(
 		output_tokens, tool_counts_json, is_subagent
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		_ = convStmt.Close()
+		if closeErr := convStmt.Close(); closeErr != nil {
+			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("convStmt.Close")
+		}
 		return nil, nil, fmt.Errorf("tx.PrepareContext_sessions: %w", err)
 	}
 	return convStmt, sessionStmt, nil

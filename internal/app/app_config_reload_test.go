@@ -8,11 +8,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewModelInvalidConfigBlocksImportOverview(t *testing.T) {
@@ -32,18 +33,18 @@ func TestNewModelInvalidConfigBlocksImportOverview(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	app := model.(appModel)
+	app := requireAs[appModel](t, model)
 	assert.Nil(t, app.Init())
 
 	nextModel, _ := app.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	app = nextModel.(appModel)
+	app = requireAs[appModel](t, nextModel)
 
 	view := ansi.Strip(app.View().Content)
 	assert.Contains(t, view, "Config is invalid: invalid config")
 	assert.Contains(t, view, "Press c to fix")
 
 	nextModel, _ = app.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	app = nextModel.(appModel)
+	app = requireAs[appModel](t, nextModel)
 	assert.False(t, app.importOverview.done)
 	assert.Equal(t, viewImportOverview, app.state)
 }
@@ -69,7 +70,7 @@ func TestAppConfigReloadRebuildsRuntimeAndRestartsAnalysis(t *testing.T) {
 	}
 
 	nextModel, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	reloaded := config.Config{
 		Paths: config.PathsConfig{
@@ -94,7 +95,7 @@ func TestAppConfigReloadRebuildsRuntimeAndRestartsAnalysis(t *testing.T) {
 			Config: reloaded,
 		},
 	})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	require.NotNil(t, cmd)
 	assert.Equal(t, reloaded.Paths.ArchiveDir, m.cfg.ArchiveDir)
@@ -108,11 +109,11 @@ func TestAppConfigReloadRebuildsRuntimeAndRestartsAnalysis(t *testing.T) {
 
 	started := requireBatchMsgType[importAnalysisStartedMsg](t, cmd())
 	nextModel, cmd = m.Update(started)
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, _ = m.Update(cmd())
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	assert.Len(t, analyzedConfigs, 1)
 	assert.Equal(t, reloaded.Paths.ArchiveDir, analyzedConfigs[0].ArchiveDir)
@@ -147,7 +148,7 @@ func TestAppConfigReloadWithInvalidStateClearsAnalysisAndBlocksImport(t *testing
 			Err:    errors.New("bad config"),
 		},
 	})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	assert.Nil(t, cmd)
 	assert.Equal(t, phaseReady, m.importOverview.phase)
@@ -161,13 +162,13 @@ func TestAppConfigReloadWithInvalidStateClearsAnalysisAndBlocksImport(t *testing
 	assert.Equal(t, arch.SyncResult{}, m.importOverview.result)
 
 	nextModel, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 	view := ansi.Strip(m.View().Content)
 	assert.Contains(t, view, "Config is invalid: bad config")
 	assert.Contains(t, view, "Press c to fix")
 
 	nextModel, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 	assert.False(t, m.importOverview.done)
 }
 
@@ -213,7 +214,7 @@ func TestAppConfigReloadWithUnchangedPathsStillRerunsAnalysis(t *testing.T) {
 			Config: reloaded,
 		},
 	})
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	require.NotNil(t, cmd)
 	assert.Equal(t, "3:04PM", m.browser.timestampFormat)
@@ -222,11 +223,11 @@ func TestAppConfigReloadWithUnchangedPathsStillRerunsAnalysis(t *testing.T) {
 
 	started := requireBatchMsgType[importAnalysisStartedMsg](t, cmd())
 	nextModel, cmd = m.Update(started)
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
 	nextModel, _ = m.Update(cmd())
-	m = nextModel.(appModel)
+	m = requireAs[appModel](t, nextModel)
 
 	assert.Equal(t, 1, analyzeCalls)
 	assert.Equal(t, phaseReady, m.importOverview.phase)

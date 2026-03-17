@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
+
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -35,10 +36,15 @@ func createAndEditConfigCmd(path, template string) tea.Cmd {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err == nil {
 		_, writeErr := f.Write([]byte(template))
-		_ = f.Close()
+		closeErr := f.Close()
 		if writeErr != nil {
 			return func() tea.Msg {
 				return configEditedMsg{err: fmt.Errorf("writeTemplate: %w", writeErr)}
+			}
+		}
+		if closeErr != nil {
+			return func() tea.Msg {
+				return configEditedMsg{err: fmt.Errorf("f.Close: %w", closeErr)}
 			}
 		}
 	} else if !os.IsExist(err) {

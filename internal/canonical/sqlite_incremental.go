@@ -3,8 +3,11 @@ package canonical
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/rs/zerolog"
 
 	src "github.com/rkuska/carn/internal/source"
 )
@@ -26,7 +29,11 @@ func applySQLiteIncrementalRebuild(
 	if err != nil {
 		return fmt.Errorf("db.BeginTx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("tx.Rollback")
+		}
+	}()
 
 	if err := applySQLiteIncrementalRebuildTx(
 		ctx,

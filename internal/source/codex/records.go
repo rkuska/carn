@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -35,7 +36,10 @@ func openReader(path string) (*os.File, *bufio.Reader, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("os.Open: %w", err)
 	}
-	br := readerPool.Get().(*bufio.Reader)
+	br, ok := readerPool.Get().(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReaderSize(nil, codexScanBufferSize)
+	}
 	br.Reset(file)
 	return file, br, nil
 }

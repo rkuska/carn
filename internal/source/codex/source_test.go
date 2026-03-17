@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	conv "github.com/rkuska/carn/internal/conversation"
-	src "github.com/rkuska/carn/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func TestScanParsesCodexRollouts(t *testing.T) {

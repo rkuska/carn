@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/rs/zerolog"
 )
 
 func visitRolloutRecords(
@@ -17,7 +19,11 @@ func visitRolloutRecords(
 	if err != nil {
 		return err
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("file.Close")
+		}
+	}()
 	defer readerPool.Put(br)
 
 	var overflow []byte

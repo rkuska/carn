@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestRenderTranscriptGroupsConsecutiveAssistantMessages(t *testing.T) {

@@ -7,9 +7,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	conversation "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conversation "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {

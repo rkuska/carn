@@ -111,9 +111,16 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	if err != nil {
 		return scannedSession{}, fmt.Errorf("os.Open: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("file.Close")
+		}
+	}()
 
-	br := metadataReaderPool.Get().(*bufio.Reader)
+	br, ok := metadataReaderPool.Get().(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReaderSize(nil, jsonlMetadataBufferSize)
+	}
 	br.Reset(file)
 	defer metadataReaderPool.Put(br)
 
@@ -128,8 +135,8 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 
 	for line, err := range jsonlLines(br) {
-		if err := ctx.Err(); err != nil {
-			return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", err)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return scannedSession{}, fmt.Errorf("scanMetadataResult_ctx: %w", ctxErr)
 		}
 		if err != nil {
 			return scannedSession{}, fmt.Errorf("scanMetadataResult_jsonlLines: %w", err)

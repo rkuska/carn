@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

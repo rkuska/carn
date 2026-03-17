@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestLoadState(t *testing.T) {

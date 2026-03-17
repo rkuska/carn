@@ -69,9 +69,9 @@ func parseAndIndexLine(
 		if !ok {
 			return parsedMessage{}, false
 		}
-		for i, toolCall := range msg.message.ToolCalls {
+		for i, tc := range msg.message.ToolCalls {
 			if i < len(toolCallIDs) && toolCallIDs[i] != "" {
-				pc.toolCallIndex[toolCallIDs[i]] = toolCall
+				pc.toolCallIndex[toolCallIDs[i]] = tc
 			}
 		}
 		return msg, true
@@ -104,9 +104,16 @@ func visitSessionMessages(
 	if err != nil {
 		return fmt.Errorf("os.Open: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("file.Close")
+		}
+	}()
 
-	br := parseReaderPool.Get().(*bufio.Reader)
+	br, ok := parseReaderPool.Get().(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReaderSize(nil, jsonlParseBufferSize)
+	}
 	br.Reset(file)
 	defer parseReaderPool.Put(br)
 
@@ -284,9 +291,9 @@ func linkToolResults(
 		if i >= len(toolUseIDs) {
 			return
 		}
-		if toolCall, found := toolCallIndex[toolUseIDs[i]]; found {
-			toolResults[i].ToolName = toolCall.Name
-			toolResults[i].ToolSummary = toolCall.Summary
+		if tc, found := toolCallIndex[toolUseIDs[i]]; found {
+			toolResults[i].ToolName = tc.Name
+			toolResults[i].ToolSummary = tc.Summary
 		}
 	}
 }

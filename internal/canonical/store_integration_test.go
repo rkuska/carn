@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStoreRebuildListLoadAndDeepSearch(t *testing.T) {
@@ -222,10 +223,10 @@ func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t
 		fullConversation, ok := changedByKey[conversation.CacheKey()]
 		require.True(t, ok)
 
-		incrementalSession, err := incrementalStore.Load(ctx, incrementalArchive, conversation)
-		require.NoError(t, err)
-		fullSession, err := fullStore.Load(ctx, fullArchive, fullConversation)
-		require.NoError(t, err)
+		incrementalSession, loadErr := incrementalStore.Load(ctx, incrementalArchive, conversation)
+		require.NoError(t, loadErr)
+		fullSession, loadErr := fullStore.Load(ctx, fullArchive, fullConversation)
+		require.NoError(t, loadErr)
 
 		assert.Equal(t, snapshotSession(fullSession), snapshotSession(incrementalSession))
 	}

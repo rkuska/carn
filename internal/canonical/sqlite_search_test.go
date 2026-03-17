@@ -123,7 +123,11 @@ func TestReadSearchPreviewsDeduplicatesBeforeApplyingConversationLimit(t *testin
 
 	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Log(closeErr)
+		}
+	}()
 
 	matches, err := readRankedConversationMatches(
 		context.Background(),
@@ -188,7 +192,11 @@ func TestReadSearchPreviewsGroupsDedupedPreviewsPerConversation(t *testing.T) {
 
 	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Log(closeErr)
+		}
+	}()
 
 	matches, err := readRankedConversationMatches(context.Background(), db, buildFTSQuery("important"))
 	require.NoError(t, err)
@@ -229,7 +237,11 @@ func TestReadSearchPreviewsUsesStableSnippetEllipses(t *testing.T) {
 
 	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Log(closeErr)
+		}
+	}()
 
 	matches, err := readRankedConversationMatches(context.Background(), db, buildFTSQuery("needle"))
 	require.NoError(t, err)
