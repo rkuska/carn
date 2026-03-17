@@ -1,12 +1,9 @@
 package claude
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -27,36 +24,17 @@ func parseSessionProjectedWithContextInto(
 	pc *parseContext,
 	messages []message,
 ) ([]message, tokenUsage, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, tokenUsage{}, fmt.Errorf("os.Open: %w", err)
-	}
-	defer func() { _ = file.Close() }()
-
-	br := parseReaderPool.Get().(*bufio.Reader)
-	br.Reset(file)
-	defer parseReaderPool.Put(br)
-
 	if messages == nil {
 		messages = make([]message, 0, 32)
 	} else {
 		messages = messages[:0]
 	}
 	var totalUsage tokenUsage
-	pc.resetToolCallIndex()
-	dec := json.NewDecoder(br)
-	for dec.More() {
-		if err := ctx.Err(); err != nil {
-			return nil, tokenUsage{}, fmt.Errorf("parseSessionProjectedWithContextInto_ctx: %w", err)
-		}
-		pc.reset()
-		if err := dec.Decode(&pc.rec); err != nil {
-			return nil, tokenUsage{}, fmt.Errorf("parseSessionProjectedWithContextInto_decode: %w", err)
-		}
-		if msg, ok := parseAndIndexLine(ctx, pc); ok {
-			messages = append(messages, msg.message)
-			addUsage(&totalUsage, msg.usage)
-		}
+	if err := visitSessionMessages(ctx, filePath, pc, func(msg parsedMessage) {
+		messages = append(messages, msg.message)
+		addUsage(&totalUsage, msg.usage)
+	}); err != nil {
+		return nil, tokenUsage{}, fmt.Errorf("visitSessionMessages: %w", err)
 	}
 	return messages, totalUsage, nil
 }

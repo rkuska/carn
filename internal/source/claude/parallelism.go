@@ -9,10 +9,7 @@ func claudeScanParallelism(itemCount int) int {
 		return 1
 	}
 
-	limit := runtime.NumCPU() / 2
-	if limit < 1 {
-		limit = 1
-	}
+	limit := max(runtime.NumCPU()/2, 1)
 	if limit > maxScanParallelism {
 		limit = maxScanParallelism
 	}

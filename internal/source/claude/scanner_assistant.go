@@ -1,23 +1,17 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/buger/jsonparser"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
 )
-
-type contentBlock struct {
-	Type     string          `json:"type"`
-	Text     string          `json:"text"`
-	Thinking string          `json:"thinking"`
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Input    json.RawMessage `json:"input"`
-}
 
 var toolParamKey = map[string]string{
 	"Read":          "file_path",
@@ -77,43 +71,114 @@ func (j *blockJoiner) result() string {
 	return j.b.String()
 }
 
-func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls []toolCall, toolCallIDs []string) {
+func extractAssistantContent(
+	raw json.RawMessage,
+) (text, thinking string, toolCalls []toolCall, toolCallIDs []string, ok bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] != '[' {
+		return "", "", nil, nil, false
+	}
+
 	var textJ, thinkJ blockJoiner
-	toolUseCount := 0
-	for _, block := range pc.blocks {
-		if block.Type == blockTypeToolUse {
-			toolUseCount++
+	parseOK := true
+	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
+		if !parseOK {
+			return
 		}
-	}
-	if toolUseCount > 0 {
-		toolCalls = make([]toolCall, 0, toolUseCount)
-		toolCallIDs = make([]string, 0, toolUseCount)
-	}
-	for _, block := range pc.blocks {
-		switch block.Type {
-		case blockTypeText:
-			textJ.add(block.Text)
-		case blockTypeThinking:
-			thinkJ.add(block.Thinking)
-		case blockTypeToolUse:
-			toolCalls = append(toolCalls, toolCall{
-				Name:    block.Name,
-				Summary: summarizeToolCallFast(block.Name, block.Input),
-			})
-			toolCallIDs = append(toolCallIDs, block.ID)
+		if err != nil || dataType != jsonparser.Object {
+			parseOK = false
+			return
 		}
+		if err := appendAssistantContentBlock(
+			value,
+			&textJ,
+			&thinkJ,
+			&toolCalls,
+			&toolCallIDs,
+		); err != nil {
+			parseOK = false
+		}
+	})
+	if err != nil || !parseOK {
+		return "", "", nil, nil, false
 	}
-	return textJ.result(), thinkJ.result(), toolCalls, toolCallIDs
+	return textJ.result(), thinkJ.result(), toolCalls, toolCallIDs, true
+}
+
+func appendAssistantContentBlock(
+	value []byte,
+	textJ *blockJoiner,
+	thinkJ *blockJoiner,
+	toolCalls *[]toolCall,
+	toolCallIDs *[]string,
+) error {
+	blockType, _, err := jsonStringField(value, "type")
+	if err != nil {
+		return fmt.Errorf("appendAssistantContentBlock_type: %w", err)
+	}
+
+	switch blockType {
+	case blockTypeText:
+		return appendAssistantTextBlock(value, textJ)
+	case blockTypeThinking:
+		return appendAssistantThinkingBlock(value, thinkJ)
+	case blockTypeToolUse:
+		return appendAssistantToolUseBlock(value, toolCalls, toolCallIDs)
+	default:
+		return nil
+	}
+}
+
+func appendAssistantTextBlock(value []byte, textJ *blockJoiner) error {
+	blockText, _, err := jsonStringField(value, "text")
+	if err != nil {
+		return fmt.Errorf("appendAssistantTextBlock_text: %w", err)
+	}
+	textJ.add(blockText)
+	return nil
+}
+
+func appendAssistantThinkingBlock(value []byte, thinkJ *blockJoiner) error {
+	blockThinking, _, err := jsonStringField(value, "thinking")
+	if err != nil {
+		return fmt.Errorf("appendAssistantThinkingBlock_thinking: %w", err)
+	}
+	thinkJ.add(blockThinking)
+	return nil
+}
+
+func appendAssistantToolUseBlock(
+	value []byte,
+	toolCalls *[]toolCall,
+	toolCallIDs *[]string,
+) error {
+	name, _, err := jsonStringField(value, "name")
+	if err != nil {
+		return fmt.Errorf("appendAssistantToolUseBlock_name: %w", err)
+	}
+	id, _, err := jsonStringField(value, "id")
+	if err != nil {
+		return fmt.Errorf("appendAssistantToolUseBlock_id: %w", err)
+	}
+	input, _, err := jsonRawField(value, "input")
+	if err != nil {
+		return fmt.Errorf("appendAssistantToolUseBlock_input: %w", err)
+	}
+
+	*toolCalls = append(*toolCalls, toolCall{
+		Name:    name,
+		Summary: summarizeToolCallFast(name, input),
+	})
+	*toolCallIDs = append(*toolCallIDs, id)
+	return nil
 }
 
 func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, []string, bool) {
-	pc.blocks = pc.blocks[:0]
-	if err := json.Unmarshal(pc.rec.Message.Content, &pc.blocks); err != nil {
-		zerolog.Ctx(ctx).Debug().Err(err).Msg("failed to unmarshal assistant content blocks")
+	text, thinking, toolCalls, toolCallIDs, ok := extractAssistantContent(pc.rec.Message.Content)
+	if !ok {
+		zerolog.Ctx(ctx).Debug().Msg("failed to parse assistant content blocks")
 		return parsedMessage{}, nil, false
 	}
-
-	text, thinking, toolCalls, toolCallIDs := extractAssistantContent(pc)
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
 		return parsedMessage{}, nil, false
 	}
@@ -168,55 +233,7 @@ func summarizeToolCallFast(name string, input json.RawMessage) string {
 			return value
 		}
 	}
-
-	var params map[string]json.RawMessage
-	if err := json.Unmarshal(input, &params); err != nil {
-		return name
-	}
-	return summarizeToolCallFromParams(name, params)
-}
-
-func summarizeToolCallFromParams(name string, params map[string]json.RawMessage) string {
-	if paramKey, ok := toolParamKey[name]; ok {
-		return extractStringParam(params, paramKey)
-	}
-	if paramKey, ok := toolTruncateKey[name]; ok {
-		return conv.Truncate(extractStringParam(params, paramKey), 80)
-	}
-	if constant, ok := toolConstant[name]; ok {
-		return constant
-	}
-	if strings.HasPrefix(name, "mcp__") {
-		return summarizeMCPTool(params)
-	}
-	return ""
-}
-
-func extractStringParam(params map[string]json.RawMessage, key string) string {
-	raw, ok := params[key]
-	if !ok {
-		return ""
-	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return ""
-	}
-	return value
-}
-
-func summarizeMCPTool(params map[string]json.RawMessage) string {
-	for _, key := range []string{"query", "libraryName"} {
-		if value := extractStringParam(params, key); value != "" {
-			return conv.Truncate(value, 80)
-		}
-	}
-	for _, raw := range params {
-		var value string
-		if err := json.Unmarshal(raw, &value); err == nil && value != "" {
-			return conv.Truncate(value, 80)
-		}
-	}
-	return ""
+	return name
 }
 
 func summarizeMCPToolFast(raw json.RawMessage) string {

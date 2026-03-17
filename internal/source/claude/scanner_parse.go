@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 // parseRecord is a flat struct that merges the outer JSONL record with the
 // nested message object. A single json.Decode fills both levels, eliminating
 // the intermediate json.RawMessage copy for the "message" field.
-// Used only in the parse phase; the metadata scan path uses metadataRecord.
+// Used in both the parse phase and metadata scan path.
 type parseRecord struct {
 	Type          string          `json:"type"`
 	SessionID     string          `json:"sessionId"`
@@ -38,18 +39,14 @@ type parseRecord struct {
 }
 
 // parseContext holds reusable JSON decode containers to avoid per-line heap
-// allocations. The rec struct is zeroed before each decode via reset().
-// The blocks slice retains its backing array across calls — json.Unmarshal
-// reuses the capacity, only overwriting fields present in each JSON record.
+// allocations. The rec struct is zeroed before each record parse via reset().
 type parseContext struct {
 	rec           parseRecord
-	blocks        []contentBlock
 	toolCallIndex map[string]toolCall
 }
 
 func (pc *parseContext) reset() {
 	pc.rec = parseRecord{}
-	pc.blocks = pc.blocks[:0]
 }
 
 func (pc *parseContext) resetToolCallIndex() {
@@ -88,9 +85,24 @@ func parseSessionMessagesDetailed(ctx context.Context, filePath string) ([]parse
 }
 
 func parseSessionWithContext(ctx context.Context, filePath string, pc *parseContext) ([]parsedMessage, error) {
+	messages := make([]parsedMessage, 0, 32)
+	if err := visitSessionMessages(ctx, filePath, pc, func(msg parsedMessage) {
+		messages = append(messages, msg)
+	}); err != nil {
+		return nil, fmt.Errorf("visitSessionMessages: %w", err)
+	}
+	return messages, nil
+}
+
+func visitSessionMessages(
+	ctx context.Context,
+	filePath string,
+	pc *parseContext,
+	visit func(parsedMessage),
+) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("os.Open: %w", err)
+		return fmt.Errorf("os.Open: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -98,22 +110,57 @@ func parseSessionWithContext(ctx context.Context, filePath string, pc *parseCont
 	br.Reset(file)
 	defer parseReaderPool.Put(br)
 
-	messages := make([]parsedMessage, 0, 32)
 	pc.resetToolCallIndex()
-	dec := json.NewDecoder(br)
-	for dec.More() {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("parseSessionWithContext_ctx: %w", err)
+	return visitSessionReaderMessages(ctx, br, pc, visit)
+}
+
+func visitSessionReaderMessages(
+	ctx context.Context,
+	br *bufio.Reader,
+	pc *parseContext,
+	visit func(parsedMessage),
+) error {
+	var overflow []byte
+	for {
+		line, nextOverflow, done, err := readNextSessionLine(ctx, br, overflow)
+		overflow = nextOverflow
+		if err != nil {
+			return err
 		}
+		if len(line) == 0 {
+			if done {
+				return nil
+			}
+			continue
+		}
+
 		pc.reset()
-		if err := dec.Decode(&pc.rec); err != nil {
-			return nil, fmt.Errorf("parseSessionWithContext_decode: %w", err)
+		if err := parseRecordLine(line, &pc.rec); err != nil {
+			return fmt.Errorf("visitSessionReaderMessages_parseRecordLine: %w", err)
 		}
 		if msg, ok := parseAndIndexLine(ctx, pc); ok {
-			messages = append(messages, msg)
+			visit(msg)
+		}
+		if done {
+			return nil
 		}
 	}
-	return messages, nil
+}
+
+func readNextSessionLine(
+	ctx context.Context,
+	br *bufio.Reader,
+	overflow []byte,
+) ([]byte, []byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, overflow, false, fmt.Errorf("readNextSessionLine_ctx: %w", err)
+	}
+
+	line, nextOverflow, err := readJSONLLine(br, overflow)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, nextOverflow, false, fmt.Errorf("readNextSessionLine_readJSONLLine: %w", err)
+	}
+	return line, nextOverflow, errors.Is(err, io.EOF), nil
 }
 
 func parseConversationMessagesDetailed(ctx context.Context, conv conversation) ([]parsedMessage, tokenUsage, error) {

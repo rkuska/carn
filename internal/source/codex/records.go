@@ -3,141 +3,20 @@ package codex
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/buger/jsonparser"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 var readerPool = sync.Pool{
 	New: func() any { return bufio.NewReaderSize(nil, codexScanBufferSize) },
-}
-
-// codexRecord is a flat struct that merges the outer JSONL envelope with the
-// nested payload object. A single json.Decode fills both levels, eliminating
-// the intermediate json.RawMessage copy that the old recordEnvelope required.
-type codexRecord struct {
-	Timestamp string       `json:"timestamp"`
-	Type      string       `json:"type"`
-	Payload   codexPayload `json:"payload"`
-}
-
-// codexPayload merges all payload types into a single struct. The decoder
-// populates only the fields present in each JSON record; the rest remain zero.
-// The envelope-level Type discriminator selects which fields are meaningful.
-type codexPayload struct {
-	// Discriminator for response_item and event_msg subtypes.
-	ItemType string `json:"type"`
-
-	// session_meta fields.
-	ID            string          `json:"id"`
-	PayloadTS     string          `json:"timestamp"`
-	CWD           string          `json:"cwd"`
-	CLIVersion    string          `json:"cli_version"`
-	ModelProvider string          `json:"model_provider"`
-	Source        json.RawMessage `json:"source"`
-	Git           struct {
-		Branch string `json:"branch"`
-	} `json:"git"`
-
-	// turn_context (CWD reused from session_meta).
-	Model string `json:"model"`
-
-	// response_item fields.
-	Role             string         `json:"role"`
-	Name             string         `json:"name"`
-	Arguments        string         `json:"arguments"`
-	CallID           string         `json:"call_id"`
-	Output           string         `json:"output"`
-	Input            string         `json:"input"`
-	Status           string         `json:"status"`
-	EncryptedContent string         `json:"encrypted_content"`
-	Content          []contentBlock `json:"content"`
-	Summary          summaryBlocks  `json:"summary"`
-	Action           struct {
-		Query   string   `json:"query"`
-		Queries []string `json:"queries"`
-	} `json:"action"`
-
-	// event_msg fields.
-	Message          string          `json:"message"`
-	Text             string          `json:"text"`
-	LastAgentMessage string          `json:"last_agent_message"`
-	Item             json.RawMessage `json:"item"`
-	Info             struct {
-		TotalTokenUsage struct {
-			InputTokens           int `json:"input_tokens"`
-			CachedInputTokens     int `json:"cached_input_tokens"`
-			OutputTokens          int `json:"output_tokens"`
-			ReasoningOutputTokens int `json:"reasoning_output_tokens"`
-		} `json:"total_token_usage"`
-	} `json:"info"`
-}
-
-type contentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type summaryBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type summaryBlocks []summaryBlock
-
-func (s *summaryBlocks) UnmarshalJSON(data []byte) error {
-	data = bytes.TrimSpace(data)
-	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
-		*s = nil
-		return nil
-	}
-
-	switch data[0] {
-	case '[':
-		return s.unmarshalArray(data)
-	case '{':
-		return s.unmarshalObject(data)
-	case '"':
-		return s.unmarshalString(data)
-	default:
-		return fmt.Errorf("summaryBlocks.UnmarshalJSON: unsupported JSON token %q", data[0])
-	}
-}
-
-func (s *summaryBlocks) unmarshalArray(data []byte) error {
-	var blocks []summaryBlock
-	if err := json.Unmarshal(data, &blocks); err != nil {
-		return fmt.Errorf("summaryBlocks.UnmarshalJSON_array: %w", err)
-	}
-	*s = blocks
-	return nil
-}
-
-func (s *summaryBlocks) unmarshalObject(data []byte) error {
-	var block summaryBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return fmt.Errorf("summaryBlocks.UnmarshalJSON_object: %w", err)
-	}
-	*s = []summaryBlock{block}
-	return nil
-}
-
-func (s *summaryBlocks) unmarshalString(data []byte) error {
-	var text string
-	if err := json.Unmarshal(data, &text); err != nil {
-		return fmt.Errorf("summaryBlocks.UnmarshalJSON_string: %w", err)
-	}
-	if strings.TrimSpace(text) == "" {
-		*s = nil
-		return nil
-	}
-	*s = []summaryBlock{{Type: "summary_text", Text: text}}
-	return nil
 }
 
 type toolEventMeta struct {
@@ -151,16 +30,6 @@ type completedItemPayload struct {
 	Text string `json:"text"`
 }
 
-// parseContext holds a reusable codexRecord to avoid per-line heap allocations.
-// The rec struct is zeroed before each decode via reset().
-type parseContext struct {
-	rec codexRecord
-}
-
-func (pc *parseContext) reset() {
-	pc.rec = codexRecord{}
-}
-
 func openReader(path string) (*os.File, *bufio.Reader, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -169,6 +38,10 @@ func openReader(path string) (*os.File, *bufio.Reader, error) {
 	br := readerPool.Get().(*bufio.Reader)
 	br.Reset(file)
 	return file, br, nil
+}
+
+func isJSONLExt(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".jsonl")
 }
 
 func parseTimestamp(value string) time.Time {
@@ -182,71 +55,158 @@ func parseTimestamp(value string) time.Time {
 	return t
 }
 
-func extractMessageText(blocks []contentBlock) string {
-	parts := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		switch block.Type {
-		case "input_text", "output_text":
-			if block.Text != "" {
-				parts = append(parts, block.Text)
-			}
+func extractReasoningText(raw []byte) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return ""
+	}
+
+	switch raw[0] {
+	case '"':
+		return extractReasoningStringText(raw)
+	case '{':
+		return extractReasoningBlockText(raw)
+	case '[':
+		return extractReasoningArrayText(raw)
+	default:
+		return ""
+	}
+}
+
+func extractReasoningStringText(raw []byte) string {
+	text, ok := decodeRawJSONString(raw)
+	if !ok || strings.TrimSpace(text) == "" {
+		return ""
+	}
+	return text
+}
+
+func extractReasoningArrayText(raw []byte) string {
+	parts := make([]string, 0, 2)
+	parseOK := true
+	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
+		if !parseOK {
+			return
 		}
+		if err != nil || dataType != jsonparser.Object {
+			parseOK = false
+			return
+		}
+		if text := extractReasoningBlockText(value); text != "" {
+			parts = append(parts, text)
+		}
+	})
+	if err != nil || !parseOK {
+		return ""
 	}
 	return strings.Join(parts, "\n")
 }
 
-func extractReasoningText(blocks summaryBlocks) string {
-	parts := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		if block.Text != "" {
-			parts = append(parts, block.Text)
-		}
+func extractReasoningBlockText(raw []byte) string {
+	text, err := jsonparser.GetString(raw, "text")
+	if err != nil || strings.TrimSpace(text) == "" {
+		return ""
 	}
-	return strings.Join(parts, "\n")
+	return text
 }
 
-func buildToolCall(p *codexPayload) conv.ToolCall {
-	name := p.Name
-	if p.ItemType == responseTypeWebSearchCall {
+func buildToolCall(itemType string, payload []byte) conv.ToolCall {
+	name, _ := extractTopLevelRawJSONStringFieldByMarker(payload, nameFieldMarker)
+	if itemType == responseTypeWebSearchCall {
 		name = "web_search"
 	}
 	return conv.ToolCall{
 		Name:    name,
-		Summary: buildToolSummary(p),
+		Summary: buildToolSummary(itemType, name, payload),
 	}
 }
 
-func buildToolSummary(p *codexPayload) string {
-	if p.ItemType == responseTypeWebSearchCall {
-		if p.Action.Query != "" {
-			return p.Action.Query
+func buildToolSummary(itemType, name string, payload []byte) string {
+	if itemType == responseTypeWebSearchCall {
+		action, ok := extractTopLevelRawJSONFieldByMarker(payload, actionFieldMarker)
+		if !ok {
+			return ""
 		}
-		if len(p.Action.Queries) > 0 {
-			return p.Action.Queries[0]
+		if query, ok := extractTopLevelRawJSONStringFieldByMarker(action, queryFieldMarker); ok {
+			return query
+		}
+		if queries, ok := extractTopLevelRawJSONFieldByMarker(action, queriesFieldMarker); ok {
+			return extractFirstJSONString(queries)
 		}
 		return ""
 	}
 
-	if p.Arguments != "" {
-		if cmd, ok := extractJSONStringField(p.Arguments, "cmd"); ok {
+	if arguments, ok := extractTopLevelRawJSONStringFieldByMarker(payload, argumentsFieldMarker); ok && arguments != "" {
+		if cmd, ok := extractJSONStringField(arguments, "cmd"); ok {
 			return cmd
 		}
 	}
 
-	if p.Name == toolNameApplyPatch {
+	if name == toolNameApplyPatch {
 		return "apply patch"
 	}
 	return ""
 }
 
-func buildToolResult(p *codexPayload, meta toolEventMeta) conv.ToolResult {
+func buildToolResult(payload []byte, meta toolEventMeta) conv.ToolResult {
+	output, _ := extractTopLevelRawJSONStringFieldByMarker(payload, outputFieldMarker)
+	status, _ := extractTopLevelRawJSONStringFieldByMarker(payload, statusFieldMarker)
 	return conv.ToolResult{
 		ToolName:        meta.call.Name,
 		ToolSummary:     meta.call.Summary,
-		Content:         p.Output,
-		IsError:         p.Status == "failed" || p.Status == "error" || isCodexToolError(p.Output),
+		Content:         output,
+		IsError:         status == "failed" || status == "error" || isCodexToolError(output),
 		StructuredPatch: parseStructuredPatch(meta.input),
 	}
+}
+
+func extractFirstJSONString(raw []byte) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] != '[' {
+		return ""
+	}
+
+	first := ""
+	parseOK := true
+	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
+		if first != "" || !parseOK {
+			return
+		}
+		if err != nil || dataType != jsonparser.String {
+			parseOK = false
+			return
+		}
+		first, parseOK = decodeJSONParserStringValue(value)
+	})
+	if err != nil || !parseOK {
+		return ""
+	}
+	return first
+}
+
+func decodeRawJSONString(raw []byte) (string, bool) {
+	if len(raw) < 2 || raw[0] != '"' {
+		return "", false
+	}
+	value, err := strconv.Unquote(string(raw))
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+func decodeJSONParserStringValue(raw []byte) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	if raw[0] == '"' {
+		return decodeRawJSONString(raw)
+	}
+	value, err := strconv.Unquote(`"` + string(raw) + `"`)
+	if err != nil {
+		return "", false
+	}
+	return value, true
 }
 
 func extractJSONStringField(jsonStr, field string) (string, bool) {
@@ -258,7 +218,7 @@ func extractJSONStringField(jsonStr, field string) (string, bool) {
 	start := idx + len(marker)
 	for i := start; i < len(jsonStr); i++ {
 		if jsonStr[i] == '\\' {
-			i++ // skip escaped character
+			i++
 			continue
 		}
 		if jsonStr[i] == '"' {
@@ -277,8 +237,4 @@ func isCodexToolError(output string) bool {
 	return strings.Contains(lower, "aborted by user") ||
 		strings.Contains(lower, "patch rejected") ||
 		strings.Contains(lower, "verification failed")
-}
-
-func isJSONLExt(path string) bool {
-	return strings.HasSuffix(strings.ToLower(path), ".jsonl")
 }

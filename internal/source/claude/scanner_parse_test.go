@@ -60,6 +60,29 @@ func TestExtractUserContentReturnsToolResultsAndTrailingText(t *testing.T) {
 	assert.True(t, results[0].IsError)
 }
 
+func TestExtractStructuredPatchReturnsDiffHunks(t *testing.T) {
+	t.Parallel()
+
+	patch := extractStructuredPatch([]byte(`{
+		"structuredPatch":[
+			{
+				"oldStart":3,
+				"oldLines":1,
+				"newStart":3,
+				"newLines":2,
+				"lines":["-old line","+new line","+second line"]
+			}
+		]
+	}`))
+
+	require.Len(t, patch, 1)
+	assert.Equal(t, 3, patch[0].OldStart)
+	assert.Equal(t, 1, patch[0].OldLines)
+	assert.Equal(t, 3, patch[0].NewStart)
+	assert.Equal(t, 2, patch[0].NewLines)
+	assert.Equal(t, []string{"-old line", "+new line", "+second line"}, patch[0].Lines)
+}
+
 func TestParseConversationWithoutLinkedTranscriptsMatchesProjectedParse(t *testing.T) {
 	t.Parallel()
 
