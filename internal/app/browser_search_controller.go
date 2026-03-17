@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -57,6 +56,10 @@ func (m browserModel) stopSearchEditing() browserModel {
 	m.search.editing = false
 	m.searchInput.Blur()
 	return m
+}
+
+func (m browserModel) hasActiveSearch() bool {
+	return m.search.query != ""
 }
 
 func (m browserModel) cancelActiveDeepSearch() browserModel {
@@ -120,14 +123,6 @@ func (m browserModel) setDelegateHeight(height int) browserModel {
 	m.delegate.SetHeight(height)
 	m.list.SetDelegate(m.delegate)
 	return m
-}
-
-func (m browserModel) applyMetadataSearch(cmds *[]tea.Cmd) browserModel {
-	m.search.status = searchStatusIdle
-	m.search.appliedRevision = m.search.revision
-	m = m.cancelActiveDeepSearch()
-	m = m.setDelegateHeight(delegateHeightDefault)
-	return m.setSearchItems(buildMetadataSearchItems(m.search.query, m.search.baseConversations), cmds)
 }
 
 func (m browserModel) applyFullConversationList(cmds *[]tea.Cmd) browserModel {
@@ -198,13 +193,7 @@ func deepSearchRepositoryCmd(
 }
 
 func (m browserModel) refreshSearchResults(cmds *[]tea.Cmd) browserModel {
-	switch m.search.mode {
-	case searchModeMetadata:
-		return m.applyMetadataSearch(cmds)
-	case searchModeDeep:
-		return m.scheduleDeepSearch(cmds)
-	}
-	return m
+	return m.scheduleDeepSearch(cmds)
 }
 
 func (m browserModel) setSearchQuery(query string, cmds *[]tea.Cmd) browserModel {
@@ -217,37 +206,15 @@ func (m browserModel) setSearchQuery(query string, cmds *[]tea.Cmd) browserModel
 	return m.refreshSearchResults(cmds)
 }
 
-func (m browserModel) toggleSearchMode(cmds *[]tea.Cmd) browserModel {
-	if m.search.mode == searchModeDeep {
-		m.search.mode = searchModeMetadata
-		m.search.status = searchStatusIdle
-		m.search.revision++
-		return m.applyMetadataSearch(cmds)
-	}
-
-	m.search.mode = searchModeDeep
-	m.search.revision++
-	return m.startDeepSearch(cmds)
-}
-
-func (m browserModel) handleDeepSearchToggle(cmds *[]tea.Cmd) browserModel {
-	previousMode := m.search.mode
-	m = m.toggleSearchMode(cmds)
-	if m.search.mode == previousMode {
-		return m
-	}
-
-	m = m.setNotification(
-		infoNotification(fmt.Sprintf("search scope: %s", m.searchScopeLabel())).notification,
-		cmds,
-	)
-	return m.syncTranscriptSelection(cmds)
+func (m browserModel) clearSearch(cmds *[]tea.Cmd) browserModel {
+	m = m.stopSearchEditing()
+	m.searchInput.SetValue("")
+	return m.setSearchQuery("", cmds)
 }
 
 func (m browserModel) handleSearchKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
-	if key.Matches(msg, browserKeys.DeepSearch) {
-		m = m.handleDeepSearchToggle(cmds)
-		return m, nil
+	if key.Matches(msg, browserKeys.ClearSearch) && m.hasActiveSearch() {
+		return m.clearSearch(cmds), nil
 	}
 
 	switch msg.Code {

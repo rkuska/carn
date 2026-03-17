@@ -82,8 +82,7 @@ func (m browserModel) applyDeepSearchDebounce(
 	msg deepSearchDebounceMsg,
 	cmds *[]tea.Cmd,
 ) browserModel {
-	if m.search.mode == searchModeDeep &&
-		msg.revision == m.search.revision &&
+	if msg.revision == m.search.revision &&
 		msg.query == m.search.query {
 		return m.startDeepSearch(cmds)
 	}
@@ -100,14 +99,13 @@ func (m browserModel) applyConversationsLoaded(
 	m.filter.values = extractFilterValues(mainConvs)
 	filtered := applyStructuredFilters(mainConvs, m.filter.dimensions)
 	m.search.baseConversations = filtered
-	m.search.visibleConversations = filtered
 	if m.search.query == "" {
 		m = m.applyFullConversationList(cmds)
-	} else {
-		m = m.refreshSearchResults(cmds)
+		m = m.reloadTranscriptAfterResync(cmds)
+		return m.syncTranscriptSelection(cmds)
 	}
-	m = m.reloadTranscriptAfterResync(cmds)
-	return m.syncTranscriptSelection(cmds)
+
+	return m.refreshSearchResults(cmds)
 }
 
 func (m browserModel) applyDeepSearchResult(
@@ -130,12 +128,12 @@ func (m browserModel) applyDeepSearchResult(
 	m.searchCancel = nil
 	m = m.setDelegateHeight(delegateHeightDeepSearch)
 	m = m.setSearchItems(buildDeepSearchItems(msg.query, msg.conversations), cmds)
+	m = m.reloadTranscriptAfterResync(cmds)
 	return m.syncTranscriptSelection(cmds)
 }
 
 func (m browserModel) matchesActiveDeepSearch(msg deepSearchResultMsg) bool {
-	return m.search.mode == searchModeDeep &&
-		msg.revision == m.search.revision &&
+	return msg.revision == m.search.revision &&
 		msg.query == m.search.query
 }
 
@@ -191,6 +189,8 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 	switch {
 	case key.Matches(msg, browserKeys.Search):
 		return m.beginSearchEditing()
+	case key.Matches(msg, browserKeys.ClearSearch) && m.hasActiveSearch():
+		return m.clearSearch(cmds), nil
 	case key.Matches(msg, browserKeys.Filter):
 		return m.openFilterOverlay(), nil
 	case key.Matches(msg, browserKeys.Enter):
@@ -200,8 +200,6 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 			m = m.updateLayout()
 			return m.openTranscript(conv)
 		}
-	case key.Matches(msg, browserKeys.DeepSearch):
-		return m.handleDeepSearchToggle(cmds), nil
 	case key.Matches(msg, browserKeys.Quit):
 		return m, tea.Quit
 	}

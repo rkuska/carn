@@ -7,13 +7,6 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-type searchMode int
-
-const (
-	searchModeMetadata searchMode = iota
-	searchModeDeep
-)
-
 type searchStatus int
 
 const (
@@ -24,7 +17,6 @@ const (
 
 type browserSearchState struct {
 	query                  string
-	mode                   searchMode
 	status                 searchStatus
 	revision               int
 	appliedRevision        int
@@ -103,35 +95,6 @@ func buildPlainConversationItems(conversations []conv.Conversation) []conversati
 	return items
 }
 
-func buildMetadataSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
-	if query == "" {
-		return buildPlainConversationItems(conversations)
-	}
-
-	targets := make([]string, len(conversations))
-	for i, conversation := range conversations {
-		targets[i] = conversationMetadataSearchText(conversation)
-	}
-
-	ranks := list.DefaultFilter(query, targets)
-	items := make([]conversationListItem, 0, len(ranks))
-	for _, rank := range ranks {
-		conversation := conversations[rank.Index]
-		title := conversation.Title()
-		metadata := conversationMetadataDescription(conversation)
-		preview := conversationFirstMessagePreview(conversation)
-		items = append(items, conversationListItem{
-			conversation: conversation,
-			title:        title,
-			metadata:     metadata,
-			preview:      preview,
-			matchRanges:  splitItemMatches(title, metadata, preview, rank.MatchedIndexes),
-		})
-	}
-
-	return items
-}
-
 func buildDeepSearchItems(query string, conversations []conv.Conversation) []conversationListItem {
 	items := make([]conversationListItem, 0, len(conversations))
 	for _, conversation := range conversations {
@@ -155,13 +118,6 @@ func buildDeepSearchItems(query string, conversations []conv.Conversation) []con
 		})
 	}
 	return items
-}
-
-func conversationMetadataSearchText(conversation conv.Conversation) string {
-	title := conversation.Title()
-	metadata := conversationMetadataDescription(conversation)
-	preview := conversationFirstMessagePreview(conversation)
-	return joinConversationRowText(title, metadata, preview)
 }
 
 func conversationMetadataDescription(conversation conv.Conversation) string {

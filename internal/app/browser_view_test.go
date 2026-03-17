@@ -34,7 +34,6 @@ func TestBrowserSplitViewKeepsBottomBordersWithDeepSearchItems(t *testing.T) {
 		"selection and transcript should keep the layout stable",
 	}, "\n"))
 
-	b.search.mode = searchModeDeep
 	b.search.query = "refactor"
 	b = b.setDelegateHeight(delegateHeightDeepSearch)
 	items := buildDeepSearchItems("refactor", []conv.Conversation{first, second})
