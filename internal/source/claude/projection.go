@@ -12,7 +12,7 @@ const linkedTranscriptKindSubagent linkedTranscriptKind = "subagent"
 
 func projectConversationTranscript(messages []parsedMessage, linked []parsedLinkedTranscript) []message {
 	if len(linked) == 0 {
-		return projectParsedMessages(messages)
+		return messagesFromParsed(messages)
 	}
 
 	projected := append(make([]parsedMessage, 0, len(messages)+len(linked)*2), messages...)
@@ -22,9 +22,12 @@ func projectConversationTranscript(messages []parsedMessage, linked []parsedLink
 		}
 
 		divider := parsedMessage{
-			role:           roleUser,
-			isAgentDivider: transcript.kind == linkedTranscriptKindSubagent,
-			text:           transcript.title,
+			message: message{
+				Role:           roleUser,
+				Text:           transcript.title,
+				IsAgentDivider: transcript.kind == linkedTranscriptKindSubagent,
+			},
+			timestamp: transcript.anchor,
 		}
 		pos := src.FindInsertPosition(projected, transcript.anchor, func(msg parsedMessage) time.Time {
 			return msg.timestamp
@@ -33,5 +36,5 @@ func projectConversationTranscript(messages []parsedMessage, linked []parsedLink
 		projected = src.InsertSliceAt(projected, pos+1, transcript.messages)
 	}
 
-	return projectParsedMessages(projected)
+	return messagesFromParsed(projected)
 }

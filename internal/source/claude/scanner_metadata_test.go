@@ -3,6 +3,7 @@ package claude
 import (
 	"bufio"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -29,16 +30,53 @@ func TestScanMetadataCapturesCountsAndUsage(t *testing.T) {
 	assert.Equal(t, 1, meta.ToolCounts["Bash"])
 	assert.Equal(t, 440, meta.TotalUsage.TotalTokens())
 	assert.Equal(t, 10*time.Second, meta.Duration())
+	assert.Equal(t, 5, meta.MessageCount)
+	assert.Equal(t, 4, meta.MainMessageCount)
 }
 
 func TestJSONLLinesHandlesLargeLines(t *testing.T) {
 	t.Parallel()
 
-	reader := strings.NewReader(strings.Repeat("x", jsonlScanBufferSize+32) + "\n")
+	reader := strings.NewReader(strings.Repeat("x", jsonlMetadataBufferSize+32) + "\n")
 	lines, err := collectJSONLLines(jsonlLines(bufio.NewReaderSize(reader, 32)))
 	require.NoError(t, err)
 	require.Len(t, lines, 1)
-	assert.Len(t, lines[0], jsonlScanBufferSize+32)
+	assert.Len(t, lines[0], jsonlMetadataBufferSize+32)
+}
+
+func TestScanMetadataHandlesLargeAssistantContent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	largeText := strings.Repeat("assistant ", jsonlMetadataBufferSize/4)
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"timestamp": "2024-01-01T00:00:01Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude",
+				"content": []map[string]any{
+					{"type": "text", "text": largeText},
+				},
+				"usage": map[string]any{
+					"input_tokens":  100,
+					"output_tokens": 50,
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	result, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.NoError(t, err)
+	assert.Equal(t, "s1", result.meta.ID)
+	assert.Equal(t, "inspect", result.meta.FirstMessage)
+	assert.Equal(t, "claude", result.meta.Model)
+	assert.Equal(t, 2, result.meta.MessageCount)
 }
 
 func TestExtractType(t *testing.T) {

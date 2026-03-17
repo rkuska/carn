@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	src "github.com/rkuska/carn/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type stubSource struct {
-	sessions map[string]sessionFull
+	scanConversations []conversation
+	sessions          map[string]sessionFull
 }
 
 func (s stubSource) Provider() conversationProvider {
@@ -21,7 +23,7 @@ func (s stubSource) Provider() conversationProvider {
 }
 
 func (s stubSource) Scan(context.Context, string) ([]conversation, error) {
-	return nil, nil
+	return s.scanConversations, nil
 }
 
 func (s stubSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
@@ -51,7 +53,11 @@ func TestParseConversationsParallelBuildsTranscriptsAndSearchUnits(t *testing.T)
 	transcripts, corpus, err := parseConversationsParallel(context.Background(), source, []conversation{convValue})
 	require.NoError(t, err)
 	require.Len(t, transcripts, 1)
-	assert.Equal(t, buildSearchUnits(convValue.CacheKey(), transcripts[convValue.CacheKey()]), corpus.units)
+	assert.Equal(
+		t,
+		buildSearchUnits(convValue.CacheKey(), transcripts[convValue.CacheKey()]),
+		corpus.byConversation[convValue.CacheKey()],
+	)
 }
 
 func TestBuildSearchUnitsIncludesLinkedSubagentMessages(t *testing.T) {
@@ -108,6 +114,60 @@ func TestBuildSearchUnitsSkipsHiddenSystemMessages(t *testing.T) {
 	assert.Contains(t, texts, "visible response")
 	assert.Contains(t, texts, "ran tests")
 	assert.Contains(t, texts, "follow up tomorrow")
+}
+
+func TestStoreRebuildAllPersistsStreamingSearchAndPlans(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	convValue := conversation{
+		Ref:     conversationRef{Provider: conversationProvider("claude"), ID: "session-1"},
+		Name:    "demo",
+		Project: project{DisplayName: "project-a"},
+		Sessions: []sessionMeta{{
+			ID:            "session-1",
+			Slug:          "demo",
+			Timestamp:     time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
+			LastTimestamp: time.Date(2026, 3, 8, 10, 5, 0, 0, time.UTC),
+			FilePath:      "/raw/session-1.jsonl",
+			Project:       project{DisplayName: "project-a"},
+		}},
+	}
+	source := stubSource{
+		scanConversations: []conversation{convValue},
+		sessions: map[string]sessionFull{
+			convValue.CacheKey(): {
+				Meta: convValue.Sessions[0],
+				Messages: []message{
+					{Role: role("assistant"), Text: "index this answer", Plans: []plan{{
+						FilePath:  "plan.md",
+						Content:   "finish the work",
+						Timestamp: time.Date(2026, 3, 8, 10, 1, 0, 0, time.UTC),
+					}}},
+				},
+			},
+		},
+	}
+	store := New(source)
+	require.NoError(t, os.MkdirAll(src.ProviderRawDir(archiveDir, conversationProvider("claude")), 0o755))
+
+	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	assert.Equal(t, 1, conversations[0].PlanCount)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 1)
+	assert.Equal(t, "index this answer", session.Messages[0].Text)
+
+	results, available, err := store.DeepSearch(context.Background(), archiveDir, "index this answer", conversations)
+	require.NoError(t, err)
+	assert.True(t, available)
+	require.Len(t, results, 1)
+	assert.Contains(t, results[0].SearchPreview, "index this answer")
 }
 
 func writeTestConversation(

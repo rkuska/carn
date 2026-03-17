@@ -36,14 +36,32 @@ func (m viewerModel) handleSearchKey(msg tea.KeyPressMsg) (viewerModel, tea.Cmd)
 	return m, cmd
 }
 
-func (m viewerModel) rebuildSearchIndex(content string) viewerModel {
+func buildSearchIndex(content string) []searchLineIndex {
 	lines := strings.Split(content, "\n")
 	indexedLines := make([]searchLineIndex, len(lines))
 	for i, line := range lines {
 		indexedLines[i] = buildSearchLineIndex(line, 0)
 	}
-	m.searchLines = indexedLines
-	m.searchIndexVersion++
+	return indexedLines
+}
+
+func (m viewerModel) applyRenderedContent(
+	rawContent string,
+	baseContent string,
+	searchLines []searchLineIndex,
+) viewerModel {
+	m.rawContent = rawContent
+	if m.baseContent != baseContent {
+		m.baseContent = baseContent
+		m.searchLines = searchLines
+		m.searchIndexVersion++
+	}
+	m.viewport.SetContent(m.baseContent)
+
+	if m.searchQuery != "" {
+		return m.performSearch()
+	}
+	m.viewport.ClearHighlights()
 	return m
 }
 

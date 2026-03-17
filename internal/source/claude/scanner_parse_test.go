@@ -56,7 +56,51 @@ func TestExtractUserContentReturnsToolResultsAndTrailingText(t *testing.T) {
 
 	assert.Equal(t, "fix it", text)
 	require.Len(t, results, 1)
-	assert.Equal(t, "toolu_1", results[0].toolUseID)
-	assert.Equal(t, "command failed", results[0].content)
-	assert.True(t, results[0].isError)
+	assert.Equal(t, "command failed", results[0].Content)
+	assert.True(t, results[0].IsError)
+}
+
+func TestParseConversationWithoutLinkedTranscriptsMatchesProjectedParse(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		makeTestAssistantToolUseRecord(t, "s1", "toolu_1"),
+		makeTestUserToolResultRecord(t, "s1", "demo", "toolu_1", "package main", "done"),
+	}, "\n")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	conv := conversation{
+		Name:    "demo",
+		Project: project{DisplayName: "demo"},
+		Sessions: []sessionMeta{{
+			ID:       "s1",
+			Slug:     "demo",
+			FilePath: path,
+			Project:  project{DisplayName: "demo"},
+		}},
+	}
+
+	got, err := parseConversationWithoutLinkedTranscripts(context.Background(), conv)
+	require.NoError(t, err)
+
+	parsed, usage, err := parseConversationMessagesDetailed(context.Background(), conv)
+	require.NoError(t, err)
+	deduplicatePlans(parsed)
+	want := sessionFull{
+		Meta: sessionMeta{
+			ID:         "s1",
+			Slug:       "demo",
+			Project:    project{DisplayName: "demo"},
+			FilePath:   path,
+			TotalUsage: usage,
+		},
+		Messages: messagesFromParsed(parsed),
+	}
+
+	assert.Equal(t, want.Meta.TotalUsage, got.Meta.TotalUsage)
+	assert.Equal(t, want.Messages, got.Messages)
 }

@@ -42,10 +42,9 @@ type parseRecord struct {
 // The blocks slice retains its backing array across calls — json.Unmarshal
 // reuses the capacity, only overwriting fields present in each JSON record.
 type parseContext struct {
-	rec            parseRecord
-	blocks         []contentBlock
-	toolCallIndex  map[string]parsedToolCall
-	summarizeParam map[string]json.RawMessage
+	rec           parseRecord
+	blocks        []contentBlock
+	toolCallIndex map[string]toolCall
 }
 
 func (pc *parseContext) reset() {
@@ -55,17 +54,9 @@ func (pc *parseContext) reset() {
 
 func (pc *parseContext) resetToolCallIndex() {
 	if pc.toolCallIndex == nil {
-		pc.toolCallIndex = make(map[string]parsedToolCall)
+		pc.toolCallIndex = make(map[string]toolCall)
 	} else {
 		clear(pc.toolCallIndex)
-	}
-}
-
-func (pc *parseContext) resetSummarizeParams() {
-	if pc.summarizeParam == nil {
-		pc.summarizeParam = make(map[string]json.RawMessage)
-	} else {
-		clear(pc.summarizeParam)
 	}
 }
 
@@ -75,25 +66,15 @@ func parseAndIndexLine(
 ) (parsedMessage, bool) {
 	switch role(pc.rec.Type) {
 	case roleUser:
-		msg, ok := parseParsedUserMessage(pc)
-		if !ok {
-			return parsedMessage{}, false
-		}
-		for i, result := range msg.toolResults {
-			if toolCall, found := pc.toolCallIndex[result.toolUseID]; found {
-				msg.toolResults[i].toolName = toolCall.name
-				msg.toolResults[i].toolSummary = toolCall.summary
-			}
-		}
-		return msg, true
+		return parseParsedUserMessage(pc)
 	case roleAssistant:
-		msg, ok := parseParsedAssistantMessage(ctx, pc)
+		msg, toolCallIDs, ok := parseParsedAssistantMessage(ctx, pc)
 		if !ok {
 			return parsedMessage{}, false
 		}
-		for _, toolCall := range msg.toolCalls {
-			if toolCall.id != "" {
-				pc.toolCallIndex[toolCall.id] = toolCall
+		for i, toolCall := range msg.message.ToolCalls {
+			if i < len(toolCallIDs) && toolCallIDs[i] != "" {
+				pc.toolCallIndex[toolCallIDs[i]] = toolCall
 			}
 		}
 		return msg, true
@@ -113,9 +94,9 @@ func parseSessionWithContext(ctx context.Context, filePath string, pc *parseCont
 	}
 	defer func() { _ = file.Close() }()
 
-	br := scanReaderPool.Get().(*bufio.Reader)
+	br := parseReaderPool.Get().(*bufio.Reader)
 	br.Reset(file)
-	defer scanReaderPool.Put(br)
+	defer parseReaderPool.Put(br)
 
 	messages := make([]parsedMessage, 0, 32)
 	pc.resetToolCallIndex()
@@ -138,6 +119,15 @@ func parseSessionWithContext(ctx context.Context, filePath string, pc *parseCont
 func parseConversationMessagesDetailed(ctx context.Context, conv conversation) ([]parsedMessage, tokenUsage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, tokenUsage{}, fmt.Errorf("parseConversationMessagesDetailed_ctx: %w", err)
+	}
+
+	if len(conv.Sessions) == 1 {
+		var pc parseContext
+		messages, err := parseSessionWithContext(ctx, conv.Sessions[0].FilePath, &pc)
+		if err != nil {
+			return nil, tokenUsage{}, fmt.Errorf("parseSessionWithContext: %w", err)
+		}
+		return messages, aggregateUsage(messages), nil
 	}
 
 	paths := conv.FilePaths()
@@ -205,36 +195,58 @@ func parseConversationPathsParallel(ctx context.Context, paths []string) ([]pars
 }
 
 func parseParsedUserMessage(pc *parseContext) (parsedMessage, bool) {
-	content, toolResults := extractUserContent(pc.rec.Message.Content)
+	content, toolResults, toolUseIDs := extractUserContentWithToolUseIDs(pc.rec.Message.Content)
 	if content == "" && len(toolResults) == 0 {
 		return parsedMessage{}, false
 	}
 	messageRole, visibility := classifyUserText(content)
-
-	var ts time.Time
-	if pc.rec.Timestamp != "" {
-		ts, _ = time.Parse(time.RFC3339Nano, pc.rec.Timestamp)
-	}
-
-	var plans []plan
-	if len(pc.rec.ToolUseResult) > 0 {
-		if len(toolResults) == 1 {
-			if patch := extractStructuredPatch(pc.rec.ToolUseResult); patch != nil {
-				toolResults[0].structuredPatch = patch
-			}
-		}
-		if plan, ok := extractExitPlanResult(pc.rec.ToolUseResult, ts); ok {
-			plans = append(plans, plan)
-		}
-	}
+	timestamp := parseRecordTimestamp(pc.rec.Timestamp)
+	toolResults = applyStructuredPatch(pc.rec.ToolUseResult, toolResults)
+	linkToolResults(toolResults, toolUseIDs, pc.toolCallIndex)
+	plans := extractUserPlans(pc.rec.ToolUseResult, timestamp)
 
 	return parsedMessage{
-		role:        messageRole,
-		timestamp:   ts,
-		text:        content,
-		toolResults: toolResults,
-		plans:       plans,
-		visibility:  visibility,
-		isSidechain: pc.rec.IsSidechain,
+		message: message{
+			Role:        messageRole,
+			Text:        content,
+			ToolResults: toolResults,
+			Plans:       plans,
+			Visibility:  visibility,
+			IsSidechain: pc.rec.IsSidechain,
+		},
+		timestamp: timestamp,
 	}, true
+}
+
+func applyStructuredPatch(raw json.RawMessage, toolResults []toolResult) []toolResult {
+	if len(toolResults) != 1 || len(raw) == 0 {
+		return toolResults
+	}
+	if patch := extractStructuredPatch(raw); patch != nil {
+		toolResults[0].StructuredPatch = patch
+	}
+	return toolResults
+}
+
+func linkToolResults(
+	toolResults []toolResult,
+	toolUseIDs []string,
+	toolCallIndex map[string]toolCall,
+) {
+	for i := range toolResults {
+		if i >= len(toolUseIDs) {
+			return
+		}
+		if toolCall, found := toolCallIndex[toolUseIDs[i]]; found {
+			toolResults[i].ToolName = toolCall.Name
+			toolResults[i].ToolSummary = toolCall.Summary
+		}
+	}
+}
+
+func extractUserPlans(raw json.RawMessage, timestamp time.Time) []plan {
+	if extracted, ok := extractExitPlanResult(raw, timestamp); ok {
+		return []plan{extracted}
+	}
+	return nil
 }

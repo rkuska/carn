@@ -92,8 +92,10 @@ func readStringBuf(r *bufio.Reader, buf []byte) (string, []byte, error) {
 func writeUint(w *bufio.Writer, value uint64) error {
 	var buf [binary.MaxVarintLen64]byte
 	n := binary.PutUvarint(buf[:], value)
-	if _, err := w.Write(buf[:n]); err != nil {
-		return fmt.Errorf("w.Write: %w", err)
+	for i := range n {
+		if err := w.WriteByte(buf[i]); err != nil {
+			return fmt.Errorf("w.WriteByte: %w", err)
+		}
 	}
 	return nil
 }
@@ -109,8 +111,10 @@ func readUint(r *bufio.Reader) (uint64, error) {
 func writeInt(w *bufio.Writer, value int64) error {
 	var buf [binary.MaxVarintLen64]byte
 	n := binary.PutVarint(buf[:], value)
-	if _, err := w.Write(buf[:n]); err != nil {
-		return fmt.Errorf("w.Write: %w", err)
+	for i := range n {
+		if err := w.WriteByte(buf[i]); err != nil {
+			return fmt.Errorf("w.WriteByte: %w", err)
+		}
 	}
 	return nil
 }

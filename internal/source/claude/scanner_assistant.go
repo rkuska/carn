@@ -77,7 +77,7 @@ func (j *blockJoiner) result() string {
 	return j.b.String()
 }
 
-func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls []parsedToolCall) {
+func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls []toolCall, toolCallIDs []string) {
 	var textJ, thinkJ blockJoiner
 	toolUseCount := 0
 	for _, block := range pc.blocks {
@@ -86,7 +86,8 @@ func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls
 		}
 	}
 	if toolUseCount > 0 {
-		toolCalls = make([]parsedToolCall, 0, toolUseCount)
+		toolCalls = make([]toolCall, 0, toolUseCount)
+		toolCallIDs = make([]string, 0, toolUseCount)
 	}
 	for _, block := range pc.blocks {
 		switch block.Type {
@@ -95,31 +96,26 @@ func extractAssistantContent(pc *parseContext) (text, thinking string, toolCalls
 		case blockTypeThinking:
 			thinkJ.add(block.Thinking)
 		case blockTypeToolUse:
-			toolCalls = append(toolCalls, parsedToolCall{
-				id:      block.ID,
-				name:    block.Name,
-				summary: summarizeToolCallFast(block.Name, block.Input, pc),
+			toolCalls = append(toolCalls, toolCall{
+				Name:    block.Name,
+				Summary: summarizeToolCallFast(block.Name, block.Input),
 			})
+			toolCallIDs = append(toolCallIDs, block.ID)
 		}
 	}
-	return textJ.result(), thinkJ.result(), toolCalls
+	return textJ.result(), thinkJ.result(), toolCalls, toolCallIDs
 }
 
-func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, bool) {
+func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, []string, bool) {
 	pc.blocks = pc.blocks[:0]
 	if err := json.Unmarshal(pc.rec.Message.Content, &pc.blocks); err != nil {
 		zerolog.Ctx(ctx).Debug().Err(err).Msg("failed to unmarshal assistant content blocks")
-		return parsedMessage{}, false
+		return parsedMessage{}, nil, false
 	}
 
-	text, thinking, toolCalls := extractAssistantContent(pc)
+	text, thinking, toolCalls, toolCallIDs := extractAssistantContent(pc)
 	if text == "" && thinking == "" && len(toolCalls) == 0 {
-		return parsedMessage{}, false
-	}
-
-	var ts time.Time
-	if pc.rec.Timestamp != "" {
-		ts, _ = time.Parse(time.RFC3339Nano, pc.rec.Timestamp)
+		return parsedMessage{}, nil, false
 	}
 
 	var usage tokenUsage
@@ -133,22 +129,51 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 	}
 
 	return parsedMessage{
-		role:        roleAssistant,
-		timestamp:   ts,
-		text:        text,
-		thinking:    thinking,
-		toolCalls:   toolCalls,
-		usage:       usage,
-		isSidechain: pc.rec.IsSidechain,
-	}, true
+		message: message{
+			Role:        roleAssistant,
+			Text:        text,
+			Thinking:    thinking,
+			ToolCalls:   toolCalls,
+			IsSidechain: pc.rec.IsSidechain,
+		},
+		timestamp: parseRecordTimestamp(pc.rec.Timestamp),
+		usage:     usage,
+	}, toolCallIDs, true
 }
 
-func summarizeToolCallFast(name string, input json.RawMessage, pc *parseContext) string {
-	pc.resetSummarizeParams()
-	if err := json.Unmarshal(input, &pc.summarizeParam); err != nil {
+func parseRecordTimestamp(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	timestamp, _ := time.Parse(time.RFC3339Nano, value)
+	return timestamp
+}
+
+func summarizeToolCallFast(name string, input json.RawMessage) string {
+	if paramKey, ok := toolParamKey[name]; ok {
+		if value, ok := extractTopLevelJSONStringFieldFast(input, paramKey); ok {
+			return value
+		}
+	}
+	if paramKey, ok := toolTruncateKey[name]; ok {
+		if value, ok := extractTopLevelJSONStringFieldFast(input, paramKey); ok {
+			return conv.Truncate(value, 80)
+		}
+	}
+	if constant, ok := toolConstant[name]; ok {
+		return constant
+	}
+	if strings.HasPrefix(name, "mcp__") {
+		if value := summarizeMCPToolFast(input); value != "" {
+			return value
+		}
+	}
+
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(input, &params); err != nil {
 		return name
 	}
-	return summarizeToolCallFromParams(name, pc.summarizeParam)
+	return summarizeToolCallFromParams(name, params)
 }
 
 func summarizeToolCallFromParams(name string, params map[string]json.RawMessage) string {
@@ -190,6 +215,18 @@ func summarizeMCPTool(params map[string]json.RawMessage) string {
 		if err := json.Unmarshal(raw, &value); err == nil && value != "" {
 			return conv.Truncate(value, 80)
 		}
+	}
+	return ""
+}
+
+func summarizeMCPToolFast(raw json.RawMessage) string {
+	for _, key := range []string{"query", "libraryName"} {
+		if value, ok := extractTopLevelJSONStringFieldFast(raw, key); ok && value != "" {
+			return conv.Truncate(value, 80)
+		}
+	}
+	if value, ok := firstTopLevelJSONStringFieldFast(raw); ok && value != "" {
+		return conv.Truncate(value, 80)
 	}
 	return ""
 }

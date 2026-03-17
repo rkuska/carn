@@ -115,13 +115,17 @@ func appendSearchStatusPart(parts []string, query string, matches []searchOccurr
 }
 
 func (m viewerModel) renderContent() viewerModel {
-	segments := renderTranscriptSegmented(m.session, m.opts)
-	m.rawContent = flattenSegments(segments)
+	key := m.renderKey()
+	if cached, ok := m.cachedRender(key); ok {
+		return m.applyRenderedContent(cached.rawContent, cached.baseContent, cached.searchLines)
+	}
 
+	segments := renderTranscriptSegmented(m.session, m.opts)
 	var renderer *glamour.TermRenderer
 	var rendererErr error
 	m, renderer, rendererErr = m.ensureRenderer()
 	contentWidth := m.contentWidth()
+	rawContent := flattenSegments(segments)
 
 	if m.markdownCache == nil {
 		m.markdownCache = make(map[string]string)
@@ -141,18 +145,14 @@ func (m viewerModel) renderContent() viewerModel {
 		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache)
 	}
 
-	m.baseContent = sb.String()
-	if m.baseContent != m.lastIndexedContent {
-		m = m.rebuildSearchIndex(m.baseContent)
-		m.lastIndexedContent = m.baseContent
-	}
-	m.viewport.SetContent(m.baseContent)
-
-	if m.searchQuery != "" {
-		return m.performSearch()
-	}
-	m.viewport.ClearHighlights()
-	return m
+	baseContent := sb.String()
+	searchLines := buildSearchIndex(baseContent)
+	m = m.storeRenderCache(key, viewerRenderValue{
+		rawContent:  rawContent,
+		baseContent: baseContent,
+		searchLines: searchLines,
+	})
+	return m.applyRenderedContent(rawContent, baseContent, searchLines)
 }
 
 func renderSegmentCached(
@@ -166,7 +166,7 @@ func renderSegmentCached(
 ) {
 	switch seg.kind {
 	case segmentMarkdown:
-		appendMarkdownSegment(sb, seg.text, renderer, rendererErr, mdCache)
+		sb.WriteString(renderMarkdownSegment(seg.text, renderer, rendererErr, mdCache))
 	case segmentToolResult:
 		sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
 	case segmentRoleHeader:
@@ -180,17 +180,15 @@ func renderSegmentCached(
 	}
 }
 
-func appendMarkdownSegment(
-	sb *strings.Builder,
+func renderMarkdownSegment(
 	text string,
 	renderer *glamour.TermRenderer,
 	rendererErr error,
 	mdCache map[string]string,
-) {
+) string {
 	if mdCache != nil {
 		if cached, ok := mdCache[text]; ok {
-			sb.WriteString(cached)
-			return
+			return cached
 		}
 	}
 	if rendererErr == nil {
@@ -199,11 +197,10 @@ func appendMarkdownSegment(
 			if mdCache != nil {
 				mdCache[text] = result
 			}
-			sb.WriteString(result)
-			return
+			return result
 		}
 	}
-	sb.WriteString(text)
+	return text
 }
 
 func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error) {

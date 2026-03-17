@@ -25,18 +25,17 @@ None.
 
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
+| internal/canonical/binary_codec.go | source | 238 | 79 | 268 |
 | internal/canonical/message_codec.go | source | 240 | 77 | 254 |
-| internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
 | internal/config/config.go | source | 310 | 71 | 366 |
-| internal/source/claude/scanner_metadata.go | source | 374 | 69 | 405 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
-| internal/canonical/sqlite_store_persist.go | source | 302 | 68 | 328 |
 | internal/canonical/store.go | source | 273 | 67 | 323 |
-| internal/source/claude/scanner.go | source | 263 | 64 | 299 |
-| internal/app/viewer_render.go | source | 266 | 61 | 295 |
-| internal/source/codex/scan.go | source | 178 | 61 | 201 |
+| internal/source/claude/scanner.go | source | 272 | 64 | 310 |
+| internal/source/codex/scan.go | source | 180 | 63 | 203 |
 | internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
+| internal/canonical/sqlite_store_persist.go | source | 311 | 59 | 339 |
+| internal/source/claude/scanner_metadata.go | source | 390 | 39 | 411 |
 | internal/app/viewer_model.go | source | 335 | 35 | 367 |
 | internal/app/browser_test.go | test | 621 | 30 | 752 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 707 |

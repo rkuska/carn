@@ -127,9 +127,9 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 	defer func() { _ = file.Close() }()
 
-	br := scanReaderPool.Get().(*bufio.Reader)
+	br := metadataReaderPool.Get().(*bufio.Reader)
 	br.Reset(file)
-	defer scanReaderPool.Put(br)
+	defer metadataReaderPool.Put(br)
 
 	result := scannedSession{
 		meta: sessionMeta{FilePath: filePath, Project: proj},
@@ -181,98 +181,6 @@ func extractType(line []byte) string {
 		}
 		remaining = rest
 	}
-}
-
-func extractUserContent(raw json.RawMessage) (string, []parsedToolResult) {
-	var plain string
-	if err := json.Unmarshal(raw, &plain); err == nil {
-		return plain, nil
-	}
-
-	var blocks []struct {
-		Type      string          `json:"type"`
-		Text      string          `json:"text"`
-		ToolUseID string          `json:"tool_use_id"`
-		Content   json.RawMessage `json:"content"`
-		IsError   bool            `json:"is_error"`
-	}
-	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return "", nil
-	}
-
-	var texts []string
-	var results []parsedToolResult
-	for _, block := range blocks {
-		switch block.Type {
-		case blockTypeText:
-			if block.Text != "" {
-				texts = append(texts, block.Text)
-			}
-		case contentTypeToolResult:
-			content := extractToolResultContent(block.Content)
-			if content != "" {
-				results = append(results, parsedToolResult{
-					toolUseID: block.ToolUseID,
-					content:   conv.TruncatePreserveNewlines(content, maxToolResultChars),
-					isError:   block.IsError,
-				})
-			}
-		}
-	}
-	if len(texts) == 1 {
-		return texts[0], results
-	}
-	return strings.Join(texts, "\n"), results
-}
-
-func extractToolResultContent(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-
-	var plain string
-	if err := json.Unmarshal(raw, &plain); err == nil {
-		return plain
-	}
-
-	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return ""
-	}
-
-	var parts []string
-	for _, block := range blocks {
-		if block.Type == blockTypeText && block.Text != "" {
-			parts = append(parts, block.Text)
-		}
-	}
-	return strings.Join(parts, "\n")
-}
-
-func extractStructuredPatch(raw json.RawMessage) []diffHunk {
-	if len(raw) == 0 {
-		return nil
-	}
-
-	var result jsonEditResult
-	if err := json.Unmarshal(raw, &result); err != nil || len(result.StructuredPatch) == 0 {
-		return nil
-	}
-
-	hunks := make([]diffHunk, len(result.StructuredPatch))
-	for i, hunk := range result.StructuredPatch {
-		hunks[i] = diffHunk{
-			OldStart: hunk.OldStart,
-			OldLines: hunk.OldLines,
-			NewStart: hunk.NewStart,
-			NewLines: hunk.NewLines,
-			Lines:    hunk.Lines,
-		}
-	}
-	return hunks
 }
 
 func extractTimestamp(line []byte) string {
@@ -391,6 +299,104 @@ func extractIsSidechain(line []byte) bool {
 		pos++
 	}
 	return pos < len(line) && line[pos] == 't'
+}
+
+func extractUserContent(raw json.RawMessage) (string, []toolResult) {
+	text, results, _ := extractUserContentWithToolUseIDs(raw)
+	return text, results
+}
+
+func extractUserContentWithToolUseIDs(raw json.RawMessage) (string, []toolResult, []string) {
+	var plain string
+	if err := json.Unmarshal(raw, &plain); err == nil {
+		return plain, nil, nil
+	}
+
+	var blocks []struct {
+		Type      string          `json:"type"`
+		Text      string          `json:"text"`
+		ToolUseID string          `json:"tool_use_id"`
+		Content   json.RawMessage `json:"content"`
+		IsError   bool            `json:"is_error"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return "", nil, nil
+	}
+
+	var texts []string
+	var results []toolResult
+	var toolUseIDs []string
+	for _, block := range blocks {
+		switch block.Type {
+		case blockTypeText:
+			if block.Text != "" {
+				texts = append(texts, block.Text)
+			}
+		case contentTypeToolResult:
+			content := extractToolResultContent(block.Content)
+			if content != "" {
+				results = append(results, toolResult{
+					Content: conv.TruncatePreserveNewlines(content, maxToolResultChars),
+					IsError: block.IsError,
+				})
+				toolUseIDs = append(toolUseIDs, block.ToolUseID)
+			}
+		}
+	}
+	if len(texts) == 1 {
+		return texts[0], results, toolUseIDs
+	}
+	return strings.Join(texts, "\n"), results, toolUseIDs
+}
+
+func extractToolResultContent(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var plain string
+	if err := json.Unmarshal(raw, &plain); err == nil {
+		return plain
+	}
+
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return ""
+	}
+
+	var parts []string
+	for _, block := range blocks {
+		if block.Type == blockTypeText && block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func extractStructuredPatch(raw json.RawMessage) []diffHunk {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var result jsonEditResult
+	if err := json.Unmarshal(raw, &result); err != nil || len(result.StructuredPatch) == 0 {
+		return nil
+	}
+
+	hunks := make([]diffHunk, len(result.StructuredPatch))
+	for i, hunk := range result.StructuredPatch {
+		hunks[i] = diffHunk{
+			OldStart: hunk.OldStart,
+			OldLines: hunk.OldLines,
+			NewStart: hunk.NewStart,
+			NewLines: hunk.NewLines,
+			Lines:    hunk.Lines,
+		}
+	}
+	return hunks
 }
 
 func aggregateUsage(messages []parsedMessage) tokenUsage {

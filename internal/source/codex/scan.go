@@ -41,7 +41,7 @@ func scanRollout(path string) (scannedRollout, bool, error) {
 	defer func() { _ = file.Close() }()
 	defer readerPool.Put(br)
 
-	var pc parseContext
+	var pc scanContext
 	state := newScanState(path)
 	dec := json.NewDecoder(br)
 	for dec.More() {
@@ -58,13 +58,12 @@ func scanRollout(path string) (scannedRollout, bool, error) {
 func newScanState(path string) scanState {
 	return scanState{
 		meta: conv.SessionMeta{
-			FilePath:   path,
-			ToolCounts: make(map[string]int, 4),
+			FilePath: path,
 		},
 	}
 }
 
-func (s *scanState) applyRecord(rec *codexRecord) {
+func (s *scanState) applyRecord(rec *scanRecord) {
 	s.observeRecordTimestamp(rec.Timestamp)
 
 	p := &rec.Payload
@@ -92,7 +91,7 @@ func (s *scanState) observeRecordTimestamp(value string) {
 	}
 }
 
-func (s *scanState) applySessionMeta(p *codexPayload) {
+func (s *scanState) applySessionMeta(p *scanPayload) {
 	if s.meta.ID != "" && p.ID != s.meta.ID {
 		return
 	}
@@ -120,7 +119,7 @@ func (s *scanState) applySessionMeta(p *codexPayload) {
 	}
 }
 
-func (s *scanState) applyTurnContext(p *codexPayload) {
+func (s *scanState) applyTurnContext(p *scanPayload) {
 	if p.CWD != "" {
 		s.meta.CWD = p.CWD
 	}
@@ -129,7 +128,7 @@ func (s *scanState) applyTurnContext(p *codexPayload) {
 	}
 }
 
-func (s *scanState) applyResponseItem(p *codexPayload) {
+func (s *scanState) applyResponseItem(p *scanPayload) {
 	switch p.ItemType {
 	case responseTypeMessage:
 		s.recordMessage(classifyResponseMessage(p.Role, p.Content))
@@ -155,18 +154,21 @@ func (s *scanState) recordMessage(message visibleMessage, ok bool) {
 	}
 }
 
-func (s *scanState) recordToolCall(p *codexPayload) {
-	call := buildToolCall(p)
-	if call.Name == "" {
+func (s *scanState) recordToolCall(p *scanPayload) {
+	name := scanToolName(p)
+	if name == "" {
 		return
 	}
-	s.meta.ToolCounts[call.Name]++
+	if s.meta.ToolCounts == nil {
+		s.meta.ToolCounts = make(map[string]int, 2)
+	}
+	s.meta.ToolCounts[name]++
 }
 
-func (s *scanState) applyEvent(p *codexPayload) {
+func (s *scanState) applyEvent(p *scanPayload) {
 	switch p.ItemType {
 	case eventTypeTokenCount:
-		s.meta.TotalUsage = usageFromPayload(p)
+		s.meta.TotalUsage = usageFromScanPayload(p)
 	case eventTypeUserMessage:
 		s.recordMessage(classifyEventUserMessage(p.Message))
 	case eventTypeAgentMessage:

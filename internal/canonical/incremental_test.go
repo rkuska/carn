@@ -148,15 +148,66 @@ func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsS
 	assert.Equal(t, "rebuilt line", session.Messages[0].Text)
 }
 
-func TestGroupSearchUnitsByConversation(t *testing.T) {
+func TestBuildIncrementalParseOutputsReturnsGroupedUnits(t *testing.T) {
 	t.Parallel()
 
-	grouped := groupSearchUnitsByConversation(searchCorpus{units: []searchUnit{
-		{conversationID: "a", text: "first"},
-		{conversationID: "a", text: "second"},
-		{conversationID: "b", text: "third"},
-	}}, 2)
+	transcripts, grouped := buildIncrementalParseOutputs([]parseResult{
+		{
+			key: "a",
+			session: sessionFull{
+				Meta: sessionMeta{ID: "a"},
+			},
+			units: []searchUnit{
+				{conversationID: "a", text: "first"},
+				{conversationID: "a", text: "second"},
+			},
+		},
+		{
+			key: "b",
+			session: sessionFull{
+				Meta: sessionMeta{ID: "b"},
+			},
+			units: []searchUnit{
+				{conversationID: "b", text: "third"},
+			},
+		},
+	})
 
+	require.Len(t, transcripts, 2)
 	assert.Len(t, grouped["a"], 2)
 	assert.Len(t, grouped["b"], 1)
+}
+
+func TestBuildParseOutputsReturnsGroupedSearchCorpus(t *testing.T) {
+	t.Parallel()
+
+	transcripts, corpus := buildParseOutputs([]parseResult{
+		{
+			key: "a",
+			session: sessionFull{
+				Meta: sessionMeta{ID: "a"},
+			},
+			units: []searchUnit{
+				{conversationID: "a", ordinal: 0, text: "first"},
+				{conversationID: "a", ordinal: 1, text: "second"},
+			},
+		},
+		{
+			key: "b",
+			session: sessionFull{
+				Meta: sessionMeta{ID: "b"},
+			},
+			units: []searchUnit{
+				{conversationID: "b", ordinal: 0, text: "third"},
+			},
+		},
+	})
+
+	require.Len(t, transcripts, 2)
+	require.Len(t, corpus.byConversation, 2)
+	assert.Equal(t, []searchUnit{
+		{conversationID: "a", ordinal: 0, text: "first"},
+		{conversationID: "a", ordinal: 1, text: "second"},
+	}, corpus.byConversation["a"])
+	assert.Equal(t, 3, corpus.Len())
 }

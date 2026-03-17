@@ -56,79 +56,114 @@ func groupRollouts(rollouts []scannedRollout) []conv.Conversation {
 		return nil
 	}
 
-	byID := make(map[string]scannedRollout, len(rollouts))
-	for _, rollout := range rollouts {
-		byID[rollout.meta.ID] = rollout
-	}
+	grouper := newRolloutGrouper(rollouts)
+	childrenByRoot := make([][]int, len(rollouts))
+	roots := make([]int, 0, len(rollouts))
+	standalone := make([]int, 0)
 
-	childrenByRoot := make(map[string][]scannedRollout)
-	roots := make([]string, 0, len(rollouts))
-	var standalone []scannedRollout
-
-	for _, rollout := range rollouts {
+	for i, rollout := range rollouts {
 		if !rollout.meta.IsSubagent {
-			roots = append(roots, rollout.meta.ID)
+			roots = append(roots, i)
 			continue
 		}
 
-		rootID, ok := resolveRootRolloutID(rollout, byID)
+		rootIndex, ok := grouper.resolveRootIndex(i)
 		if !ok {
-			standalone = append(standalone, rollout)
+			standalone = append(standalone, i)
 			continue
 		}
-		childrenByRoot[rootID] = append(childrenByRoot[rootID], rollout)
+		childrenByRoot[rootIndex] = append(childrenByRoot[rootIndex], i)
 	}
 
 	conversations := make([]conv.Conversation, 0, len(roots)+len(standalone))
-	for _, rootID := range roots {
-		root, ok := byID[rootID]
-		if !ok {
-			continue
-		}
-		conversations = append(conversations, buildConversation(root, childrenByRoot[rootID]))
+	for _, rootIndex := range roots {
+		conversations = append(conversations, buildConversation(rollouts[rootIndex], rollouts, childrenByRoot[rootIndex]))
 	}
-	for _, rollout := range standalone {
-		conversations = append(conversations, buildConversation(rollout, nil))
+	for _, index := range standalone {
+		conversations = append(conversations, buildConversation(rollouts[index], rollouts, nil))
 	}
 	return conversations
 }
 
-func resolveRootRolloutID(rollout scannedRollout, byID map[string]scannedRollout) (string, bool) {
-	current := rollout
-	seen := make(map[string]struct{}, 4)
-	for current.meta.IsSubagent {
-		parentID := current.link.parentThreadID
-		if parentID == "" {
-			return "", false
-		}
-		if _, ok := seen[current.meta.ID]; ok {
-			return "", false
-		}
-		seen[current.meta.ID] = struct{}{}
+const (
+	unresolvedRootIndex = -2
+	invalidRootIndex    = -1
+)
 
-		parent, ok := byID[parentID]
-		if !ok {
-			return "", false
-		}
-		current = parent
-	}
-	if current.meta.ID == "" {
-		return "", false
-	}
-	return current.meta.ID, true
+type rolloutGrouper struct {
+	rollouts    []scannedRollout
+	indexByID   map[string]int
+	rootByIndex []int
+	resolving   []bool
 }
 
-func buildConversation(root scannedRollout, children []scannedRollout) conv.Conversation {
-	sessions := make([]conv.SessionMeta, 0, 1+len(children))
-	sessions = append(sessions, root.meta)
-	sort.SliceStable(children, func(i, j int) bool {
-		return children[i].meta.Timestamp.Before(children[j].meta.Timestamp)
-	})
-	for _, child := range children {
-		meta := child.meta
-		meta.MainMessageCount = 0
-		sessions = append(sessions, meta)
+func newRolloutGrouper(rollouts []scannedRollout) rolloutGrouper {
+	grouper := rolloutGrouper{
+		rollouts:    rollouts,
+		indexByID:   make(map[string]int, len(rollouts)),
+		rootByIndex: make([]int, len(rollouts)),
+		resolving:   make([]bool, len(rollouts)),
 	}
+	for i := range rollouts {
+		grouper.indexByID[rollouts[i].meta.ID] = i
+		grouper.rootByIndex[i] = unresolvedRootIndex
+		if !rollouts[i].meta.IsSubagent {
+			grouper.rootByIndex[i] = i
+		}
+	}
+	return grouper
+}
+
+func (g *rolloutGrouper) resolveRootIndex(index int) (int, bool) {
+	if cached := g.rootByIndex[index]; cached != unresolvedRootIndex {
+		return cached, cached != invalidRootIndex
+	}
+	if g.resolving[index] {
+		g.rootByIndex[index] = invalidRootIndex
+		return invalidRootIndex, false
+	}
+
+	g.resolving[index] = true
+	defer func() {
+		g.resolving[index] = false
+	}()
+
+	parentID := g.rollouts[index].link.parentThreadID
+	if parentID == "" {
+		g.rootByIndex[index] = invalidRootIndex
+		return invalidRootIndex, false
+	}
+
+	parentIndex, ok := g.indexByID[parentID]
+	if !ok {
+		g.rootByIndex[index] = invalidRootIndex
+		return invalidRootIndex, false
+	}
+
+	rootIndex, ok := g.resolveRootIndex(parentIndex)
+	if !ok {
+		g.rootByIndex[index] = invalidRootIndex
+		return invalidRootIndex, false
+	}
+
+	g.rootByIndex[index] = rootIndex
+	return rootIndex, true
+}
+
+func buildConversation(root scannedRollout, rollouts []scannedRollout, childIndices []int) conv.Conversation {
+	sessions := make([]conv.SessionMeta, 0, 1+len(childIndices))
+	sessions = append(sessions, root.meta)
+
+	children := make([]conv.SessionMeta, 0, len(childIndices))
+	for _, childIndex := range childIndices {
+		meta := rollouts[childIndex].meta
+		meta.MainMessageCount = 0
+		children = append(children, meta)
+	}
+	sort.SliceStable(children, func(i, j int) bool {
+		return children[i].Timestamp.Before(children[j].Timestamp)
+	})
+	sessions = append(sessions, children...)
 
 	return conv.Conversation{
 		Ref: conv.Ref{

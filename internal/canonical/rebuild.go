@@ -26,7 +26,7 @@ type searchUnit struct {
 }
 
 type searchCorpus struct {
-	units []searchUnit
+	byConversation map[string][]searchUnit
 }
 
 type parseResult struct {
@@ -36,11 +36,11 @@ type parseResult struct {
 }
 
 func (c searchCorpus) Len() int {
-	return len(c.units)
-}
-
-func (c searchCorpus) String(i int) string {
-	return c.units[i].text
+	total := 0
+	for _, units := range c.byConversation {
+		total += len(units)
+	}
+	return total
 }
 
 func rebuildCanonicalStore(
@@ -68,20 +68,13 @@ func rebuildCanonicalStore(
 		return fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
-	transcripts, corpus, err := fullRebuildWithSources(ctx, store.sources, conversations)
-	if err != nil {
-		return fmt.Errorf("fullRebuildWithSources: %w", err)
-	}
-
-	setPlanCounts(conversations, transcripts)
-	if err := writeCanonicalStoreAtomically(
+	if err := writeCanonicalStoreStreamingAtomically(
 		ctx,
 		archiveDir,
 		conversations,
-		transcripts,
-		corpus,
+		store.sources,
 	); err != nil {
-		return fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
+		return fmt.Errorf("writeCanonicalStoreStreamingAtomically: %w", err)
 	}
 
 	zerolog.Ctx(ctx).Info().Int("conversations", len(conversations)).Msg("canonical rebuild completed")
@@ -113,18 +106,6 @@ func scanRegisteredConversations(
 	return conversations, nil
 }
 
-func fullRebuildWithSources(
-	ctx context.Context,
-	sources sourceRegistry,
-	conversations []conversation,
-) (map[string]sessionFull, searchCorpus, error) {
-	transcripts, corpus, err := parseConversationsParallelWithSources(ctx, sources, conversations)
-	if err != nil {
-		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallel: %w", err)
-	}
-	return transcripts, corpus, nil
-}
-
 func parseConversationsParallel(
 	ctx context.Context,
 	source Source,
@@ -138,10 +119,21 @@ func parseConversationsParallelWithSources(
 	sources sourceRegistry,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
-	transcripts := make(map[string]sessionFull, len(conversations))
-	corpus := searchCorpus{units: make([]searchUnit, 0)}
+	results, err := parseConversationsParallelResultsWithSources(ctx, sources, conversations)
+	if err != nil {
+		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
+	}
+	transcripts, corpus := buildParseOutputs(results)
+	return transcripts, corpus, nil
+}
+
+func parseConversationsParallelResultsWithSources(
+	ctx context.Context,
+	sources sourceRegistry,
+	conversations []conversation,
+) ([]parseResult, error) {
 	if len(conversations) == 0 {
-		return transcripts, corpus, nil
+		return nil, nil
 	}
 
 	results := make([]parseResult, len(conversations))
@@ -173,19 +165,21 @@ func parseConversationsParallelWithSources(
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, searchCorpus{}, fmt.Errorf("errgroup.Wait: %w", err)
+		return nil, fmt.Errorf("errgroup.Wait: %w", err)
 	}
+	return results, nil
+}
 
-	totalUnits := 0
-	for _, result := range results {
-		totalUnits += len(result.units)
+func buildParseOutputs(results []parseResult) (map[string]sessionFull, searchCorpus) {
+	transcripts := make(map[string]sessionFull, len(results))
+	corpus := searchCorpus{
+		byConversation: make(map[string][]searchUnit, len(results)),
 	}
-	corpus.units = make([]searchUnit, 0, totalUnits)
 	for _, result := range results {
 		transcripts[result.key] = result.session
-		corpus.units = append(corpus.units, result.units...)
+		corpus.byConversation[result.key] = result.units
 	}
-	return transcripts, corpus, nil
+	return transcripts, corpus
 }
 
 func loadConversationSession(
