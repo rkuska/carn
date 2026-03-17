@@ -13,7 +13,7 @@ func readSQLiteConversations(ctx context.Context, db *sql.DB) ([]conversation, e
 		ctx,
 		`SELECT id, provider, provider_id, name, project_display_name, plan_count
 		 FROM conversations
-		 ORDER BY last_timestamp_ns DESC, id`,
+		 ORDER BY last_timestamp_ns DESC, cache_key`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("db.QueryContext_conversations: %w", err)

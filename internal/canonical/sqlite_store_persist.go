@@ -263,14 +263,16 @@ func insertSQLiteSearchChunks(
 ) (int, error) {
 	count := 0
 	args := make([]any, 0, searchChunkBatchSize*3)
+	batchExec := newSQLiteChunkBatchExec(exec)
+	defer func() { _ = batchExec.close() }()
 	for start := 0; start < len(units); start += searchChunkBatchSize {
 		end := min(start+searchChunkBatchSize, len(units))
 		args = args[:0]
 		for _, unit := range units[start:end] {
 			args = append(args, conversationID, unit.ordinal, unit.text)
 		}
-		if _, err := exec.ExecContext(ctx, searchChunkInsertQuery(end-start), args...); err != nil {
-			return 0, fmt.Errorf("exec.ExecContext: %w", err)
+		if err := batchExec.execBatch(ctx, end-start, args); err != nil {
+			return 0, fmt.Errorf("batchExec.execBatch: %w", err)
 		}
 		count += end - start
 	}
@@ -285,13 +287,15 @@ func insertSQLiteSearchChunksFromSession(
 ) (int, error) {
 	count := 0
 	args := make([]any, 0, searchChunkBatchSize*3)
+	batchExec := newSQLiteChunkBatchExec(exec)
+	defer func() { _ = batchExec.close() }()
 	flush := func() error {
 		batchSize := len(args) / 3
 		if batchSize == 0 {
 			return nil
 		}
-		if _, err := exec.ExecContext(ctx, searchChunkInsertQuery(batchSize), args...); err != nil {
-			return fmt.Errorf("exec.ExecContext: %w", err)
+		if err := batchExec.execBatch(ctx, batchSize, args); err != nil {
+			return fmt.Errorf("batchExec.execBatch: %w", err)
 		}
 		args = args[:0]
 		return nil

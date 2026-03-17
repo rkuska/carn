@@ -19,35 +19,24 @@ type scannedRollout struct {
 	link subagentLink
 }
 
-type sourcePayload struct {
-	Subagent struct {
-		ThreadSpawn struct {
-			ParentThreadID string `json:"parent_thread_id"`
-			AgentNickname  string `json:"agent_nickname"`
-			AgentRole      string `json:"agent_role"`
-		} `json:"thread_spawn"`
-	} `json:"subagent"`
-}
-
 func parseSubagentLink(raw json.RawMessage) (subagentLink, bool) {
 	if !startsWithByte(raw, '{') {
 		return subagentLink{}, false
 	}
 
-	var payload sourcePayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	parentThreadID, ok := extractRawJSONStringFieldByMarker(raw, parentThreadIDFieldMarker)
+	if !ok {
 		return subagentLink{}, false
 	}
-
-	parentThreadID := strings.TrimSpace(payload.Subagent.ThreadSpawn.ParentThreadID)
+	parentThreadID = strings.TrimSpace(parentThreadID)
 	if parentThreadID == "" {
 		return subagentLink{}, false
 	}
 
 	return subagentLink{
 		parentThreadID: parentThreadID,
-		agentNickname:  strings.TrimSpace(payload.Subagent.ThreadSpawn.AgentNickname),
-		agentRole:      strings.TrimSpace(payload.Subagent.ThreadSpawn.AgentRole),
+		agentNickname:  strings.TrimSpace(extractRawJSONStringFieldOrEmptyByMarker(raw, agentNicknameFieldMarker)),
+		agentRole:      strings.TrimSpace(extractRawJSONStringFieldOrEmptyByMarker(raw, agentRoleFieldMarker)),
 	}, true
 }
 

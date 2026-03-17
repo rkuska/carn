@@ -30,11 +30,11 @@ None.
 | internal/config/config.go | source | 310 | 71 | 366 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/canonical/store.go | source | 273 | 67 | 323 |
-| internal/source/claude/scanner.go | source | 272 | 64 | 310 |
-| internal/source/codex/scan.go | source | 180 | 63 | 203 |
-| internal/canonical/sqlite_db.go | source | 253 | 60 | 275 |
+| internal/canonical/sqlite_db.go | source | 266 | 63 | 290 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
-| internal/canonical/sqlite_store_persist.go | source | 311 | 59 | 339 |
+| internal/source/codex/scan_fast.go | source | 226 | 60 | 255 |
+| internal/canonical/sqlite_store_persist.go | source | 315 | 59 | 343 |
+| internal/source/codex/json_field.go | source | 307 | 43 | 330 |
 | internal/source/claude/scanner_metadata.go | source | 390 | 39 | 411 |
 | internal/app/viewer_model.go | source | 335 | 35 | 367 |
 | internal/app/browser_test.go | test | 621 | 30 | 752 |

@@ -2,7 +2,6 @@ package claude
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -37,9 +35,9 @@ const (
 	blockTypeText           = "text"
 	blockTypeToolUse        = "tool_use"
 	blockTypeThinking       = "thinking"
-	jsonlMetadataBufferSize = 16 * 1024
-	jsonlParseBufferSize    = 8 * 1024
-	jsonlSlugBufferSize     = 4 * 1024
+	jsonlMetadataBufferSize = 64 * 1024
+	jsonlParseBufferSize    = 32 * 1024
+	jsonlSlugBufferSize     = 32 * 1024
 )
 
 type sessionFile struct {
@@ -70,27 +68,10 @@ func jsonlLines(br *bufio.Reader) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		var overflow []byte
 
-		yieldLine := func(line []byte) bool {
-			line = bytes.TrimRight(line, "\n\r")
-			if len(line) == 0 {
-				return true
-			}
-			return yield(line, nil)
-		}
-
 		for {
-			line, err := br.ReadSlice('\n')
-			if err == bufio.ErrBufferFull {
-				overflow = append(overflow[:0], line...)
-				for err == bufio.ErrBufferFull {
-					var more []byte
-					more, err = br.ReadSlice('\n')
-					overflow = append(overflow, more...)
-				}
-				line = overflow
-			}
-
-			if len(line) > 0 && !yieldLine(line) {
+			line, nextOverflow, err := readJSONLLine(br, overflow)
+			overflow = nextOverflow
+			if len(line) > 0 && !yield(line, nil) {
 				return
 			}
 			if err != nil {
@@ -154,7 +135,7 @@ func scanSessionFilesParallel(ctx context.Context, files []sessionFile) ([]scann
 		return nil, nil
 	}
 
-	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	sem := semaphore.NewWeighted(int64(claudeScanParallelism(len(files))))
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	for i := range files {

@@ -46,17 +46,15 @@ func yieldSearchTextUnits(text string, ordinal int, yield func(int, string) bool
 	if text == "" {
 		return ordinal
 	}
+	if canUseSearchFastPath(text) {
+		return yieldSearchChunks(text, ordinal, yield)
+	}
 	for line := range strings.SplitSeq(text, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		for chunk := range chunkSearchText(trimmed, 160, 48) {
-			if !yield(ordinal, chunk) {
-				return ordinal
-			}
-			ordinal++
-		}
+		ordinal = yieldSearchChunks(trimmed, ordinal, yield)
 	}
 	return ordinal
 }
@@ -65,20 +63,60 @@ func appendSearchUnits(units []searchUnit, conversationID, text string) []search
 	if text == "" {
 		return units
 	}
+	if canUseSearchFastPath(text) {
+		return appendSearchChunks(units, conversationID, text)
+	}
 	for line := range strings.SplitSeq(text, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		for chunk := range chunkSearchText(trimmed, 160, 48) {
-			units = append(units, searchUnit{
-				conversationID: conversationID,
-				ordinal:        len(units),
-				text:           chunk,
-			})
-		}
+		units = appendSearchChunks(units, conversationID, trimmed)
 	}
 	return units
+}
+
+func yieldSearchChunks(text string, ordinal int, yield func(int, string) bool) int {
+	for chunk := range chunkSearchText(text, 160, 48) {
+		if !yield(ordinal, chunk) {
+			return ordinal
+		}
+		ordinal++
+	}
+	return ordinal
+}
+
+func appendSearchChunks(units []searchUnit, conversationID, text string) []searchUnit {
+	for chunk := range chunkSearchText(text, 160, 48) {
+		units = append(units, searchUnit{
+			conversationID: conversationID,
+			ordinal:        len(units),
+			text:           chunk,
+		})
+	}
+	return units
+}
+
+func canUseSearchFastPath(text string) bool {
+	if text == "" || !isASCII(text) {
+		return false
+	}
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '\n', '\r':
+			return false
+		}
+	}
+	return !isASCIISpace(text[0]) && !isASCIISpace(text[len(text)-1])
+}
+
+func isASCIISpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\r', '\f', '\v':
+		return true
+	default:
+		return false
+	}
 }
 
 func isASCII(s string) bool {

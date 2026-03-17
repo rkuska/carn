@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -54,6 +55,27 @@ func TestGroupRolloutsKeepsUnresolvedSubagentsStandalone(t *testing.T) {
 	assert.Equal(t, []string{"orphan"}, conversationSessionIDs(conversations[1]))
 	assert.Equal(t, []string{"cycle-a"}, conversationSessionIDs(conversations[2]))
 	assert.Equal(t, []string{"cycle-b"}, conversationSessionIDs(conversations[3]))
+}
+
+func TestParseSubagentLinkExtractsFieldsFromRawJSON(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(map[string]any{
+		"subagent": map[string]any{
+			"thread_spawn": map[string]any{
+				"parent_thread_id": "root-thread",
+				"agent_nickname":   "worker-1",
+				"agent_role":       "worker",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	link, ok := parseSubagentLink(raw)
+	require.True(t, ok)
+	assert.Equal(t, "root-thread", link.parentThreadID)
+	assert.Equal(t, "worker-1", link.agentNickname)
+	assert.Equal(t, "worker", link.agentRole)
 }
 
 func testScannedRollout(
