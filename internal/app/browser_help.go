@@ -2,8 +2,6 @@ package app
 
 import (
 	"fmt"
-
-	"charm.land/lipgloss/v2"
 )
 
 func (m browserModel) footerView() string {
@@ -57,11 +55,15 @@ func (m browserModel) listFooterItems() []helpItem {
 		{key: "G", desc: "bottom"},
 		{key: "ctrl+f/b", desc: "page"},
 		{key: "/", desc: "search"},
-		{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
-		m.deepSearchToggleItem(),
-		{key: "enter", desc: "open"},
-		{key: "r", desc: "resume"},
 	}
+	if m.hasActiveSearch() {
+		items = append(items, m.clearSearchItem())
+	}
+	items = append(items,
+		helpItem{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
+		helpItem{key: "enter", desc: "open"},
+		helpItem{key: "r", desc: "resume"},
+	)
 
 	if m.transcriptMode == transcriptSplit {
 		items = append(items,
@@ -88,7 +90,6 @@ func (m browserModel) listFooterStatusParts() []string {
 	for _, badge := range filterBadges(m.filter.dimensions) {
 		status = append(status, styleToolCall.Render("["+badge+"]"))
 	}
-	status = append(status, styleToolCall.Render(m.searchScopeFooterStatus()))
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		status = append(status, styleToolCall.Render("[UPDATING]"))
 	}
@@ -136,12 +137,19 @@ func (m browserModel) helpSections() []helpSection {
 
 	actions := []helpItem{
 		{key: "/", desc: "search", detail: "edit the list query for visible conversations"},
-		{key: "f", desc: "filter", detail: "open filter overlay to narrow by provider, project, model, etc."},
 		{key: "enter", desc: "open", detail: "open the selected conversation in split view"},
 		{key: "o", desc: "editor", detail: "open the selected raw session file in $EDITOR"},
 		{key: "r", desc: "resume", detail: "resume the selected session with its provider"},
 		m.resyncHelpItem(),
 	}
+	if m.hasActiveSearch() {
+		actions = append(actions, m.clearSearchItem())
+	}
+	actions = append(actions, helpItem{
+		key:    "f",
+		desc:   "filter",
+		detail: "open filter overlay to narrow by provider, project, model, etc.",
+	})
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,
 			withHelpDetail(m.focusActionItem(), m.focusActionDetail()),
@@ -166,48 +174,28 @@ func (m browserModel) helpSections() []helpSection {
 			title: "Actions",
 			items: actions,
 		},
-		{
-			title: "Toggles",
-			items: []helpItem{m.deepSearchToggleItem()},
-		},
 		logInfoSection(m.logFilePath),
 	}
 }
 
 func (m browserModel) searchFooterRightText() string {
-	parts := []string{renderHelpItem(m.deepSearchToggleItem())}
+	parts := []string{}
+	if m.hasActiveSearch() {
+		parts = append(parts, renderHelpItem(m.clearSearchItem()))
+	}
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
 		parts = append(parts, styleToolCall.Render("[UPDATING]"))
 	}
 	return joinNonEmpty(parts, "  ")
 }
 
-func (m browserModel) deepSearchToggleItem() helpItem {
+func (m browserModel) clearSearchItem() helpItem {
 	return helpItem{
-		key:    "ctrl+s",
-		desc:   "deep search",
-		detail: "search conversation contents in the local index instead of metadata",
-		toggle: true,
-		on:     m.search.mode == searchModeDeep,
+		key:    "ctrl+l",
+		desc:   "clear",
+		detail: "clear the current search query and show all visible conversations",
+		glow:   true,
 	}
-}
-
-func (m browserModel) searchScopeStatus() string {
-	if m.search.mode == searchModeDeep {
-		return "[DEEP SEARCH]"
-	}
-	return "[METADATA SEARCH]"
-}
-
-func (m browserModel) searchScopeFooterStatus() string {
-	return fitToWidth(m.searchScopeStatus(), lipgloss.Width("[METADATA SEARCH]"))
-}
-
-func (m browserModel) searchScopeLabel() string {
-	if m.search.mode == searchModeDeep {
-		return "deep search"
-	}
-	return "metadata search"
 }
 
 func (m browserModel) layoutActionItem() helpItem {

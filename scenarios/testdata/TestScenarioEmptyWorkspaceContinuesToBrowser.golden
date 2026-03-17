@@ -36,5 +36,5 @@
 │                                                                                                                      │
 │                                                                                                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
- / search  f filter  -ctrl+s deep search  enter open  r resume  ? help  q quit            [METADATA SEARCH]  0 sessions 
+ j/k move  gg top  G bottom  ctrl+f/b page  / search  f filter  enter open  r resume  ? help  q quit         0 sessions 
                                                                                                                         

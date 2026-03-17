@@ -313,26 +313,6 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 	assert.NotContains(t, helpLine, " open")
 }
 
-func TestBrowserListFooterShowsDeepSearchAsToggle(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-	items := b.listFooterItems()
-
-	var found bool
-	for _, item := range items {
-		if item.key != "ctrl+s" {
-			continue
-		}
-		found = true
-		assert.Equal(t, "deep search", item.desc)
-		assert.True(t, item.toggle)
-		assert.False(t, item.on)
-	}
-
-	assert.True(t, found)
-}
-
 func TestRenderHelpItemUsesGlowForPurpleToggleHighlight(t *testing.T) {
 	t.Parallel()
 
@@ -342,19 +322,14 @@ func TestRenderHelpItemUsesGlowForPurpleToggleHighlight(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "active toggle without glow stays accent",
-			item:     helpItem{key: "ctrl+s", desc: "deep search", toggle: true, on: true},
-			expected: lipgloss.NewStyle().Foreground(colorAccent).Render("+ctrl+s"),
-		},
-		{
-			name:     "inactive toggle without glow stays accent",
-			item:     helpItem{key: "ctrl+s", desc: "deep search", toggle: true},
-			expected: lipgloss.NewStyle().Foreground(colorAccent).Render("-ctrl+s"),
-		},
-		{
 			name:     "glowing toggle uses primary",
 			item:     helpItem{key: "t", desc: "thinking", toggle: true, glow: true},
 			expected: lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+		},
+		{
+			name:     "glowing action uses primary",
+			item:     helpItem{key: "ctrl+l", desc: "clear", glow: true},
+			expected: lipgloss.NewStyle().Foreground(colorPrimary).Render("ctrl+l"),
 		},
 	}
 
@@ -373,7 +348,7 @@ func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "ctrl+s", "enter", "r", "?", "q"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "enter", "r", "?", "q"},
 		helpItemKeys(b.listFooterItems()),
 	)
 }
@@ -383,7 +358,7 @@ func TestBrowserSearchFooterShowsDeepSearchStateWhileEditing(t *testing.T) {
 
 	b := testBrowser(t)
 	b.search.editing = true
-	b.search.mode = searchModeDeep
+	b.search.query = "hello"
 	b.search.status = searchStatusSearching
 	b.searchInput.Focus()
 	b.searchInput.SetValue("hello")
@@ -396,10 +371,31 @@ func TestBrowserSearchFooterShowsDeepSearchStateWhileEditing(t *testing.T) {
 	statusLine := ansi.Strip(lines[1])
 
 	assert.Contains(t, searchLine, "/hello")
-	assert.Contains(t, searchLine, "+ctrl+s")
-	assert.Contains(t, searchLine, "deep search")
+	assert.Contains(t, searchLine, "ctrl+l")
+	assert.Contains(t, searchLine, "clear")
 	assert.Contains(t, searchLine, "[UPDATING]")
 	assert.Contains(t, statusLine, "search ready")
+}
+
+func TestBrowserListFooterShowsClearSearchWhenSearchActive(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	b.search.query = "hello"
+
+	items := b.listFooterItems()
+
+	var found bool
+	for _, item := range items {
+		if item.key != "ctrl+l" {
+			continue
+		}
+		found = true
+		assert.Equal(t, "clear", item.desc)
+		assert.True(t, item.glow)
+	}
+
+	assert.True(t, found)
 }
 
 func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
@@ -411,7 +407,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "ctrl+s", "enter", "r", "tab", "O", "?", "q/esc"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "enter", "r", "tab", "O", "?", "q/esc"},
 		helpItemKeys(items),
 	)
 
@@ -615,31 +611,6 @@ func TestBrowserListHelpOmitsCopyAndExport(t *testing.T) {
 			assert.NotEqual(t, "export markdown", item.desc)
 		}
 	}
-}
-
-func TestBrowserListHelpShowsDeepSearchInTogglesSection(t *testing.T) {
-	t.Parallel()
-
-	b := testBrowser(t)
-	sections := b.helpSections()
-
-	var sawToggles bool
-	for _, section := range sections {
-		if section.title != "Toggles" {
-			for _, item := range section.items {
-				assert.NotEqual(t, "toggle deep scope", item.desc)
-			}
-			continue
-		}
-
-		sawToggles = true
-		require.Len(t, section.items, 1)
-		assert.Equal(t, "ctrl+s", section.items[0].key)
-		assert.Equal(t, "deep search", section.items[0].desc)
-		assert.True(t, section.items[0].toggle)
-	}
-
-	assert.True(t, sawToggles)
 }
 
 func TestBrowserListFocusIgnoresCopyAndExport(t *testing.T) {

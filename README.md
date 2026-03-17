@@ -27,10 +27,11 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 
 **Search**
 
-- Metadata search (`/`) — fuzzy matching on title, model, tools, first
-  message
-- Deep `ctrl+`**s**earch — full-text search across all message content
-  via FTS index
+- Search (`/`) — debounced full-text search across all message content
+  via the SQLite FTS index; an empty query returns to the full
+  conversation list
+- Structured filters (`f`) handle provider, project, model, git branch,
+  plan, and multi-part narrowing
 - Search preview snippets in results
 
 **Transcript viewer**
@@ -147,8 +148,8 @@ Press `?` at any time to open the help overlay.
 | `gg` / `G` | Jump to top / bottom |
 | `ctrl+f` / `ctrl+b` | Page down / up |
 | `enter` | Open conversation |
-| `/` | Metadata search |
-| `ctrl+s` | Toggle deep **s**earch mode |
+| `/` | Search conversations |
+| `ctrl+l` | C**l**ear active search |
 | `f` | **f**ilter dialog |
 | `O` | Toggle fullscreen / split layout |
 | `tab` | Toggle focus between list and transcript |

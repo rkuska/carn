@@ -162,7 +162,6 @@ func TestScenarioDeepSearchSeparatorQueryShowsPreview(t *testing.T) {
 	harness.waitForText(t, "uuid-session")
 
 	harness.program.Send(tea.KeyPressMsg{Code: '/', Text: "/"})
-	harness.program.Send(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	for _, r := range "GENERATE_UUID" {
 		harness.program.Send(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}

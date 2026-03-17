@@ -125,7 +125,6 @@ func newBrowserModelWithStore(
 		transcriptMode:       transcriptClosed,
 		searchInput:          newBrowserSearchInput(),
 		search: browserSearchState{
-			mode:   searchModeMetadata,
 			status: searchStatusIdle,
 		},
 		filter:        newBrowserFilterState(),

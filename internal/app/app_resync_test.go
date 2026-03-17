@@ -422,6 +422,9 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	}
 	store := &fakeBrowserStore{
 		listResult: []conv.Conversation{alpha, beta},
+		deepSearchResults: map[string][]conv.Conversation{
+			testResyncBetaSlug: {beta},
+		},
 	}
 	pipeline := stubImportPipeline{
 		analyzeFn: func(_ context.Context, _ func(arch.ImportProgress)) (arch.ImportAnalysis, error) {
@@ -502,7 +505,17 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 
 	nextModel, cmd = updated.Update(reloadBatch[0]())
 	updated = nextModel.(appModel)
-	assert.Nil(t, cmd)
+	require.NotNil(t, cmd)
+
+	nextModel, cmd = updated.Update(deepSearchDebounceMsg{
+		revision: updated.browser.search.revision,
+		query:    updated.browser.search.query,
+	})
+	updated = nextModel.(appModel)
+	require.NotNil(t, cmd)
+
+	nextModel, _ = updated.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
+	updated = nextModel.(appModel)
 
 	assert.Zero(t, store.loadCalls)
 	assert.Equal(t, transcriptClosed, updated.browser.transcriptMode)

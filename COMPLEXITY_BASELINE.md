@@ -39,7 +39,6 @@ None.
 | internal/canonical/sqlite_store_persist.go | source | 315 | 59 | 343 |
 | internal/source/codex/json_field.go | source | 318 | 43 | 341 |
 | internal/app/viewer_model.go | source | 335 | 35 | 367 |
-| internal/app/browser_test.go | test | 621 | 30 | 752 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 707 |
 | internal/app/transcript_test.go | test | 775 | 9 | 891 |
 

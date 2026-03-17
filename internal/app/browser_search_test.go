@@ -11,41 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildMetadataSearchItemsUsesFuzzyMatches(t *testing.T) {
-	t.Parallel()
-
-	conversations := []conv.Conversation{
-		testConv("one"),
-		{
-			Name:    "archiver",
-			Project: conv.Project{DisplayName: "test"},
-			Sessions: []conv.SessionMeta{
-				{
-					ID:        "two",
-					Slug:      "archiver",
-					Timestamp: testConv("two").Sessions[0].Timestamp,
-					Project:   conv.Project{DisplayName: "test"},
-				},
-			},
-		},
-	}
-
-	items := buildMetadataSearchItems("arv", conversations)
-	require.Len(t, items, 1)
-	assert.Equal(t, "two", items[0].conversation.ID())
-	assert.NotEmpty(t, items[0].matchRanges.title)
-}
-
-func TestBuildMetadataSearchItemsIgnoresDeepSearchPreviewText(t *testing.T) {
-	t.Parallel()
-
-	conversation := testConv("one")
-	conversation.SetSearchPreview("needle only in preview")
-
-	items := buildMetadataSearchItems("needle", []conv.Conversation{conversation})
-	assert.Empty(t, items)
-}
-
 func TestConversationMetadataDescriptionIncludesProviderLabel(t *testing.T) {
 	t.Parallel()
 
@@ -120,68 +85,57 @@ func TestBrowserSearchBindingUsesSlash(t *testing.T) {
 	assert.True(t, b.searchInput.Focused())
 }
 
-func TestBrowserCanToggleDeepSearchWhileEditingQuery(t *testing.T) {
+func TestBrowserClearSearchBindingWhileEditingClearsQuery(t *testing.T) {
 	t.Parallel()
 
-	b := testBrowser(t)
-	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
-	var cmds []tea.Cmd
-	b = b.applyFullConversationList(&cmds)
-	b.search.editing = true
-	b.searchInput.Focus()
-
-	b, _ = b.handleSearchKey(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}, &cmds)
-	assert.Equal(t, searchModeDeep, b.search.mode)
-}
-
-func TestBrowserToggleDeepSearchWhileEditingQuerySyncsTranscriptSelection(t *testing.T) {
-	t.Parallel()
-
-	alpha := testNamedConversation("alpha-id", "alpha")
-	beta := testNamedConversation("beta-id", "beta")
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	beta := testNamedConversation("beta-id", "beta-session")
 
 	b := testBrowser(t)
 	b.search.baseConversations = []conv.Conversation{alpha, beta}
 	b.mainConversations = b.search.baseConversations
-	b.transcriptMode = transcriptSplit
-	b.focus = focusList
-	b.loadingConversationID = alpha.CacheKey()
-	b, _ = b.Update(openViewerMsg{
-		conversationID: alpha.CacheKey(),
-		conversation:   alpha,
-		session:        testSession(alpha.ID()),
-	})
 
 	var cmds []tea.Cmd
-	b.search.mode = searchModeDeep
 	b.search.query = testResyncBetaSlug
+	b.search.visibleConversations = []conv.Conversation{beta}
 	b.search.editing = true
 	b.searchInput.Focus()
 	b.searchInput.SetValue(testResyncBetaSlug)
-	b = b.setSearchItems(
-		buildDeepSearchItems(testResyncBetaSlug, []conv.Conversation{alpha}),
-		&cmds,
-	)
+	b = b.setSearchItems(buildDeepSearchItems(testResyncBetaSlug, []conv.Conversation{beta}), &cmds)
 
-	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	b, _ = b.handleSearchKey(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}, &cmds)
 
-	assert.Equal(t, searchModeMetadata, b.search.mode)
-	assert.Equal(t, beta.CacheKey(), b.loadingConversationID)
+	assert.False(t, b.search.editing)
+	assert.Equal(t, "", b.search.query)
+	assert.Equal(t, "", b.searchInput.Value())
+	assert.Equal(t, searchStatusIdle, b.search.status)
+	require.Len(t, b.search.visibleConversations, 2)
+	assert.Equal(t, alpha.ID(), b.search.visibleConversations[0].ID())
+	assert.Equal(t, beta.ID(), b.search.visibleConversations[1].ID())
 }
 
-func TestBrowserToggleDeepSearchShowsScopeNotification(t *testing.T) {
+func TestBrowserClearSearchBindingFromListClearsQuery(t *testing.T) {
 	t.Parallel()
 
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	beta := testNamedConversation("beta-id", "beta-session")
+
 	b := testBrowser(t)
-	b.search.baseConversations = []conv.Conversation{testNamedConversation("one", "one")}
+	b.search.baseConversations = []conv.Conversation{alpha, beta}
+	b.mainConversations = b.search.baseConversations
+
 	var cmds []tea.Cmd
-	b = b.applyFullConversationList(&cmds)
+	b.search.query = testResyncBetaSlug
+	b.search.visibleConversations = []conv.Conversation{beta}
+	b = b.setSearchItems(buildDeepSearchItems(testResyncBetaSlug, []conv.Conversation{beta}), &cmds)
 
-	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	assert.Equal(t, "search scope: deep search", b.notification.text)
+	b, _ = b.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 
-	b, _ = b.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	assert.Equal(t, "search scope: metadata search", b.notification.text)
+	assert.Equal(t, "", b.search.query)
+	assert.Equal(t, searchStatusIdle, b.search.status)
+	require.Len(t, b.search.visibleConversations, 2)
+	assert.Equal(t, alpha.ID(), b.search.visibleConversations[0].ID())
+	assert.Equal(t, beta.ID(), b.search.visibleConversations[1].ID())
 }
 
 func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
@@ -204,7 +158,6 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
-	b = b.toggleSearchMode(&cmds)
 
 	cmds = nil
 	b = b.setSearchQuery("alpha", &cmds)
@@ -239,7 +192,6 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 	var cmds []tea.Cmd
 	b = b.applyFullConversationList(&cmds)
 
-	b.search.mode = searchModeDeep
 	b.search.query = "beta"
 	b.search.revision = 3
 	b.search.visibleConversations = []conv.Conversation{beta}
@@ -251,42 +203,6 @@ func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {
 		conversations: []conv.Conversation{alpha},
 	})
 
-	require.Len(t, b.search.visibleConversations, 1)
-	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
-}
-
-func TestBrowserToggleSearchModeReappliesCurrentQuery(t *testing.T) {
-	t.Parallel()
-
-	alpha := testNamedConversation("alpha-id", "alpha-browser")
-	beta := testNamedConversation("beta-id", "beta-browser")
-
-	store := &fakeBrowserStore{
-		deepSearchResults: map[string][]conv.Conversation{
-			"beta-browser": {beta},
-		},
-	}
-
-	b := testBrowser(t)
-	b.store = store
-	b.search.baseConversations = []conv.Conversation{alpha, beta}
-	b.mainConversations = b.search.baseConversations
-
-	var cmds []tea.Cmd
-	b = b.setSearchQuery("beta-browser", &cmds)
-	require.Len(t, b.search.visibleConversations, 1)
-	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
-
-	cmds = nil
-	b = b.toggleSearchMode(&cmds)
-	require.NotEmpty(t, cmds)
-	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmds[len(cmds)-1]()))
-	require.Len(t, b.search.visibleConversations, 1)
-	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
-
-	cmds = nil
-	b = b.toggleSearchMode(&cmds)
-	assert.Equal(t, searchModeMetadata, b.search.mode)
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
 }
@@ -306,11 +222,10 @@ func TestBrowserDeepSearchErrorShowsNotification(t *testing.T) {
 	b = b.applyFullConversationList(&cmds)
 	cmds = nil
 	b = b.setSearchQuery("alpha", &cmds)
-	b = b.toggleSearchMode(&cmds)
-	require.NotEmpty(t, cmds)
-	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmds[len(cmds)-1]()))
+	b, cmd := b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
+	require.NotNil(t, cmd)
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
 
-	assert.Equal(t, searchModeDeep, b.search.mode)
 	assert.Equal(t, searchStatusIdle, b.search.status)
 	assert.Equal(t, "deep search failed: assert.AnError general error for testing", b.notification.text)
 }
