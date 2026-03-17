@@ -83,6 +83,87 @@ func TestExtractStructuredPatchReturnsDiffHunks(t *testing.T) {
 	assert.Equal(t, []string{"-old line", "+new line", "+second line"}, patch[0].Lines)
 }
 
+func TestParseConversationSetsHiddenThinkingForSignedBlocks(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "analyze"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"timestamp": "2024-01-01T00:00:01Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "", "signature": "Ev8DCkYFakeSignature"},
+					{"type": "text", "text": "analysis done"},
+				},
+			},
+		}),
+	}, "\n")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	session, err := parseConversationWithSubagents(context.Background(), conversation{
+		Name:    "demo",
+		Project: project{DisplayName: "demo"},
+		Sessions: []sessionMeta{{
+			ID:       "s1",
+			Slug:     "demo",
+			FilePath: path,
+			Project:  project{DisplayName: "demo"},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.True(t, session.Messages[1].HasHiddenThinking)
+	assert.Empty(t, session.Messages[1].Thinking)
+	assert.Equal(t, "analysis done", session.Messages[1].Text)
+}
+
+func TestParseConversationVisibleThinkingWinsOverHidden(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "analyze"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"timestamp": "2024-01-01T00:00:01Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude",
+				"content": []map[string]any{
+					{"type": "thinking", "thinking": "visible reasoning", "signature": "Ev8DCkYFakeSignature"},
+					{"type": "text", "text": "analysis done"},
+				},
+			},
+		}),
+	}, "\n")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	session, err := parseConversationWithSubagents(context.Background(), conversation{
+		Name:    "demo",
+		Project: project{DisplayName: "demo"},
+		Sessions: []sessionMeta{{
+			ID:       "s1",
+			Slug:     "demo",
+			FilePath: path,
+			Project:  project{DisplayName: "demo"},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.False(t, session.Messages[1].HasHiddenThinking)
+	assert.Equal(t, "visible reasoning", session.Messages[1].Thinking)
+}
+
 func TestParseConversationWithoutLinkedTranscriptsMatchesProjectedParse(t *testing.T) {
 	t.Parallel()
 

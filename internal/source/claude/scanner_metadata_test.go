@@ -79,6 +79,40 @@ func TestScanMetadataHandlesLargeAssistantContent(t *testing.T) {
 	assert.Equal(t, 2, result.meta.MessageCount)
 }
 
+func TestAssistantSignedThinkingCountsAsConversationContent(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{
+			name: "visible thinking",
+			raw:  `[{"type":"thinking","thinking":"reasoning here"}]`,
+			want: true,
+		},
+		{
+			name: "signed empty thinking",
+			raw:  `[{"type":"thinking","thinking":"","signature":"Ev8DCkYFakeSignature"}]`,
+			want: true,
+		},
+		{
+			name: "empty thinking without signature",
+			raw:  `[{"type":"thinking","thinking":""}]`,
+			want: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, testCase.want, assistantContentHasConversationContent([]byte(testCase.raw)))
+		})
+	}
+}
+
 func TestExtractType(t *testing.T) {
 	t.Parallel()
 

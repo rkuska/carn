@@ -28,6 +28,7 @@ None.
 | internal/canonical/message_codec.go | source | 240 | 77 | 254 |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
 | internal/config/config.go | source | 310 | 71 | 366 |
+| internal/source/claude/scanner_assistant.go | source | 244 | 69 | 272 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/canonical/store.go | source | 273 | 67 | 323 |
 | internal/source/claude/scanner_parse.go | source | 258 | 64 | 299 |
@@ -36,6 +37,7 @@ None.
 | internal/source/codex/load.go | source | 267 | 62 | 300 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/codex/scan_fast.go | source | 226 | 60 | 255 |
+| internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 194 |
 | internal/canonical/sqlite_store_persist.go | source | 315 | 59 | 343 |
 | internal/source/codex/json_field.go | source | 318 | 43 | 341 |
 | internal/app/viewer_model.go | source | 335 | 35 | 367 |

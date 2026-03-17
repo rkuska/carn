@@ -9,6 +9,67 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestExtractAssistantContentVisibleThinking(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`[
+		{"type":"thinking","thinking":"reasoning about the problem"},
+		{"type":"text","text":"the answer"}
+	]`)
+
+	text, thinking, hiddenThinking, toolCalls, _, ok := extractAssistantContent(raw)
+	require.True(t, ok)
+	assert.Equal(t, "the answer", text)
+	assert.Equal(t, "reasoning about the problem", thinking)
+	assert.False(t, hiddenThinking)
+	assert.Empty(t, toolCalls)
+}
+
+func TestExtractAssistantContentSignedEmptyThinking(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`[
+		{"type":"thinking","thinking":"","signature":"Ev8DCkYICxgCFakeSignature"},
+		{"type":"text","text":"the answer"}
+	]`)
+
+	text, thinking, hiddenThinking, toolCalls, _, ok := extractAssistantContent(raw)
+	require.True(t, ok)
+	assert.Equal(t, "the answer", text)
+	assert.Empty(t, thinking)
+	assert.True(t, hiddenThinking)
+	assert.Empty(t, toolCalls)
+}
+
+func TestExtractAssistantContentSignedWithVisibleThinking(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`[
+		{"type":"thinking","thinking":"visible reasoning","signature":"Ev8DCkYICxgCFakeSignature"},
+		{"type":"text","text":"the answer"}
+	]`)
+
+	text, thinking, hiddenThinking, _, _, ok := extractAssistantContent(raw)
+	require.True(t, ok)
+	assert.Equal(t, "the answer", text)
+	assert.Equal(t, "visible reasoning", thinking)
+	assert.False(t, hiddenThinking)
+}
+
+func TestExtractAssistantContentNoSignatureNoThinking(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`[
+		{"type":"thinking","thinking":""},
+		{"type":"text","text":"the answer"}
+	]`)
+
+	_, thinking, hiddenThinking, _, _, ok := extractAssistantContent(raw)
+	require.True(t, ok)
+	assert.Empty(t, thinking)
+	assert.False(t, hiddenThinking)
+}
+
 func TestSummarizeToolCallFast(t *testing.T) {
 	t.Parallel()
 

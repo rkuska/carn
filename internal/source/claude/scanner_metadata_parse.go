@@ -129,7 +129,15 @@ func assistantContentBlockHasConversationContent(value []byte) (bool, error) {
 	case blockTypeText:
 		return assistantContentStringFieldHasValue(value, "text")
 	case blockTypeThinking:
-		return assistantContentStringFieldHasValue(value, "thinking")
+		hasText, err := assistantContentStringFieldHasValue(value, "thinking")
+		if err != nil {
+			return false, err
+		}
+		if hasText {
+			return true, nil
+		}
+		// Signed thinking blocks without visible text still count as content.
+		return assistantContentStringFieldHasValue(value, "signature")
 	case blockTypeToolUse:
 		return true, nil
 	default:
