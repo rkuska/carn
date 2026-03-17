@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 func readSQLiteConversations(ctx context.Context, db *sql.DB) ([]conversation, error) {
@@ -18,7 +20,11 @@ func readSQLiteConversations(ctx context.Context, db *sql.DB) ([]conversation, e
 	if err != nil {
 		return nil, fmt.Errorf("db.QueryContext_conversations: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("rows.Close")
+		}
+	}()
 
 	conversations := make([]conversation, 0)
 	byRowID := make(map[int64]int)
@@ -74,7 +80,11 @@ func loadSQLiteSessions(
 	if err != nil {
 		return fmt.Errorf("db.QueryContext_sessions: %w", err)
 	}
-	defer func() { _ = sessionRows.Close() }()
+	defer func() {
+		if err := sessionRows.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("sessionRows.Close")
+		}
+	}()
 
 	for sessionRows.Next() {
 		var rowID int64

@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/atotto/clipboard"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

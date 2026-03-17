@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/rkuska/carn/internal/source/claude"
 )
 
 func TestStoreDeepSearchAvailabilityFollowsSQLitePresence(t *testing.T) {
@@ -284,7 +285,11 @@ func setSQLiteMetaValue(tb testing.TB, archiveDir, key, value string) {
 
 	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(tb, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			tb.Log(closeErr)
+		}
+	}()
 
 	_, err = db.ExecContext(
 		context.Background(),

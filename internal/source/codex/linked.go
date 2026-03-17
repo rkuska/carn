@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"runtime"
 
-	conv "github.com/rkuska/carn/internal/conversation"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func loadLinkedTranscripts(ctx context.Context, sessions []conv.SessionMeta) ([]rolloutTranscript, error) {

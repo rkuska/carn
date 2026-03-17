@@ -1,63 +1,26 @@
-# .golangci.yml for backend/integrate
-
 version: "2"
 
 run:
-  # Specify the Go version matching the project's go.mod
   go: '1.26'
-  # Timeout for analysis, e.g. 5 minutes
   timeout: 5m
-  # Exit code when issues were found
   issues-exit-code: 1
-  # Include test files
   tests: true
 
 output:
-  # Format: colored-line-number | line-number | json | tab | checkstyle | code-climate | gitlab-code-quality | gitlab-sast
-  format: colored-line-number
-  # Print lines of code with issue
-  print-issued-lines: true
-  # Print linter name
-  print-linter-name: true
-  # Make issues output unique by line
-  uniq-by-line: true
-
-linters-settings:
-  lll:
-    # Max line length, defaults to 120
-    line-length: 120
-    # Exclude tab characters from length calculation
-    tab-width: 1
-  goimports:
-    # Put local imports after other imports
-    local-prefixes: apropos/integrate # Adjust if you have other local modules
-  govet:
-    # Enable all analyzers
-    enable-all: true
-    # Disable specific analyzers if needed, e.g., shadow
-    # disable:
-    #   - shadow
-  errcheck:
-    # Report checking of errors in blank assignments: `_ = fn()`
-    check-blank: true
-    # Report checking of errors in type assertions: `_, ok := I.(T)`
-    check-type-assertions: true
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
+  formats:
+    text:
+      print-issued-lines: true
+      print-linter-name: true
 
 linters:
-  # Disable all linters by default and explicitly enable specific ones
-  disable-all: true
+  default: none
   enable:
     # Core checks
-    - errcheck      # Checks for unchecked errors
-    - govet         # Reports suspicious constructs
-    - ineffassign   # Detects unused assignments
-    - staticcheck   # Comprehensive static analysis (catches many bugs)
-    - unused        # Checks for unused code
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
     - copyloopvar
     - dupl
     - errchkjson
@@ -70,28 +33,31 @@ linters:
     - makezero
     - reassign
     # Style & Formatting
-    - lll           # Checks line length
-
+    - lll
     # Complexity & Maintainability
     - cyclop
 
+  settings:
+    lll:
+      line-length: 120
+      tab-width: 1
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/rkuska/carn
+
 issues:
-  # Maximum issues count per linter. Set to 0 to disable limit.
   max-issues-per-linter: 0
-  # Maximum count of issues with the same text. Set to 0 to disable limit.
   max-same-issues: 0
-  # Exclude specific issues or paths if needed
-  exclude-rules:
-    # Example: Exclude specific error messages from errcheck in test files
-    # - path: _test\.go
-    #   linters:
-    #     - errcheck
-    #   text: "Error return value of .(.*) is not checked"
-
-    # Example: Exclude generated files
-    # - path: internal/generated/.*\.go
-    #   linters:
-    #     - stylecheck
-
-    # Exclude vendor directory if present
-    # - path: vendor/

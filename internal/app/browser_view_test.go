@@ -7,8 +7,9 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestBrowserSplitViewKeepsBottomBordersWithDeepSearchItems(t *testing.T) {

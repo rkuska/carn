@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/muesli/reflow/wordwrap"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

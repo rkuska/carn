@@ -79,11 +79,11 @@ func readMessage(r *bufio.Reader) (message, error) {
 	}
 	plans := make([]plan, 0, planCount)
 	for range planCount {
-		plan, err := readPlan(r)
+		p, err := readPlan(r)
 		if err != nil {
 			return message{}, fmt.Errorf("readMessage_plan: %w", err)
 		}
-		plans = append(plans, plan)
+		plans = append(plans, p)
 	}
 	return message{
 		Role:              role(roleValue),

@@ -6,8 +6,9 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rs/zerolog"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func (m browserModel) handleMsg(msg tea.Msg, cmds *[]tea.Cmd) browserModel {

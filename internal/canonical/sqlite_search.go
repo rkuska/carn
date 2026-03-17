@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -143,7 +145,11 @@ func readRankedConversationMatches(
 	if err != nil {
 		return nil, fmt.Errorf("db.QueryContext: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("rows.Close")
+		}
+	}()
 
 	matches := make([]rankedConversationMatch, 0)
 	matchIndexByID := make(map[int64]int)

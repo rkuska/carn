@@ -8,11 +8,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rkuska/carn/internal/app"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/scenarios/helpers"
-	"github.com/stretchr/testify/require"
 )
 
 func newScenarioHarness(

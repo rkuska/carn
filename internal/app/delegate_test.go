@@ -6,9 +6,10 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"github.com/charmbracelet/x/ansi"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const (

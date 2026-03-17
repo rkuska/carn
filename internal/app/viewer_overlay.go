@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

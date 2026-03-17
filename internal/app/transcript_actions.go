@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -108,12 +109,16 @@ func writeTempEditorFile(text string, fileName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("writeTempEditorFile_os.CreateTemp: %w", err)
 	}
-	defer func() { _ = f.Close() }()
 
-	if _, err := f.WriteString(text); err != nil {
-		return "", fmt.Errorf("writeTempEditorFile_WriteString: %w", err)
+	name := f.Name()
+	if _, writeErr := f.WriteString(text); writeErr != nil {
+		_ = f.Close() //nolint:errcheck // best-effort cleanup; write error takes precedence
+		return "", fmt.Errorf("writeTempEditorFile_WriteString: %w", writeErr)
 	}
-	return f.Name(), nil
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("writeTempEditorFile_f.Close: %w", err)
+	}
+	return name, nil
 }
 
 func planFileName(plan conv.Plan) string {

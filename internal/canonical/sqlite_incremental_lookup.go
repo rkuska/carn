@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
@@ -205,7 +207,11 @@ func loadSQLiteConversationSessionsByRowID(
 	if err != nil {
 		return fmt.Errorf("db.QueryContext: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("rows.Close")
+		}
+	}()
 
 	for rows.Next() {
 		var meta sessionMeta

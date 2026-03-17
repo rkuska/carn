@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog"
 )
 
 type sqliteStoreCounts struct {
@@ -38,9 +40,13 @@ func replaceSQLiteStoreContents(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("db.BeginTx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			zerolog.Ctx(ctx).Warn().Err(rbErr).Msg("tx.Rollback")
+		}
+	}()
 
-	if err := clearSQLiteStoreTables(ctx, tx); err != nil {
+	if err = clearSQLiteStoreTables(ctx, tx); err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("clearSQLiteStoreTables: %w", err)
 	}
 
@@ -81,8 +87,16 @@ func insertSQLiteConversations(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("prepareSQLiteConversationStatements: %w", err)
 	}
-	defer func() { _ = convStmt.Close() }()
-	defer func() { _ = sessionStmt.Close() }()
+	defer func() {
+		if err := convStmt.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("convStmt.Close")
+		}
+	}()
+	defer func() {
+		if err := sessionStmt.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("sessionStmt.Close")
+		}
+	}()
 
 	var counts sqliteStoreCounts
 	for _, conv := range conversations {
@@ -264,7 +278,11 @@ func insertSQLiteSearchChunks(
 	count := 0
 	args := make([]any, 0, searchChunkBatchSize*3)
 	batchExec := newSQLiteChunkBatchExec(exec)
-	defer func() { _ = batchExec.close() }()
+	defer func() {
+		if err := batchExec.close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("batchExec.close")
+		}
+	}()
 	for start := 0; start < len(units); start += searchChunkBatchSize {
 		end := min(start+searchChunkBatchSize, len(units))
 		args = args[:0]
@@ -288,7 +306,11 @@ func insertSQLiteSearchChunksFromSession(
 	count := 0
 	args := make([]any, 0, searchChunkBatchSize*3)
 	batchExec := newSQLiteChunkBatchExec(exec)
-	defer func() { _ = batchExec.close() }()
+	defer func() {
+		if err := batchExec.close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("batchExec.close")
+		}
+	}()
 	flush := func() error {
 		batchSize := len(args) / 3
 		if batchSize == 0 {
@@ -325,7 +347,9 @@ func insertSQLiteSearchChunksFromSession(
 
 func searchChunkInsertQuery(batchSize int) string {
 	if cached, ok := searchChunkInsertQueryCache.Load(batchSize); ok {
-		return cached.(string)
+		if s, ok := cached.(string); ok {
+			return s
+		}
 	}
 
 	var sb strings.Builder
@@ -339,5 +363,8 @@ func searchChunkInsertQuery(batchSize int) string {
 	}
 	query := sb.String()
 	actual, _ := searchChunkInsertQueryCache.LoadOrStore(batchSize, query)
-	return actual.(string)
+	if s, ok := actual.(string); ok {
+		return s
+	}
+	return query
 }

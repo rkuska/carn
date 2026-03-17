@@ -2,6 +2,7 @@ package app
 
 import (
 	"charm.land/lipgloss/v2"
+
 	"github.com/rkuska/carn/internal/config"
 )
 

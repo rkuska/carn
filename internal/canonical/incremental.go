@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	src "github.com/rkuska/carn/internal/source"
 	"github.com/rs/zerolog"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func hasChangedRawPaths(changedRawPaths map[conversationProvider][]string) bool {
@@ -36,7 +37,7 @@ func tryIncrementalRebuildWithSources(
 	if err != nil {
 		return fmt.Errorf("store.loadDB: %w", err)
 	}
-	if err := ensureSQLiteSchema(ctx, db); err != nil {
+	if err = ensureSQLiteSchema(ctx, db); err != nil {
 		return fmt.Errorf("ensureSQLiteSchema: %w", err)
 	}
 

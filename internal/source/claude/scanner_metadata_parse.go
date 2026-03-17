@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 

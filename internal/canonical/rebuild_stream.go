@@ -3,7 +3,10 @@ package canonical
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/rs/zerolog"
 )
 
 func writeCanonicalStoreStreamingAtomically(
@@ -17,9 +20,13 @@ func writeCanonicalStoreStreamingAtomically(
 		if err != nil {
 			return fmt.Errorf("openSQLiteDB: %w", err)
 		}
-		defer func() { _ = db.Close() }()
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("db.Close")
+			}
+		}()
 
-		if err := configureSQLiteBulkLoadDB(ctx, db); err != nil {
+		if err = configureSQLiteBulkLoadDB(ctx, db); err != nil {
 			return fmt.Errorf("configureSQLiteBulkLoadDB: %w", err)
 		}
 
@@ -54,9 +61,13 @@ func replaceSQLiteStoreContentsStreaming(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("db.BeginTx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			zerolog.Ctx(ctx).Warn().Err(rbErr).Msg("tx.Rollback")
+		}
+	}()
 
-	if err := clearSQLiteStoreTables(ctx, tx); err != nil {
+	if err = clearSQLiteStoreTables(ctx, tx); err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("clearSQLiteStoreTables: %w", err)
 	}
 
@@ -84,8 +95,16 @@ func insertStreamingSQLiteConversations(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("prepareSQLiteConversationStatements: %w", err)
 	}
-	defer func() { _ = convStmt.Close() }()
-	defer func() { _ = sessionStmt.Close() }()
+	defer func() {
+		if err := convStmt.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("convStmt.Close")
+		}
+	}()
+	defer func() {
+		if err := sessionStmt.Close(); err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("sessionStmt.Close")
+		}
+	}()
 
 	var counts sqliteStoreCounts
 	for _, conv := range conversations {

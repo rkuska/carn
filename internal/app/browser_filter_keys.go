@@ -36,8 +36,8 @@ func (m browserModel) handleFilterKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (bro
 func (m browserModel) handleFilterDimensionKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (browserModel, tea.Cmd) {
 	dim := filterDimension(m.filter.cursor)
 
-	if m, cmd, handled := m.handleFilterNavigation(msg); handled {
-		return m, cmd
+	if updated, cmd, handled := m.handleFilterNavigation(msg); handled {
+		return updated, cmd
 	}
 
 	return m.handleFilterDimensionAction(msg, dim, cmds)
@@ -129,8 +129,8 @@ func (m browserModel) handleFilterExpandedKey(msg tea.KeyPressMsg, cmds *[]tea.C
 	dim := filterDimension(m.filter.expanded)
 	values := m.filter.values[dim]
 
-	if m, cmd, handled := m.handleFilterExpandedNav(msg, len(values)); handled {
-		return m, cmd
+	if updated, cmd, handled := m.handleFilterExpandedNav(msg, len(values)); handled {
+		return updated, cmd
 	}
 	return m.handleFilterExpandedAction(msg, dim, values, cmds)
 }

@@ -11,12 +11,13 @@ import (
 	"slices"
 	"testing"
 
+	_ "modernc.org/sqlite"
+
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 	"github.com/rkuska/carn/internal/source/claude"
 	"github.com/rkuska/carn/internal/source/codex"
-	_ "modernc.org/sqlite"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

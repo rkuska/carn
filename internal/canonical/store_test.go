@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	src "github.com/rkuska/carn/internal/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type stubSource struct {
@@ -185,17 +186,17 @@ func writeTestConversation(
 	}
 	writeTestFile(t, path, strings.Join(lines, "\n"))
 
-	project := project{DisplayName: projectName}
+	proj := project{DisplayName: projectName}
 	return conversation{
 		Ref:     conversationRef{Provider: conversationProvider("claude"), ID: sessionID},
 		Name:    slug,
-		Project: project,
+		Project: proj,
 		Sessions: []sessionMeta{{
 			ID:        sessionID,
 			Slug:      slug,
 			Timestamp: timestamp,
 			FilePath:  path,
-			Project:   project,
+			Project:   proj,
 		}},
 	}
 }

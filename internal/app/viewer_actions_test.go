@@ -8,9 +8,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestViewerFooterIncludesTopLevelActionPrefixes(t *testing.T) {

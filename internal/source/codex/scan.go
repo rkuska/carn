@@ -34,17 +34,21 @@ func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, erro
 	return groupRollouts(rollouts), nil
 }
 
-func scanRollout(path string) (scannedRollout, bool, error) {
+func scanRollout(path string) (_ scannedRollout, _ bool, retErr error) {
 	file, br, err := openReader(path)
 	if err != nil {
 		return scannedRollout{}, false, err
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && retErr == nil {
+			retErr = fmt.Errorf("file.Close: %w", closeErr)
+		}
+	}()
 	defer readerPool.Put(br)
 
 	state := newScanState(path)
-	if err := scanRolloutReader(br, &state); err != nil {
-		return scannedRollout{}, false, fmt.Errorf("scanRolloutReader: %w", err)
+	if scanErr := scanRolloutReader(br, &state); scanErr != nil {
+		return scannedRollout{}, false, fmt.Errorf("scanRolloutReader: %w", scanErr)
 	}
 
 	return state.rollout()

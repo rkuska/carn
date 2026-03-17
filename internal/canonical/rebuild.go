@@ -7,10 +7,11 @@ import (
 	"io/fs"
 	"runtime"
 
-	src "github.com/rkuska/carn/internal/source"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 const (
