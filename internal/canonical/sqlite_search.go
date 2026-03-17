@@ -12,6 +12,52 @@ const (
 	searchPreviewMaxPerConversation = 3
 )
 
+var deepSearchQuery = fmt.Sprintf(
+	`WITH matching_chunks AS (
+		SELECT c.id AS conversation_id,
+		       c.cache_key,
+		       c.last_timestamp_ns,
+		       sc.ordinal,
+		       TRIM(snippet(search_fts, 0, '', '', '...', %d)) AS preview
+		  FROM search_fts
+		  JOIN search_chunks sc ON sc.id = search_fts.rowid
+		  JOIN conversations c ON c.id = sc.conversation_id
+		 WHERE search_fts MATCH ?
+	),
+	ranked_conversations AS (
+		SELECT conversation_id,
+		       cache_key,
+		       last_timestamp_ns,
+		       MIN(ordinal) AS first_ordinal
+		  FROM matching_chunks
+		 GROUP BY conversation_id
+	),
+	unique_previews AS (
+		SELECT conversation_id,
+		       preview,
+		       MIN(ordinal) AS first_ordinal
+		  FROM matching_chunks
+		 WHERE preview <> ''
+		 GROUP BY conversation_id, preview
+	),
+	ranked_previews AS (
+		SELECT conversation_id,
+		       preview,
+		       first_ordinal,
+		       ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY first_ordinal ASC) AS preview_row
+		  FROM unique_previews
+	)
+	SELECT rc.conversation_id,
+	       rc.cache_key,
+	       rp.preview
+	  FROM ranked_conversations rc
+	  LEFT JOIN ranked_previews rp
+	    ON rp.conversation_id = rc.conversation_id
+	   AND rp.preview_row <= ?
+	 ORDER BY rc.first_ordinal ASC, rc.last_timestamp_ns DESC, rp.first_ordinal ASC`,
+	searchPreviewSnippetTokens,
+)
+
 type rankedConversationMatch struct {
 	id       int64
 	cacheKey string
@@ -128,54 +174,5 @@ func readRankedConversationMatches(
 }
 
 func buildDeepSearchQuery(ftsQuery string) (string, []any) {
-	args := make([]any, 0, 2)
-	args = append(args, ftsQuery)
-	args = append(args, searchPreviewMaxPerConversation)
-
-	query := fmt.Sprintf(
-		`WITH matching_chunks AS (
-			SELECT c.id AS conversation_id,
-			       c.cache_key,
-			       c.last_timestamp_ns,
-			       sc.ordinal,
-			       TRIM(snippet(search_fts, 0, '', '', '...', %d)) AS preview
-			  FROM search_fts
-			  JOIN search_chunks sc ON sc.id = search_fts.rowid
-			  JOIN conversations c ON c.id = sc.conversation_id
-			 WHERE search_fts MATCH ?
-		),
-		ranked_conversations AS (
-			SELECT conversation_id,
-			       cache_key,
-			       last_timestamp_ns,
-			       MIN(ordinal) AS first_ordinal
-			  FROM matching_chunks
-			 GROUP BY conversation_id
-		),
-		unique_previews AS (
-			SELECT conversation_id,
-			       preview,
-			       MIN(ordinal) AS first_ordinal
-			  FROM matching_chunks
-			 WHERE preview <> ''
-			 GROUP BY conversation_id, preview
-		),
-		ranked_previews AS (
-			SELECT conversation_id,
-			       preview,
-			       first_ordinal,
-			       ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY first_ordinal ASC) AS preview_row
-			  FROM unique_previews
-		)
-		SELECT rc.conversation_id,
-		       rc.cache_key,
-		       rp.preview
-		  FROM ranked_conversations rc
-		  LEFT JOIN ranked_previews rp
-		    ON rp.conversation_id = rc.conversation_id
-		   AND rp.preview_row <= ?
-		 ORDER BY rc.first_ordinal ASC, rc.last_timestamp_ns DESC, rp.first_ordinal ASC`,
-		searchPreviewSnippetTokens,
-	)
-	return query, args
+	return deepSearchQuery, []any{ftsQuery, searchPreviewMaxPerConversation}
 }

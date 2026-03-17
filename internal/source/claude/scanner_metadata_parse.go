@@ -6,31 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/buger/jsonparser"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-// metadataScanRecord flattens the outer JSONL record and the nested message
-// object into a single struct for one-pass JSON decoding. This avoids the
-// double unmarshal that jsonRecord + jsonMessage required.
-type metadataScanRecord struct {
-	Type        string `json:"type"`
-	SessionID   string `json:"sessionId"`
-	Slug        string `json:"slug"`
-	CWD         string `json:"cwd"`
-	GitBranch   string `json:"gitBranch"`
-	Version     string `json:"version"`
-	Timestamp   string `json:"timestamp"`
-	IsMeta      bool   `json:"isMeta"`
-	IsSidechain bool   `json:"isSidechain"`
-	Message     struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content"`
-		Model   string          `json:"model"`
-		Usage   *jsonUsage      `json:"usage"`
-	} `json:"message"`
-}
-
-func initSessionMetaFromRecord(meta *sessionMeta, rec metadataScanRecord) {
+func initSessionMetaFromRecord(meta *sessionMeta, rec parseRecord) {
 	meta.ID = rec.SessionID
 	meta.Slug = rec.Slug
 	meta.CWD = rec.CWD
@@ -46,7 +26,7 @@ func initSessionMetaFromRecord(meta *sessionMeta, rec metadataScanRecord) {
 	}
 }
 
-func applyUserMetadata(meta *sessionMeta, rec metadataScanRecord) {
+func applyUserMetadata(meta *sessionMeta, rec parseRecord) {
 	if meta.ID == "" {
 		initSessionMetaFromRecord(meta, rec)
 	}
@@ -68,9 +48,9 @@ func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) 
 		return userRecordHasConversationContent(line), nil
 	}
 
-	var rec metadataScanRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return false, fmt.Errorf("json.Unmarshal: %w", err)
+	var rec parseRecord
+	if err := parseRecordLine(line, &rec); err != nil {
+		return false, fmt.Errorf("parseRecordLine: %w", err)
 	}
 
 	applyUserMetadata(meta, rec)
@@ -97,9 +77,9 @@ func parseAssistantRecord(
 		return false, nil
 	}
 
-	var rec metadataScanRecord
-	if err := json.Unmarshal(line, &rec); err != nil {
-		return false, fmt.Errorf("json.Unmarshal: %w", err)
+	var rec parseRecord
+	if err := parseRecordLine(line, &rec); err != nil {
+		return false, fmt.Errorf("parseRecordLine: %w", err)
 	}
 
 	if !*found && rec.Message.Model != "" {
@@ -111,27 +91,58 @@ func parseAssistantRecord(
 }
 
 func assistantContentHasConversationContent(raw json.RawMessage) bool {
-	var blocks []contentBlock
-	if err := json.Unmarshal(raw, &blocks); err != nil {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] != '[' {
 		return false
 	}
 
-	for _, block := range blocks {
-		switch block.Type {
-		case blockTypeText:
-			if block.Text != "" {
-				return true
-			}
-		case blockTypeThinking:
-			if block.Thinking != "" {
-				return true
-			}
-		case blockTypeToolUse:
-			return true
+	hasConversationContent := false
+	parseOK := true
+	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
+		if hasConversationContent || !parseOK {
+			return
 		}
+		if err != nil || dataType != jsonparser.Object {
+			parseOK = false
+			return
+		}
+		content, err := assistantContentBlockHasConversationContent(value)
+		if err != nil {
+			parseOK = false
+			return
+		}
+		hasConversationContent = content
+	})
+	if err != nil || !parseOK {
+		return false
+	}
+	return hasConversationContent
+}
+
+func assistantContentBlockHasConversationContent(value []byte) (bool, error) {
+	blockType, _, err := jsonStringField(value, "type")
+	if err != nil {
+		return false, fmt.Errorf("assistantContentBlockHasConversationContent_type: %w", err)
 	}
 
-	return false
+	switch blockType {
+	case blockTypeText:
+		return assistantContentStringFieldHasValue(value, "text")
+	case blockTypeThinking:
+		return assistantContentStringFieldHasValue(value, "thinking")
+	case blockTypeToolUse:
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+func assistantContentStringFieldHasValue(value []byte, field string) (bool, error) {
+	content, _, err := jsonStringField(value, field)
+	if err != nil {
+		return false, fmt.Errorf("assistantContentStringFieldHasValue_%s: %w", field, err)
+	}
+	return content != "", nil
 }
 
 func userRecordHasConversationContent(line []byte) bool {

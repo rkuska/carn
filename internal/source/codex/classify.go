@@ -13,8 +13,8 @@ type visibleMessage struct {
 	isAgentDivider bool
 }
 
-func classifyResponseMessage(role string, blocks []contentBlock) (visibleMessage, bool) {
-	return classifyTextMessage(role, extractMessageText(blocks))
+func classifyResponseMessage(role string, raw []byte) (visibleMessage, bool) {
+	return classifyTextMessage(role, extractScanContentText(raw))
 }
 
 func classifyEventUserMessage(text string) (visibleMessage, bool) {

@@ -2,7 +2,6 @@ package codex
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -51,28 +50,12 @@ func loadRollout(ctx context.Context, meta conv.SessionMeta) (rolloutTranscript,
 		return rolloutTranscript{}, fmt.Errorf("loadRollout: %w", errMissingPath)
 	}
 
-	file, br, err := openReader(path)
-	if err != nil {
-		return rolloutTranscript{}, err
-	}
-	defer func() { _ = file.Close() }()
-	defer readerPool.Put(br)
-
-	var pc parseContext
 	state := newLoadState(meta)
-	dec := json.NewDecoder(br)
-	for dec.More() {
-		if err := ctx.Err(); err != nil {
-			return rolloutTranscript{}, fmt.Errorf("loadConversation_ctx: %w", err)
-		}
-
-		pc.reset()
-		if err := dec.Decode(&pc.rec); err != nil {
-			return rolloutTranscript{}, fmt.Errorf("json.Decode: %w", err)
-		}
-		state.applyRecord(&pc.rec)
+	if err := visitRolloutRecords(ctx, path, func(recordType string, payload []byte, timestamp string) {
+		state.applyRecord(recordType, payload, timestamp)
+	}); err != nil {
+		return rolloutTranscript{}, fmt.Errorf("visitRolloutRecords: %w", err)
 	}
-
 	return state.transcript(), nil
 }
 
@@ -88,119 +71,144 @@ func newLoadState(meta conv.SessionMeta) loadState {
 	}
 }
 
-func (s *loadState) applyRecord(rec *codexRecord) {
-	p := &rec.Payload
-	switch rec.Type {
+func (s *loadState) applyRecord(recordType string, payload []byte, timestamp string) {
+	switch recordType {
 	case recordTypeSessionMeta:
-		s.applySessionMeta(p)
+		s.applySessionMeta(payload)
 	case recordTypeResponseItem:
-		s.applyResponseItem(p, parseTimestamp(rec.Timestamp))
+		s.applyResponseItem(payload, parseTimestamp(timestamp))
 	case recordTypeEventMsg:
-		s.applyEvent(p, rec.Timestamp)
+		s.applyEvent(payload, timestamp)
 	}
 }
 
-func (s *loadState) applySessionMeta(p *codexPayload) {
-	if p.ID != "" && p.ID != s.meta.ID {
+func (s *loadState) applySessionMeta(payload []byte) {
+	if id, ok := extractTopLevelRawJSONStringFieldByMarker(payload, idFieldMarker); ok && id != "" && id != s.meta.ID {
 		return
 	}
-	if link, ok := parseSubagentLink(p.Source); ok {
-		s.link = link
+	if source, ok := extractTopLevelRawJSONFieldByMarker(payload, sourceFieldMarker); ok {
+		if link, ok := parseSubagentLink(source); ok {
+			s.link = link
+		}
 	}
 }
 
-func (s *loadState) applyResponseItem(p *codexPayload, timestamp time.Time) {
-	switch p.ItemType {
+func (s *loadState) applyResponseItem(payload []byte, timestamp time.Time) {
+	itemType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
+	if !ok {
+		return
+	}
+
+	switch itemType {
 	case responseTypeMessage:
-		s.applyMessage(p, timestamp)
+		s.applyMessage(payload, timestamp)
 	case responseTypeReasoning:
-		s.applyReasoning(p, timestamp)
+		s.applyReasoning(payload, timestamp)
 	case responseTypeFunctionCall, responseTypeCustomToolCall, responseTypeWebSearchCall:
-		s.applyToolCall(p, timestamp)
+		s.applyToolCall(itemType, payload, timestamp)
 	case responseTypeFunctionCallOutput, responseTypeCustomToolCallOutput:
-		s.applyToolResult(p, timestamp)
+		s.applyToolResult(payload, timestamp)
 	}
 }
 
-func (s *loadState) applyMessage(p *codexPayload, timestamp time.Time) {
-	message, ok := classifyResponseMessage(p.Role, p.Content)
+func (s *loadState) applyMessage(payload []byte, timestamp time.Time) {
+	role, _ := extractTopLevelRawJSONStringFieldByMarker(payload, roleFieldMarker)
+	content, ok := extractTopLevelRawJSONFieldByMarker(payload, contentFieldMarker)
+	if !ok {
+		return
+	}
+	message, ok := classifyResponseMessage(role, content)
 	if !ok {
 		return
 	}
 	s.applyClassifiedMessage(message, timestamp)
 }
 
-func (s *loadState) applyReasoning(p *codexPayload, timestamp time.Time) {
+func (s *loadState) applyReasoning(payload []byte, timestamp time.Time) {
 	s.markPendingTimestamp(timestamp)
-	if summary := extractReasoningText(p.Summary); summary != "" {
-		s.appendThinking(summary)
-		return
+	if summaryRaw, ok := extractTopLevelRawJSONFieldByMarker(payload, summaryFieldMarker); ok {
+		if summary := extractReasoningText(summaryRaw); summary != "" {
+			s.appendThinking(summary)
+			return
+		}
 	}
-	if strings.TrimSpace(p.EncryptedContent) != "" {
+	if encryptedContent, ok := extractTopLevelRawJSONStringFieldByMarker(
+		payload,
+		encryptedContentFieldMarker,
+	); ok && strings.TrimSpace(encryptedContent) != "" {
 		s.pendingHiddenThinking = true
 	}
 }
 
-func (s *loadState) applyToolCall(p *codexPayload, timestamp time.Time) {
-	call := buildToolCall(p)
+func (s *loadState) applyToolCall(itemType string, payload []byte, timestamp time.Time) {
+	call := buildToolCall(itemType, payload)
 	if call.Name == "" {
 		return
 	}
 
+	callID, _ := extractTopLevelRawJSONStringFieldByMarker(payload, callIDFieldMarker)
+	input, _ := extractTopLevelRawJSONStringFieldByMarker(payload, inputFieldMarker)
+
 	s.markPendingTimestamp(timestamp)
 	s.pendingCalls = append(s.pendingCalls, call)
-	s.callMeta[p.CallID] = toolEventMeta{
+	s.callMeta[callID] = toolEventMeta{
 		call:  call,
-		input: p.Input,
+		input: input,
 	}
 }
 
-func (s *loadState) applyToolResult(p *codexPayload, timestamp time.Time) {
-	meta := s.callMeta[p.CallID]
+func (s *loadState) applyToolResult(payload []byte, timestamp time.Time) {
+	callID, _ := extractTopLevelRawJSONStringFieldByMarker(payload, callIDFieldMarker)
+	meta := s.callMeta[callID]
 	if meta.call.Name == "" {
-		meta.call.Name = p.CallID
+		meta.call.Name = callID
 	}
 	s.markPendingTimestamp(timestamp)
-	s.pendingResults = append(s.pendingResults, buildToolResult(p, meta))
+	s.pendingResults = append(s.pendingResults, buildToolResult(payload, meta))
 }
 
-func (s *loadState) applyEvent(p *codexPayload, timestamp string) {
+func (s *loadState) applyEvent(payload []byte, timestamp string) {
 	ts := parseTimestamp(timestamp)
-	if s.applyEventMessage(p, ts) {
+	if s.applyEventMessage(payload, ts) {
 		return
 	}
 
-	switch p.ItemType {
+	itemType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
+	if !ok {
+		return
+	}
+
+	switch itemType {
 	case eventTypeAgentReasoning:
 		s.markPendingTimestamp(ts)
-		s.appendThinking(p.Text)
+		if text, ok := extractTopLevelRawJSONStringFieldByMarker(payload, textFieldMarker); ok {
+			s.appendThinking(text)
+		}
 	case eventTypeItemCompleted:
-		if plan, ok := extractCompletedPlan(p.Item, ts); ok {
+		item, ok := extractTopLevelRawJSONFieldByMarker(payload, itemFieldMarker)
+		if !ok {
+			return
+		}
+		if plan, ok := extractCompletedPlan(item, ts); ok {
 			s.applyPlan(plan, ts)
 		}
 	}
 }
 
-func (s *loadState) applyEventMessage(p *codexPayload, timestamp time.Time) bool {
-	switch p.ItemType {
-	case eventTypeUserMessage:
-		if message, ok := classifyEventUserMessage(p.Message); ok {
-			s.applyClassifiedMessage(message, timestamp)
-		}
-		return true
-	case eventTypeAgentMessage:
-		if message, ok := classifyEventAssistantMessage(p.Message); ok {
-			s.applyClassifiedMessage(message, timestamp)
-		}
-		return true
-	case eventTypeTaskComplete:
-		if message, ok := classifyTaskCompleteMessage(p.LastAgentMessage); ok {
-			s.applyClassifiedMessage(message, timestamp)
-		}
-		return true
-	default:
+func (s *loadState) applyEventMessage(payload []byte, timestamp time.Time) bool {
+	itemType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
+	if !ok {
 		return false
 	}
+
+	classified, handled := classifyLoadedEventMessage(payload, itemType)
+	if !handled {
+		return false
+	}
+	if classified.role != "" || classified.isAgentDivider {
+		s.applyClassifiedMessage(classified, timestamp)
+	}
+	return true
 }
 
 func (s *loadState) applyClassifiedMessage(message visibleMessage, timestamp time.Time) {

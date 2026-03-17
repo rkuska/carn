@@ -246,6 +246,64 @@ func TestScanAndLoadAcceptStringReasoningSummary(t *testing.T) {
 	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
 }
 
+func TestScanAndLoadAcceptObjectReasoningSummary(t *testing.T) {
+	t.Parallel()
+
+	rawDir := t.TempDir()
+	writeCodexRolloutFixture(t, rawDir, "rollout-2026-03-16T10-00-00-thread-object-summary.jsonl", []map[string]any{
+		{
+			"timestamp": "2026-03-16T10:00:00Z",
+			"type":      recordTypeSessionMeta,
+			"payload": map[string]any{
+				"id":             "thread-object-summary",
+				"timestamp":      "2026-03-16T10:00:00Z",
+				"cwd":            "/workspace/project",
+				"cli_version":    "0.114.0",
+				"model_provider": "openai",
+				"git":            map[string]any{"branch": "main"},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:01Z",
+			"type":      recordTypeEventMsg,
+			"payload": map[string]any{
+				"type":    eventTypeUserMessage,
+				"message": "Explain the parser.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type":    responseTypeReasoning,
+				"summary": map[string]any{"type": "summary_text", "text": "Inspecting object summary."},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:03Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type": responseTypeMessage,
+				"role": responseRoleAssistant,
+				"content": []map[string]any{
+					{"type": "output_text", "text": "Parser updated."},
+				},
+			},
+		},
+	})
+
+	conversations, err := New().Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := New().Load(context.Background(), conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, conv.RoleAssistant, session.Messages[1].Role)
+	assert.Equal(t, "Inspecting object summary.", session.Messages[1].Thinking)
+	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
+}
+
 func TestScanHandlesLargeCodexResponseContent(t *testing.T) {
 	t.Parallel()
 
