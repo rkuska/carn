@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -129,9 +128,14 @@ func projectSyncCandidates(sourceDir, rawDir, projDir string) ([]src.SyncCandida
 		return nil, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
 
+	classifier, err := newProjectFileClassifier(sourceDir, rawDir, dirName)
+	if err != nil {
+		return nil, fmt.Errorf("newProjectFileClassifier: %w", err)
+	}
+
 	candidates := make([]src.SyncCandidate, 0, len(files))
 	for _, file := range files {
-		classified, ok := classifyProjectFile(file, sourceDir, rawDir, dirName)
+		classified, ok := classifier.classify(file)
 		if !ok || !classified.needsSync {
 			continue
 		}
@@ -160,69 +164,54 @@ func analyzeProjectDir(
 		return 0, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
 
+	classifier, err := newProjectFileClassifier(sourceDir, rawDir, dirName)
+	if err != nil {
+		return 0, fmt.Errorf("newProjectFileClassifier: %w", err)
+	}
+
 	for _, file := range files {
 		filesInspected++
-		classified, ok := classifyProjectFile(file, sourceDir, rawDir, dirName)
+		classified, ok := classifier.classify(file)
 		if !ok {
 			continue
 		}
-
-		state, exists := seen[classified.gk]
-		if !exists {
-			state = &conversationState{}
-			seen[classified.gk] = state
-		}
-
-		if classified.needsSync {
-			if !classified.dstExists && !state.hasUpToDate && !state.hasStale {
-				state.allNew = true
-			}
-			state.hasStale = true
-			state.allNew = state.allNew && !state.hasUpToDate
-			*syncCandidates = append(*syncCandidates, classified.srcPath)
-			continue
-		}
-
-		state.hasUpToDate = true
-		state.allNew = false
+		recordClassifiedConversation(seen, classified, syncCandidates)
 	}
 
 	return filesInspected, nil
 }
 
+func recordClassifiedConversation(
+	seen map[groupKey]*conversationState,
+	classified classifiedFile,
+	syncCandidates *[]string,
+) {
+	state, exists := seen[classified.gk]
+	if !exists {
+		state = &conversationState{}
+		seen[classified.gk] = state
+	}
+
+	if classified.needsSync {
+		if !classified.dstExists && !state.hasUpToDate && !state.hasStale {
+			state.allNew = true
+		}
+		state.hasStale = true
+		state.allNew = state.allNew && !state.hasUpToDate
+		*syncCandidates = append(*syncCandidates, classified.srcPath)
+		return
+	}
+
+	state.hasUpToDate = true
+	state.allNew = false
+}
+
 func classifyProjectFile(file sessionFile, sourceDir, rawDir, dirName string) (classifiedFile, bool) {
-	slug, err := extractSessionSlug(file.path)
+	classifier, err := newProjectFileClassifier(sourceDir, rawDir, dirName)
 	if err != nil {
 		return classifiedFile{}, false
 	}
-
-	gk := groupKey{dirName: dirName, slug: slug}
-	if file.isSubagent || slug == "" {
-		gk.slug = file.path
-	}
-
-	rel, err := filepath.Rel(sourceDir, file.path)
-	if err != nil {
-		return classifiedFile{}, false
-	}
-	dstPath := filepath.Join(rawDir, rel)
-
-	srcInfo, err := os.Stat(file.path)
-	if err != nil {
-		return classifiedFile{}, false
-	}
-
-	dstInfo, dstErr := os.Stat(dstPath)
-	dstExists := dstErr == nil
-	needsSync := !dstExists || src.FileNeedsSyncInfo(srcInfo, dstInfo)
-
-	return classifiedFile{
-		gk:        gk,
-		needsSync: needsSync,
-		dstExists: dstExists,
-		srcPath:   file.path,
-		dstPath:   dstPath,
-	}, true
+	return classifier.classify(file)
 }
 
 func classifyConversations(seen map[groupKey]*conversationState) (newConvs, toUpdate, upToDate int) {
@@ -240,27 +229,9 @@ func classifyConversations(seen map[groupKey]*conversationState) (newConvs, toUp
 }
 
 func extractSessionSlug(filePath string) (string, error) {
-	file, err := os.Open(filePath)
+	slug, _, err := readSessionSlugAndInfo(filePath)
 	if err != nil {
-		return "", fmt.Errorf("os.Open: %w", err)
+		return "", fmt.Errorf("readSessionSlugAndInfo: %w", err)
 	}
-	defer func() { _ = file.Close() }()
-
-	br := slugReaderPool.Get().(*bufio.Reader)
-	br.Reset(file)
-	defer slugReaderPool.Put(br)
-
-	for line, err := range jsonlLines(br) {
-		if err != nil {
-			return "", fmt.Errorf("extractSessionSlug_jsonlLines: %w", err)
-		}
-		if extractType(line) != "user" {
-			continue
-		}
-		if slug := extractSlugFast(line); slug != "" {
-			return slug, nil
-		}
-	}
-
-	return "", nil
+	return slug, nil
 }

@@ -248,6 +248,25 @@ func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t
 	require.NoError(t, err)
 	assert.True(t, available)
 	assert.Equal(t, snapshotSearchResults(fullResults), snapshotSearchResults(incrementalResults))
+
+	incrementalOldResults, available, err := incrementalStore.DeepSearch(
+		ctx,
+		incrementalArchive,
+		"before update",
+		incrementalConversations,
+	)
+	require.NoError(t, err)
+	assert.True(t, available)
+
+	fullOldResults, available, err := fullStore.DeepSearch(
+		ctx,
+		fullArchive,
+		"before update",
+		fullConversations,
+	)
+	require.NoError(t, err)
+	assert.True(t, available)
+	assert.Equal(t, snapshotSearchResults(fullOldResults), snapshotSearchResults(incrementalOldResults))
 }
 
 func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {

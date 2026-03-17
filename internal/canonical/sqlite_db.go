@@ -99,6 +99,12 @@ var sqliteSearchTriggerStatements = []string{
 	END`,
 }
 
+var sqliteSearchTriggerNames = []string{
+	"search_chunks_ai",
+	"search_chunks_ad",
+	"search_chunks_au",
+}
+
 func openSQLiteDB(ctx context.Context, path string, useWAL bool) (*sql.DB, error) {
 	db, err := sql.Open(sqliteDriverName, path)
 	if err != nil {
@@ -158,6 +164,15 @@ func ensureSQLiteSearchTriggers(ctx context.Context, execer sqliteExecer) error 
 	for _, stmt := range sqliteSearchTriggerStatements {
 		if _, err := execer.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("execer.ExecContext: %w", err)
+		}
+	}
+	return nil
+}
+
+func dropSQLiteSearchTriggers(ctx context.Context, execer sqliteExecer) error {
+	for _, name := range sqliteSearchTriggerNames {
+		if _, err := execer.ExecContext(ctx, `DROP TRIGGER IF EXISTS `+name); err != nil {
+			return fmt.Errorf("execer.ExecContext_%s: %w", name, err)
 		}
 	}
 	return nil

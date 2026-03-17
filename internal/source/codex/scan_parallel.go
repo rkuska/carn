@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"runtime"
 	"sort"
 
 	"golang.org/x/sync/errgroup"
@@ -38,7 +37,7 @@ func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout
 
 	results := make([]scannedRollout, len(paths))
 	valid := make([]bool, len(paths))
-	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	sem := semaphore.NewWeighted(int64(codexScanParallelism(len(paths))))
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	for i := range paths {
