@@ -50,11 +50,11 @@ func TestStoreNeedsRebuildCachesSQLiteHandle(t *testing.T) {
 				{Role: role("assistant"), Text: "needle"},
 			},
 		},
-	}, searchCorpus{units: []searchUnit{{
+	}, testSearchCorpus(searchUnit{
 		conversationID: conversations[0].CacheKey(),
 		ordinal:        0,
 		text:           "needle",
-	}}})
+	}))
 
 	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -122,11 +122,11 @@ func TestStoreDeepSearchQueryIsUnavailableWhenSearchCorpusVersionIsStale(t *test
 				{Role: role("assistant"), Text: "use generate uuid for ids"},
 			},
 		},
-	}, searchCorpus{units: []searchUnit{{
+	}, testSearchCorpus(searchUnit{
 		conversationID: conversations[0].CacheKey(),
 		ordinal:        0,
 		text:           "use generate uuid for ids",
-	}}})
+	}))
 	setSQLiteMetaValue(t, archiveDir, metaSearchKey, strconv.Itoa(storeSearchCorpusVersion-1))
 
 	results, available, err := store.DeepSearch(context.Background(), archiveDir, "GENERATE_UUID", conversations)
@@ -149,11 +149,11 @@ func TestStoreDeepSearchUsesSQLiteIndex(t *testing.T) {
 				{Role: role("assistant"), Text: "needle"},
 			},
 		},
-	}, searchCorpus{units: []searchUnit{{
+	}, testSearchCorpus(searchUnit{
 		conversationID: conversations[0].CacheKey(),
 		ordinal:        0,
 		text:           "needle",
-	}}})
+	}))
 
 	results, available, err := store.DeepSearch(context.Background(), archiveDir, "needle", conversations)
 	require.NoError(t, err)
@@ -200,11 +200,11 @@ func TestStoreDeepSearchMatchesQueriesAcrossTokenizerSeparators(t *testing.T) {
 						{Role: role("assistant"), Text: testCase.text},
 					},
 				},
-			}, searchCorpus{units: []searchUnit{{
+			}, testSearchCorpus(searchUnit{
 				conversationID: conversations[0].CacheKey(),
 				ordinal:        0,
 				text:           testCase.text,
-			}}})
+			}))
 
 			results, available, err := store.DeepSearch(
 				context.Background(),
@@ -269,6 +269,14 @@ func writeSQLiteTestStore(
 	tb.Helper()
 	ctx := context.Background()
 	require.NoError(tb, writeCanonicalStoreAtomically(ctx, archiveDir, conversations, transcripts, corpus))
+}
+
+func testSearchCorpus(units ...searchUnit) searchCorpus {
+	grouped := make(map[string][]searchUnit)
+	for _, unit := range units {
+		grouped[unit.conversationID] = append(grouped[unit.conversationID], unit)
+	}
+	return searchCorpus{byConversation: grouped}
 }
 
 func setSQLiteMetaValue(tb testing.TB, archiveDir, key, value string) {

@@ -15,19 +15,50 @@ func setPlanCounts(conversations []conversation, transcripts map[string]sessionF
 
 func buildSearchUnits(conversationID string, session sessionFull) []searchUnit {
 	units := make([]searchUnit, 0, len(session.Messages)*3)
+	yieldSessionSearchUnits(session, func(ordinal int, text string) bool {
+		units = append(units, searchUnit{
+			conversationID: conversationID,
+			ordinal:        ordinal,
+			text:           text,
+		})
+		return true
+	})
+	return units
+}
+
+func yieldSessionSearchUnits(session sessionFull, yield func(int, string) bool) {
+	ordinal := 0
 	for _, msg := range session.Messages {
 		if !msg.IsVisible() {
 			continue
 		}
-		units = appendSearchUnits(units, conversationID, msg.Text)
+		ordinal = yieldSearchTextUnits(msg.Text, ordinal, yield)
 		for _, call := range msg.ToolCalls {
-			units = appendSearchUnits(units, conversationID, call.Summary)
+			ordinal = yieldSearchTextUnits(call.Summary, ordinal, yield)
 		}
 		for _, plan := range msg.Plans {
-			units = appendSearchUnits(units, conversationID, plan.Content)
+			ordinal = yieldSearchTextUnits(plan.Content, ordinal, yield)
 		}
 	}
-	return units
+}
+
+func yieldSearchTextUnits(text string, ordinal int, yield func(int, string) bool) int {
+	if text == "" {
+		return ordinal
+	}
+	for line := range strings.SplitSeq(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		for chunk := range chunkSearchText(trimmed, 160, 48) {
+			if !yield(ordinal, chunk) {
+				return ordinal
+			}
+			ordinal++
+		}
+	}
+	return ordinal
 }
 
 func appendSearchUnits(units []searchUnit, conversationID, text string) []searchUnit {
@@ -65,6 +96,10 @@ func chunkSearchText(text string, maxRunes, overlap int) iter.Seq[string] {
 			yield(text)
 			return
 		}
+		if isASCII(text) {
+			chunkSearchTextASCII(text, maxRunes, overlap, yield)
+			return
+		}
 		runes := []rune(text)
 		if len(runes) <= maxRunes {
 			yield(text)
@@ -82,6 +117,22 @@ func chunkSearchText(text string, maxRunes, overlap int) iter.Seq[string] {
 			if end == len(runes) {
 				return
 			}
+		}
+	}
+}
+
+func chunkSearchTextASCII(text string, maxRunes, overlap int, yield func(string) bool) {
+	if overlap >= maxRunes {
+		overlap = maxRunes / 2
+	}
+	step := maxRunes - overlap
+	for start := 0; start < len(text); start += step {
+		end := min(start+maxRunes, len(text))
+		if !yield(strings.TrimSpace(text[start:end])) {
+			return
+		}
+		if end == len(text) {
+			return
 		}
 	}
 }

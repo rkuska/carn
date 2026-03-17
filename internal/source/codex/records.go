@@ -205,15 +205,6 @@ func extractReasoningText(blocks summaryBlocks) string {
 	return strings.Join(parts, "\n")
 }
 
-func usageFromPayload(p *codexPayload) conv.TokenUsage {
-	usage := p.Info.TotalTokenUsage
-	return conv.TokenUsage{
-		InputTokens:          usage.InputTokens,
-		CacheReadInputTokens: usage.CachedInputTokens,
-		OutputTokens:         usage.OutputTokens + usage.ReasoningOutputTokens,
-	}
-}
-
 func buildToolCall(p *codexPayload) conv.ToolCall {
 	name := p.Name
 	if p.ItemType == responseTypeWebSearchCall {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -243,6 +244,66 @@ func TestScanAndLoadAcceptStringReasoningSummary(t *testing.T) {
 	assert.Equal(t, conv.RoleAssistant, session.Messages[1].Role)
 	assert.Equal(t, "Inspecting rollout schema drift.", session.Messages[1].Thinking)
 	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
+}
+
+func TestScanHandlesLargeCodexResponseContent(t *testing.T) {
+	t.Parallel()
+
+	rawDir := t.TempDir()
+	largeText := strings.Repeat("parser output ", codexScanBufferSize/4)
+	writeCodexRolloutFixture(t, rawDir, "rollout-2026-03-16T10-00-00-thread-large.jsonl", []map[string]any{
+		{
+			"timestamp": "2026-03-16T10:00:00Z",
+			"type":      recordTypeSessionMeta,
+			"payload": map[string]any{
+				"id":             "thread-large",
+				"timestamp":      "2026-03-16T10:00:00Z",
+				"cwd":            "/workspace/project",
+				"cli_version":    "0.114.0",
+				"model_provider": "openai",
+				"source":         "cli",
+				"git":            map[string]any{"branch": "main"},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:01Z",
+			"type":      recordTypeEventMsg,
+			"payload": map[string]any{
+				"type":    eventTypeUserMessage,
+				"message": "Explain the parser.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type":    responseTypeReasoning,
+				"summary": "Inspecting rollout schema drift.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:03Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type": responseTypeMessage,
+				"role": responseRoleAssistant,
+				"content": []map[string]any{
+					{"type": "output_text", "text": largeText},
+				},
+			},
+		},
+	})
+
+	conversations, err := New().Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	assert.Equal(t, "thread-large", conversations[0].ID())
+	assert.Equal(t, 2, conversations[0].TotalMessageCount())
+
+	session, err := New().Load(context.Background(), conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, strings.TrimSpace(largeText), session.Messages[1].Text)
 }
 
 func TestSourceOwnsSyncCandidates(t *testing.T) {

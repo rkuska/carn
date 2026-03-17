@@ -51,14 +51,15 @@ func tryIncrementalRebuildWithSources(
 		return fmt.Errorf("resolveIncrementalRebuildWithSources: %w", err)
 	}
 
-	parsedTranscripts, parsedCorpus, err := parseConversationsParallelWithSources(
+	results, err := parseConversationsParallelResultsWithSources(
 		ctx,
 		store.sources,
 		resolution.Conversations,
 	)
 	if err != nil {
-		return fmt.Errorf("parseConversationsParallel: %w", err)
+		return fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
+	parsedTranscripts, groupedUnits := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
 
 	if err := applySQLiteIncrementalRebuild(
@@ -67,7 +68,7 @@ func tryIncrementalRebuildWithSources(
 		resolution.ReplaceCacheKeys,
 		resolution.Conversations,
 		parsedTranscripts,
-		parsedCorpus,
+		groupedUnits,
 	); err != nil {
 		return fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
 	}
@@ -195,10 +196,13 @@ func appendIncrementalResolution(
 	}
 	return nil
 }
-func groupSearchUnitsByConversation(corpus searchCorpus, conversationCount int) map[string][]searchUnit {
-	grouped := make(map[string][]searchUnit, conversationCount)
-	for _, unit := range corpus.units {
-		grouped[unit.conversationID] = append(grouped[unit.conversationID], unit)
+
+func buildIncrementalParseOutputs(results []parseResult) (map[string]sessionFull, map[string][]searchUnit) {
+	transcripts := make(map[string]sessionFull, len(results))
+	groupedUnits := make(map[string][]searchUnit, len(results))
+	for _, result := range results {
+		transcripts[result.key] = result.session
+		groupedUnits[result.key] = result.units
 	}
-	return grouped
+	return transcripts, groupedUnits
 }

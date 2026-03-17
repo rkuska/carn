@@ -5,34 +5,46 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
 
-var blobBufferPool = sync.Pool{
-	New: func() any { return bytes.NewBuffer(make([]byte, 0, 8192)) },
+type blobEncoderState struct {
+	buf    bytes.Buffer
+	writer *bufio.Writer
+}
+
+var blobEncoderPool = sync.Pool{
+	New: func() any {
+		s := &blobEncoderState{}
+		s.buf.Grow(32768)
+		s.writer = bufio.NewWriter(&s.buf)
+		return s
+	},
 }
 
 var blobReaderPool = sync.Pool{
 	New: func() any { return bufio.NewReader(nil) },
 }
 
-func encodeSessionBlob(session sessionFull) ([]byte, error) {
-	buf := blobBufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer blobBufferPool.Put(buf)
+func withEncodedSessionBlob(session sessionFull, use func([]byte) error) error {
+	state := blobEncoderPool.Get().(*blobEncoderState)
+	state.buf.Reset()
+	state.writer.Reset(&state.buf)
+	defer blobEncoderPool.Put(state)
 
-	writer := bufio.NewWriter(buf)
-	if err := writeSessionFull(writer, session); err != nil {
-		return nil, fmt.Errorf("writeSessionFull: %w", err)
+	if err := writeSessionFull(state.writer, session); err != nil {
+		return fmt.Errorf("writeSessionFull: %w", err)
 	}
-	if err := writer.Flush(); err != nil {
-		return nil, fmt.Errorf("writer.Flush: %w", err)
+	if err := state.writer.Flush(); err != nil {
+		return fmt.Errorf("writer.Flush: %w", err)
 	}
-
-	result := make([]byte, buf.Len())
-	copy(result, buf.Bytes())
-	return result, nil
+	if err := use(state.buf.Bytes()); err != nil {
+		return fmt.Errorf("use: %w", err)
+	}
+	return nil
 }
 
 func decodeSessionBlob(blob []byte) (sessionFull, error) {
@@ -46,10 +58,26 @@ func marshalToolCountsCached(counts map[string]int) string {
 	if len(counts) == 0 {
 		return ""
 	}
-	raw, err := json.Marshal(counts)
-	if err != nil {
-		return ""
+
+	keys := make([]string, 0, len(counts))
+	size := 2
+	for key, value := range counts {
+		keys = append(keys, key)
+		size += len(key) + 4 + digits(value)
 	}
+	sort.Strings(keys)
+
+	raw := make([]byte, 0, size)
+	raw = append(raw, '{')
+	for i, key := range keys {
+		if i > 0 {
+			raw = append(raw, ',')
+		}
+		raw = strconv.AppendQuote(raw, key)
+		raw = append(raw, ':')
+		raw = strconv.AppendInt(raw, int64(counts[key]), 10)
+	}
+	raw = append(raw, '}')
 	return string(raw)
 }
 
@@ -89,4 +117,19 @@ func boolToInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+func digits(value int) int {
+	if value == 0 {
+		return 1
+	}
+	if value < 0 {
+		value = -value
+	}
+	count := 0
+	for value > 0 {
+		count++
+		value /= 10
+	}
+	return count
 }

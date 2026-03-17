@@ -14,8 +14,8 @@ func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
 	baseTS := time.Date(2026, 3, 8, 9, 0, 0, 0, time.UTC)
 	got := projectConversationTranscript(
 		[]parsedMessage{
-			{role: roleUser, text: "parent one", timestamp: baseTS},
-			{role: roleAssistant, text: "parent two", timestamp: baseTS.Add(2 * time.Minute)},
+			{message: message{Role: roleUser, Text: "parent one"}, timestamp: baseTS},
+			{message: message{Role: roleAssistant, Text: "parent two"}, timestamp: baseTS.Add(2 * time.Minute)},
 		},
 		[]parsedLinkedTranscript{
 			{
@@ -23,8 +23,8 @@ func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
 				title:  "sub task",
 				anchor: baseTS.Add(time.Minute),
 				messages: []parsedMessage{
-					{role: roleUser, text: "subagent prompt", timestamp: baseTS.Add(time.Minute)},
-					{role: roleAssistant, text: "subagent answer", timestamp: baseTS.Add(90 * time.Second)},
+					{message: message{Role: roleUser, Text: "subagent prompt"}, timestamp: baseTS.Add(time.Minute)},
+					{message: message{Role: roleAssistant, Text: "subagent answer"}, timestamp: baseTS.Add(90 * time.Second)},
 				},
 			},
 		},
@@ -37,32 +37,29 @@ func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
 	assert.Equal(t, "parent two", got[4].Text)
 }
 
-func TestProjectParsedMessagesKeepsViewerFieldsOnly(t *testing.T) {
+func TestProjectConversationTranscriptKeepsViewerFieldsOnly(t *testing.T) {
 	t.Parallel()
 
-	got := projectParsedMessages([]parsedMessage{
+	got := projectConversationTranscript([]parsedMessage{
 		{
-			role:      roleAssistant,
+			message: message{
+				Role:      roleAssistant,
+				Text:      "answer",
+				Thinking:  "reasoning",
+				ToolCalls: []toolCall{{Name: "Read", Summary: "/tmp/file.go"}},
+				ToolResults: []toolResult{{
+					ToolName:    "Read",
+					ToolSummary: "/tmp/file.go",
+					Content:     "package main",
+					IsError:     true,
+				}},
+				IsSidechain:    true,
+				IsAgentDivider: true,
+			},
 			timestamp: time.Date(2026, 3, 8, 9, 0, 0, 0, time.UTC),
-			text:      "answer",
-			thinking:  "reasoning",
-			toolCalls: []parsedToolCall{
-				{id: "toolu_1", name: "Read", summary: "/tmp/file.go"},
-			},
-			toolResults: []parsedToolResult{
-				{
-					toolUseID:   "toolu_1",
-					toolName:    "Read",
-					toolSummary: "/tmp/file.go",
-					content:     "package main",
-					isError:     true,
-				},
-			},
-			usage:          tokenUsage{InputTokens: 10, OutputTokens: 5},
-			isSidechain:    true,
-			isAgentDivider: true,
+			usage:     tokenUsage{InputTokens: 10, OutputTokens: 5},
 		},
-	})
+	}, nil)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, message{

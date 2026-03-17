@@ -32,17 +32,35 @@ func extractExitPlanResult(raw json.RawMessage, ts time.Time) (plan, bool) {
 func deduplicatePlans(messages []parsedMessage) {
 	seen := make(map[string]struct{})
 	for i := len(messages) - 1; i >= 0; i-- {
-		if len(messages[i].plans) == 0 {
+		if len(messages[i].message.Plans) == 0 {
 			continue
 		}
-		kept := messages[i].plans[:0]
-		for _, p := range messages[i].plans {
+		kept := messages[i].message.Plans[:0]
+		for _, p := range messages[i].message.Plans {
 			if _, dup := seen[p.FilePath]; dup {
 				continue
 			}
 			seen[p.FilePath] = struct{}{}
 			kept = append(kept, p)
 		}
-		messages[i].plans = kept
+		messages[i].message.Plans = kept
+	}
+}
+
+func deduplicateMessagePlans(messages []message) {
+	seen := make(map[string]struct{})
+	for i := len(messages) - 1; i >= 0; i-- {
+		if len(messages[i].Plans) == 0 {
+			continue
+		}
+		kept := messages[i].Plans[:0]
+		for _, p := range messages[i].Plans {
+			if _, dup := seen[p.FilePath]; dup {
+				continue
+			}
+			seen[p.FilePath] = struct{}{}
+			kept = append(kept, p)
+		}
+		messages[i].Plans = kept
 	}
 }

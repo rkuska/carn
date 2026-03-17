@@ -19,8 +19,12 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-var scanReaderPool = sync.Pool{
-	New: func() any { return bufio.NewReaderSize(nil, jsonlScanBufferSize) },
+var metadataReaderPool = sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, jsonlMetadataBufferSize) },
+}
+
+var parseReaderPool = sync.Pool{
+	New: func() any { return bufio.NewReaderSize(nil, jsonlParseBufferSize) },
 }
 
 var slugReaderPool = sync.Pool{
@@ -28,13 +32,14 @@ var slugReaderPool = sync.Pool{
 }
 
 const (
-	maxFirstMessage     = 200
-	maxToolResultChars  = 500
-	blockTypeText       = "text"
-	blockTypeToolUse    = "tool_use"
-	blockTypeThinking   = "thinking"
-	jsonlScanBufferSize = 512 * 1024
-	jsonlSlugBufferSize = 4 * 1024
+	maxFirstMessage         = 200
+	maxToolResultChars      = 500
+	blockTypeText           = "text"
+	blockTypeToolUse        = "tool_use"
+	blockTypeThinking       = "thinking"
+	jsonlMetadataBufferSize = 16 * 1024
+	jsonlParseBufferSize    = 8 * 1024
+	jsonlSlugBufferSize     = 4 * 1024
 )
 
 type sessionFile struct {
@@ -52,6 +57,12 @@ type scannedSessionResult struct {
 
 type parsedSessionMessagesResult struct {
 	messages []parsedMessage
+	ok       bool
+}
+
+type parsedSessionProjectionResult struct {
+	messages []message
+	usage    tokenUsage
 	ok       bool
 }
 

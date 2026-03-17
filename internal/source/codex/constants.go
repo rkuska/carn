@@ -1,7 +1,7 @@
 package codex
 
 const (
-	codexScanBufferSize = 1024 * 1024
+	codexScanBufferSize = 256 * 1024
 
 	recordTypeSessionMeta  = "session_meta"
 	recordTypeTurnContext  = "turn_context"

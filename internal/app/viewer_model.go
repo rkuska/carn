@@ -55,7 +55,7 @@ type viewerModel struct {
 	renderWrap           int
 	markdownCache        map[string]string
 	roleHeaderCache      map[roleHeaderKey]string
-	lastIndexedContent   string
+	renderCache          map[viewerRenderKey]viewerRenderValue
 	pendingGotoTopKey    bool
 	planExpanded         bool
 	actionMode           viewerActionMode

@@ -167,6 +167,89 @@ func TestStoreRebuildMovesClaudeConversationWhenSlugChanges(t *testing.T) {
 	assert.Equal(t, conversations[0].CacheKey(), results[0].CacheKey())
 }
 
+func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	incrementalArchive := t.TempDir()
+	fullArchive := t.TempDir()
+
+	incrementalRawDir := src.ProviderRawDir(incrementalArchive, conversationProvider("claude"))
+	fullRawDir := src.ProviderRawDir(fullArchive, conversationProvider("claude"))
+
+	writeTestConversation(t, incrementalRawDir, "project-a", "session-1", "keep", []string{
+		"keep answer",
+	})
+	changedIncremental := writeTestConversation(t, incrementalRawDir, "project-a", "session-2", "change", []string{
+		"before update",
+	})
+
+	writeTestConversation(t, fullRawDir, "project-a", "session-1", "keep", []string{
+		"keep answer",
+	})
+	writeTestConversation(t, fullRawDir, "project-a", "session-2", "change", []string{
+		"before update",
+	})
+
+	incrementalStore := New(claude.New())
+	fullStore := New(claude.New())
+	require.NoError(t, incrementalStore.Rebuild(ctx, incrementalArchive, conv.ProviderClaude, nil))
+	require.NoError(t, fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil))
+
+	changedFullPath := filepath.Join(fullRawDir, "project-a", "session-2.jsonl")
+	replaceClaudeAssistantText(t, changedIncremental.Sessions[0].FilePath, "before update", "after update")
+	replaceClaudeAssistantText(t, changedFullPath, "before update", "after update")
+
+	require.NoError(t, incrementalStore.Rebuild(
+		ctx,
+		incrementalArchive,
+		conv.ProviderClaude,
+		[]string{changedIncremental.Sessions[0].FilePath},
+	))
+	require.NoError(t, fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil))
+
+	incrementalConversations, err := incrementalStore.List(ctx, incrementalArchive)
+	require.NoError(t, err)
+	fullConversations, err := fullStore.List(ctx, fullArchive)
+	require.NoError(t, err)
+	assert.Equal(t, conversationListSnapshot(fullConversations), conversationListSnapshot(incrementalConversations))
+
+	changedByKey := make(map[string]conv.Conversation, len(fullConversations))
+	for _, conversation := range fullConversations {
+		changedByKey[conversation.CacheKey()] = conversation
+	}
+	for _, conversation := range incrementalConversations {
+		fullConversation, ok := changedByKey[conversation.CacheKey()]
+		require.True(t, ok)
+
+		incrementalSession, err := incrementalStore.Load(ctx, incrementalArchive, conversation)
+		require.NoError(t, err)
+		fullSession, err := fullStore.Load(ctx, fullArchive, fullConversation)
+		require.NoError(t, err)
+
+		assert.Equal(t, snapshotSession(fullSession), snapshotSession(incrementalSession))
+	}
+
+	incrementalResults, available, err := incrementalStore.DeepSearch(
+		ctx,
+		incrementalArchive,
+		"after update",
+		incrementalConversations,
+	)
+	require.NoError(t, err)
+	assert.True(t, available)
+
+	fullResults, available, err := fullStore.DeepSearch(
+		ctx,
+		fullArchive,
+		"after update",
+		fullConversations,
+	)
+	require.NoError(t, err)
+	assert.True(t, available)
+	assert.Equal(t, snapshotSearchResults(fullResults), snapshotSearchResults(incrementalResults))
+}
+
 func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 	t.Parallel()
 
@@ -394,4 +477,82 @@ func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {
 		return os.WriteFile(dstPath, data, 0o644)
 	})
 	require.NoError(tb, err)
+}
+
+func replaceClaudeAssistantText(t *testing.T, path, oldText, newText string) {
+	t.Helper()
+
+	rawData, err := os.ReadFile(path)
+	require.NoError(t, err)
+	updated := strings.ReplaceAll(string(rawData), oldText, newText)
+	require.NoError(t, os.WriteFile(path, []byte(updated), 0o644))
+}
+
+type conversationSnapshot struct {
+	cacheKey          string
+	name              string
+	firstMessage      string
+	project           string
+	sessionCount      int
+	planCount         int
+	totalMessages     int
+	totalMain         int
+	totalInputTokens  int
+	totalOutputTokens int
+}
+
+func conversationListSnapshot(conversations []conv.Conversation) []conversationSnapshot {
+	snapshots := make([]conversationSnapshot, 0, len(conversations))
+	for _, conversation := range conversations {
+		usage := conversation.TotalTokenUsage()
+		snapshots = append(snapshots, conversationSnapshot{
+			cacheKey:          conversation.CacheKey(),
+			name:              conversation.Name,
+			firstMessage:      conversation.FirstMessage(),
+			project:           conversation.Project.DisplayName,
+			sessionCount:      len(conversation.Sessions),
+			planCount:         conversation.PlanCount,
+			totalMessages:     conversation.TotalMessageCount(),
+			totalMain:         conversation.MainMessageCount(),
+			totalInputTokens:  usage.InputTokens,
+			totalOutputTokens: usage.OutputTokens,
+		})
+	}
+	return snapshots
+}
+
+type sessionStateSnapshot struct {
+	id               string
+	slug             string
+	project          string
+	messageCount     int
+	mainMessageCount int
+	messages         []conv.Message
+}
+
+func snapshotSession(session conv.Session) sessionStateSnapshot {
+	return sessionStateSnapshot{
+		id:               session.Meta.ID,
+		slug:             session.Meta.Slug,
+		project:          session.Meta.Project.DisplayName,
+		messageCount:     session.Meta.MessageCount,
+		mainMessageCount: session.Meta.MainMessageCount,
+		messages:         session.Messages,
+	}
+}
+
+type searchResultStateSnapshot struct {
+	cacheKey string
+	preview  string
+}
+
+func snapshotSearchResults(results []conv.Conversation) []searchResultStateSnapshot {
+	snapshots := make([]searchResultStateSnapshot, 0, len(results))
+	for _, result := range results {
+		snapshots = append(snapshots, searchResultStateSnapshot{
+			cacheKey: result.CacheKey(),
+			preview:  result.SearchPreview,
+		})
+	}
+	return snapshots
 }

@@ -15,7 +15,7 @@ func applySQLiteIncrementalRebuild(
 	replaceCacheKeys []string,
 	conversations []conversation,
 	transcripts map[string]sessionFull,
-	corpus searchCorpus,
+	groupedUnits map[string][]searchUnit,
 ) error {
 	if err := ensureSQLiteSchema(ctx, db); err != nil {
 		return fmt.Errorf("ensureSQLiteSchema: %w", err)
@@ -31,7 +31,6 @@ func applySQLiteIncrementalRebuild(
 		return fmt.Errorf("deleteSQLiteConversations: %w", err)
 	}
 
-	groupedUnits := groupSearchUnitsByConversation(corpus, len(conversations))
 	if _, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, groupedUnits); err != nil {
 		return fmt.Errorf("insertSQLiteConversations: %w", err)
 	}

@@ -31,6 +31,7 @@ func TestParseConversationWithSubagentsMergesDividerAndTranscript(t *testing.T) 
 
 	var sawDivider bool
 	var sawSubagentPrompt bool
+	var sawSubagentAnswer bool
 	for _, msg := range session.Messages {
 		if msg.IsAgentDivider {
 			sawDivider = true
@@ -38,8 +39,12 @@ func TestParseConversationWithSubagentsMergesDividerAndTranscript(t *testing.T) 
 		if msg.Text == "Check tokenizer edge cases." {
 			sawSubagentPrompt = true
 		}
+		if msg.Text == "Tokenizer edge case report" {
+			sawSubagentAnswer = true
+		}
 	}
 
 	assert.True(t, sawDivider)
 	assert.True(t, sawSubagentPrompt)
+	assert.True(t, sawSubagentAnswer)
 }

@@ -110,7 +110,7 @@ func TestReadSearchPreviewsDeduplicatesBeforeApplyingConversationLimit(t *testin
 			text:           strings.Repeat("before ", 8) + "important gamma unique line" + strings.Repeat(" after", 8),
 		},
 	)
-	corpus := searchCorpus{units: units}
+	corpus := testSearchCorpus(units...)
 
 	writeSQLiteTestStore(t, archiveDir, []conversation{conversationValue}, map[string]sessionFull{
 		conversationValue.CacheKey(): {
@@ -148,22 +148,38 @@ func TestReadSearchPreviewsGroupsDedupedPreviewsPerConversation(t *testing.T) {
 	second.Sessions[0].Timestamp = second.Sessions[0].Timestamp.Add(time.Minute)
 	second.Sessions[0].LastTimestamp = second.Sessions[0].LastTimestamp.Add(time.Minute)
 
-	corpus := searchCorpus{units: []searchUnit{
-		{conversationID: first.CacheKey(), ordinal: 0, text: strings.Repeat("common first ", 8) + "important repeated alpha"},
-		{conversationID: first.CacheKey(), ordinal: 1, text: strings.Repeat("common first ", 8) + "important repeated alpha"},
-		{conversationID: first.CacheKey(), ordinal: 2, text: strings.Repeat("before ", 8) + "important unique first"},
-		{
+	corpus := testSearchCorpus(
+		searchUnit{
+			conversationID: first.CacheKey(),
+			ordinal:        0,
+			text:           strings.Repeat("common first ", 8) + "important repeated alpha",
+		},
+		searchUnit{
+			conversationID: first.CacheKey(),
+			ordinal:        1,
+			text:           strings.Repeat("common first ", 8) + "important repeated alpha",
+		},
+		searchUnit{
+			conversationID: first.CacheKey(),
+			ordinal:        2,
+			text:           strings.Repeat("before ", 8) + "important unique first",
+		},
+		searchUnit{
 			conversationID: second.CacheKey(),
 			ordinal:        0,
 			text:           strings.Repeat("common second ", 8) + "important repeated beta",
 		},
-		{
+		searchUnit{
 			conversationID: second.CacheKey(),
 			ordinal:        1,
 			text:           strings.Repeat("common second ", 8) + "important repeated beta",
 		},
-		{conversationID: second.CacheKey(), ordinal: 2, text: strings.Repeat("before ", 8) + "important unique second"},
-	}}
+		searchUnit{
+			conversationID: second.CacheKey(),
+			ordinal:        2,
+			text:           strings.Repeat("before ", 8) + "important unique second",
+		},
+	)
 
 	writeSQLiteTestStore(t, archiveDir, []conversation{first, second}, map[string]sessionFull{
 		first.CacheKey():  {Meta: first.Sessions[0]},
@@ -205,11 +221,11 @@ func TestReadSearchPreviewsUsesStableSnippetEllipses(t *testing.T) {
 
 	writeSQLiteTestStore(t, archiveDir, []conversation{conversationValue}, map[string]sessionFull{
 		conversationValue.CacheKey(): {Meta: conversationValue.Sessions[0]},
-	}, searchCorpus{units: []searchUnit{{
+	}, testSearchCorpus(searchUnit{
 		conversationID: conversationValue.CacheKey(),
 		ordinal:        0,
 		text:           longChunk,
-	}}})
+	}))
 
 	db, err := openSQLiteDB(context.Background(), canonicalStorePath(archiveDir), true)
 	require.NoError(t, err)

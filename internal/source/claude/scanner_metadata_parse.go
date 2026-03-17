@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -8,26 +9,28 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-// metadataRecord flattens the outer JSONL record and the nested message object
-// into a single struct for one-pass JSON decoding. This avoids the double
-// unmarshal that jsonRecord + jsonMessage required.
-type metadataRecord struct {
-	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
-	Slug      string `json:"slug"`
-	CWD       string `json:"cwd"`
-	GitBranch string `json:"gitBranch"`
-	Version   string `json:"version"`
-	Timestamp string `json:"timestamp"`
-	IsMeta    bool   `json:"isMeta"`
-	Message   struct {
+// metadataScanRecord flattens the outer JSONL record and the nested message
+// object into a single struct for one-pass JSON decoding. This avoids the
+// double unmarshal that jsonRecord + jsonMessage required.
+type metadataScanRecord struct {
+	Type        string `json:"type"`
+	SessionID   string `json:"sessionId"`
+	Slug        string `json:"slug"`
+	CWD         string `json:"cwd"`
+	GitBranch   string `json:"gitBranch"`
+	Version     string `json:"version"`
+	Timestamp   string `json:"timestamp"`
+	IsMeta      bool   `json:"isMeta"`
+	IsSidechain bool   `json:"isSidechain"`
+	Message     struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
 		Model   string          `json:"model"`
+		Usage   *jsonUsage      `json:"usage"`
 	} `json:"message"`
 }
 
-func initSessionMetaFromRecord(meta *sessionMeta, rec metadataRecord) {
+func initSessionMetaFromRecord(meta *sessionMeta, rec metadataScanRecord) {
 	meta.ID = rec.SessionID
 	meta.Slug = rec.Slug
 	meta.CWD = rec.CWD
@@ -43,7 +46,7 @@ func initSessionMetaFromRecord(meta *sessionMeta, rec metadataRecord) {
 	}
 }
 
-func applyUserMetadata(meta *sessionMeta, rec metadataRecord) {
+func applyUserMetadata(meta *sessionMeta, rec metadataScanRecord) {
 	if meta.ID == "" {
 		initSessionMetaFromRecord(meta, rec)
 	}
@@ -62,10 +65,10 @@ func isUserContentText(content string) bool {
 
 func parseUserRecord(line []byte, meta *sessionMeta, found *bool) (bool, error) {
 	if *found && meta.Slug != "" {
-		return false, nil
+		return userRecordHasConversationContent(line), nil
 	}
 
-	var rec metadataRecord
+	var rec metadataScanRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return false, fmt.Errorf("json.Unmarshal: %w", err)
 	}
@@ -94,7 +97,7 @@ func parseAssistantRecord(
 		return false, nil
 	}
 
-	var rec metadataRecord
+	var rec metadataScanRecord
 	if err := json.Unmarshal(line, &rec); err != nil {
 		return false, fmt.Errorf("json.Unmarshal: %w", err)
 	}
@@ -123,10 +126,50 @@ func assistantContentHasConversationContent(raw json.RawMessage) bool {
 			if block.Thinking != "" {
 				return true
 			}
-		case "tool_use":
+		case blockTypeToolUse:
 			return true
 		}
 	}
 
 	return false
+}
+
+func userRecordHasConversationContent(line []byte) bool {
+	content, ok := extractFirstContentValue(line)
+	if !ok {
+		return false
+	}
+	content = bytes.TrimSpace(content)
+	if len(content) == 0 {
+		return false
+	}
+	if content[0] == '"' {
+		text, ok := decodeJSONStringFast(content)
+		if !ok {
+			return false
+		}
+		return isUserContentText(text)
+	}
+	return bytes.Contains(content, []byte(`"type":"tool_result"`)) ||
+		bytes.Contains(content, []byte(`"type":"text"`))
+}
+
+func extractFirstContentValue(line []byte) ([]byte, bool) {
+	const marker = `"content":`
+	start := bytes.Index(line, []byte(marker))
+	if start == -1 {
+		return nil, false
+	}
+	start += len(marker)
+	for start < len(line) && line[start] == ' ' {
+		start++
+	}
+	if start >= len(line) {
+		return nil, false
+	}
+	end := jsonValueEnd(line, start)
+	if end == -1 {
+		return nil, false
+	}
+	return line[start:end], true
 }
