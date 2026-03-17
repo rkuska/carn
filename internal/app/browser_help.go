@@ -130,7 +130,7 @@ func (m browserModel) helpSections() []helpSection {
 		)
 		sections := m.viewer.helpSections(extraActions)
 		if !m.viewer.hasActiveOverlay() {
-			sections = append(sections, logInfoSection(m.logFilePath))
+			sections = append(sections, logInfoSection(m.logFilePath), versionInfoSection())
 		}
 		return sections
 	}
@@ -175,6 +175,7 @@ func (m browserModel) helpSections() []helpSection {
 			items: actions,
 		},
 		logInfoSection(m.logFilePath),
+		versionInfoSection(),
 	}
 }
 

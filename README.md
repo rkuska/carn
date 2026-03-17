@@ -61,35 +61,32 @@ configuration status, and file counts. Press `enter` to import, or
 
 ## Installation
 
-Requires Go 1.25.2 or later. SQLite is bundled — no external dependencies.
+### Homebrew (macOS and Linux)
 
-Install the latest release:
+```bash
+brew install rkuska/carn/carn
+```
+
+### Binary download
+
+Download a pre-built binary from
+[Releases](https://github.com/rkuska/carn/releases) and place it in your
+`$PATH`.
+
+### From source
+
+Requires Go 1.25.2 or later. SQLite is bundled — no external dependencies.
 
 ```bash
 go install github.com/rkuska/carn@latest
 ```
 
-`go install` writes the binary to `$(go env GOBIN)` when `GOBIN` is set,
-otherwise to `$(go env GOPATH)/bin`. Make sure that directory is on your
-`PATH`, then start the app with:
-
-```bash
-carn
-```
-
-For the default Go workspace layout, that usually means:
-
-```bash
-export PATH="$(go env GOPATH)/bin:$PATH"
-```
-
-Or build from source:
+Or build manually:
 
 ```bash
 git clone https://github.com/rkuska/carn
 cd carn
 go build -o carn .
-./carn
 ```
 
 On first launch, carn scans source directories and builds its canonical
