@@ -49,6 +49,90 @@ func TestBuildFTSQuery(t *testing.T) {
 	}
 }
 
+func TestBuildFTSQuerySpecialCharacters(t *testing.T) {
+	t.Parallel()
+
+	db := ftsTestDB(t)
+	insertFTSText(t, db, 1, "alpha beta")
+
+	testCases := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{
+			name:  "parentheses",
+			query: "(foo)",
+			want:  `"(foo)"*`,
+		},
+		{
+			name:  "asterisk",
+			query: "foo*",
+			want:  `"foo*"*`,
+		},
+		{
+			name:  "backslash",
+			query: `foo\bar`,
+			want:  `"foo\bar"*`,
+		},
+		{
+			name:  "single quote",
+			query: "it's",
+			want:  `"it's"*`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildFTSQuery(testCase.query)
+
+			assert.Equal(t, testCase.want, got)
+			assert.Zero(t, ftsMatchCount(t, db, got))
+		})
+	}
+}
+
+func TestBuildFTSQueryUnicodeTerms(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, `"résumé"* AND "café"*`, buildFTSQuery("résumé café"))
+}
+
+func TestSearchTermsSplitsOnWhitespace(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{
+			name:  "tabs",
+			query: "alpha\tbeta",
+			want:  []string{"alpha", "beta"},
+		},
+		{
+			name:  "multiple spaces",
+			query: "alpha   beta   gamma",
+			want:  []string{"alpha", "beta", "gamma"},
+		},
+		{
+			name:  "leading and trailing whitespace",
+			query: "  alpha beta  ",
+			want:  []string{"alpha", "beta"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, testCase.want, searchTerms(testCase.query))
+		})
+	}
+}
+
 func TestBuildDeepSearchQueryUsesSingleMatchPass(t *testing.T) {
 	t.Parallel()
 

@@ -139,6 +139,56 @@ func TestBrowserClearSearchBindingFromListClearsQuery(t *testing.T) {
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[1].ID())
 }
 
+func TestBrowserSearchEscapeRestoresFullList(t *testing.T) {
+	t.Parallel()
+
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	beta := testNamedConversation("beta-id", "beta-session")
+
+	b := testBrowser(t)
+	b.search.baseConversations = []conv.Conversation{alpha, beta}
+	b.mainConversations = b.search.baseConversations
+
+	var cmds []tea.Cmd
+	b.search.query = testResyncBetaSlug
+	b.search.visibleConversations = []conv.Conversation{beta}
+	b.search.editing = true
+	b.searchInput.Focus()
+	b.searchInput.SetValue(testResyncBetaSlug)
+	b = b.setSearchItems(buildDeepSearchItems(testResyncBetaSlug, []conv.Conversation{beta}), &cmds)
+
+	b, _ = b.handleSearchKey(tea.KeyPressMsg{Code: tea.KeyEscape}, &cmds)
+
+	assert.False(t, b.search.editing)
+	assert.Equal(t, "", b.search.query)
+	assert.Equal(t, "", b.searchInput.Value())
+	require.Len(t, b.search.visibleConversations, 2)
+	assert.Equal(t, alpha.ID(), b.search.visibleConversations[0].ID())
+	assert.Equal(t, beta.ID(), b.search.visibleConversations[1].ID())
+}
+
+func TestBrowserSearchEnterKeepsQueryActive(t *testing.T) {
+	t.Parallel()
+
+	beta := testNamedConversation("beta-id", "beta-session")
+
+	b := testBrowser(t)
+	b.search.query = testResyncBetaSlug
+	b.search.visibleConversations = []conv.Conversation{beta}
+	b.search.editing = true
+	b.searchInput.Focus()
+	b.searchInput.SetValue(testResyncBetaSlug)
+
+	var cmds []tea.Cmd
+	b, _ = b.handleSearchKey(tea.KeyPressMsg{Code: tea.KeyEnter}, &cmds)
+
+	assert.False(t, b.search.editing)
+	assert.Equal(t, testResyncBetaSlug, b.search.query)
+	assert.Equal(t, testResyncBetaSlug, b.searchInput.Value())
+	require.Len(t, b.search.visibleConversations, 1)
+	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
+}
+
 func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +229,31 @@ func TestBrowserDeepSearchRefreshesWhenQueryChanges(t *testing.T) {
 
 	require.Len(t, b.search.visibleConversations, 1)
 	assert.Equal(t, beta.ID(), b.search.visibleConversations[0].ID())
+}
+
+func TestBrowserDeepSearchEmptyResultShowsEmptyList(t *testing.T) {
+	t.Parallel()
+
+	alpha := testNamedConversation("alpha-id", "alpha-session")
+	beta := testNamedConversation("beta-id", "beta-session")
+
+	b := testBrowser(t)
+	b.store = &fakeBrowserStore{}
+	b.search.baseConversations = []conv.Conversation{alpha, beta}
+	b.mainConversations = b.search.baseConversations
+
+	var cmds []tea.Cmd
+	b = b.applyFullConversationList(&cmds)
+
+	cmds = nil
+	b = b.setSearchQuery("missing", &cmds)
+	b, cmd := b.Update(deepSearchDebounceMsg{revision: b.search.revision, query: b.search.query})
+	require.NotNil(t, cmd)
+	b, _ = b.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
+
+	assert.Equal(t, searchStatusIdle, b.search.status)
+	assert.Empty(t, b.search.visibleConversations)
+	assert.Empty(t, b.list.Items())
 }
 
 func TestBrowserIgnoresStaleDeepSearchResults(t *testing.T) {

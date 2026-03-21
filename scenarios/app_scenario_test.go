@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
@@ -162,12 +164,162 @@ func TestScenarioDeepSearchSeparatorQueryShowsPreview(t *testing.T) {
 	harness.pressEnter()
 	harness.waitForText(t, "uuid-session")
 
-	harness.program.Send(tea.KeyPressMsg{Code: '/', Text: "/"})
-	for _, r := range "GENERATE_UUID" {
-		harness.program.Send(tea.KeyPressMsg{Code: r, Text: string(r)})
-	}
-
+	harness.typeSearchQuery("GENERATE_UUID")
 	harness.waitForText(t, "generate uuid")
+	harness.quit(t)
+}
+
+func TestScenarioDeepSearchNoResultsAndEscapeRestoresList(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:  "alpha.jsonl",
+		Slug:      "alpha-session",
+		SessionID: "alpha-session",
+		UserText:  "How should alpha work?",
+		Timestamp: time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC),
+	})
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "beta.jsonl",
+		Slug:          "beta-session",
+		SessionID:     "beta-session",
+		UserText:      "How should beta work?",
+		AssistantText: "Beta helper output",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 1, 0, 0, time.UTC),
+	})
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 2 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "alpha-session")
+	harness.waitForText(t, "beta-session")
+
+	harness.typeSearchQuery("nonexistent")
+	harness.waitForText(t, "No items.")
+
+	harness.program.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
+	harness.waitForText(t, "alpha-session")
+	harness.waitForText(t, "beta-session")
+
+	harness.quit(t)
+}
+
+func TestScenarioDeepSearchMultipleConversationsFiltersCorrectly(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "database-migration.jsonl",
+		Slug:          "database-migration",
+		SessionID:     "database-migration",
+		AssistantText: "Plan the database migration carefully.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 2, 0, 0, time.UTC),
+	})
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "database-schema.jsonl",
+		Slug:          "database-schema",
+		SessionID:     "database-schema",
+		AssistantText: "Review the database schema before rollout.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 1, 0, 0, time.UTC),
+	})
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "frontend-layout.jsonl",
+		Slug:          "frontend-layout",
+		SessionID:     "frontend-layout",
+		AssistantText: "Update the frontend layout for mobile.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC),
+	})
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 3 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "database-migration")
+	harness.waitForText(t, "database-schema")
+	harness.waitForText(t, "frontend-layout")
+
+	harness.typeSearchQuery("database")
+	harness.waitForText(t, "Plan the database migration carefully.")
+	harness.waitForText(t, "Review the database schema before rollout.")
+
+	view := harness.currentView()
+	require.Contains(t, view, "database-migration")
+	require.Contains(t, view, "database-schema")
+	require.NotContains(t, view, "frontend-layout")
+	require.Less(t, strings.Index(view, "database-migration"), strings.Index(view, "database-schema"))
+
+	harness.quit(t)
+}
+
+func TestScenarioDeepSearchClearWithCtrlLRestoresFullList(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "database.jsonl",
+		Slug:          "database-session",
+		SessionID:     "database-session",
+		AssistantText: "Review the database migration plan.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 1, 0, 0, time.UTC),
+	})
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "frontend.jsonl",
+		Slug:          "frontend-session",
+		SessionID:     "frontend-session",
+		AssistantText: "Refine the frontend layout.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC),
+	})
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 2 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "database-session")
+	harness.waitForText(t, "frontend-session")
+
+	harness.typeSearchQuery("database")
+	harness.waitForText(t, "Review the database migration plan.")
+	require.NotContains(t, harness.currentView(), "frontend-session")
+
+	harness.program.Send(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	harness.waitForText(t, "database-session")
+	harness.waitForText(t, "frontend-session")
+
+	harness.quit(t)
+}
+
+func TestScenarioDeepSearchDiacriticMatch(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "resume.jsonl",
+		Slug:          "resume-session",
+		SessionID:     "resume-session",
+		AssistantText: "Use a résumé parser for imported profiles.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 1, 0, 0, time.UTC),
+	})
+	workspace.WriteSession(t, helpers.SessionSpec{
+		FileName:      "frontend.jsonl",
+		Slug:          "frontend-session",
+		SessionID:     "frontend-session",
+		AssistantText: "Refine the frontend layout.",
+		Timestamp:     time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC),
+	})
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 2 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "resume-session")
+	harness.waitForText(t, "frontend-session")
+
+	harness.typeSearchQuery("resume")
+	harness.waitForText(t, "résumé")
+	require.NotContains(t, harness.currentView(), "frontend-session")
+
 	harness.quit(t)
 }
 

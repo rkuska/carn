@@ -123,6 +123,45 @@ func TestFindQueryMatchIndices(t *testing.T) {
 	}
 }
 
+func TestSearchPreviewTermsSplitsOnSymbols(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{
+			name:  "underscore",
+			query: "GENERATE_UUID",
+			want:  []string{"GENERATE", "UUID"},
+		},
+		{
+			name:  "slash",
+			query: "foo/bar",
+			want:  []string{"foo", "bar"},
+		},
+		{
+			name:  "mixed punctuation",
+			query: "path.to-file",
+			want:  []string{"path", "to", "file"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, testCase.want, searchPreviewTerms(testCase.query))
+		})
+	}
+}
+
+func TestFindQueryMatchIndicesNoOverlap(t *testing.T) {
+	t.Parallel()
+
+	assert.Nil(t, findQueryMatchIndices("alpha beta", "gamma"))
+}
+
 func TestSplitItemMatchesKeepsMetadataAndPreviewRangesSeparated(t *testing.T) {
 	t.Parallel()
 

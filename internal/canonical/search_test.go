@@ -1,6 +1,7 @@
 package canonical
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -89,6 +90,67 @@ func TestChunkSearchTextOverlapClamped(t *testing.T) {
 	for _, chunk := range chunks {
 		assert.LessOrEqual(t, len(chunk), 160)
 	}
+}
+
+func TestCanUseSearchFastPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		text   string
+		expect bool
+	}{
+		{name: "empty", text: "", expect: false},
+		{name: "pure ascii single line", text: "hello world", expect: true},
+		{name: "ascii with internal tab", text: "hello\tworld", expect: true},
+		{name: "ascii with newline", text: "hello\nworld", expect: false},
+		{name: "ascii with leading space", text: " hello", expect: false},
+		{name: "ascii with trailing tab", text: "hello\t", expect: false},
+		{name: "unicode", text: "héllo world", expect: false},
+		{name: "mixed ascii and emoji", text: "hello world 🚀", expect: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expect, canUseSearchFastPath(tt.text))
+		})
+	}
+}
+
+func TestChunkSearchTextPreservesAllContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "ascii", text: chunkSearchFixture("ascii")},
+		{name: "unicode", text: chunkSearchFixture("żółw漢字")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			chunks := slices.Collect(chunkSearchText(tt.text, 160, 48))
+			require.Greater(t, len(chunks), 1)
+			assert.Equal(t, tt.text, reassembleChunkedText(chunks))
+		})
+	}
+}
+
+func TestYieldSearchTextUnitsSkipsEmptyText(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	ordinal := yieldSearchTextUnits("", 7, func(int, string) bool {
+		called = true
+		return true
+	})
+
+	assert.False(t, called)
+	assert.Equal(t, 7, ordinal)
 }
 
 func TestAppendSearchUnitsEmpty(t *testing.T) {
@@ -235,4 +297,36 @@ func TestYieldSessionSearchUnitsMatchesBuildSearchUnits(t *testing.T) {
 	})
 
 	assert.Equal(t, want, got)
+}
+
+func chunkSearchFixture(prefix string) string {
+	var b strings.Builder
+	for i := range 80 {
+		fmt.Fprintf(&b, "%s-%03d|", prefix, i)
+	}
+	return b.String()
+}
+
+func reassembleChunkedText(chunks []string) string {
+	if len(chunks) == 0 {
+		return ""
+	}
+
+	merged := chunks[0]
+	for _, chunk := range chunks[1:] {
+		merged = appendChunkWithOverlap(merged, chunk)
+	}
+	return merged
+}
+
+func appendChunkWithOverlap(left, right string) string {
+	leftRunes := []rune(left)
+	rightRunes := []rune(right)
+	maxOverlap := min(len(leftRunes), len(rightRunes))
+	for overlap := maxOverlap; overlap > 0; overlap-- {
+		if slices.Equal(leftRunes[len(leftRunes)-overlap:], rightRunes[:overlap]) {
+			return left + string(rightRunes[overlap:])
+		}
+	}
+	return left + right
 }

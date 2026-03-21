@@ -156,6 +156,13 @@ func (h *programHarness) pressKey(r rune) {
 	h.program.Send(tea.KeyPressMsg{Code: r})
 }
 
+func (h *programHarness) typeSearchQuery(query string) {
+	h.program.Send(tea.KeyPressMsg{Code: '/', Text: "/"})
+	for _, r := range query {
+		h.program.Send(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+}
+
 func (h *programHarness) quit(tb testing.TB) {
 	tb.Helper()
 	h.mu.Lock()
