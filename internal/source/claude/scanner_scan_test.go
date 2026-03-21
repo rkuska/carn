@@ -16,8 +16,9 @@ func TestSourceScanGroupsFixtureCorpusIntoConversations(t *testing.T) {
 
 	baseDir := copyScannerFixtureCorpus(t)
 
-	conversations, err := New().Scan(context.Background(), baseDir)
+	scanResult, err := New().Scan(context.Background(), baseDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 	require.NotEmpty(t, conversations)
 
 	var sawSubagent bool
@@ -35,8 +36,9 @@ func TestSourceScanOwnsClaudeConversationRefs(t *testing.T) {
 
 	baseDir := copyScannerFixtureCorpus(t)
 
-	conversations, err := New().Scan(context.Background(), baseDir)
+	scanResult, err := New().Scan(context.Background(), baseDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 	require.NotEmpty(t, conversations)
 
 	var grouped conv.Conversation
@@ -80,8 +82,9 @@ func TestSourceScanSkipsCommandOnlySession(t *testing.T) {
 
 	baseDir := copyScannerFixtureCorpus(t)
 
-	conversations, err := New().Scan(context.Background(), baseDir)
+	scanResult, err := New().Scan(context.Background(), baseDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 
 	for _, conversation := range conversations {
 		assert.NotEqual(t, "command-only", conversation.Name)

@@ -41,6 +41,9 @@ Use these terms when referring to different parts of the project in prompts.
 | **Ref** (`conversationRef`) | A stable identifier for a conversation: `provider` + `id`. Used as cache key and for loading transcripts. |
 | **Provider Backend** | A source-specific implementation for one provider (for example Claude or Codex) that owns raw scan/load logic and provider-owned actions like resume. |
 | **Resume Target** | The generic canonical data needed to reopen a session: `provider`, `id`, and `cwd`. The app passes this to a provider backend instead of constructing provider-specific CLI commands itself. |
+| **Format Drift** | A raw-source schema change detected during scan, such as an unknown field, record type, or content block type. Logged as a warning and surfaced to the UI after import. |
+| **Drift Report** | The deduplicated set of **format drift** findings collected during one provider scan or rebuild pass. |
+| **Known Schema** | The provider-owned compile-time set of fields and type values considered expected by drift detection. |
 
 ## Import Wizard (first screen)
 

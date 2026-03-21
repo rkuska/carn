@@ -135,12 +135,12 @@ func makeBenchConversations(
 	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
 	rawDir := src.ProviderRawDir(archiveDir, conv.ProviderClaude)
 
-	conversations, err := source.Scan(ctx, rawDir)
+	scanResult, err := source.Scan(ctx, rawDir)
 	if err != nil {
 		b.Fatalf("source.Scan: %v", err)
 	}
 
-	return archiveDir, conversations, source
+	return archiveDir, scanResult.Conversations, source
 }
 
 func makeBenchCanonicalStore(
@@ -153,7 +153,7 @@ func makeBenchCanonicalStore(
 	store := New(source)
 	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
 
-	if err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
+	if _, err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
 		b.Fatalf("store.RebuildAll: %v", err)
 	}
 
@@ -272,7 +272,7 @@ func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
+		if _, err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
 			b.Fatalf("store.RebuildAll: %v", err)
 		}
 	}
@@ -287,7 +287,7 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := store.RebuildAll(
+		if _, err := store.RebuildAll(
 			context.Background(),
 			archiveDir,
 			map[conv.Provider][]string{conv.ProviderClaude: changedPaths},

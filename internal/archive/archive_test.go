@@ -26,8 +26,8 @@ func (s stubBackend) Provider() conv.Provider {
 	return s.provider
 }
 
-func (s stubBackend) Scan(context.Context, string) ([]conv.Conversation, error) {
-	return nil, nil
+func (s stubBackend) Scan(context.Context, string) (src.ScanResult, error) {
+	return src.ScanResult{}, nil
 }
 
 func (s stubBackend) Load(context.Context, conv.Conversation) (conv.Session, error) {

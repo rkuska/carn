@@ -1,0 +1,200 @@
+package codex
+
+import (
+	"bytes"
+	"encoding/json"
+
+	"github.com/buger/jsonparser"
+
+	src "github.com/rkuska/carn/internal/source"
+)
+
+var knownEventTypes = map[string]struct{}{
+	eventTypeTokenCount:     {},
+	eventTypeUserMessage:    {},
+	eventTypeAgentMessage:   {},
+	eventTypeAgentReasoning: {},
+	eventTypeItemCompleted:  {},
+	eventTypeTaskComplete:   {},
+}
+
+var knownUserMessageFields = map[string]struct{}{
+	"type":    {},
+	"message": {},
+}
+
+var knownAgentMessageFields = map[string]struct{}{
+	"type":    {},
+	"phase":   {},
+	"message": {},
+}
+
+var knownAgentReasoningFields = map[string]struct{}{
+	"type": {},
+	"text": {},
+}
+
+var knownItemCompletedFields = map[string]struct{}{
+	"type": {},
+	"item": {},
+}
+
+var knownCompletedItemFields = map[string]struct{}{
+	"type": {},
+	"id":   {},
+	"text": {},
+}
+
+var knownCompletedItemTypes = map[string]struct{}{
+	eventItemTypePlan: {},
+}
+
+var knownTaskCompleteFields = map[string]struct{}{
+	"type":               {},
+	"last_agent_message": {},
+}
+
+var knownTokenCountFields = map[string]struct{}{
+	"type": {},
+	"info": {},
+}
+
+var knownTokenCountInfoFields = map[string]struct{}{
+	"total_token_usage": {},
+}
+
+var knownTokenUsageFields = map[string]struct{}{
+	"input_tokens":            {},
+	"cached_input_tokens":     {},
+	"output_tokens":           {},
+	"reasoning_output_tokens": {},
+	"total_tokens":            {},
+}
+
+var (
+	phaseFieldMarker           = []byte(`"phase"`)
+	infoFieldMarker            = []byte(`"info"`)
+	totalTokenUsageFieldMarker = []byte(`"total_token_usage"`)
+	totalTokensFieldMarker     = []byte(`"total_tokens"`)
+)
+
+func detectEventPayloadDrift(payload []byte, report *src.DriftReport) {
+	eventType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
+	if ok {
+		detectEventTypeDrift(eventType, report)
+	}
+
+	switch eventType {
+	case eventTypeUserMessage:
+		recordUnknownTopLevelFields(report, "user_message_field", payload, isKnownUserMessageField)
+	case eventTypeAgentMessage:
+		recordUnknownTopLevelFields(report, "agent_message_field", payload, isKnownAgentMessageField)
+	case eventTypeAgentReasoning:
+		recordUnknownTopLevelFields(report, "agent_reasoning_field", payload, isKnownAgentReasoningField)
+	case eventTypeItemCompleted:
+		detectItemCompletedPayloadDrift(payload, report)
+	case eventTypeTaskComplete:
+		recordUnknownTopLevelFields(report, "task_complete_field", payload, isKnownTaskCompleteField)
+	case eventTypeTokenCount:
+		detectTokenCountPayloadDrift(payload, report)
+	}
+}
+
+func detectItemCompletedPayloadDrift(payload []byte, report *src.DriftReport) {
+	recordUnknownTopLevelFields(report, "item_completed_field", payload, isKnownItemCompletedField)
+	if item, ok := extractTopLevelRawJSONFieldByMarker(payload, itemFieldMarker); ok {
+		recordUnknownTopLevelFields(report, "completed_item_field", item, isKnownCompletedItemField)
+		if itemType, ok := extractTopLevelRawJSONStringFieldByMarker(item, typeFieldMarker); ok {
+			if _, known := knownCompletedItemTypes[itemType]; !known {
+				report.Record("completed_item_type", itemType)
+			}
+		}
+	}
+}
+
+func detectTokenCountPayloadDrift(payload []byte, report *src.DriftReport) {
+	recordUnknownTopLevelFields(report, "token_count_field", payload, isKnownTokenCountField)
+	if info, ok := extractTopLevelRawJSONFieldByMarker(payload, infoFieldMarker); ok {
+		recordUnknownTopLevelFields(report, "token_count_info_field", info, isKnownTokenCountInfoField)
+		if usage, ok := extractTopLevelRawJSONFieldByMarker(info, totalTokenUsageFieldMarker); ok {
+			recordUnknownTopLevelFields(report, "token_usage_field", usage, isKnownTokenUsageField)
+		}
+	}
+}
+
+func detectReasoningSummaryBlockDrift(summary json.RawMessage, report *src.DriftReport) {
+	summary = bytes.TrimSpace(summary)
+	if len(summary) == 0 {
+		return
+	}
+
+	switch summary[0] {
+	case '[':
+		_, err := jsonparser.ArrayEach(summary, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
+			if err != nil || dataType != jsonparser.Object {
+				return
+			}
+			detectReasoningSummaryObjectDrift(value, report)
+		})
+		if err != nil {
+			return
+		}
+	case '{':
+		detectReasoningSummaryObjectDrift(summary, report)
+	}
+}
+
+func detectReasoningSummaryObjectDrift(raw []byte, report *src.DriftReport) {
+	blockType, ok := extractTopLevelRawJSONStringFieldByMarker(raw, typeFieldMarker)
+	if !ok {
+		return
+	}
+	if _, known := knownReasoningSummaryBlockTypes[blockType]; known {
+		return
+	}
+	report.Record("reasoning_summary_block_type", blockType)
+}
+
+func isKnownUserMessageField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, messageFieldMarker)
+}
+
+func isKnownAgentMessageField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, phaseFieldMarker) ||
+		bytes.Equal(field, messageFieldMarker)
+}
+
+func isKnownAgentReasoningField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, textFieldMarker)
+}
+
+func isKnownItemCompletedField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, itemFieldMarker)
+}
+
+func isKnownCompletedItemField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, idFieldMarker) ||
+		bytes.Equal(field, textFieldMarker)
+}
+
+func isKnownTaskCompleteField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, lastAgentMessageFieldMarker)
+}
+
+func isKnownTokenCountField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, infoFieldMarker)
+}
+
+func isKnownTokenCountInfoField(field []byte) bool {
+	return bytes.Equal(field, totalTokenUsageFieldMarker)
+}
+
+func isKnownTokenUsageField(field []byte) bool {
+	return bytes.Equal(field, inputTokensFieldMarker) ||
+		bytes.Equal(field, cachedInputTokensFieldMarker) ||
+		bytes.Equal(field, outputTokensFieldMarker) ||
+		bytes.Equal(field, reasoningTokensFieldMarker) ||
+		bytes.Equal(field, totalTokensFieldMarker)
+}

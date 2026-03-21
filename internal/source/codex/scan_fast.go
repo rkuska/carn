@@ -11,22 +11,20 @@ import (
 var errScanPayloadMissing = errors.New("payload missing")
 
 func scanRolloutLine(line []byte, state *scanState) error {
-	if timestamp, ok := extractEnvelopeJSONStringFieldByMarker(line, timestampFieldMarker); ok {
-		state.observeRecordTimestamp(timestamp)
+	envelope := detectLineDrift(line, state.drift)
+	if envelope.timestamp != "" {
+		state.observeRecordTimestamp(envelope.timestamp)
 	}
-
-	recordType, ok := extractEnvelopeJSONStringFieldByMarker(line, typeFieldMarker)
-	if !ok {
+	if envelope.recordType == "" {
 		return nil
 	}
 
-	switch recordType {
+	switch envelope.recordType {
 	case recordTypeSessionMeta, recordTypeTurnContext, recordTypeResponseItem, recordTypeEventMsg:
-		payload, ok := extractPayload(line)
-		if !ok {
+		if !envelope.hasPayload {
 			return fmt.Errorf("scanRolloutLine_extractPayload: %w", errScanPayloadMissing)
 		}
-		return scanRolloutPayload(recordType, payload, state)
+		return scanRolloutPayload(envelope.recordType, envelope.payload, state)
 	default:
 		return nil
 	}

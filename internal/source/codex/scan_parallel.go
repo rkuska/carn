@@ -9,6 +9,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func listJSONLPaths(root string) ([]string, error) {
@@ -30,9 +32,9 @@ func listJSONLPaths(root string) ([]string, error) {
 	return paths, nil
 }
 
-func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout, error) {
+func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout, src.DriftReport, error) {
 	if len(paths) == 0 {
-		return nil, nil
+		return nil, src.DriftReport{}, nil
 	}
 
 	results := make([]scannedRollout, len(paths))
@@ -54,23 +56,23 @@ func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout
 			if err != nil {
 				return fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 			}
-			if ok {
-				results[index] = rollout
-				valid[index] = true
-			}
+			results[index] = rollout
+			valid[index] = ok
 			return nil
 		})
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, fmt.Errorf("errgroup.Wait: %w", err)
+		return nil, src.DriftReport{}, fmt.Errorf("errgroup.Wait: %w", err)
 	}
 
 	rollouts := make([]scannedRollout, 0, len(paths))
+	drift := src.NewDriftReport()
 	for i, ok := range valid {
+		drift.Merge(results[i].drift)
 		if ok {
 			rollouts = append(rollouts, results[i])
 		}
 	}
-	return rollouts, nil
+	return rollouts, drift, nil
 }

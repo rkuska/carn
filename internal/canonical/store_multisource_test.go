@@ -24,8 +24,8 @@ func (s stubMultiSource) Provider() conversationProvider {
 	return s.provider
 }
 
-func (s stubMultiSource) Scan(context.Context, string) ([]conversation, error) {
-	return s.conversations, nil
+func (s stubMultiSource) Scan(context.Context, string) (src.ScanResult, error) {
+	return src.ScanResult{Conversations: s.conversations}, nil
 }
 
 func (s stubMultiSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
@@ -98,7 +98,8 @@ func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 		},
 	)
 
-	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)

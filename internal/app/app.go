@@ -86,12 +86,15 @@ func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.importOverview.done {
 		m.state = viewBrowser
-		return m, tea.Batch(
-			m.browser.Init(),
-			func() tea.Msg {
-				return tea.WindowSizeMsg{Width: m.width, Height: m.height}
-			},
-		)
+		var cmds []tea.Cmd
+		appendCmd(&cmds, m.browser.Init())
+		appendCmd(&cmds, func() tea.Msg {
+			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+		})
+		if n, ok := driftNotification(m.importOverview.result.Drift); ok {
+			m.browser = m.browser.setNotification(n, &cmds)
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, cmd

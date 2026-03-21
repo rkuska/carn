@@ -26,9 +26,9 @@ func (s *stubIncrementalSource) Provider() conversationProvider {
 	return s.provider
 }
 
-func (s *stubIncrementalSource) Scan(context.Context, string) ([]conversation, error) {
+func (s *stubIncrementalSource) Scan(context.Context, string) (src.ScanResult, error) {
 	s.scanCalls++
-	return s.scanConversations, nil
+	return src.ScanResult{Conversations: s.scanConversations}, nil
 }
 
 func (s *stubIncrementalSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
@@ -69,7 +69,8 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 		},
 	}
 	store := New(source)
-	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
 
 	source.resolution = src.IncrementalResolution{
 		Conversations: []conversation{convValue},
@@ -85,7 +86,8 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 	}
 
 	rawPath := convValue.Sessions[0].FilePath
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath})
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, source.scanCalls)
 	assert.Equal(t, 1, source.resolveCalls)
@@ -122,7 +124,8 @@ func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsS
 		},
 	}
 	store := New(source)
-	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
 
 	setSQLiteMetaValue(t, archiveDir, metaSearchKey, strconv.Itoa(storeSearchCorpusVersion-1))
 	source.scanConversations = []conversation{convValue}
@@ -134,7 +137,8 @@ func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsS
 	}
 
 	rawPath := convValue.Sessions[0].FilePath
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{rawPath})
+	require.NoError(t, err)
 
 	assert.Equal(t, 2, source.scanCalls)
 	assert.Zero(t, source.resolveCalls)

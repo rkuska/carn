@@ -4,6 +4,7 @@ import (
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type Config struct {
@@ -53,6 +54,7 @@ type SyncResult struct {
 	Failed     int
 	Elapsed    time.Duration
 	StoreBuilt bool
+	Drift      src.ProviderDriftReports
 
 	files []syncFileResult
 }

@@ -120,6 +120,47 @@ func TestScenarioImportAndOpenTranscript(t *testing.T) {
 	golden.RequireEqual(t, harness.finalView(t))
 }
 
+func TestScenarioImportShowsDriftNotificationAfterContinuingToBrowser(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteRawSession(t, "project-a", "session-drift.jsonl", strings.Join([]string{
+		helpers.MustJSONForScenario(t, map[string]any{
+			"type":      "user",
+			"sessionId": "session-drift",
+			"slug":      "drift-session",
+			"timestamp": "2026-03-07T12:00:00Z",
+			"transport": "v2",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Check format drift.",
+			},
+		}),
+		helpers.MustJSONForScenario(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "session-drift",
+			"slug":      "drift-session",
+			"timestamp": "2026-03-07T12:00:01Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude-opus-4-1",
+				"content": []map[string]any{
+					{"type": "text", "text": "Drift detected."},
+				},
+			},
+		}),
+	}, "\n"))
+
+	harness := newScenarioHarness(t, workspace, 120, 40)
+	harness.waitForText(t, "Will import 1 archive files and rebuild the local store after confirmation.")
+
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "drift-session")
+	harness.waitForText(t, "format drift: 1 unknown fields/types detected in claude source (check logs)")
+
+	harness.quit(t)
+}
+
 func TestScenarioImportFixtureCorpusAndOpenTranscript(t *testing.T) {
 	workspace := helpers.NewWorkspace(t)
 	workspace.SeedFixtureCorpus(t)

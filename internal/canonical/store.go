@@ -11,11 +11,12 @@ import (
 	"sync"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type Source interface {
 	Provider() conv.Provider
-	Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error)
+	Scan(ctx context.Context, rawDir string) (src.ScanResult, error)
 	Load(ctx context.Context, conv conv.Conversation) (conv.Session, error)
 }
 
@@ -78,7 +79,7 @@ func (s *Store) Rebuild(
 	archiveDir string,
 	provider conv.Provider,
 	changedRawPaths []string,
-) error {
+) (src.ProviderDriftReports, error) {
 	if provider == "" {
 		return s.RebuildAll(ctx, archiveDir, nil)
 	}
@@ -89,7 +90,7 @@ func (s *Store) RebuildAll(
 	ctx context.Context,
 	archiveDir string,
 	changedRawPaths map[conv.Provider][]string,
-) error {
+) (src.ProviderDriftReports, error) {
 	s.invalidateCatalog(archiveDir)
 	return rebuildCanonicalStore(ctx, archiveDir, s, changedRawPaths)
 }

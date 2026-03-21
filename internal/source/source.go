@@ -50,10 +50,16 @@ type Progress struct {
 	Err              error
 }
 
+// ScanResult contains provider scan output and observed format drift.
+type ScanResult struct {
+	Conversations []conv.Conversation
+	Drift         DriftReport
+}
+
 // Backend is the generic provider contract used by archive, canonical, and app.
 type Backend interface {
 	Provider() conv.Provider
-	Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error)
+	Scan(ctx context.Context, rawDir string) (ScanResult, error)
 	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
 	Analyze(ctx context.Context, sourceDir, rawDir string, onProgress func(Progress)) (Analysis, error)
 	SyncCandidates(ctx context.Context, sourceDir, rawDir string) ([]SyncCandidate, error)
@@ -73,6 +79,7 @@ type IncrementalLookup interface {
 type IncrementalResolution struct {
 	Conversations    []conv.Conversation
 	ReplaceCacheKeys []string
+	Drift            DriftReport
 }
 
 // IncrementalResolver is an optional provider hook for targeted canonical

@@ -117,8 +117,12 @@ func (m appModel) handleResyncSyncFinished(msg importSyncFinishedMsg) (appModel,
 		return m.finishBrowserResyncError(fmt.Sprintf("resync failed: %v", msg.err))
 	}
 	m.browser = m.browser.prepareForResyncReload()
+	n := successNotification("resync finished").notification
+	if drift, ok := driftNotification(msg.result.Drift); ok {
+		n = drift
+	}
 	model, cmd := m.withBrowserNotification(
-		successNotification("resync finished").notification,
+		n,
 		loadSessionsCmdWithStore(m.ctx, m.cfg.ArchiveDir, m.browser.store),
 	)
 	return model, cmd, true

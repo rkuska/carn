@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type scanStats struct {
@@ -23,6 +25,7 @@ type scanStats struct {
 
 type metadataScanState struct {
 	result         *scannedSession
+	drift          *src.DriftReport
 	foundUser      bool
 	foundAssistant bool
 	stats          scanStats
@@ -68,6 +71,8 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 }
 
 func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
+	detectLineDrift(line, s.drift)
+
 	recRole := role(extractType(line))
 
 	switch recRole {
@@ -127,8 +132,11 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	result := scannedSession{
 		meta: sessionMeta{FilePath: filePath, Project: proj},
 	}
+	drift := src.NewDriftReport()
+	result.drift = drift
 	state := metadataScanState{
 		result: &result,
+		drift:  &drift,
 		stats: scanStats{
 			toolCounts: make(map[string]int),
 		},
@@ -155,6 +163,7 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	if len(state.stats.toolCounts) > 0 {
 		result.meta.ToolCounts = state.stats.toolCounts
 	}
+	result.drift = drift
 	return result, nil
 }
 

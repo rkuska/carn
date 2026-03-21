@@ -55,33 +55,41 @@ func firstTopLevelJSONStringFieldFast(raw []byte) (string, bool) {
 }
 
 func nextTopLevelJSONObjectField(raw []byte, start int) (string, int, int, bool) {
-	if start >= len(raw) || raw[start] != '"' {
+	keyRaw, valueStart, valueEnd, ok := nextTopLevelJSONObjectFieldRaw(raw, start)
+	if !ok {
 		return "", 0, 0, false
+	}
+	key, ok := decodeJSONStringFast(keyRaw)
+	if !ok {
+		return "", 0, 0, false
+	}
+	return key, valueStart, valueEnd, true
+}
+
+func nextTopLevelJSONObjectFieldRaw(raw []byte, start int) ([]byte, int, int, bool) {
+	if start >= len(raw) || raw[start] != '"' {
+		return nil, 0, 0, false
 	}
 
 	keyEnd := jsonStringEnd(raw, start)
 	if keyEnd == -1 {
-		return "", 0, 0, false
-	}
-	key, ok := decodeJSONStringFast(raw[start:keyEnd])
-	if !ok {
-		return "", 0, 0, false
+		return nil, 0, 0, false
 	}
 
 	valueStart := skipJSONObjectPadding(raw, keyEnd)
 	if valueStart >= len(raw) || raw[valueStart] != ':' {
-		return "", 0, 0, false
+		return nil, 0, 0, false
 	}
 	valueStart = skipJSONObjectPadding(raw, valueStart+1)
 	if valueStart >= len(raw) {
-		return "", 0, 0, false
+		return nil, 0, 0, false
 	}
 
 	valueEnd := jsonValueEnd(raw, valueStart)
 	if valueEnd == -1 {
-		return "", 0, 0, false
+		return nil, 0, 0, false
 	}
-	return key, valueStart, valueEnd, true
+	return raw[start:keyEnd], valueStart, valueEnd, true
 }
 
 func decodeJSONStringFast(raw []byte) (string, bool) {

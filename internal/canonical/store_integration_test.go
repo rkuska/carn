@@ -26,7 +26,7 @@ func TestStoreRebuildListLoadAndDeepSearch(t *testing.T) {
 	source := claude.New()
 	store := New(source)
 
-	err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
 	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
@@ -61,7 +61,8 @@ func TestStoreRebuildInvalidatesDeepSearchCache(t *testing.T) {
 	copyFixtureCorpusToArchive(t, archiveDir)
 
 	store := New(claude.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -83,7 +84,8 @@ func TestStoreRebuildInvalidatesDeepSearchCache(t *testing.T) {
 	updated := strings.ReplaceAll(string(rawData), "tests passed", "cache reloaded")
 	require.NoError(t, os.WriteFile(rawPath, []byte(updated), 0o644))
 
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, []string{rawPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, []string{rawPath})
+	require.NoError(t, err)
 
 	conversations, err = store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -109,17 +111,19 @@ func TestStoreRebuildAddsClaudeSessionToExistingSlugGroup(t *testing.T) {
 	writeTestConversation(t, claudeRawDir, "project-a", "session-1", "demo", []string{
 		"first answer",
 	})
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
+	require.NoError(t, err)
 
 	second := writeTestConversation(t, claudeRawDir, "project-a", "session-2", "demo", []string{
 		"second answer",
 	})
-	require.NoError(t, store.Rebuild(
+	_, err = store.Rebuild(
 		context.Background(),
 		archiveDir,
 		conv.ProviderClaude,
 		[]string{second.Sessions[0].FilePath},
-	))
+	)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -144,7 +148,8 @@ func TestStoreRebuildMovesClaudeConversationWhenSlugChanges(t *testing.T) {
 	convValue := writeTestConversation(t, claudeRawDir, "project-a", "session-1", "old-slug", []string{
 		"before rename",
 	})
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
+	require.NoError(t, err)
 
 	rawPath := convValue.Sessions[0].FilePath
 	rawData, err := os.ReadFile(rawPath)
@@ -153,7 +158,8 @@ func TestStoreRebuildMovesClaudeConversationWhenSlugChanges(t *testing.T) {
 	updated = strings.ReplaceAll(updated, "before rename", "after rename")
 	require.NoError(t, os.WriteFile(rawPath, []byte(updated), 0o644))
 
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, []string{rawPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, []string{rawPath})
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -194,20 +200,24 @@ func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t
 
 	incrementalStore := New(claude.New())
 	fullStore := New(claude.New())
-	require.NoError(t, incrementalStore.Rebuild(ctx, incrementalArchive, conv.ProviderClaude, nil))
-	require.NoError(t, fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil))
+	_, err := incrementalStore.Rebuild(ctx, incrementalArchive, conv.ProviderClaude, nil)
+	require.NoError(t, err)
+	_, err = fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil)
+	require.NoError(t, err)
 
 	changedFullPath := filepath.Join(fullRawDir, "project-a", "session-2.jsonl")
 	replaceClaudeAssistantText(t, changedIncremental.Sessions[0].FilePath, "before update", "after update")
 	replaceClaudeAssistantText(t, changedFullPath, "before update", "after update")
 
-	require.NoError(t, incrementalStore.Rebuild(
+	_, err = incrementalStore.Rebuild(
 		ctx,
 		incrementalArchive,
 		conv.ProviderClaude,
 		[]string{changedIncremental.Sessions[0].FilePath},
-	))
-	require.NoError(t, fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil))
+	)
+	require.NoError(t, err)
+	_, err = fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil)
+	require.NoError(t, err)
 
 	incrementalConversations, err := incrementalStore.List(ctx, incrementalArchive)
 	require.NoError(t, err)
@@ -277,7 +287,8 @@ func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -312,7 +323,8 @@ func TestStoreCodexLoadPreservesHiddenThinkingAndDoesNotIndexViewerNote(t *testi
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -350,7 +362,8 @@ func TestStoreDeepSearchSkipsHiddenSystemMessages(t *testing.T) {
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -374,7 +387,8 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutChanges(t *te
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
 
 	childPath := filepath.Join(
 		src.ProviderRawDir(archiveDir, conversationProvider("codex")),
@@ -388,7 +402,8 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutChanges(t *te
 	updated := strings.ReplaceAll(string(rawData), "Parser inspected.", "Parser revised.")
 	require.NoError(t, os.WriteFile(childPath, []byte(updated), 0o644))
 
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, []string{childPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, []string{childPath})
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
@@ -411,7 +426,8 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutIsDeleted(t *
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
 	store := New(codex.New())
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil))
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
 
 	childPath := filepath.Join(
 		src.ProviderRawDir(archiveDir, conversationProvider("codex")),
@@ -421,7 +437,8 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutIsDeleted(t *
 		"rollout-2026-03-13T10-10-00-019cexample-child.jsonl",
 	)
 	require.NoError(t, os.Remove(childPath))
-	require.NoError(t, store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, []string{childPath}))
+	_, err = store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, []string{childPath})
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)

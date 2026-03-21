@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type Source struct{}
@@ -17,12 +18,16 @@ func (Source) Provider() conv.Provider {
 	return conv.ProviderCodex
 }
 
-func (Source) Scan(ctx context.Context, rawDir string) ([]conv.Conversation, error) {
-	conversations, err := scanRollouts(ctx, rawDir)
+func (Source) Scan(ctx context.Context, rawDir string) (src.ScanResult, error) {
+	conversations, drift, err := scanRollouts(ctx, rawDir)
 	if err != nil {
-		return nil, fmt.Errorf("scan_scanRollouts: %w", err)
+		return src.ScanResult{}, fmt.Errorf("scan_scanRollouts: %w", err)
 	}
-	return conversations, nil
+	drift.Log(ctx, conv.ProviderCodex)
+	return src.ScanResult{
+		Conversations: conversations,
+		Drift:         drift,
+	}, nil
 }
 
 func (Source) Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error) {

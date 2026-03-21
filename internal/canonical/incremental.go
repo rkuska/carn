@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -24,24 +25,24 @@ func tryIncrementalRebuildWithSources(
 	archiveDir string,
 	store *Store,
 	changedRawPaths map[conversationProvider][]string,
-) error {
+) (src.ProviderDriftReports, error) {
 	needsRebuild, err := store.needsRebuild(ctx, archiveDir)
 	if err != nil {
-		return fmt.Errorf("store.needsRebuild: %w", err)
+		return src.ProviderDriftReports{}, fmt.Errorf("store.needsRebuild: %w", err)
 	}
 	if needsRebuild {
-		return errors.New("store requires full rebuild")
+		return src.ProviderDriftReports{}, errors.New("store requires full rebuild")
 	}
 
 	db, err := store.loadDB(ctx, archiveDir)
 	if err != nil {
-		return fmt.Errorf("store.loadDB: %w", err)
+		return src.ProviderDriftReports{}, fmt.Errorf("store.loadDB: %w", err)
 	}
 	if err = ensureSQLiteSchema(ctx, db); err != nil {
-		return fmt.Errorf("ensureSQLiteSchema: %w", err)
+		return src.ProviderDriftReports{}, fmt.Errorf("ensureSQLiteSchema: %w", err)
 	}
 
-	resolution, err := resolveIncrementalRebuildWithSources(
+	resolution, drift, err := resolveIncrementalRebuildWithSources(
 		ctx,
 		archiveDir,
 		store.sources,
@@ -49,7 +50,7 @@ func tryIncrementalRebuildWithSources(
 		sqliteIncrementalLookup{db: db},
 	)
 	if err != nil {
-		return fmt.Errorf("resolveIncrementalRebuildWithSources: %w", err)
+		return drift, fmt.Errorf("resolveIncrementalRebuildWithSources: %w", err)
 	}
 
 	results, err := parseConversationsParallelResultsWithSources(
@@ -58,7 +59,7 @@ func tryIncrementalRebuildWithSources(
 		resolution.Conversations,
 	)
 	if err != nil {
-		return fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
+		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
 	parsedTranscripts, groupedUnits := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
@@ -71,13 +72,13 @@ func tryIncrementalRebuildWithSources(
 		parsedTranscripts,
 		groupedUnits,
 	); err != nil {
-		return fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
+		return drift, fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
 	}
 
 	zerolog.Ctx(ctx).Info().
 		Int("changed", len(resolution.Conversations)).
 		Msg("incremental rebuild completed")
-	return nil
+	return drift, nil
 }
 
 func resolveIncrementalRebuildWithSources(
@@ -86,13 +87,14 @@ func resolveIncrementalRebuildWithSources(
 	sources sourceRegistry,
 	changedRawPaths map[conversationProvider][]string,
 	lookup src.IncrementalLookup,
-) (src.IncrementalResolution, error) {
+) (src.IncrementalResolution, src.ProviderDriftReports, error) {
 	resolution := src.IncrementalResolution{
 		Conversations:    make([]conversation, 0),
 		ReplaceCacheKeys: make([]string, 0),
 	}
 	seenConversations := make(map[string]struct{})
 	seenReplaceKeys := make(map[string]struct{})
+	drift := src.NewProviderDriftReports()
 
 	for provider, paths := range changedRawPaths {
 		if len(paths) == 0 {
@@ -107,19 +109,21 @@ func resolveIncrementalRebuildWithSources(
 			lookup,
 		)
 		if err != nil {
-			return src.IncrementalResolution{}, fmt.Errorf(
+			return src.IncrementalResolution{}, drift, fmt.Errorf(
 				"resolveIncrementalProvider_%s: %w",
 				provider,
 				err,
 			)
 		}
+		resolution.Drift.Merge(providerResolution.Drift)
+		drift.MergeProvider(conv.Provider(provider), providerResolution.Drift)
 		if err := appendIncrementalResolution(
 			&resolution,
 			providerResolution,
 			seenConversations,
 			seenReplaceKeys,
 		); err != nil {
-			return src.IncrementalResolution{}, fmt.Errorf(
+			return src.IncrementalResolution{}, drift, fmt.Errorf(
 				"appendIncrementalResolution_%s: %w",
 				provider,
 				err,
@@ -128,7 +132,7 @@ func resolveIncrementalRebuildWithSources(
 	}
 
 	resolution.ReplaceCacheKeys = src.DedupeAndSort(resolution.ReplaceCacheKeys)
-	return resolution, nil
+	return resolution, drift, nil
 }
 
 func resolveIncrementalProvider(
@@ -164,6 +168,7 @@ func resolveIncrementalProvider(
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("resolver.ResolveIncremental: %w", err)
 	}
+	resolution.Drift.Log(ctx, conv.Provider(provider))
 	return resolution, nil
 }
 

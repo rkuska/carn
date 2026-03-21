@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type subagentLink struct {
@@ -15,8 +16,9 @@ type subagentLink struct {
 }
 
 type scannedRollout struct {
-	meta conv.SessionMeta
-	link subagentLink
+	meta  conv.SessionMeta
+	link  subagentLink
+	drift src.DriftReport
 }
 
 func parseSubagentLink(raw json.RawMessage) (subagentLink, bool) {

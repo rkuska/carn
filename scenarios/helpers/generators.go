@@ -115,6 +115,30 @@ func (w Workspace) WriteSession(tb testing.TB, spec SessionSpec) string {
 	return path
 }
 
+// WriteRawSession writes raw JSONL content into the source workspace.
+func (w Workspace) WriteRawSession(tb testing.TB, project, fileName, content string) string {
+	tb.Helper()
+
+	if project == "" {
+		project = "project-a"
+	}
+	if fileName == "" {
+		fileName = "session-1.jsonl"
+	}
+
+	projectDir := filepath.Join(w.SourceDir, project)
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		tb.Fatalf("os.MkdirAll project: %v", err)
+	}
+
+	path := filepath.Join(projectDir, fileName)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		tb.Fatalf("os.WriteFile: %v", err)
+	}
+
+	return path
+}
+
 func withSessionDefaults(spec SessionSpec) SessionSpec {
 	if spec.Project == "" {
 		spec.Project = "project-a"
@@ -149,6 +173,12 @@ func mustJSON(tb testing.TB, value any) string {
 	}
 
 	return string(raw)
+}
+
+// MustJSONForScenario marshals a value for scenario JSONL fixtures.
+func MustJSONForScenario(tb testing.TB, value any) string {
+	tb.Helper()
+	return mustJSON(tb, value)
 }
 
 func fixtureCorpusDir(tb testing.TB) string {

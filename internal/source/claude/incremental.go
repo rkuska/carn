@@ -19,7 +19,7 @@ func (Source) ResolveIncremental(
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
 ) (src.IncrementalResolution, error) {
-	targetsByProject, replaceKeys, err := resolveIncrementalTargets(
+	targetsByProject, replaceKeys, drift, err := resolveIncrementalTargets(
 		ctx,
 		rawDir,
 		changedRawPaths,
@@ -29,14 +29,21 @@ func (Source) ResolveIncremental(
 		return src.IncrementalResolution{}, fmt.Errorf("resolveIncrementalTargets: %w", err)
 	}
 
-	conversations, err := collectIncrementalProjectConversations(ctx, rawDir, targetsByProject, replaceKeys)
+	conversations, projectDrift, err := collectIncrementalProjectConversations(
+		ctx,
+		rawDir,
+		targetsByProject,
+		replaceKeys,
+	)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("collectIncrementalProjectConversations: %w", err)
 	}
+	drift.Merge(projectDrift)
 
 	return src.IncrementalResolution{
 		Conversations:    conversations,
 		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
+		Drift:            drift,
 	}, nil
 }
 
@@ -50,14 +57,16 @@ func resolveIncrementalTargets(
 	rawDir string,
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
-) (map[string]incrementalProjectTarget, map[string]struct{}, error) {
+) (map[string]incrementalProjectTarget, map[string]struct{}, src.DriftReport, error) {
 	targetsByProject := make(map[string]incrementalProjectTarget)
 	replaceKeys := make(map[string]struct{})
+	drift := src.NewDriftReport()
 
 	for _, path := range src.DedupeAndSort(changedRawPaths) {
-		target, replaceKey, err := resolveIncrementalPath(ctx, rawDir, path, lookup)
+		target, replaceKey, pathDrift, err := resolveIncrementalPath(ctx, rawDir, path, lookup)
+		drift.Merge(pathDrift)
 		if err != nil {
-			return nil, nil, fmt.Errorf("resolveIncrementalPath: %w", err)
+			return nil, nil, drift, fmt.Errorf("resolveIncrementalPath: %w", err)
 		}
 		if replaceKey != "" {
 			replaceKeys[replaceKey] = struct{}{}
@@ -72,7 +81,7 @@ func resolveIncrementalTargets(
 		targetsByProject[target.groupDirName] = state
 	}
 
-	return targetsByProject, replaceKeys, nil
+	return targetsByProject, replaceKeys, drift, nil
 }
 
 type incrementalResolvedPath struct {
@@ -86,12 +95,12 @@ func resolveIncrementalPath(
 	rawDir string,
 	path string,
 	lookup src.IncrementalLookup,
-) (incrementalResolvedPath, string, error) {
+) (incrementalResolvedPath, string, src.DriftReport, error) {
 	if err := ctx.Err(); err != nil {
-		return incrementalResolvedPath{}, "", fmt.Errorf("resolveIncrementalPath_ctx: %w", err)
+		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("resolveIncrementalPath_ctx: %w", err)
 	}
 	if _, err := os.Stat(path); err != nil {
-		return incrementalResolvedPath{}, "", fmt.Errorf(
+		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf(
 			"resolveIncrementalPath_osStat_%s: %w",
 			filepath.Base(path),
 			err,
@@ -100,23 +109,23 @@ func resolveIncrementalPath(
 
 	replaceKey, err := lookupIncrementalReplaceKey(ctx, path, lookup)
 	if err != nil {
-		return incrementalResolvedPath{}, "", fmt.Errorf("lookupIncrementalReplaceKey: %w", err)
+		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("lookupIncrementalReplaceKey: %w", err)
 	}
 
 	file, err := incrementalSessionFile(rawDir, path)
 	if err != nil {
-		return incrementalResolvedPath{}, "", fmt.Errorf("incrementalSessionFile: %w", err)
+		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("incrementalSessionFile: %w", err)
 	}
 	scanned, err := scanSessionFile(ctx, file)
 	if err != nil {
-		return incrementalResolvedPath{}, "", fmt.Errorf("scanSessionFile: %w", err)
+		return incrementalResolvedPath{}, "", scanned.drift, fmt.Errorf("scanSessionFile: %w", err)
 	}
 
 	return incrementalResolvedPath{
 		groupDirName: file.groupDirName,
 		project:      file.project,
 		cacheKey:     incrementalConversationCacheKey(scanned),
-	}, replaceKey, nil
+	}, replaceKey, scanned.drift, nil
 }
 
 func lookupIncrementalReplaceKey(
@@ -139,9 +148,10 @@ func collectIncrementalProjectConversations(
 	rawDir string,
 	targetsByProject map[string]incrementalProjectTarget,
 	replaceKeys map[string]struct{},
-) ([]conversation, error) {
+) ([]conversation, src.DriftReport, error) {
 	conversations := make([]conversation, 0)
 	currentKeys := make(map[string]struct{})
+	drift := src.NewDriftReport()
 	projectNames := make([]string, 0, len(targetsByProject))
 	for projectDirName := range targetsByProject {
 		projectNames = append(projectNames, projectDirName)
@@ -149,14 +159,15 @@ func collectIncrementalProjectConversations(
 	sort.Strings(projectNames)
 
 	for _, projectDirName := range projectNames {
-		projectConversations, err := scanIncrementalProjectConversations(
+		projectConversations, projectDrift, err := scanIncrementalProjectConversations(
 			ctx,
 			rawDir,
 			projectDirName,
 			targetsByProject[projectDirName],
 		)
+		drift.Merge(projectDrift)
 		if err != nil {
-			return nil, fmt.Errorf("scanIncrementalProjectConversations: %w", err)
+			return nil, drift, fmt.Errorf("scanIncrementalProjectConversations: %w", err)
 		}
 		for _, conversation := range projectConversations {
 			cacheKey := conversation.CacheKey()
@@ -169,7 +180,7 @@ func collectIncrementalProjectConversations(
 		}
 	}
 
-	return conversations, nil
+	return conversations, drift, nil
 }
 
 func scanIncrementalProjectConversations(
@@ -177,7 +188,7 @@ func scanIncrementalProjectConversations(
 	rawDir string,
 	projectDirName string,
 	target incrementalProjectTarget,
-) ([]conversation, error) {
+) ([]conversation, src.DriftReport, error) {
 	projDir := filepath.Join(rawDir, projectDirName)
 	files, err := discoverProjectSessionFiles(
 		projDir,
@@ -186,11 +197,11 @@ func scanIncrementalProjectConversations(
 		rawDir,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("discoverProjectSessionFiles: %w", err)
+		return nil, src.DriftReport{}, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
-	sessions, err := scanSessionFilesParallel(ctx, files)
+	sessions, drift, err := scanSessionFilesParallel(ctx, files)
 	if err != nil {
-		return nil, fmt.Errorf("scanSessionFilesParallel: %w", err)
+		return nil, drift, fmt.Errorf("scanSessionFilesParallel: %w", err)
 	}
 
 	filtered := make([]conversation, 0)
@@ -200,7 +211,7 @@ func scanIncrementalProjectConversations(
 		}
 		filtered = append(filtered, conversation)
 	}
-	return filtered, nil
+	return filtered, drift, nil
 }
 
 func incrementalSessionFile(rawDir, path string) (sessionFile, error) {

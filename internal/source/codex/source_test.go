@@ -20,8 +20,9 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	t.Parallel()
 
 	rawDir := copyCodexFixtureDir(t)
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 	require.Len(t, conversations, 3)
 
 	byID := make(map[string]conv.Conversation, len(conversations))
@@ -56,8 +57,9 @@ func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 	t.Parallel()
 
 	rawDir := copyCodexFixtureDir(t)
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 	require.Len(t, conversations, 3)
 
 	colliding := make([]conv.Conversation, 0, len(conversations))
@@ -78,8 +80,9 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	t.Parallel()
 
 	rawDir := copyCodexFixtureDir(t)
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 
 	byID := make(map[string]conv.Conversation, len(conversations))
 	for _, conversation := range conversations {
@@ -145,8 +148,9 @@ func TestLoadKeepsDividerWhenLinkedSubagentTranscriptIsUnavailable(t *testing.T)
 	t.Parallel()
 
 	rawDir := copyCodexFixtureDir(t)
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
+	conversations := scanResult.Conversations
 
 	var main conv.Conversation
 	for _, conversation := range conversations {
@@ -235,11 +239,11 @@ func TestScanAndLoadAcceptStringReasoningSummary(t *testing.T) {
 		},
 	})
 
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 1)
+	require.Len(t, scanResult.Conversations, 1)
 
-	session, err := New().Load(context.Background(), conversations[0])
+	session, err := New().Load(context.Background(), scanResult.Conversations[0])
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 2)
 	assert.Equal(t, conv.RoleAssistant, session.Messages[1].Role)
@@ -293,11 +297,11 @@ func TestScanAndLoadAcceptObjectReasoningSummary(t *testing.T) {
 		},
 	})
 
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 1)
+	require.Len(t, scanResult.Conversations, 1)
 
-	session, err := New().Load(context.Background(), conversations[0])
+	session, err := New().Load(context.Background(), scanResult.Conversations[0])
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 2)
 	assert.Equal(t, conv.RoleAssistant, session.Messages[1].Role)
@@ -353,13 +357,13 @@ func TestScanHandlesLargeCodexResponseContent(t *testing.T) {
 		},
 	})
 
-	conversations, err := New().Scan(context.Background(), rawDir)
+	scanResult, err := New().Scan(context.Background(), rawDir)
 	require.NoError(t, err)
-	require.Len(t, conversations, 1)
-	assert.Equal(t, "thread-large", conversations[0].ID())
-	assert.Equal(t, 2, conversations[0].TotalMessageCount())
+	require.Len(t, scanResult.Conversations, 1)
+	assert.Equal(t, "thread-large", scanResult.Conversations[0].ID())
+	assert.Equal(t, 2, scanResult.Conversations[0].TotalMessageCount())
 
-	session, err := New().Load(context.Background(), conversations[0])
+	session, err := New().Load(context.Background(), scanResult.Conversations[0])
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 2)
 	assert.Equal(t, strings.TrimSpace(largeText), session.Messages[1].Text)

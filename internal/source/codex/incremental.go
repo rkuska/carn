@@ -18,7 +18,7 @@ func (Source) ResolveIncremental(
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
 ) (src.IncrementalResolution, error) {
-	changedRollouts, changedByID, err := scanChangedRollouts(ctx, changedRawPaths)
+	changedRollouts, changedByID, drift, err := scanChangedRollouts(ctx, changedRawPaths)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("scanChangedRollouts: %w", err)
 	}
@@ -28,14 +28,16 @@ func (Source) ResolveIncremental(
 		return src.IncrementalResolution{}, fmt.Errorf("buildIncrementalFamilies: %w", err)
 	}
 
-	conversations, replaceKeys, err := resolveIncrementalFamilies(ctx, rootIDs, families, lookup)
+	conversations, replaceKeys, familyDrift, err := resolveIncrementalFamilies(ctx, rootIDs, families, lookup)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("resolveIncrementalFamilies: %w", err)
 	}
+	drift.Merge(familyDrift)
 
 	return src.IncrementalResolution{
 		Conversations:    conversations,
 		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
+		Drift:            drift,
 	}, nil
 }
 
@@ -68,15 +70,17 @@ func resolveIncrementalFamilies(
 	rootIDs []string,
 	families map[string][]scannedRollout,
 	lookup src.IncrementalLookup,
-) ([]conv.Conversation, map[string]struct{}, error) {
+) ([]conv.Conversation, map[string]struct{}, src.DriftReport, error) {
 	conversations := make([]conv.Conversation, 0)
 	currentKeys := make(map[string]struct{})
 	replaceKeys := make(map[string]struct{})
+	drift := src.NewDriftReport()
 
 	for _, rootID := range rootIDs {
-		resolved, err := resolveIncrementalFamily(ctx, rootID, families[rootID], lookup)
+		resolved, familyDrift, err := resolveIncrementalFamily(ctx, rootID, families[rootID], lookup)
+		drift.Merge(familyDrift)
 		if err != nil {
-			return nil, nil, fmt.Errorf("resolveIncrementalFamily: %w", err)
+			return nil, nil, drift, fmt.Errorf("resolveIncrementalFamily: %w", err)
 		}
 		appendIncrementalFamilyConversations(&conversations, currentKeys, resolved.conversations)
 		for _, cacheKey := range resolved.replaceCacheKeys {
@@ -84,7 +88,7 @@ func resolveIncrementalFamilies(
 		}
 	}
 
-	return conversations, replaceKeys, nil
+	return conversations, replaceKeys, drift, nil
 }
 
 type resolvedIncrementalFamily struct {
@@ -97,21 +101,21 @@ func resolveIncrementalFamily(
 	rootID string,
 	changed []scannedRollout,
 	lookup src.IncrementalLookup,
-) (resolvedIncrementalFamily, error) {
+) (resolvedIncrementalFamily, src.DriftReport, error) {
 	stored, ok, err := lookup.ConversationBySessionID(ctx, conv.ProviderCodex, rootID)
 	if err != nil {
-		return resolvedIncrementalFamily{}, fmt.Errorf("lookup.ConversationBySessionID: %w", err)
+		return resolvedIncrementalFamily{}, src.DriftReport{}, fmt.Errorf("lookup.ConversationBySessionID: %w", err)
 	}
 
-	grouped, err := scanIncrementalFamily(ctx, buildIncrementalFamilyPaths(stored, ok, changed))
+	grouped, drift, err := scanIncrementalFamily(ctx, buildIncrementalFamilyPaths(stored, ok, changed))
 	if err != nil {
-		return resolvedIncrementalFamily{}, fmt.Errorf("scanIncrementalFamily: %w", err)
+		return resolvedIncrementalFamily{}, drift, fmt.Errorf("scanIncrementalFamily: %w", err)
 	}
 
 	return resolvedIncrementalFamily{
 		conversations:    filterIncrementalFamilyConversations(grouped, rootID, ok),
 		replaceCacheKeys: incrementalFamilyReplaceKeys(grouped, stored, ok),
-	}, nil
+	}, drift, nil
 }
 
 func buildIncrementalFamilyPaths(
@@ -182,24 +186,26 @@ func appendIncrementalFamilyConversations(
 func scanChangedRollouts(
 	ctx context.Context,
 	changedRawPaths []string,
-) ([]scannedRollout, map[string]scannedRollout, error) {
+) ([]scannedRollout, map[string]scannedRollout, src.DriftReport, error) {
 	rollouts := make([]scannedRollout, 0, len(changedRawPaths))
 	byID := make(map[string]scannedRollout, len(changedRawPaths))
+	drift := src.NewDriftReport()
 
 	for _, path := range src.DedupeAndSort(changedRawPaths) {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
+			return nil, nil, drift, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
 		}
 		if _, err := os.Stat(path); err != nil {
-			return nil, nil, fmt.Errorf("scanChangedRollouts_osStat_%s: %w", filepath.Base(path), err)
+			return nil, nil, drift, fmt.Errorf("scanChangedRollouts_osStat_%s: %w", filepath.Base(path), err)
 		}
 
 		rollout, ok, err := scanRollout(path)
+		drift.Merge(rollout.drift)
 		if err != nil {
-			return nil, nil, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
+			return nil, nil, drift, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if !ok {
-			return nil, nil, fmt.Errorf(
+			return nil, nil, drift, fmt.Errorf(
 				"scanChangedRollouts_%s: %w",
 				filepath.Base(path),
 				errors.New("changed rollout missing session metadata"),
@@ -208,7 +214,7 @@ func scanChangedRollouts(
 		rollouts = append(rollouts, rollout)
 		byID[rollout.meta.ID] = rollout
 	}
-	return rollouts, byID, nil
+	return rollouts, byID, drift, nil
 }
 
 func resolveIncrementalRootID(
@@ -251,7 +257,7 @@ func resolveIncrementalRootID(
 func scanIncrementalFamily(
 	ctx context.Context,
 	familyPaths map[string]struct{},
-) ([]conv.Conversation, error) {
+) ([]conv.Conversation, src.DriftReport, error) {
 	paths := make([]string, 0, len(familyPaths))
 	for path := range familyPaths {
 		paths = append(paths, path)
@@ -259,18 +265,20 @@ func scanIncrementalFamily(
 	sort.Strings(paths)
 
 	rollouts := make([]scannedRollout, 0, len(paths))
+	drift := src.NewDriftReport()
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("scanIncrementalFamily_ctx: %w", err)
+			return nil, drift, fmt.Errorf("scanIncrementalFamily_ctx: %w", err)
 		}
 		rollout, ok, err := scanRollout(path)
+		drift.Merge(rollout.drift)
 		if err != nil {
-			return nil, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
+			return nil, drift, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if !ok {
 			continue
 		}
 		rollouts = append(rollouts, rollout)
 	}
-	return groupRollouts(rollouts), nil
+	return groupRollouts(rollouts), drift, nil
 }

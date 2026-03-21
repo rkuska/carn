@@ -54,7 +54,9 @@ func (p Pipeline) Run(ctx context.Context, onProgress func(SyncProgress)) (SyncR
 			})
 		}
 
-		if err := p.store.RebuildAll(ctx, p.cfg.ArchiveDir, changedPaths); err != nil {
+		drift, err := p.store.RebuildAll(ctx, p.cfg.ArchiveDir, changedPaths)
+		result.Drift = drift
+		if err != nil {
 			return result, fmt.Errorf("run_store.RebuildAll: %w", err)
 		}
 

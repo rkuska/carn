@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -49,11 +50,11 @@ func rebuildCanonicalStore(
 	archiveDir string,
 	store *Store,
 	changedRawPaths map[conversationProvider][]string,
-) error {
+) (src.ProviderDriftReports, error) {
 	if hasChangedRawPaths(changedRawPaths) {
-		err := tryIncrementalRebuildWithSources(ctx, archiveDir, store, changedRawPaths)
+		drift, err := tryIncrementalRebuildWithSources(ctx, archiveDir, store, changedRawPaths)
 		if err == nil {
-			return nil
+			return drift, nil
 		}
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
@@ -61,12 +62,12 @@ func rebuildCanonicalStore(
 	zerolog.Ctx(ctx).Info().Msg("starting full canonical rebuild")
 
 	if err := store.invalidateDB(archiveDir); err != nil {
-		return fmt.Errorf("invalidateDB: %w", err)
+		return src.ProviderDriftReports{}, fmt.Errorf("invalidateDB: %w", err)
 	}
 
-	conversations, err := scanRegisteredConversations(ctx, archiveDir, store.sources)
+	conversations, drift, err := scanRegisteredConversations(ctx, archiveDir, store.sources)
 	if err != nil {
-		return fmt.Errorf("scanRegisteredConversations: %w", err)
+		return drift, fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
 	if err := writeCanonicalStoreStreamingAtomically(
@@ -75,19 +76,20 @@ func rebuildCanonicalStore(
 		conversations,
 		store.sources,
 	); err != nil {
-		return fmt.Errorf("writeCanonicalStoreStreamingAtomically: %w", err)
+		return drift, fmt.Errorf("writeCanonicalStoreStreamingAtomically: %w", err)
 	}
 
 	zerolog.Ctx(ctx).Info().Int("conversations", len(conversations)).Msg("canonical rebuild completed")
-	return nil
+	return drift, nil
 }
 
 func scanRegisteredConversations(
 	ctx context.Context,
 	archiveDir string,
 	sources sourceRegistry,
-) ([]conversation, error) {
+) ([]conversation, src.ProviderDriftReports, error) {
 	conversations := make([]conversation, 0)
+	drift := src.NewProviderDriftReports()
 	for _, source := range sources.providers() {
 		provider := conversationProvider(source.Provider())
 		rawDir := src.ProviderRawDir(archiveDir, provider)
@@ -95,16 +97,17 @@ func scanRegisteredConversations(
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			return nil, fmt.Errorf("statDir_%s: %w", provider, fmt.Errorf("os.Stat: %w", err))
+			return nil, drift, fmt.Errorf("statDir_%s: %w", provider, fmt.Errorf("os.Stat: %w", err))
 		}
 
 		scanned, err := source.Scan(ctx, rawDir)
 		if err != nil {
-			return nil, fmt.Errorf("source.Scan_%s: %w", provider, err)
+			return nil, drift, fmt.Errorf("source.Scan_%s: %w", provider, err)
 		}
-		conversations = append(conversations, scanned...)
+		drift.MergeProvider(conv.Provider(provider), scanned.Drift)
+		conversations = append(conversations, scanned.Conversations...)
 	}
-	return conversations, nil
+	return conversations, drift, nil
 }
 
 func parseConversationsParallel(

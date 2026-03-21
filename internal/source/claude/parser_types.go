@@ -1,11 +1,16 @@
 package claude
 
-import "time"
+import (
+	"time"
+
+	src "github.com/rkuska/carn/internal/source"
+)
 
 type scannedSession struct {
 	meta                   sessionMeta
 	groupKey               groupKey
 	hasConversationContent bool
+	drift                  src.DriftReport
 }
 
 type scannedProject struct {

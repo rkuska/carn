@@ -23,8 +23,8 @@ func (s stubSource) Provider() conversationProvider {
 	return conversationProvider("claude")
 }
 
-func (s stubSource) Scan(context.Context, string) ([]conversation, error) {
-	return s.scanConversations, nil
+func (s stubSource) Scan(context.Context, string) (src.ScanResult, error) {
+	return src.ScanResult{Conversations: s.scanConversations}, nil
 }
 
 func (s stubSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
@@ -152,7 +152,8 @@ func TestStoreRebuildAllPersistsStreamingSearchAndPlans(t *testing.T) {
 	store := New(source)
 	require.NoError(t, os.MkdirAll(src.ProviderRawDir(archiveDir, conversationProvider("claude")), 0o755))
 
-	require.NoError(t, store.RebuildAll(context.Background(), archiveDir, nil))
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
 
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)

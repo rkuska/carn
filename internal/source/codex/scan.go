@@ -7,6 +7,7 @@ import (
 	"io"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 type scanState struct {
@@ -16,22 +17,23 @@ type scanState struct {
 	lastRole   conv.Role
 	lastText   string
 	link       subagentLink
+	drift      *src.DriftReport
 }
 
-func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, error) {
+func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, src.DriftReport, error) {
 	paths, err := listJSONLPaths(rawDir)
 	if err != nil {
-		return nil, fmt.Errorf("listJSONLPaths: %w", err)
+		return nil, src.DriftReport{}, fmt.Errorf("listJSONLPaths: %w", err)
 	}
 	if len(paths) == 0 {
-		return nil, nil
+		return nil, src.DriftReport{}, nil
 	}
 
-	rollouts, err := scanRolloutsParallel(ctx, paths)
+	rollouts, drift, err := scanRolloutsParallel(ctx, paths)
 	if err != nil {
-		return nil, fmt.Errorf("scanRolloutsParallel: %w", err)
+		return nil, src.DriftReport{}, fmt.Errorf("scanRolloutsParallel: %w", err)
 	}
-	return groupRollouts(rollouts), nil
+	return groupRollouts(rollouts), drift, nil
 }
 
 func scanRollout(path string) (_ scannedRollout, _ bool, retErr error) {
@@ -48,7 +50,7 @@ func scanRollout(path string) (_ scannedRollout, _ bool, retErr error) {
 
 	state := newScanState(path)
 	if scanErr := scanRolloutReader(br, &state); scanErr != nil {
-		return scannedRollout{}, false, fmt.Errorf("scanRolloutReader: %w", scanErr)
+		return scannedRollout{drift: derefDriftReport(state.drift)}, false, fmt.Errorf("scanRolloutReader: %w", scanErr)
 	}
 
 	return state.rollout()
@@ -76,10 +78,12 @@ func scanRolloutReader(br *bufio.Reader, state *scanState) error {
 }
 
 func newScanState(path string) scanState {
+	drift := src.NewDriftReport()
 	return scanState{
 		meta: conv.SessionMeta{
 			FilePath: path,
 		},
+		drift: &drift,
 	}
 }
 
@@ -124,7 +128,7 @@ func (s *scanState) recordToolCallName(name string) {
 
 func (s *scanState) rollout() (scannedRollout, bool, error) {
 	if s.meta.ID == "" {
-		return scannedRollout{}, false, nil
+		return scannedRollout{drift: derefDriftReport(s.drift)}, false, nil
 	}
 
 	meta := s.meta
@@ -143,5 +147,12 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 		meta.Slug = slugFromThreadID(meta.ID)
 	}
 
-	return scannedRollout{meta: meta, link: s.link}, true, nil
+	return scannedRollout{meta: meta, link: s.link, drift: derefDriftReport(s.drift)}, true, nil
+}
+
+func derefDriftReport(report *src.DriftReport) src.DriftReport {
+	if report == nil {
+		return src.DriftReport{}
+	}
+	return *report
 }
