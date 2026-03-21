@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"bytes"
 	"strings"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -17,6 +18,10 @@ func classifyResponseMessage(role string, raw []byte) (visibleMessage, bool) {
 	return classifyTextMessage(role, extractScanContentText(raw))
 }
 
+func classifyResponseMessageRaw(roleRaw []byte, raw []byte) (visibleMessage, bool) {
+	return classifyTextMessageRaw(roleRaw, extractScanContentText(raw))
+}
+
 func classifyEventUserMessage(text string) (visibleMessage, bool) {
 	return classifyTextMessage(responseRoleUser, text)
 }
@@ -27,6 +32,38 @@ func classifyEventAssistantMessage(text string) (visibleMessage, bool) {
 
 func classifyTaskCompleteMessage(text string) (visibleMessage, bool) {
 	return classifyEventAssistantMessage(text)
+}
+
+func classifyTextMessageRaw(roleRaw []byte, text string) (visibleMessage, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return visibleMessage{}, false
+	}
+
+	switch {
+	case bytes.Equal(roleRaw, responseRoleDeveloperRaw):
+		return hiddenSystemMessage(text), true
+	case bytes.Equal(roleRaw, responseRoleUserRaw):
+		if notification, ok := unwrapTagText(text, "subagent_notification"); ok {
+			return visibleMessage{
+				role:           conv.RoleUser,
+				text:           notification,
+				isAgentDivider: true,
+			}, true
+		}
+		if isCodexBootstrapMessage(text) {
+			return hiddenSystemMessage(text), true
+		}
+		return visibleMessage{role: conv.RoleUser, text: text}, true
+	case bytes.Equal(roleRaw, responseRoleAssistantRaw):
+		return visibleMessage{role: conv.RoleAssistant, text: text}, true
+	default:
+		role, ok := readRawJSONString(roleRaw)
+		if !ok {
+			return visibleMessage{}, false
+		}
+		return classifyTextMessage(role, text)
+	}
 }
 
 func classifyTextMessage(role string, text string) (visibleMessage, bool) {

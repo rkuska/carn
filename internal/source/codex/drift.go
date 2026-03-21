@@ -119,78 +119,59 @@ var (
 	sandboxPolicyFieldMarker  = []byte(`"sandbox_policy"`)
 )
 
-func detectRecordTypeDrift(recordType string, report *src.DriftReport) {
-	if recordType == "" {
-		return
-	}
-	if _, ok := knownRecordTypes[recordType]; ok {
-		return
-	}
-	report.Record("record_type", recordType)
+func detectRecordTypeDrift(recordTypeRaw []byte, report *src.DriftReport) {
+	recordUnknownValue(report, "record_type", recordTypeRaw, isKnownRecordTypeRaw)
 }
 
-func detectResponseItemTypeDrift(itemType string, report *src.DriftReport) {
-	if itemType == "" {
-		return
-	}
-	if _, ok := knownResponseItemTypes[itemType]; ok {
-		return
-	}
-	report.Record("response_item_type", itemType)
+func detectResponseItemTypeDrift(itemTypeRaw []byte, report *src.DriftReport) {
+	recordUnknownValue(report, "response_item_type", itemTypeRaw, isKnownResponseItemTypeRaw)
 }
 
-func detectEventTypeDrift(eventType string, report *src.DriftReport) {
-	if eventType == "" {
-		return
-	}
-	if _, ok := knownEventTypes[eventType]; ok {
-		return
-	}
-	report.Record("event_type", eventType)
+func detectEventTypeDrift(eventTypeRaw []byte, report *src.DriftReport) {
+	recordUnknownValue(report, "event_type", eventTypeRaw, isKnownEventTypeRaw)
 }
 
-func detectPayloadFieldDrift(recordType string, payload []byte, report *src.DriftReport) {
-	switch recordType {
-	case recordTypeSessionMeta:
+func detectPayloadFieldDrift(recordTypeRaw []byte, payload []byte, report *src.DriftReport) {
+	switch {
+	case bytes.Equal(recordTypeRaw, recordTypeSessionMetaRaw):
 		recordUnknownTopLevelFields(report, "session_meta_field", payload, isKnownSessionMetaField)
 		if git, ok := extractTopLevelRawJSONFieldByMarker(payload, gitFieldMarker); ok {
 			recordUnknownTopLevelFields(report, "git_field", git, isKnownGitField)
 		}
-	case recordTypeTurnContext:
+	case bytes.Equal(recordTypeRaw, recordTypeTurnContextRaw):
 		recordUnknownTopLevelFields(report, "turn_context_field", payload, isKnownTurnContextField)
-	case recordTypeResponseItem:
+	case bytes.Equal(recordTypeRaw, recordTypeResponseItemRaw):
 		detectResponseItemPayloadDrift(payload, report)
-	case recordTypeEventMsg:
+	case bytes.Equal(recordTypeRaw, recordTypeEventMsgRaw):
 		detectEventPayloadDrift(payload, report)
 	}
 }
 
 func detectResponseItemPayloadDrift(payload []byte, report *src.DriftReport) {
-	itemType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
-	if ok {
-		detectResponseItemTypeDrift(itemType, report)
-	}
+	itemTypeRaw, _ := extractTopLevelRawJSONStringByMarker(payload, typeFieldMarker)
+	detectResponseItemTypeDrift(itemTypeRaw, report)
 
-	switch itemType {
-	case responseTypeMessage:
+	switch {
+	case bytes.Equal(itemTypeRaw, responseTypeMessageRaw):
 		detectResponseMessagePayloadDrift(payload, report)
-	case responseTypeReasoning:
+	case bytes.Equal(itemTypeRaw, responseTypeReasoningRaw):
 		detectReasoningPayloadDrift(payload, report)
-	case responseTypeFunctionCall:
+	case bytes.Equal(itemTypeRaw, responseTypeFunctionCallRaw):
 		recordUnknownTopLevelFields(report, "function_call_field", payload, isKnownFunctionCallField)
-	case responseTypeCustomToolCall:
+	case bytes.Equal(itemTypeRaw, responseTypeCustomToolCallRaw):
 		recordUnknownTopLevelFields(report, "custom_tool_call_field", payload, isKnownCustomToolCallField)
-	case responseTypeFunctionCallOutput, responseTypeCustomToolCallOutput:
+	case bytes.Equal(itemTypeRaw, responseTypeFunctionCallOutputRaw),
+		bytes.Equal(itemTypeRaw, responseTypeCustomToolCallOutputRaw):
 		recordUnknownTopLevelFields(report, "tool_call_output_field", payload, isKnownToolCallOutputField)
-	case responseTypeWebSearchCall:
+	case bytes.Equal(itemTypeRaw, responseTypeWebSearchCallRaw):
 		recordUnknownTopLevelFields(report, "web_search_call_field", payload, isKnownWebSearchCallField)
 	}
 }
 
 func detectResponseMessagePayloadDrift(payload []byte, report *src.DriftReport) {
 	recordUnknownTopLevelFields(report, "response_message_field", payload, isKnownResponseMessageField)
-	if role, ok := extractTopLevelRawJSONStringFieldByMarker(payload, roleFieldMarker); ok {
-		detectRoleDrift(role, report)
+	if roleRaw, ok := extractTopLevelRawJSONStringByMarker(payload, roleFieldMarker); ok {
+		detectRoleDrift(roleRaw, report)
 	}
 	if content, ok := extractTopLevelRawJSONFieldByMarker(payload, contentFieldMarker); ok {
 		detectContentBlockDrift(content, report)
@@ -204,14 +185,8 @@ func detectReasoningPayloadDrift(payload []byte, report *src.DriftReport) {
 	}
 }
 
-func detectRoleDrift(role string, report *src.DriftReport) {
-	if role == "" {
-		return
-	}
-	if _, ok := knownRoles[role]; ok {
-		return
-	}
-	report.Record("role", role)
+func detectRoleDrift(roleRaw []byte, report *src.DriftReport) {
+	recordUnknownValue(report, "role", roleRaw, isKnownRoleRaw)
 }
 
 func detectContentBlockDrift(content json.RawMessage, report *src.DriftReport) {
@@ -224,14 +199,11 @@ func detectContentBlockDrift(content json.RawMessage, report *src.DriftReport) {
 		if err != nil || dataType != jsonparser.Object {
 			return
 		}
-		blockType, ok := extractTopLevelRawJSONStringFieldByMarker(value, typeFieldMarker)
-		if !ok {
+		blockTypeRaw, ok := extractTopLevelRawJSONStringByMarker(value, typeFieldMarker)
+		if !ok || isKnownContentBlockTypeRaw(blockTypeRaw) {
 			return
 		}
-		if _, known := knownContentBlockTypes[blockType]; known {
-			return
-		}
-		report.Record("content_block_type", blockType)
+		recordUnknownValue(report, "content_block_type", blockTypeRaw, isKnownContentBlockTypeRaw)
 	})
 	if err != nil {
 		return
@@ -239,19 +211,19 @@ func detectContentBlockDrift(content json.RawMessage, report *src.DriftReport) {
 }
 
 type driftEnvelope struct {
-	timestamp  string
-	recordType string
-	payload    []byte
-	hasPayload bool
+	timestamp     string
+	recordTypeRaw []byte
+	payload       []byte
+	hasPayload    bool
 }
 
 func detectLineDrift(line []byte, report *src.DriftReport) driftEnvelope {
 	envelope := scanDriftEnvelope(line, report)
-	detectRecordTypeDrift(envelope.recordType, report)
+	detectRecordTypeDrift(envelope.recordTypeRaw, report)
 	if !envelope.hasPayload {
 		return envelope
 	}
-	detectPayloadFieldDrift(envelope.recordType, envelope.payload, report)
+	detectPayloadFieldDrift(envelope.recordTypeRaw, envelope.payload, report)
 	return envelope
 }
 
@@ -263,18 +235,19 @@ func scanDriftEnvelope(line []byte, report *src.DriftReport) driftEnvelope {
 
 	var envelope driftEnvelope
 	for {
-		field, valueStart, next, done, ok := nextTopLevelField(line, pos)
+		field, value, next, done, ok := nextTopLevelFieldValue(line, pos)
 		if !ok || done {
 			return envelope
 		}
 
 		switch {
 		case bytes.Equal(field, timestampFieldMarker):
-			envelope.timestamp, _ = readDriftString(line, valueStart)
+			envelope.timestamp, _ = readRawJSONString(value)
 		case bytes.Equal(field, typeFieldMarker):
-			envelope.recordType, _ = readDriftString(line, valueStart)
+			envelope.recordTypeRaw = value
 		case bytes.Equal(field, payloadFieldMarker):
-			envelope.payload, envelope.hasPayload = sliceRawJSONValue(line, valueStart)
+			envelope.payload = value
+			envelope.hasPayload = true
 		case isKnownEnvelopeField(field):
 		default:
 			recordUnknownField(report, "envelope_field", field)
@@ -307,13 +280,6 @@ func recordUnknownTopLevelFields(
 	}
 }
 
-func readDriftString(raw []byte, start int) (string, bool) {
-	if !startsJSONString(raw, start) {
-		return "", false
-	}
-	return readRawJSONStringValue(raw, start)
-}
-
 func recordUnknownField(report *src.DriftReport, category string, rawField []byte) {
 	if report == nil {
 		return
@@ -323,6 +289,22 @@ func recordUnknownField(report *src.DriftReport, category string, rawField []byt
 		return
 	}
 	report.Record(category, field)
+}
+
+func recordUnknownValue(
+	report *src.DriftReport,
+	category string,
+	rawValue []byte,
+	known func([]byte) bool,
+) {
+	if report == nil || len(rawValue) == 0 || known(rawValue) {
+		return
+	}
+	value, ok := decodeRawJSONString(rawValue)
+	if !ok || value == "" {
+		return
+	}
+	report.Record(category, value)
 }
 
 func isKnownEnvelopeField(field []byte) bool {

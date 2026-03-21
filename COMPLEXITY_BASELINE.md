@@ -36,12 +36,11 @@ None.
 | internal/source/claude/scanner_parse.go | source | 265 | 67 | 306 |
 | internal/source/claude/scanner_record_fast.go | source | 174 | 63 | 193 |
 | internal/source/codex/load.go | source | 267 | 62 | 300 |
-| internal/source/codex/scan_fast.go | source | 225 | 62 | 253 |
 | internal/source/claude/drift.go | source | 244 | 61 | 277 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
-| internal/source/codex/drift.go | source | 346 | 47 | 396 |
-| internal/source/codex/json_field.go | source | 318 | 43 | 341 |
+| internal/source/codex/json_field.go | source | 355 | 44 | 377 |
+| internal/source/codex/drift.go | source | 328 | 41 | 378 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |

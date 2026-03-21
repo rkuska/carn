@@ -47,6 +47,48 @@ func TestScanRolloutLineCountsVisibleResponseMessage(t *testing.T) {
 	assert.Equal(t, "Parser updated.", state.lastText)
 }
 
+func TestScanRolloutLineParsesSubagentSource(t *testing.T) {
+	t.Parallel()
+
+	line := []byte(
+		`{"timestamp":"2026-03-16T10:00:00Z","type":"session_meta","payload":{` +
+			`"id":"thread-child","timestamp":"2026-03-16T10:00:00Z",` +
+			`"cwd":"/workspace/project","cli_version":"0.114.0",` +
+			`"model_provider":"openai","source":{"subagent":{"thread_spawn":{` +
+			`"parent_thread_id":"thread-main","agent_nickname":"worker","agent_role":"worker"}}}}}`,
+	)
+
+	state := newScanState("/tmp/thread.jsonl")
+	require.NoError(t, scanRolloutLine(line, &state))
+
+	assert.True(t, state.meta.IsSubagent)
+	assert.Equal(t, "thread-main", state.link.parentThreadID)
+	assert.Equal(t, "worker", state.link.agentNickname)
+	assert.Equal(t, "worker", state.link.agentRole)
+}
+
+func TestScanRolloutLineTracksToolCountsAndTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	state := newScanState("/tmp/thread.jsonl")
+
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:03Z","type":"response_item","payload":{`+
+			`"type":"function_call","name":"exec_command","arguments":"{}","call_id":"call-1"}}`,
+	), &state))
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:04Z","type":"event_msg","payload":{`+
+			`"type":"token_count","info":{"total_token_usage":{`+
+			`"input_tokens":100,"cached_input_tokens":10,"output_tokens":50,"reasoning_output_tokens":5}}}}`,
+	), &state))
+
+	require.NotNil(t, state.meta.ToolCounts)
+	assert.Equal(t, 1, state.meta.ToolCounts["exec_command"])
+	assert.Equal(t, 100, state.meta.TotalUsage.InputTokens)
+	assert.Equal(t, 10, state.meta.TotalUsage.CacheReadInputTokens)
+	assert.Equal(t, 55, state.meta.TotalUsage.OutputTokens)
+}
+
 func TestScanRolloutParsesSingleFile(t *testing.T) {
 	t.Parallel()
 

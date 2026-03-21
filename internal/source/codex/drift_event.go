@@ -79,23 +79,21 @@ var (
 )
 
 func detectEventPayloadDrift(payload []byte, report *src.DriftReport) {
-	eventType, ok := extractTopLevelRawJSONStringFieldByMarker(payload, typeFieldMarker)
-	if ok {
-		detectEventTypeDrift(eventType, report)
-	}
+	eventTypeRaw, _ := extractTopLevelRawJSONStringByMarker(payload, typeFieldMarker)
+	detectEventTypeDrift(eventTypeRaw, report)
 
-	switch eventType {
-	case eventTypeUserMessage:
+	switch {
+	case bytes.Equal(eventTypeRaw, eventTypeUserMessageRaw):
 		recordUnknownTopLevelFields(report, "user_message_field", payload, isKnownUserMessageField)
-	case eventTypeAgentMessage:
+	case bytes.Equal(eventTypeRaw, eventTypeAgentMessageRaw):
 		recordUnknownTopLevelFields(report, "agent_message_field", payload, isKnownAgentMessageField)
-	case eventTypeAgentReasoning:
+	case bytes.Equal(eventTypeRaw, eventTypeAgentReasoningRaw):
 		recordUnknownTopLevelFields(report, "agent_reasoning_field", payload, isKnownAgentReasoningField)
-	case eventTypeItemCompleted:
+	case bytes.Equal(eventTypeRaw, eventTypeItemCompletedRaw):
 		detectItemCompletedPayloadDrift(payload, report)
-	case eventTypeTaskComplete:
+	case bytes.Equal(eventTypeRaw, eventTypeTaskCompleteRaw):
 		recordUnknownTopLevelFields(report, "task_complete_field", payload, isKnownTaskCompleteField)
-	case eventTypeTokenCount:
+	case bytes.Equal(eventTypeRaw, eventTypeTokenCountRaw):
 		detectTokenCountPayloadDrift(payload, report)
 	}
 }
@@ -104,11 +102,8 @@ func detectItemCompletedPayloadDrift(payload []byte, report *src.DriftReport) {
 	recordUnknownTopLevelFields(report, "item_completed_field", payload, isKnownItemCompletedField)
 	if item, ok := extractTopLevelRawJSONFieldByMarker(payload, itemFieldMarker); ok {
 		recordUnknownTopLevelFields(report, "completed_item_field", item, isKnownCompletedItemField)
-		if itemType, ok := extractTopLevelRawJSONStringFieldByMarker(item, typeFieldMarker); ok {
-			if _, known := knownCompletedItemTypes[itemType]; !known {
-				report.Record("completed_item_type", itemType)
-			}
-		}
+		itemTypeRaw, _ := extractTopLevelRawJSONStringByMarker(item, typeFieldMarker)
+		recordUnknownValue(report, "completed_item_type", itemTypeRaw, isKnownCompletedItemTypeRaw)
 	}
 }
 
@@ -145,14 +140,13 @@ func detectReasoningSummaryBlockDrift(summary json.RawMessage, report *src.Drift
 }
 
 func detectReasoningSummaryObjectDrift(raw []byte, report *src.DriftReport) {
-	blockType, ok := extractTopLevelRawJSONStringFieldByMarker(raw, typeFieldMarker)
-	if !ok {
-		return
-	}
-	if _, known := knownReasoningSummaryBlockTypes[blockType]; known {
-		return
-	}
-	report.Record("reasoning_summary_block_type", blockType)
+	blockTypeRaw, _ := extractTopLevelRawJSONStringByMarker(raw, typeFieldMarker)
+	recordUnknownValue(
+		report,
+		"reasoning_summary_block_type",
+		blockTypeRaw,
+		isKnownReasoningSummaryBlockTypeRaw,
+	)
 }
 
 func isKnownUserMessageField(field []byte) bool {

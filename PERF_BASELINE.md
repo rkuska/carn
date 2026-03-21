@@ -1,6 +1,6 @@
 # Performance Baseline
 
-Captured on March 17, 2026.
+Captured on March 21, 2026.
 
 Current benchmark commands:
 
@@ -16,22 +16,22 @@ Results (Apple M4 Pro, darwin/arm64):
 
 | Package | Benchmark | ns/op | B/op | allocs/op |
 | --- | --- | ---: | ---: | ---: |
-| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 4,991,850 | 2,912,355 | 41,470 |
-| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,628,474 | 1,360,062 | 23,781 |
-| `internal/source/codex` | BenchmarkScanRollouts | 6,473,589 | 5,026,175 | 121,801 |
-| `internal/source/codex` | BenchmarkLoadConversation | 213,809 | 91,645 | 1,155 |
-| `internal/canonical` | BenchmarkLoadCatalogCold | 1,005,197 | 654,875 | 13,242 |
-| `internal/canonical` | BenchmarkLoadCatalogWarm | 13,693 | 99,280 | 9 |
-| `internal/canonical` | BenchmarkLoadSearchIndex | 4,625 | 384 | 13 |
-| `internal/canonical` | BenchmarkDeepSearchFuzzy | 1,291,420 | 8,250 | 192 |
-| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 201,146 | 414,156 | 6,833 |
-| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 40,764,543 | 14,962,360 | 232,970 |
-| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 10,735,963 | 3,075,931 | 41,365 |
-| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 5,204,389 | 8,789,211 | 142,511 |
-| `internal/archive` | BenchmarkCollectFilesToSync | 3,676,916 | 495,294 | 3,651 |
-| `internal/archive` | BenchmarkStreamImportAnalysis | 3,477,562 | 449,411 | 3,493 |
-| `internal/app` | BenchmarkViewerRenderContent | 2,891,509 | 27,264 | 1 |
-| `internal/app` | BenchmarkViewerSearch | 873.4 | 0 | 0 |
+| `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 4,924,695 | 1,857,877 | 30,548 |
+| `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,724,006 | 699,239 | 16,817 |
+| `internal/source/codex` | BenchmarkScanRollouts | 5,259,718 | 3,716,811 | 59,472 |
+| `internal/source/codex` | BenchmarkLoadConversation | 181,013 | 79,602 | 991 |
+| `internal/canonical` | BenchmarkLoadCatalogCold | 962,042 | 654,875 | 13,242 |
+| `internal/canonical` | BenchmarkLoadCatalogWarm | 13,466 | 99,280 | 9 |
+| `internal/canonical` | BenchmarkLoadSearchIndex | 4,832 | 384 | 13 |
+| `internal/canonical` | BenchmarkDeepSearchFuzzy | 1,323,310 | 6,792 | 190 |
+| `internal/canonical` | BenchmarkCanonicalTranscriptOpen | 201,433 | 414,164 | 6,833 |
+| `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 42,805,336 | 11,550,285 | 252,176 |
+| `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 11,221,599 | 2,476,014 | 44,532 |
+| `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 4,871,097 | 5,073,625 | 100,560 |
+| `internal/archive` | BenchmarkCollectFilesToSync | 3,754,369 | 493,632 | 3,651 |
+| `internal/archive` | BenchmarkStreamImportAnalysis | 3,593,745 | 454,614 | 3,493 |
+| `internal/app` | BenchmarkViewerRenderContent | 2,993,682 | 27,264 | 1 |
+| `internal/app` | BenchmarkViewerSearch | 906.3 | 0 | 0 |
 
 Notes:
 - Benchmarks live with the package that owns the runtime path.
@@ -50,20 +50,11 @@ Notes:
   `BenchmarkCanonicalStoreParseConversations`,
   `BenchmarkCanonicalStoreIncrementalRebuild`, and
   `BenchmarkCanonicalStoreScanSessions`.
-- A fresh focused `alloc_space` profile was captured for
-  `BenchmarkCanonicalStoreFullRebuild` with
-  `go test -memprofile -memprofilerate=1` followed by
-  `go tool pprof -top -sample_index=alloc_space`.
+- Use `go test -memprofile -memprofilerate=1` followed by
+  `go tool pprof -top -sample_index=alloc_space` when a focused allocation
+  profile is needed for `BenchmarkCanonicalStoreFullRebuild`.
 - `go test -memprofile` captures benchmark setup allocations too, so helper
   functions such as `benchSessionJSONLLongConversation`,
   `makeBenchRawArchive`, `benchRolloutJSONL`, `makeBenchRawCodexCorpus`, and
-  `newViewerModel` appear in profiles. Product hot paths are still visible in
-  cumulative stacks.
-- Product hot paths observed in the refreshed full-rebuild profile:
-  `claude.parseConversationMessagesProjected`,
-  `claude.parseSessionProjectedWithContextInto`,
-  `claude.parseAndIndexLine`,
-  `claude.scanMetadataResult`,
-  `canonical.insertSQLiteSearchChunksFromSession`, and
-  `canonical.withEncodedSessionBlob`.
+  `newViewerModel` can appear in profiles alongside product hot paths.
 - Refresh this file whenever benchmark commands or meaningful results change.

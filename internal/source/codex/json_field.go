@@ -64,20 +64,20 @@ func extractRawJSONStringFieldByMarker(raw, marker []byte) (string, bool) {
 	return readRawJSONStringValue(raw, start)
 }
 
-func extractRawIntFieldByMarker(raw, marker []byte) (int, bool) {
-	start, ok := findRawJSONFieldValueStartByMarker(raw, marker)
-	if !ok {
-		return 0, false
-	}
-	return readRawJSONInt(raw, start)
-}
-
 func extractTopLevelRawJSONStringFieldByMarker(raw, marker []byte) (string, bool) {
 	start, ok := findTopLevelJSONFieldValueStartByMarker(raw, marker)
 	if !ok || !startsJSONString(raw, start) {
 		return "", false
 	}
 	return readRawJSONStringValue(raw, start)
+}
+
+func extractTopLevelRawJSONStringByMarker(raw, marker []byte) ([]byte, bool) {
+	start, ok := findTopLevelJSONFieldValueStartByMarker(raw, marker)
+	if !ok || !startsJSONString(raw, start) {
+		return nil, false
+	}
+	return sliceRawJSONValue(raw, start)
 }
 
 func extractTopLevelRawJSONFieldByMarker(raw, marker []byte) ([]byte, bool) {
@@ -140,36 +140,70 @@ func nextTopLevelField(raw []byte, pos int) ([]byte, int, int, bool, bool) {
 	if pos >= len(raw) || raw[pos] == '}' {
 		return nil, 0, 0, true, true
 	}
-	field, valueStart, next, ok := parseTopLevelField(raw, pos)
+	field, valueStart, _, next, ok := parseTopLevelField(raw, pos)
 	return field, valueStart, next, false, ok
 }
 
-func parseTopLevelField(raw []byte, pos int) ([]byte, int, int, bool) {
+func nextTopLevelFieldValue(raw []byte, pos int) ([]byte, []byte, int, bool, bool) {
+	pos = skipJSONWhitespace(raw, pos)
+	if pos >= len(raw) || raw[pos] == '}' {
+		return nil, nil, 0, true, true
+	}
+
+	field, valueStart, valueEnd, next, ok := parseTopLevelField(raw, pos)
+	if !ok {
+		return nil, nil, 0, false, false
+	}
+	return field, raw[valueStart:valueEnd], next, false, true
+}
+
+func walkTopLevelFields(raw []byte, yield func(field, value []byte) bool) bool {
+	pos, ok := topLevelObjectStart(raw)
+	if !ok {
+		return false
+	}
+
+	for {
+		field, value, next, done, ok := nextTopLevelFieldValue(raw, pos)
+		if !ok {
+			return false
+		}
+		if done {
+			return true
+		}
+		if !yield(field, value) {
+			return true
+		}
+		pos = next
+	}
+}
+
+func parseTopLevelField(raw []byte, pos int) ([]byte, int, int, int, bool) {
 	if pos >= len(raw) || raw[pos] != '"' {
-		return nil, 0, 0, false
+		return nil, 0, 0, 0, false
 	}
 
 	keyEnd, ok := findJSONStringEnd(raw, pos)
 	if !ok {
-		return nil, 0, 0, false
+		return nil, 0, 0, 0, false
 	}
 	field := raw[pos : keyEnd+1]
 
 	pos = skipJSONWhitespace(raw, keyEnd+1)
 	if pos >= len(raw) || raw[pos] != ':' {
-		return nil, 0, 0, false
+		return nil, 0, 0, 0, false
 	}
 
 	valueStart := skipJSONWhitespace(raw, pos+1)
-	next, ok := skipRawJSONValue(raw, valueStart)
+	valueEnd, _, ok := rawJSONValueEnd(raw, valueStart)
 	if !ok {
-		return nil, 0, 0, false
+		return nil, 0, 0, 0, false
 	}
-	next = skipJSONWhitespace(raw, next)
+	next := skipJSONWhitespace(raw, valueEnd)
 	if next < len(raw) && raw[next] == ',' {
 		next++
 	}
-	return field, valueStart, next, true
+	return field, valueStart, valueEnd, next, true
 }
 
 func skipJSONWhitespace(raw []byte, pos int) int {
@@ -177,11 +211,6 @@ func skipJSONWhitespace(raw []byte, pos int) int {
 		pos++
 	}
 	return pos
-}
-
-func skipRawJSONValue(raw []byte, start int) (int, bool) {
-	end, _, ok := rawJSONValueEnd(raw, start)
-	return end, ok
 }
 
 func readRawJSONStringValue(raw []byte, start int) (string, bool) {
@@ -203,6 +232,13 @@ func readRawJSONStringValue(raw []byte, start int) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func readRawJSONString(raw []byte) (string, bool) {
+	if !startsJSONString(raw, 0) {
+		return "", false
+	}
+	return readRawJSONStringValue(raw, 0)
 }
 
 func sliceRawJSONValue(raw []byte, start int) ([]byte, bool) {
