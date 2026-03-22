@@ -11,6 +11,8 @@ func (m viewerModel) clearSearch() viewerModel {
 	m.matches = nil
 	m.currentMatch = 0
 	m.searchMatchesValid = false
+	m.searchAppliedQuery = ""
+	m.viewport.ClearHighlights()
 	return m
 }
 
@@ -51,12 +53,13 @@ func (m viewerModel) applyRenderedContent(
 	searchLines []searchLineIndex,
 ) viewerModel {
 	m.rawContent = rawContent
-	if m.baseContent != baseContent {
+	contentChanged := m.baseContent != baseContent
+	if contentChanged {
 		m.baseContent = baseContent
 		m.searchLines = searchLines
 		m.searchIndexVersion++
+		m.viewport.SetContent(m.baseContent)
 	}
-	m.viewport.SetContent(m.baseContent)
 
 	if m.searchQuery != "" {
 		return m.performSearch()
@@ -80,7 +83,9 @@ func (m viewerModel) performSearch() viewerModel {
 		return m
 	}
 
-	m.viewport.SetYOffset(m.matches[0].line)
+	if target := m.matches[0].line; m.viewport.YOffset() != target {
+		m.viewport.SetYOffset(target)
+	}
 	return m
 }
 
@@ -97,12 +102,16 @@ func (m viewerModel) jumpToMatch(delta int) viewerModel {
 	for range steps {
 		if delta > 0 {
 			m.currentMatch = (m.currentMatch + 1) % len(m.matches)
-			m.viewport.SetYOffset(m.matches[m.currentMatch].line)
+			if target := m.matches[m.currentMatch].line; m.viewport.YOffset() != target {
+				m.viewport.SetYOffset(target)
+			}
 			continue
 		}
 
 		m.currentMatch = (m.currentMatch - 1 + len(m.matches)) % len(m.matches)
-		m.viewport.SetYOffset(m.matches[m.currentMatch].line)
+		if target := m.matches[m.currentMatch].line; m.viewport.YOffset() != target {
+			m.viewport.SetYOffset(target)
+		}
 	}
 	return m
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"iter"
 	"os"
 	"path/filepath"
@@ -45,6 +46,7 @@ const (
 type sessionFile struct {
 	path         string
 	relPath      string
+	srcInfo      fs.FileInfo
 	project      project
 	groupDirName string
 	isSubagent   bool
@@ -235,6 +237,10 @@ func discoverProjectSessionFiles(
 		name := entry.Name()
 		if !entry.IsDir() {
 			if strings.HasSuffix(name, ".jsonl") {
+				info, err := entry.Info()
+				if err != nil {
+					return nil, fmt.Errorf("entry.Info_main: %w", err)
+				}
 				path := filepath.Join(projDir, name)
 				relPath, err := filepath.Rel(baseDir, path)
 				if err != nil {
@@ -243,6 +249,7 @@ func discoverProjectSessionFiles(
 				files = append(files, sessionFile{
 					path:         path,
 					relPath:      relPath,
+					srcInfo:      info,
 					project:      proj,
 					groupDirName: groupDirName,
 				})
@@ -279,6 +286,10 @@ func discoverSubagentFiles(
 		if sub.IsDir() || !strings.HasPrefix(name, "agent-") || !strings.HasSuffix(name, ".jsonl") {
 			continue
 		}
+		info, err := sub.Info()
+		if err != nil {
+			return nil, fmt.Errorf("sub.Info: %w", err)
+		}
 		path := filepath.Join(subagentDir, name)
 		relPath, err := filepath.Rel(baseDir, path)
 		if err != nil {
@@ -287,6 +298,7 @@ func discoverSubagentFiles(
 		files = append(files, sessionFile{
 			path:         path,
 			relPath:      relPath,
+			srcInfo:      info,
 			project:      proj,
 			groupDirName: groupDirName,
 			isSubagent:   true,

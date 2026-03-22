@@ -20,6 +20,13 @@ var readerPool = sync.Pool{
 	New: func() any { return bufio.NewReaderSize(nil, codexScanBufferSize) },
 }
 
+var (
+	statusFailedRaw        = []byte(`"failed"`)
+	statusErrorRaw         = []byte(`"error"`)
+	toolNameExecCommandRaw = []byte(`"exec_command"`)
+	toolNameApplyPatchRaw  = []byte(`"apply_patch"`)
+)
+
 type toolEventMeta struct {
 	call  conv.ToolCall
 	input string
@@ -241,4 +248,67 @@ func isCodexToolError(output string) bool {
 	return strings.Contains(lower, "aborted by user") ||
 		strings.Contains(lower, "patch rejected") ||
 		strings.Contains(lower, "verification failed")
+}
+
+func scanToolName(raw []byte) (string, bool) {
+	switch {
+	case bytes.Equal(raw, toolNameExecCommandRaw):
+		return "exec_command", true
+	case bytes.Equal(raw, toolNameApplyPatchRaw):
+		return toolNameApplyPatch, true
+	default:
+		return readRawJSONString(raw)
+	}
+}
+
+func hasCodexToolError(outputRaw, statusRaw []byte) bool {
+	return bytes.Equal(bytes.TrimSpace(statusRaw), statusFailedRaw) ||
+		bytes.Equal(bytes.TrimSpace(statusRaw), statusErrorRaw) ||
+		isCodexToolErrorRaw(outputRaw)
+}
+
+func isCodexToolErrorRaw(outputRaw []byte) bool {
+	outputRaw = bytes.TrimSpace(outputRaw)
+	if len(outputRaw) < 2 || outputRaw[0] != '"' {
+		return false
+	}
+
+	check := outputRaw[1:]
+	if len(check) > 200 {
+		check = check[:200]
+	}
+	return containsFoldASCII(check, "aborted by user") ||
+		containsFoldASCII(check, "patch rejected") ||
+		containsFoldASCII(check, "verification failed")
+}
+
+func containsFoldASCII(raw []byte, needle string) bool {
+	if len(needle) == 0 || len(raw) < len(needle) {
+		return false
+	}
+	for i := 0; i+len(needle) <= len(raw); i++ {
+		if equalFoldASCII(raw[i:i+len(needle)], needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalFoldASCII(raw []byte, needle string) bool {
+	if len(raw) != len(needle) {
+		return false
+	}
+	for i := range raw {
+		if toLowerASCII(raw[i]) != toLowerASCII(needle[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func toLowerASCII(value byte) byte {
+	if value >= 'A' && value <= 'Z' {
+		return value + ('a' - 'A')
+	}
+	return value
 }

@@ -11,8 +11,8 @@ var errScanPayloadMissing = errors.New("payload missing")
 
 func scanRolloutLine(line []byte, state *scanState) error {
 	envelope := detectLineDrift(line, state.drift)
-	if envelope.timestamp != "" {
-		state.observeRecordTimestamp(envelope.timestamp)
+	if len(envelope.timestampRaw) > 0 {
+		state.observeRecordTimestamp(envelope.timestampRaw)
 	}
 	if len(envelope.recordTypeRaw) == 0 {
 		return nil
@@ -84,14 +84,30 @@ func appendScanContentBlockText(
 		return end + 1, false
 	}
 
-	text, ok := extractTopLevelRawJSONStringFieldByMarker(block, textFieldMarker)
-	if !ok || text == "" {
+	textRaw, ok := extractTopLevelRawJSONStringByMarker(block, textFieldMarker)
+	if !ok {
 		return end + 1, false
 	}
 
 	if hasText {
 		builder.WriteByte('\n')
 	}
-	builder.WriteString(text)
+	if !appendRawJSONString(builder, textRaw) {
+		return end + 1, false
+	}
 	return end + 1, true
+}
+
+func appendRawJSONString(builder *strings.Builder, raw []byte) bool {
+	if unescaped := rawJSONStringInner(raw); len(unescaped) > 0 {
+		_, _ = builder.Write(unescaped)
+		return true
+	}
+
+	text, ok := readRawJSONString(raw)
+	if !ok || text == "" {
+		return false
+	}
+	builder.WriteString(text)
+	return true
 }

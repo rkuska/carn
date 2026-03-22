@@ -25,10 +25,6 @@ var blobEncoderPool = sync.Pool{
 	},
 }
 
-var blobReaderPool = sync.Pool{
-	New: func() any { return bufio.NewReader(nil) },
-}
-
 func withEncodedSessionBlob(session sessionFull, use func([]byte) error) error {
 	state, ok := blobEncoderPool.Get().(*blobEncoderState)
 	if !ok {
@@ -53,13 +49,7 @@ func withEncodedSessionBlob(session sessionFull, use func([]byte) error) error {
 }
 
 func decodeSessionBlob(blob []byte) (sessionFull, error) {
-	br, ok := blobReaderPool.Get().(*bufio.Reader)
-	if !ok {
-		br = bufio.NewReader(nil)
-	}
-	br.Reset(bytes.NewReader(blob))
-	defer blobReaderPool.Put(br)
-	return readSessionFull(br)
+	return decodeSessionBlobFast(blob)
 }
 
 func marshalToolCountsCached(counts map[string]int) string {

@@ -65,9 +65,17 @@ func buildProjectDestInfoIndex(projectRawDir, rawDir string) (map[string]fs.File
 }
 
 func (c projectFileClassifier) classify(file sessionFile) (classifiedFile, bool) {
-	slug, srcInfo, err := readSessionSlugAndInfo(file.path)
+	srcInfo, err := sourceFileInfo(file)
 	if err != nil {
 		return classifiedFile{}, false
+	}
+
+	var slug string
+	if !file.isSubagent {
+		slug, err = readSessionSlug(file.path)
+		if err != nil {
+			return classifiedFile{}, false
+		}
 	}
 
 	gk := groupKey{dirName: c.dirName, slug: slug}
@@ -96,21 +104,27 @@ func (c projectFileClassifier) classify(file sessionFile) (classifiedFile, bool)
 	}, true
 }
 
-func readSessionSlugAndInfo(filePath string) (_ string, _ fs.FileInfo, retErr error) {
+func sourceFileInfo(file sessionFile) (fs.FileInfo, error) {
+	if file.srcInfo != nil {
+		return file.srcInfo, nil
+	}
+	info, err := os.Stat(file.path)
+	if err != nil {
+		return nil, fmt.Errorf("os.Stat: %w", err)
+	}
+	return info, nil
+}
+
+func readSessionSlug(filePath string) (_ string, retErr error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", nil, fmt.Errorf("os.Open: %w", err)
+		return "", fmt.Errorf("os.Open: %w", err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil && retErr == nil {
 			retErr = fmt.Errorf("file.Close: %w", closeErr)
 		}
 	}()
-
-	info, err := file.Stat()
-	if err != nil {
-		return "", nil, fmt.Errorf("file.Stat: %w", err)
-	}
 
 	br, ok := slugReaderPool.Get().(*bufio.Reader)
 	if !ok {
@@ -121,9 +135,9 @@ func readSessionSlugAndInfo(filePath string) (_ string, _ fs.FileInfo, retErr er
 
 	slug, err := extractSessionSlugFromReader(br)
 	if err != nil {
-		return "", nil, fmt.Errorf("extractSessionSlugFromReader: %w", err)
+		return "", fmt.Errorf("extractSessionSlugFromReader: %w", err)
 	}
-	return slug, info, nil
+	return slug, nil
 }
 
 func extractSessionSlugFromReader(br *bufio.Reader) (string, error) {

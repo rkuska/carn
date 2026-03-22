@@ -129,7 +129,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
 	store := canonical.New(claudeBackend, codexBackend)
-	browserStore := newBrowserStore(store)
+	storeAdapter := newBrowserStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{
 			SourceDirs: cfg.SourceDirs,
@@ -148,7 +148,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 			ArchiveDir: cfg.ArchiveDir,
 		},
 		cfg,
-		browserStore,
+		storeAdapter,
 		pipeline,
 		launcher,
 	)

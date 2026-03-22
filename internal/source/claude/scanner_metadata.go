@@ -83,11 +83,10 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	if !ok {
 		return
 	}
-	ok = visitAssistantToolUses(contentRaw, func(name, id string) bool {
+	if !visitAssistantToolUses(contentRaw, func(name, id string) bool {
 		stats.recordToolCall(name, id)
 		return true
-	})
-	if !ok {
+	}) {
 		return
 	}
 }

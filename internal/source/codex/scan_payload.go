@@ -201,14 +201,12 @@ func applyResponseItemPayload(item scannedResponseItemPayload, state *scanState)
 	case bytes.Equal(item.itemTypeRaw, responseTypeFunctionCallOutputRaw),
 		bytes.Equal(item.itemTypeRaw, responseTypeCustomToolCallOutputRaw):
 		callID, _ := readRawJSONString(item.callIDRaw)
-		output, _ := readRawJSONString(item.outputRaw)
-		status, _ := readRawJSONString(item.statusRaw)
-		state.recordToolResult(callID, output, status)
+		state.recordToolResult(callID, item.outputRaw, item.statusRaw)
 	}
 }
 
 func recordScannedToolCall(item scannedResponseItemPayload, state *scanState) {
-	name, ok := readRawJSONString(item.nameRaw)
+	name, ok := scanToolName(item.nameRaw)
 	if !ok {
 		return
 	}

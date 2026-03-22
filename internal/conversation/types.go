@@ -126,38 +126,27 @@ func (s SessionMeta) FilterValue() string {
 }
 
 func (s SessionMeta) Title() string {
-	date := s.Timestamp.Format("2006-01-02 15:04")
-	title := fmt.Sprintf("%s / %s  %s", s.Project.DisplayName, s.DisplaySlug(), date)
-	if s.IsSubagent {
-		title = "[sub] " + title
-	}
-	if s.GitBranch != "" {
-		title += "  " + s.GitBranch
-	}
-	return title
+	return buildDisplayTitle(
+		s.Project.DisplayName,
+		s.DisplaySlug(),
+		s.Timestamp.Format("2006-01-02 15:04"),
+		s.IsSubagent,
+		s.GitBranch,
+		0,
+	)
 }
 
 func (s SessionMeta) Description() string {
-	desc := fmt.Sprintf("%s  %d msgs", s.Model, s.MessageCount)
-	if s.MainMessageCount > 0 && s.MainMessageCount != s.MessageCount {
-		desc = fmt.Sprintf("%s  %d msgs (%d main)", s.Model, s.MessageCount, s.MainMessageCount)
-	}
-	if s.Version != "" {
-		desc = s.Version + "  " + desc
-	}
-	if total := s.TotalUsage.TotalTokens(); total > 0 {
-		desc += fmt.Sprintf("  %dk tokens", total/1000)
-	}
-	if d := s.Duration(); d > 0 {
-		desc += "  " + FormatDuration(d)
-	}
-	if len(s.ToolCounts) > 0 {
-		desc += "  " + FormatToolCounts(s.ToolCounts)
-	}
-	if s.FirstMessage != "" {
-		desc += "\n" + s.FirstMessage
-	}
-	return desc
+	return buildDisplayDescription(
+		s.Version,
+		s.Model,
+		s.MessageCount,
+		s.MainMessageCount,
+		s.TotalUsage.TotalTokens(),
+		formatDisplayDuration(s.Duration()),
+		s.ToolCounts,
+		s.FirstMessage,
+	)
 }
 
 type Message struct {

@@ -47,8 +47,12 @@ func makeTestBrowserArchive(t *testing.T) (string, *canonical.Store) {
 	require.NoError(t, os.MkdirAll(projectDir, 0o755))
 
 	sessionPath := filepath.Join(projectDir, "session-1.jsonl")
-	session := `{"type":"user","sessionId":"session-1","slug":"demo","timestamp":"2026-03-22T12:00:00Z","cwd":"/tmp/demo","message":{"role":"user","content":"inspect the parser"}}` + "\n" +
-		`{"type":"assistant","timestamp":"2026-03-22T12:00:01Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"done"}]}}`
+	session := "" +
+		`{"type":"user","sessionId":"session-1","slug":"demo","timestamp":"2026-03-22T12:00:00Z",` +
+		`"cwd":"/tmp/demo","message":{"role":"user","content":"inspect the parser"}}` +
+		"\n" +
+		`{"type":"assistant","timestamp":"2026-03-22T12:00:01Z","message":{"role":"assistant",` +
+		`"model":"claude-sonnet-4","content":[{"type":"text","text":"done"}]}}`
 	require.NoError(t, os.WriteFile(sessionPath, []byte(session), 0o644))
 
 	store := canonical.New(claude.New())

@@ -1,9 +1,9 @@
 package conversation
 
 import (
-	"fmt"
-	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type conversationDisplayCache struct {
@@ -63,18 +63,14 @@ func (c Conversation) Title() string {
 }
 
 func (c Conversation) computeTitle() string {
-	date := c.Timestamp().Format("2006-01-02 15:04")
-	title := fmt.Sprintf("%s / %s  %s", c.Project.DisplayName, c.DisplayName(), date)
-	if c.IsSubagent() {
-		title = "[sub] " + title
-	}
-	if branch := c.GitBranch(); branch != "" {
-		title += "  " + branch
-	}
-	if parts := c.PartCount(); parts > 1 {
-		title += fmt.Sprintf("  (%d parts)", parts)
-	}
-	return title
+	return buildDisplayTitle(
+		c.Project.DisplayName,
+		c.DisplayName(),
+		c.Timestamp().Format("2006-01-02 15:04"),
+		c.IsSubagent(),
+		c.GitBranch(),
+		c.PartCount(),
+	)
 }
 
 func (c Conversation) Description() string {
@@ -86,28 +82,20 @@ func (c Conversation) Description() string {
 
 func (c Conversation) computeDescription() string {
 	msgCount, mainCount := c.messageCounts()
-	desc := fmt.Sprintf("%s  %d msgs", c.Model(), msgCount)
-	if mainCount > 0 && mainCount != msgCount {
-		desc = fmt.Sprintf("%s  %d msgs (%d main)", c.Model(), msgCount, mainCount)
-	}
-	if v := c.Version(); v != "" {
-		desc = v + "  " + desc
-	}
-	if total := c.TotalTokenUsage().TotalTokens(); total > 0 {
-		desc += fmt.Sprintf("  %dk tokens", total/1000)
-	}
-	if d := c.Duration(); d > 0 {
-		desc += "  " + FormatDuration(d)
-	}
-	if counts := c.TotalToolCounts(); len(counts) > 0 {
-		desc += "  " + FormatToolCounts(counts)
-	}
+	trailing := c.FirstMessage()
 	if preview := c.SearchPreview; preview != "" {
-		desc += "\n" + preview
-	} else if fm := c.FirstMessage(); fm != "" {
-		desc += "\n" + fm
+		trailing = preview
 	}
-	return desc
+	return buildDisplayDescription(
+		c.Version(),
+		c.Model(),
+		msgCount,
+		mainCount,
+		c.TotalTokenUsage().TotalTokens(),
+		formatDisplayDuration(c.Duration()),
+		c.TotalToolCounts(),
+		trailing,
+	)
 }
 
 func (c Conversation) messageCounts() (total, main int) {
@@ -126,8 +114,14 @@ func (c Conversation) TotalToolCounts() map[string]int {
 }
 
 func (c Conversation) computeTotalToolCounts() map[string]int {
-	merged := make(map[string]int)
+	var merged map[string]int
 	for _, s := range c.Sessions {
+		if len(s.ToolCounts) == 0 {
+			continue
+		}
+		if merged == nil {
+			merged = make(map[string]int, len(s.ToolCounts))
+		}
 		for name, count := range s.ToolCounts {
 			merged[name] += count
 		}
@@ -140,27 +134,147 @@ func FormatToolCounts(counts map[string]int) string {
 		return ""
 	}
 
-	type toolCount struct {
-		name  string
-		count int
+	top := topToolCounts(counts)
+	if len(top) == 0 {
+		return ""
 	}
 
-	sorted := make([]toolCount, 0, len(counts))
-	for name, count := range counts {
-		sorted = append(sorted, toolCount{name: name, count: count})
-	}
-
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].count != sorted[j].count {
-			return sorted[i].count > sorted[j].count
+	var totalLen int
+	for i, tc := range top {
+		totalLen += len(tc.name) + len(strconv.Itoa(tc.count)) + 1
+		if i > 0 {
+			totalLen++
 		}
-		return sorted[i].name < sorted[j].name
-	})
-
-	limit := min(len(sorted), 3)
-	parts := make([]string, limit)
-	for i := range limit {
-		parts[i] = fmt.Sprintf("%s:%d", sorted[i].name, sorted[i].count)
 	}
-	return strings.Join(parts, " ")
+
+	var builder strings.Builder
+	builder.Grow(totalLen)
+	for i, tc := range top {
+		if i > 0 {
+			builder.WriteByte(' ')
+		}
+		builder.WriteString(tc.name)
+		builder.WriteByte(':')
+		builder.WriteString(strconv.Itoa(tc.count))
+	}
+	return builder.String()
+}
+
+type toolCount struct {
+	name  string
+	count int
+}
+
+func buildDisplayTitle(
+	projectName string,
+	displayName string,
+	date string,
+	isSubagent bool,
+	branch string,
+	partCount int,
+) string {
+	var builder strings.Builder
+	builder.Grow(len(projectName) + len(displayName) + len(date) + len(branch) + 24)
+	if isSubagent {
+		builder.WriteString("[sub] ")
+	}
+	builder.WriteString(projectName)
+	builder.WriteString(" / ")
+	builder.WriteString(displayName)
+	builder.WriteString("  ")
+	builder.WriteString(date)
+	if branch != "" {
+		builder.WriteString("  ")
+		builder.WriteString(branch)
+	}
+	if partCount > 1 {
+		builder.WriteString("  (")
+		builder.WriteString(strconv.Itoa(partCount))
+		builder.WriteString(" parts)")
+	}
+	return builder.String()
+}
+
+func buildDisplayDescription(
+	version string,
+	model string,
+	messageCount int,
+	mainMessageCount int,
+	totalTokens int,
+	durationText string,
+	toolCounts map[string]int,
+	trailing string,
+) string {
+	toolSummary := FormatToolCounts(toolCounts)
+
+	var builder strings.Builder
+	builder.Grow(len(version) + len(model) + len(durationText) + len(toolSummary) + len(trailing) + 48)
+	if version != "" {
+		builder.WriteString(version)
+		builder.WriteString("  ")
+	}
+	builder.WriteString(model)
+	builder.WriteString("  ")
+	builder.WriteString(strconv.Itoa(messageCount))
+	builder.WriteString(" msgs")
+	if mainMessageCount > 0 && mainMessageCount != messageCount {
+		builder.WriteString(" (")
+		builder.WriteString(strconv.Itoa(mainMessageCount))
+		builder.WriteString(" main)")
+	}
+	if totalTokens > 0 {
+		builder.WriteString("  ")
+		builder.WriteString(strconv.Itoa(totalTokens / 1000))
+		builder.WriteString("k tokens")
+	}
+	if durationText != "" {
+		builder.WriteString("  ")
+		builder.WriteString(durationText)
+	}
+	if toolSummary != "" {
+		builder.WriteString("  ")
+		builder.WriteString(toolSummary)
+	}
+	if trailing != "" {
+		builder.WriteByte('\n')
+		builder.WriteString(trailing)
+	}
+	return builder.String()
+}
+
+func topToolCounts(counts map[string]int) []toolCount {
+	top := make([]toolCount, 0, 3)
+	for name, count := range counts {
+		entry := toolCount{name: name, count: count}
+		insertAt := len(top)
+		for i := range top {
+			if toolCountPrecedes(entry, top[i]) {
+				insertAt = i
+				break
+			}
+		}
+		if insertAt >= 3 {
+			continue
+		}
+		if len(top) < 3 {
+			top = append(top, toolCount{})
+		}
+		copy(top[insertAt+1:], top[insertAt:])
+		top[insertAt] = entry
+	}
+	return top
+}
+
+func toolCountPrecedes(left toolCount, right toolCount) bool {
+	if left.count != right.count {
+		return left.count > right.count
+	}
+	return left.name < right.name
+}
+
+func formatDisplayDuration(duration time.Duration) string {
+	if duration <= 0 {
+		return ""
+	}
+	return FormatDuration(duration)
 }

@@ -229,9 +229,9 @@ func classifyConversations(seen map[groupKey]*conversationState) (newConvs, toUp
 }
 
 func extractSessionSlug(filePath string) (string, error) {
-	slug, _, err := readSessionSlugAndInfo(filePath)
+	slug, err := readSessionSlug(filePath)
 	if err != nil {
-		return "", fmt.Errorf("readSessionSlugAndInfo: %w", err)
+		return "", fmt.Errorf("readSessionSlug: %w", err)
 	}
 	return slug, nil
 }

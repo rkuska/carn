@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,8 +13,8 @@ import (
 
 type scanState struct {
 	meta         conv.SessionMeta
-	firstRawTS   string
-	lastRawTS    string
+	firstRawTS   []byte
+	lastRawTS    []byte
 	lastRole     conv.Role
 	lastText     string
 	callNameByID map[string]string
@@ -84,20 +85,20 @@ func newScanState(path string) scanState {
 		meta: conv.SessionMeta{
 			FilePath: path,
 		},
-		callNameByID: make(map[string]string),
-		drift:        &drift,
+		drift: &drift,
 	}
 }
 
-func (s *scanState) observeRecordTimestamp(value string) {
-	if value == "" {
+func (s *scanState) observeRecordTimestamp(raw []byte) {
+	raw = rawJSONStringInner(raw)
+	if len(raw) == 0 {
 		return
 	}
-	if s.firstRawTS == "" {
-		s.firstRawTS = value
+	if len(s.firstRawTS) == 0 {
+		s.firstRawTS = bytes.Clone(raw)
 	}
-	if value > s.lastRawTS {
-		s.lastRawTS = value
+	if bytes.Compare(raw, s.lastRawTS) > 0 {
+		s.lastRawTS = bytes.Clone(raw)
 	}
 }
 
@@ -141,12 +142,15 @@ func (s *scanState) recordToolCall(callID, name string) {
 	}
 	s.meta.ToolCounts[name]++
 	if callID != "" {
+		if s.callNameByID == nil {
+			s.callNameByID = make(map[string]string, 2)
+		}
 		s.callNameByID[callID] = name
 	}
 }
 
-func (s *scanState) recordToolResult(callID, output, status string) {
-	if status != "failed" && status != "error" && !isCodexToolError(output) {
+func (s *scanState) recordToolResult(callID string, outputRaw, statusRaw []byte) {
+	if !hasCodexToolError(outputRaw, statusRaw) || s.callNameByID == nil {
 		return
 	}
 	name := s.callNameByID[callID]
@@ -166,9 +170,9 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 
 	meta := s.meta
 	if meta.Timestamp.IsZero() {
-		meta.Timestamp = parseTimestamp(s.firstRawTS)
+		meta.Timestamp = parseTimestamp(string(s.firstRawTS))
 	}
-	meta.LastTimestamp = parseTimestamp(s.lastRawTS)
+	meta.LastTimestamp = parseTimestamp(string(s.lastRawTS))
 	if meta.LastTimestamp.IsZero() {
 		meta.LastTimestamp = meta.Timestamp
 	}

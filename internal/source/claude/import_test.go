@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,11 +71,11 @@ func TestClassifyProjectFileUsesPathForSubagents(t *testing.T) {
 	sourceDir := t.TempDir()
 	rawDir := t.TempDir()
 	path := filepath.Join(sourceDir, "project-a", "session-1", "subagents", "agent-1.jsonl")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(makeTestUserRecord(t, "session-1", "slug-ignored", "hello")+"\n"), 0o644))
 
 	classified, ok := classifyProjectFile(sessionFile{
 		path:       path,
+		relPath:    filepath.Join("project-a", "session-1", "subagents", "agent-1.jsonl"),
+		srcInfo:    testFileInfo{name: "agent-1.jsonl", size: 64, modTime: time.Unix(100, 0)},
 		isSubagent: true,
 	}, sourceDir, rawDir, "project-a")
 	require.True(t, ok)
@@ -104,3 +105,39 @@ func TestProjectSyncCandidatesSkipsUpToDateFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, candidates)
 }
+
+func TestDiscoverProjectSessionFilesIncludesSourceInfo(t *testing.T) {
+	t.Parallel()
+
+	sourceDir := t.TempDir()
+	projDir := filepath.Join(sourceDir, "project-a")
+	require.NoError(t, os.MkdirAll(projDir, 0o755))
+
+	path := filepath.Join(projDir, "session-1.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(makeTestUserRecord(t, "session-1", "slug-1", "hello")+"\n"), 0o644))
+
+	files, err := discoverProjectSessionFiles(
+		projDir,
+		project{DisplayName: "project-a"},
+		"project-a",
+		sourceDir,
+	)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	require.NotNil(t, files[0].srcInfo)
+	assert.Equal(t, int64(len(makeTestUserRecord(t, "session-1", "slug-1", "hello")+"\n")), files[0].srcInfo.Size())
+}
+
+type testFileInfo struct {
+	name    string
+	size    int64
+	mode    os.FileMode
+	modTime time.Time
+}
+
+func (i testFileInfo) Name() string       { return i.name }
+func (i testFileInfo) Size() int64        { return i.size }
+func (i testFileInfo) Mode() os.FileMode  { return i.mode }
+func (i testFileInfo) ModTime() time.Time { return i.modTime }
+func (i testFileInfo) IsDir() bool        { return false }
+func (i testFileInfo) Sys() any           { return nil }

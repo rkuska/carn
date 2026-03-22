@@ -44,64 +44,6 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	return nil
 }
 
-func readMessage(r *bufio.Reader) (message, error) {
-	br := binReader{r: r}
-	roleValue := br.readString()
-	visibilityValue := br.readString()
-	text := br.readString()
-	thinking := br.readString()
-	hasHiddenThinking := br.readBool()
-	callCount := br.readUint()
-	toolCalls := make([]toolCall, 0, callCount)
-	for range callCount {
-		name := br.readString()
-		summary := br.readString()
-		toolCalls = append(toolCalls, toolCall{Name: name, Summary: summary})
-	}
-
-	resultCount := br.readUint()
-	if br.err != nil {
-		return message{}, fmt.Errorf("readMessage: %w", br.err)
-	}
-	toolResults := make([]toolResult, 0, resultCount)
-	for range resultCount {
-		result, err := readToolResult(r)
-		if err != nil {
-			return message{}, fmt.Errorf("readMessage_toolResult: %w", err)
-		}
-		toolResults = append(toolResults, result)
-	}
-
-	isSidechain := br.readBool()
-	isAgentDivider := br.readBool()
-	usage := br.readTokenUsage()
-	planCount := br.readUint()
-	if br.err != nil {
-		return message{}, fmt.Errorf("readMessage: %w", br.err)
-	}
-	plans := make([]plan, 0, planCount)
-	for range planCount {
-		p, err := readPlan(r)
-		if err != nil {
-			return message{}, fmt.Errorf("readMessage_plan: %w", err)
-		}
-		plans = append(plans, p)
-	}
-	return message{
-		Role:              role(roleValue),
-		Visibility:        convMessageVisibility(visibilityValue),
-		Text:              text,
-		Thinking:          thinking,
-		HasHiddenThinking: hasHiddenThinking,
-		ToolCalls:         toolCalls,
-		ToolResults:       toolResults,
-		Plans:             plans,
-		IsSidechain:       isSidechain,
-		IsAgentDivider:    isAgentDivider,
-		Usage:             usage,
-	}, nil
-}
-
 func convMessageVisibility(value string) messageVisibility {
 	return messageVisibility(value)
 }
@@ -130,45 +72,6 @@ func writeToolResult(w *bufio.Writer, result toolResult) error {
 	return nil
 }
 
-func readToolResult(r *bufio.Reader) (toolResult, error) {
-	toolName, err := readString(r)
-	if err != nil {
-		return toolResult{}, fmt.Errorf("readString_toolName: %w", err)
-	}
-	toolSummary, err := readString(r)
-	if err != nil {
-		return toolResult{}, fmt.Errorf("readString_toolSummary: %w", err)
-	}
-	content, err := readString(r)
-	if err != nil {
-		return toolResult{}, fmt.Errorf("readString_content: %w", err)
-	}
-	isError, err := readBool(r)
-	if err != nil {
-		return toolResult{}, fmt.Errorf("readBool_isError: %w", err)
-	}
-	hunkCount, err := readUint(r)
-	if err != nil {
-		return toolResult{}, fmt.Errorf("readUint_structuredPatch: %w", err)
-	}
-
-	patch := make([]diffHunk, 0, hunkCount)
-	for range hunkCount {
-		hunk, err := readDiffHunk(r)
-		if err != nil {
-			return toolResult{}, fmt.Errorf("readDiffHunk: %w", err)
-		}
-		patch = append(patch, hunk)
-	}
-	return toolResult{
-		ToolName:        toolName,
-		ToolSummary:     toolSummary,
-		Content:         content,
-		IsError:         isError,
-		StructuredPatch: patch,
-	}, nil
-}
-
 func writeDiffHunk(w *bufio.Writer, hunk diffHunk) error {
 	for _, value := range []int{hunk.OldStart, hunk.OldLines, hunk.NewStart, hunk.NewLines} {
 		if err := writeInt(w, int64(value)); err != nil {
@@ -184,45 +87,6 @@ func writeDiffHunk(w *bufio.Writer, hunk diffHunk) error {
 		}
 	}
 	return nil
-}
-
-func readDiffHunk(r *bufio.Reader) (diffHunk, error) {
-	oldStart, err := readInt(r)
-	if err != nil {
-		return diffHunk{}, fmt.Errorf("readInt_oldStart: %w", err)
-	}
-	oldLines, err := readInt(r)
-	if err != nil {
-		return diffHunk{}, fmt.Errorf("readInt_oldLines: %w", err)
-	}
-	newStart, err := readInt(r)
-	if err != nil {
-		return diffHunk{}, fmt.Errorf("readInt_newStart: %w", err)
-	}
-	newLines, err := readInt(r)
-	if err != nil {
-		return diffHunk{}, fmt.Errorf("readInt_newLines: %w", err)
-	}
-	lineCount, err := readUint(r)
-	if err != nil {
-		return diffHunk{}, fmt.Errorf("readUint_lines: %w", err)
-	}
-
-	lines := make([]string, 0, lineCount)
-	for range lineCount {
-		line, err := readString(r)
-		if err != nil {
-			return diffHunk{}, fmt.Errorf("readString_line: %w", err)
-		}
-		lines = append(lines, line)
-	}
-	return diffHunk{
-		OldStart: int(oldStart),
-		OldLines: int(oldLines),
-		NewStart: int(newStart),
-		NewLines: int(newLines),
-		Lines:    lines,
-	}, nil
 }
 
 func writeTokenUsage(w *bufio.Writer, usage tokenUsage) error {

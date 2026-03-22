@@ -11,53 +11,26 @@ var (
 	assistantToolUseMarker    = []byte(`"tool_use"`)
 	userToolResultMarker      = []byte(`"tool_result"`)
 	userToolResultErrorMarker = []byte(`"is_error"`)
+	toolUseTypeMarker         = []byte(`"type":"tool_use"`)
+	toolResultTypeMarker      = []byte(`"type":"tool_result"`)
+	isErrorTrueMarker         = []byte(`"is_error":true`)
+	nameFieldMarker           = []byte(`"name":"`)
+	idFieldMarker             = []byte(`"id":"`)
+	toolUseIDFieldMarker      = []byte(`"tool_use_id":"`)
+	readToolNameRaw           = []byte("Read")
+	writeToolNameRaw          = []byte("Write")
+	editToolNameRaw           = []byte("Edit")
+	bashToolNameRaw           = []byte("Bash")
 )
 
 func visitAssistantToolUses(raw json.RawMessage, yield func(name, id string) bool) bool {
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || raw[0] != '[' {
-		return false
-	}
-
-	parseOK := true
-	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
-		if !parseOK {
-			return
-		}
-		if err != nil || dataType != jsonparser.Object {
-			parseOK = false
-			return
-		}
-		blockType, ok, err := jsonStringField(value, "type")
-		if err != nil {
-			parseOK = false
-			return
-		}
+	return visitJSONArrayObjects(raw, func(value []byte) bool {
+		name, id, ok := assistantToolUseFields(value)
 		if !ok {
-			return
+			return true
 		}
-		if blockType != blockTypeToolUse {
-			return
-		}
-
-		name, ok, err := jsonStringField(value, "name")
-		if err != nil {
-			parseOK = false
-			return
-		}
-		if !ok || name == "" {
-			return
-		}
-		id, _, err := jsonStringField(value, "id")
-		if err != nil {
-			parseOK = false
-			return
-		}
-		if !yield(name, id) {
-			parseOK = false
-		}
+		return yield(name, id)
 	})
-	return err == nil && parseOK
 }
 
 func visitUserToolErrors(raw json.RawMessage, yield func(toolUseID string) bool) bool {
@@ -65,6 +38,16 @@ func visitUserToolErrors(raw json.RawMessage, yield func(toolUseID string) bool)
 		return true
 	}
 
+	return visitJSONArrayObjects(raw, func(value []byte) bool {
+		toolUseID, ok := userToolErrorID(value)
+		if !ok {
+			return true
+		}
+		return yield(toolUseID)
+	})
+}
+
+func visitJSONArrayObjects(raw json.RawMessage, visit func([]byte) bool) bool {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '[' {
 		return false
@@ -79,37 +62,62 @@ func visitUserToolErrors(raw json.RawMessage, yield func(toolUseID string) bool)
 			parseOK = false
 			return
 		}
-		blockType, ok, err := jsonStringField(value, "type")
-		if err != nil {
-			parseOK = false
-			return
-		}
-		if !ok {
-			return
-		}
-		if blockType != contentTypeToolResult {
-			return
-		}
-		isError, ok, err := jsonBoolField(value, "is_error")
-		if err != nil {
-			parseOK = false
-			return
-		}
-		if !ok || !isError {
-			return
-		}
-
-		toolUseID, ok, err := jsonStringField(value, "tool_use_id")
-		if err != nil {
-			parseOK = false
-			return
-		}
-		if !ok || toolUseID == "" {
-			return
-		}
-		if !yield(toolUseID) {
+		if !visit(value) {
 			parseOK = false
 		}
 	})
 	return err == nil && parseOK
+}
+
+func assistantToolUseFields(value []byte) (string, string, bool) {
+	if !bytes.Contains(value, toolUseTypeMarker) {
+		return "", "", false
+	}
+
+	nameRaw, ok := extractFastJSONStringFieldBytes(value, nameFieldMarker)
+	if !ok || len(nameRaw) == 0 {
+		return "", "", false
+	}
+	idRaw, _ := extractFastJSONStringFieldBytes(value, idFieldMarker)
+	return internClaudeToolName(nameRaw), string(idRaw), true
+}
+
+func userToolErrorID(value []byte) (string, bool) {
+	if !bytes.Contains(value, toolResultTypeMarker) || !bytes.Contains(value, isErrorTrueMarker) {
+		return "", false
+	}
+
+	toolUseIDRaw, ok := extractFastJSONStringFieldBytes(value, toolUseIDFieldMarker)
+	if !ok || len(toolUseIDRaw) == 0 {
+		return "", false
+	}
+	return string(toolUseIDRaw), true
+}
+
+func extractFastJSONStringFieldBytes(raw []byte, marker []byte) ([]byte, bool) {
+	idx := bytes.Index(raw, marker)
+	if idx == -1 {
+		return nil, false
+	}
+	start := idx + len(marker)
+	end := bytes.IndexByte(raw[start:], '"')
+	if end == -1 {
+		return nil, false
+	}
+	return raw[start : start+end], true
+}
+
+func internClaudeToolName(raw []byte) string {
+	switch {
+	case bytes.Equal(raw, readToolNameRaw):
+		return "Read"
+	case bytes.Equal(raw, writeToolNameRaw):
+		return "Write"
+	case bytes.Equal(raw, editToolNameRaw):
+		return "Edit"
+	case bytes.Equal(raw, bashToolNameRaw):
+		return "Bash"
+	default:
+		return string(raw)
+	}
 }

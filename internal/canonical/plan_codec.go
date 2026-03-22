@@ -3,7 +3,6 @@ package canonical
 import (
 	"bufio"
 	"fmt"
-	"time"
 )
 
 func writePlan(w *bufio.Writer, p plan) error {
@@ -20,24 +19,4 @@ func writePlan(w *bufio.Writer, p plan) error {
 		return fmt.Errorf("writePlan: %w", bw.err)
 	}
 	return nil
-}
-
-func readPlan(r *bufio.Reader) (plan, error) {
-	br := binReader{r: r}
-	filePath := br.readString()
-	content := br.readString()
-	timestamp := br.readInt()
-	if br.err != nil {
-		return plan{}, fmt.Errorf("readPlan: %w", br.err)
-	}
-
-	var ts time.Time
-	if timestamp != 0 {
-		ts = unixTime(timestamp)
-	}
-	return plan{
-		FilePath:  filePath,
-		Content:   content,
-		Timestamp: ts,
-	}, nil
 }

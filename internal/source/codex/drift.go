@@ -211,7 +211,7 @@ func detectContentBlockDrift(content json.RawMessage, report *src.DriftReport) {
 }
 
 type driftEnvelope struct {
-	timestamp     string
+	timestampRaw  []byte
 	recordTypeRaw []byte
 	payload       []byte
 	hasPayload    bool
@@ -242,7 +242,7 @@ func scanDriftEnvelope(line []byte, report *src.DriftReport) driftEnvelope {
 
 		switch {
 		case bytes.Equal(field, timestampFieldMarker):
-			envelope.timestamp, _ = readRawJSONString(value)
+			envelope.timestampRaw = value
 		case bytes.Equal(field, typeFieldMarker):
 			envelope.recordTypeRaw = value
 		case bytes.Equal(field, payloadFieldMarker):

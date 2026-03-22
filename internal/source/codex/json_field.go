@@ -241,6 +241,17 @@ func readRawJSONString(raw []byte) (string, bool) {
 	return readRawJSONStringValue(raw, 0)
 }
 
+func rawJSONStringInner(raw []byte) []byte {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
+		return nil
+	}
+	if bytes.IndexByte(raw, '\\') != -1 {
+		return nil
+	}
+	return raw[1 : len(raw)-1]
+}
+
 func sliceRawJSONValue(raw []byte, start int) ([]byte, bool) {
 	end, trimPrimitive, ok := rawJSONValueEnd(raw, start)
 	if !ok {
