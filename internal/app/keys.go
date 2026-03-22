@@ -7,6 +7,7 @@ type browserKeyMap struct {
 	Search           key.Binding
 	ClearSearch      key.Binding
 	Filter           key.Binding
+	Stats            key.Binding
 	ToggleFullscreen key.Binding
 	FocusPane        key.Binding
 	Resume           key.Binding
@@ -33,6 +34,10 @@ var browserKeys = browserKeyMap{
 	Filter: key.NewBinding(
 		key.WithKeys("f"),
 		key.WithHelp("f", "filter"),
+	),
+	Stats: key.NewBinding(
+		key.WithKeys("S"),
+		key.WithHelp("S", "stats"),
 	),
 	ToggleFullscreen: key.NewBinding(
 		key.WithKeys("O"),

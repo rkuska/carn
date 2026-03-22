@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestComputeSnapshotFiltersByTimeRangeAndLeavesTokenGrowthNil(t *testing.T) {
+func TestComputeSnapshotFiltersByTimeRangeAndLeavesClaudeTurnMetricsNil(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
@@ -21,7 +21,7 @@ func TestComputeSnapshotFiltersByTimeRangeAndLeavesTokenGrowthNil(t *testing.T) 
 	if got.Overview.SessionCount != 1 || got.Overview.MessageCount != 5 {
 		t.Fatalf("Overview = %#v", got.Overview)
 	}
-	if got.Sessions.TokenGrowth != nil {
-		t.Fatalf("TokenGrowth = %#v, want nil", got.Sessions.TokenGrowth)
+	if got.Sessions.ClaudeTurnMetrics != nil {
+		t.Fatalf("ClaudeTurnMetrics = %#v, want nil", got.Sessions.ClaudeTurnMetrics)
 	}
 }

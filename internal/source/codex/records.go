@@ -166,7 +166,7 @@ func buildToolResult(payload []byte, meta toolEventMeta) conv.ToolResult {
 		ToolName:        meta.call.Name,
 		ToolSummary:     meta.call.Summary,
 		Content:         output,
-		IsError:         status == "failed" || status == "error" || isCodexToolError(output),
+		IsError:         status == "failed" || status == "error" || isCodexToolError(meta.call.Name, output),
 		StructuredPatch: parseStructuredPatch(meta.input),
 	}
 }
@@ -239,15 +239,17 @@ func extractJSONStringField(jsonStr, field string) (string, bool) {
 	return "", false
 }
 
-func isCodexToolError(output string) bool {
+func isCodexToolError(toolName, output string) bool {
+	if toolName != toolNameApplyPatch {
+		return false
+	}
+
 	check := output
 	if len(check) > 200 {
 		check = check[:200]
 	}
-	lower := strings.ToLower(check)
-	return strings.Contains(lower, "aborted by user") ||
-		strings.Contains(lower, "patch rejected") ||
-		strings.Contains(lower, "verification failed")
+	lower := strings.ToLower(strings.TrimSpace(check))
+	return strings.HasPrefix(lower, "apply_patch verification failed:")
 }
 
 func scanToolName(raw []byte) (string, bool) {
@@ -261,13 +263,17 @@ func scanToolName(raw []byte) (string, bool) {
 	}
 }
 
-func hasCodexToolError(outputRaw, statusRaw []byte) bool {
+func hasCodexToolError(toolName string, outputRaw, statusRaw []byte) bool {
 	return bytes.Equal(bytes.TrimSpace(statusRaw), statusFailedRaw) ||
 		bytes.Equal(bytes.TrimSpace(statusRaw), statusErrorRaw) ||
-		isCodexToolErrorRaw(outputRaw)
+		isCodexToolErrorRaw(toolName, outputRaw)
 }
 
-func isCodexToolErrorRaw(outputRaw []byte) bool {
+func isCodexToolErrorRaw(toolName string, outputRaw []byte) bool {
+	if toolName != toolNameApplyPatch {
+		return false
+	}
+
 	outputRaw = bytes.TrimSpace(outputRaw)
 	if len(outputRaw) < 2 || outputRaw[0] != '"' {
 		return false
@@ -277,21 +283,14 @@ func isCodexToolErrorRaw(outputRaw []byte) bool {
 	if len(check) > 200 {
 		check = check[:200]
 	}
-	return containsFoldASCII(check, "aborted by user") ||
-		containsFoldASCII(check, "patch rejected") ||
-		containsFoldASCII(check, "verification failed")
+	return hasPrefixFoldASCII(check, "apply_patch verification failed:")
 }
 
-func containsFoldASCII(raw []byte, needle string) bool {
-	if len(needle) == 0 || len(raw) < len(needle) {
+func hasPrefixFoldASCII(raw []byte, prefix string) bool {
+	if len(prefix) == 0 || len(raw) < len(prefix) {
 		return false
 	}
-	for i := 0; i+len(needle) <= len(raw); i++ {
-		if equalFoldASCII(raw[i:i+len(needle)], needle) {
-			return true
-		}
-	}
-	return false
+	return equalFoldASCII(raw[:len(prefix)], prefix)
 }
 
 func equalFoldASCII(raw []byte, needle string) bool {

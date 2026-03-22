@@ -40,46 +40,91 @@ func ComputeSessions(sessions []conv.SessionMeta) Sessions {
 	return stats
 }
 
-func ComputeMessageTokenGrowth(sessions []conv.Session) []PositionTokens {
+func ComputeTurnTokenMetrics(sessions []conv.Session) []PositionTokenMetrics {
+	return ComputeTurnTokenMetricsForRange(CollectSessionTurnMetrics(sessions), TimeRange{})
+}
+
+func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 	if len(sessions) == 0 {
 		return nil
 	}
 
-	totals := make(map[int]float64)
-	samples := make(map[int]int)
+	series := make([]SessionTurnMetrics, 0, len(sessions))
 	for _, session := range sessions {
-		position := 0
-		hasUsage := false
+		turns := make([]TurnTokens, 0)
 		for _, message := range session.Messages {
-			tokens := float64(message.Usage.InputTokens + message.Usage.OutputTokens)
-			if tokens <= 0 {
+			inputTokens := message.Usage.InputTokens
+			turnTokens := message.Usage.InputTokens + message.Usage.OutputTokens
+			if turnTokens <= 0 {
 				continue
 			}
-			hasUsage = true
-			position++
-			totals[position] += tokens
-			samples[position]++
+			turns = append(turns, TurnTokens{
+				InputTokens: inputTokens,
+				TurnTokens:  turnTokens,
+			})
 		}
-		if !hasUsage {
+		if len(turns) == 0 {
 			continue
 		}
-	}
-
-	growth := make([]PositionTokens, 0, len(samples))
-	for position, sampleCount := range samples {
-		if sampleCount < 3 {
-			continue
-		}
-		growth = append(growth, PositionTokens{
-			Position:      position,
-			AverageTokens: totals[position] / float64(sampleCount),
-			SampleCount:   sampleCount,
+		series = append(series, SessionTurnMetrics{
+			Timestamp: session.Meta.Timestamp,
+			Turns:     turns,
 		})
 	}
-	slices.SortFunc(growth, func(left, right PositionTokens) int {
+	return series
+}
+
+func ComputeTurnTokenMetricsForRange(
+	sessions []SessionTurnMetrics,
+	timeRange TimeRange,
+) []PositionTokenMetrics {
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	type turnTotals struct {
+		input   float64
+		turn    float64
+		samples int
+	}
+
+	totals := make(map[int]turnTotals)
+	for _, session := range sessions {
+		if !timeRangeContains(timeRange, session.Timestamp) {
+			continue
+		}
+		for index, turn := range session.Turns {
+			position := index + 1
+			total := totals[position]
+			total.input += float64(turn.InputTokens)
+			total.turn += float64(turn.TurnTokens)
+			total.samples++
+			totals[position] = total
+		}
+	}
+	metrics := make([]PositionTokenMetrics, 0, len(totals))
+	for position, total := range totals {
+		if total.samples < 3 {
+			continue
+		}
+		metrics = append(metrics, PositionTokenMetrics{
+			Position:           position,
+			AverageInputTokens: total.input / float64(total.samples),
+			AverageTurnTokens:  total.turn / float64(total.samples),
+			SampleCount:        total.samples,
+		})
+	}
+	slices.SortFunc(metrics, func(left, right PositionTokenMetrics) int {
 		return left.Position - right.Position
 	})
-	return growth
+	return metrics
+}
+
+func timeRangeContains(timeRange TimeRange, timestamp time.Time) bool {
+	if timeRange.Start.IsZero() && timeRange.End.IsZero() {
+		return true
+	}
+	return !timestamp.Before(timeRange.Start) && !timestamp.After(timeRange.End)
 }
 
 func fixedBuckets(labels ...string) []HistogramBucket {

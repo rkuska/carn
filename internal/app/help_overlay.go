@@ -44,7 +44,9 @@ func renderHelpOverlaySection(section helpSection, contentWidth int) []string {
 	rowWidth := max(contentWidth-lipgloss.Width(helpOverlayIndent), 1)
 	keyWidth, descWidth := helpOverlayColumnWidths(section.items, rowWidth)
 	for _, item := range section.items {
-		lines = append(lines, helpOverlayIndent+renderHelpOverlayItemRow(item, keyWidth, descWidth, rowWidth))
+		for _, row := range renderHelpOverlayItemRows(item, keyWidth, descWidth, rowWidth) {
+			lines = append(lines, helpOverlayIndent+row)
+		}
 	}
 	return lines
 }
@@ -64,9 +66,9 @@ func helpOverlayColumnWidths(items []helpItem, rowWidth int) (int, int) {
 	return keyWidth, descWidth
 }
 
-func renderHelpOverlayItemRow(item helpItem, keyWidth, descWidth, width int) string {
+func renderHelpOverlayItemRows(item helpItem, keyWidth, descWidth, width int) []string {
 	if width <= 0 {
-		return ""
+		return nil
 	}
 
 	keyWidth = max(keyWidth, 1)
@@ -74,16 +76,29 @@ func renderHelpOverlayItemRow(item helpItem, keyWidth, descWidth, width int) str
 	gapWidth := lipgloss.Width(helpOverlayColumnGap)
 	detailWidth := max(width-keyWidth-descWidth-(2*gapWidth), 1)
 
-	keyText := ansi.Truncate(helpItemKeyText(item), keyWidth, "")
-	descText := ansi.Truncate(item.desc, descWidth, "…")
 	detailText := item.detail
 	if detailText == "" {
 		detailText = item.desc
 	}
-	detailText = ansi.Truncate(detailText, detailWidth, "…")
+	detailLines := strings.Split(ansi.Wordwrap(detailText, detailWidth, ""), "\n")
+	if len(detailLines) == 0 {
+		detailLines = []string{""}
+	}
 
-	keyPart := fitToWidth(helpItemKeyStyle(item).Render(keyText), keyWidth)
-	descPart := fitToWidth(lipgloss.NewStyle().Foreground(colorNormalTitle).Render(descText), descWidth)
-	detailPart := fitToWidth(lipgloss.NewStyle().Foreground(colorNormalDesc).Render(detailText), detailWidth)
-	return keyPart + helpOverlayColumnGap + descPart + helpOverlayColumnGap + detailPart
+	rows := make([]string, 0, len(detailLines))
+	for i, detailLine := range detailLines {
+		detailLine = strings.TrimSpace(detailLine)
+		keyText := ""
+		descText := ""
+		if i == 0 {
+			keyText = ansi.Truncate(helpItemKeyText(item), keyWidth, "")
+			descText = ansi.Truncate(item.desc, descWidth, "…")
+		}
+
+		keyPart := fitToWidth(helpItemKeyStyle(item).Render(keyText), keyWidth)
+		descPart := fitToWidth(lipgloss.NewStyle().Foreground(colorNormalTitle).Render(descText), descWidth)
+		detailPart := fitToWidth(lipgloss.NewStyle().Foreground(colorNormalDesc).Render(detailLine), detailWidth)
+		rows = append(rows, keyPart+helpOverlayColumnGap+descPart+helpOverlayColumnGap+detailPart)
+	}
+	return rows
 }

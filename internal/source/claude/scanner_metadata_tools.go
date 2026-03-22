@@ -3,6 +3,7 @@ package claude
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 
 	"github.com/buger/jsonparser"
 )
@@ -17,10 +18,31 @@ var (
 	nameFieldMarker           = []byte(`"name":"`)
 	idFieldMarker             = []byte(`"id":"`)
 	toolUseIDFieldMarker      = []byte(`"tool_use_id":"`)
-	readToolNameRaw           = []byte("Read")
-	writeToolNameRaw          = []byte("Write")
-	editToolNameRaw           = []byte("Edit")
-	bashToolNameRaw           = []byte("Bash")
+	userRejectedToolUseMarker = []byte(`The user doesn't want to proceed with this tool use.`)
+	claudeToolNamesByLower    = map[string]string{
+		"read":            "Read",
+		"write":           "Write",
+		"edit":            "Edit",
+		"bash":            "Bash",
+		"glob":            "Glob",
+		"grep":            "Grep",
+		"webfetch":        "WebFetch",
+		"websearch":       "WebSearch",
+		"toolsearch":      "ToolSearch",
+		"agent":           "Agent",
+		"askuserquestion": "AskUserQuestion",
+		"skill":           "Skill",
+		"task":            "Task",
+		"taskcreate":      "TaskCreate",
+		"taskupdate":      "TaskUpdate",
+		"taskget":         "TaskGet",
+		"tasklist":        "TaskList",
+		"taskoutput":      "TaskOutput",
+		"notebookedit":    "NotebookEdit",
+		"enterworktree":   "EnterWorktree",
+		"enterplanmode":   "EnterPlanMode",
+		"exitplanmode":    "ExitPlanMode",
+	}
 )
 
 func visitAssistantToolUses(raw json.RawMessage, yield func(name, id string) bool) bool {
@@ -83,7 +105,9 @@ func assistantToolUseFields(value []byte) (string, string, bool) {
 }
 
 func userToolErrorID(value []byte) (string, bool) {
-	if !bytes.Contains(value, toolResultTypeMarker) || !bytes.Contains(value, isErrorTrueMarker) {
+	if !bytes.Contains(value, toolResultTypeMarker) ||
+		!bytes.Contains(value, isErrorTrueMarker) ||
+		bytes.Contains(value, userRejectedToolUseMarker) {
 		return "", false
 	}
 
@@ -108,16 +132,9 @@ func extractFastJSONStringFieldBytes(raw []byte, marker []byte) ([]byte, bool) {
 }
 
 func internClaudeToolName(raw []byte) string {
-	switch {
-	case bytes.Equal(raw, readToolNameRaw):
-		return "Read"
-	case bytes.Equal(raw, writeToolNameRaw):
-		return "Write"
-	case bytes.Equal(raw, editToolNameRaw):
-		return "Edit"
-	case bytes.Equal(raw, bashToolNameRaw):
-		return "Bash"
-	default:
-		return string(raw)
+	name := string(raw)
+	if canonical, ok := claudeToolNamesByLower[strings.ToLower(name)]; ok {
+		return canonical
 	}
+	return name
 }

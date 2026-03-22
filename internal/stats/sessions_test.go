@@ -52,7 +52,7 @@ func TestComputeSessionsAggregatesRatiosAndHistograms(t *testing.T) {
 	assert.Equal(t, HistogramBucket{Label: "60+", Count: 1}, got.MessageHistogram[4])
 }
 
-func TestComputeMessageTokenGrowthAveragesByPositionAndSkipsSparsePositions(t *testing.T) {
+func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T) {
 	t.Parallel()
 
 	sessions := []session{
@@ -77,12 +77,125 @@ func TestComputeMessageTokenGrowthAveragesByPositionAndSkipsSparsePositions(t *t
 		}),
 	}
 
-	got := ComputeMessageTokenGrowth(sessions)
+	got := ComputeTurnTokenMetrics(sessions)
 	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
 	assert.Equal(t, 3, got[0].SampleCount)
-	assert.InDelta(t, 25, got[0].AverageTokens, 0.0001)
+	assert.InDelta(t, 18.3333333333, got[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 25, got[0].AverageTurnTokens, 0.0001)
 	assert.Equal(t, 2, got[1].Position)
 	assert.Equal(t, 3, got[1].SampleCount)
-	assert.InDelta(t, 63.3333333333, got[1].AverageTokens, 0.0001)
+	assert.InDelta(t, 50, got[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 63.3333333333, got[1].AverageTurnTokens, 0.0001)
+}
+
+func TestComputeTurnTokenMetricsUsesUsageBearingTurnsInsteadOfRawMessagePositions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessage(100, 10),
+			userMessage(),
+			assistantUsageMessage(200, 20),
+		}),
+		testSession("s2", []message{
+			userMessage(),
+			userMessage(),
+			assistantUsageMessage(150, 15),
+			assistantUsageMessage(300, 30),
+		}),
+		testSession("s3", []message{
+			assistantUsageMessage(50, 5),
+			userMessage(),
+			assistantUsageMessage(250, 25),
+		}),
+	}
+
+	got := ComputeTurnTokenMetrics(sessions)
+	require.Len(t, got, 2)
+	assert.Equal(t, 1, got[0].Position)
+	assert.InDelta(t, 100, got[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 110, got[0].AverageTurnTokens, 0.0001)
+	assert.Equal(t, 2, got[1].Position)
+	assert.InDelta(t, 250, got[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 275, got[1].AverageTurnTokens, 0.0001)
+}
+
+func TestCollectSessionTurnMetricsCapturesUsageBearingTurnsPerSession(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessage(100, 10),
+			userMessage(),
+			assistantUsageMessage(200, 20),
+		}),
+		testSession("empty", []message{
+			userMessage(),
+			userMessage(),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	assert.Equal(t, sessions[0].Meta.Timestamp, got[0].Timestamp)
+	assert.Equal(t, []TurnTokens{
+		{InputTokens: 100, TurnTokens: 110},
+		{InputTokens: 200, TurnTokens: 220},
+	}, got[0].Turns)
+}
+
+func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	sessions := []SessionTurnMetrics{
+		{
+			Timestamp: now,
+			Turns: []TurnTokens{
+				{InputTokens: 10, TurnTokens: 15},
+				{InputTokens: 20, TurnTokens: 30},
+			},
+		},
+		{
+			Timestamp: now.AddDate(0, 0, -10),
+			Turns: []TurnTokens{
+				{InputTokens: 20, TurnTokens: 25},
+				{InputTokens: 30, TurnTokens: 40},
+			},
+		},
+		{
+			Timestamp: now.AddDate(0, 0, -20),
+			Turns: []TurnTokens{
+				{InputTokens: 30, TurnTokens: 35},
+				{InputTokens: 40, TurnTokens: 50},
+			},
+		},
+		{
+			Timestamp: now.AddDate(0, 0, -50),
+			Turns: []TurnTokens{
+				{InputTokens: 40, TurnTokens: 45},
+				{InputTokens: 50, TurnTokens: 60},
+			},
+		},
+	}
+
+	thirtyDay := ComputeTurnTokenMetricsForRange(sessions, TimeRange{
+		Start: now.AddDate(0, 0, -29),
+		End:   now,
+	})
+	require.Len(t, thirtyDay, 2)
+	assert.InDelta(t, 20, thirtyDay[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 25, thirtyDay[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 30, thirtyDay[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 40, thirtyDay[1].AverageTurnTokens, 0.0001)
+
+	allTime := ComputeTurnTokenMetricsForRange(sessions, TimeRange{})
+	require.Len(t, allTime, 2)
+	assert.InDelta(t, 25, allTime[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 30, allTime[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 35, allTime[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 45, allTime[1].AverageTurnTokens, 0.0001)
 }

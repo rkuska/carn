@@ -98,15 +98,17 @@ func TestScanRolloutLineTracksToolErrorCounts(t *testing.T) {
 
 	require.NoError(t, scanRolloutLine([]byte(
 		`{"timestamp":"2026-03-16T10:00:03Z","type":"response_item","payload":{`+
-			`"type":"function_call","name":"exec_command","arguments":"{}","call_id":"call-1"}}`,
+			`"type":"custom_tool_call","name":"apply_patch","input":"*** Begin Patch","call_id":"call-1"}}`,
 	), &state))
 	require.NoError(t, scanRolloutLine([]byte(
 		`{"timestamp":"2026-03-16T10:00:04Z","type":"response_item","payload":{`+
-			`"type":"function_call_output","call_id":"call-1","output":"verification failed","status":"completed"}}`,
+			`"type":"custom_tool_call_output","call_id":"call-1",`+
+			`"output":"apply_patch verification failed: failed to find expected lines",`+
+			`"status":"completed"}}`,
 	), &state))
 
-	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolCounts)
-	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolErrorCounts)
+	assert.Equal(t, map[string]int{"apply_patch": 1}, state.meta.ToolCounts)
+	assert.Equal(t, map[string]int{"apply_patch": 1}, state.meta.ToolErrorCounts)
 }
 
 func TestScanRolloutLineTracksToolErrorCountsFromFailedStatusWithoutStringOutput(t *testing.T) {
@@ -125,6 +127,27 @@ func TestScanRolloutLineTracksToolErrorCountsFromFailedStatusWithoutStringOutput
 
 	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolCounts)
 	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolErrorCounts)
+}
+
+func TestScanRolloutLineIgnoresVerificationFailedTextInExecCommandOutput(t *testing.T) {
+	t.Parallel()
+
+	state := newScanState("/tmp/thread.jsonl")
+
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:03Z","type":"response_item","payload":{`+
+			`"type":"function_call","name":"exec_command","arguments":"{}","call_id":"call-1"}}`,
+	), &state))
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:04Z","type":"response_item","payload":{`+
+			`"type":"function_call_output","call_id":"call-1",`+
+			`"output":"func isCodexToolError(output string) bool { `+
+			`return strings.Contains(strings.ToLower(output), \"verification failed\") }",`+
+			`"status":"completed"}}`,
+	), &state))
+
+	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolCounts)
+	assert.Nil(t, state.meta.ToolErrorCounts)
 }
 
 func TestScanRolloutParsesSingleFile(t *testing.T) {

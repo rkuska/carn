@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,18 @@ type ToolResult struct {
 	Content         string
 	IsError         bool
 	StructuredPatch []DiffHunk
+}
+
+func (r ToolResult) IsRejected() bool {
+	if !r.IsError {
+		return false
+	}
+
+	lower := strings.ToLower(strings.TrimSpace(r.Content))
+	return strings.Contains(lower, "the user doesn't want to proceed with this tool use") ||
+		strings.Contains(lower, "the user does not want to proceed with this tool use") ||
+		strings.Contains(lower, "tool use was rejected") ||
+		strings.Contains(lower, "user rejected tool use")
 }
 
 type SessionMeta struct {

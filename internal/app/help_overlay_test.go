@@ -7,12 +7,13 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderHelpOverlayItemRowUsesThreeColumns(t *testing.T) {
 	t.Parallel()
 
-	row := ansi.Strip(renderHelpOverlayItemRow(
+	row := ansi.Strip(renderHelpOverlayItemRows(
 		helpItem{
 			key:    "R",
 			desc:   "resync",
@@ -21,7 +22,7 @@ func TestRenderHelpOverlayItemRowUsesThreeColumns(t *testing.T) {
 		7,
 		8,
 		48,
-	))
+	)[0])
 
 	assert.Contains(t, row, "R")
 	assert.Contains(t, row, "resync")
@@ -29,10 +30,10 @@ func TestRenderHelpOverlayItemRowUsesThreeColumns(t *testing.T) {
 	assert.NotContains(t, row, "R resync")
 }
 
-func TestRenderHelpOverlayItemRowTruncatesDetailToFitWidth(t *testing.T) {
+func TestRenderHelpOverlayItemRowsWrapDetailToFitWidth(t *testing.T) {
 	t.Parallel()
 
-	row := ansi.Strip(renderHelpOverlayItemRow(
+	rows := renderHelpOverlayItemRows(
 		helpItem{
 			key:    "ctrl+f/b",
 			desc:   "page",
@@ -41,10 +42,17 @@ func TestRenderHelpOverlayItemRowTruncatesDetailToFitWidth(t *testing.T) {
 		8,
 		5,
 		24,
-	))
+	)
 
-	assert.Equal(t, 24, lipgloss.Width(row))
-	assert.Contains(t, row, "…")
+	require.Greater(t, len(rows), 1)
+	for _, row := range rows {
+		assert.LessOrEqual(t, lipgloss.Width(ansi.Strip(row)), 26)
+	}
+	joined := ansi.Strip(strings.Join(rows, "\n"))
+	assert.Contains(t, joined, "ctrl+f/b")
+	assert.Contains(t, joined, "page")
+	assert.Contains(t, joined, "jump")
+	assert.Contains(t, joined, "visible")
 }
 
 func TestRenderHelpOverlayKeepsRowsWithinViewportWidth(t *testing.T) {
@@ -77,5 +85,7 @@ func TestRenderHelpOverlayKeepsRowsWithinViewportWidth(t *testing.T) {
 		assert.LessOrEqual(t, lipgloss.Width(line), 48)
 	}
 	assert.Contains(t, overlay, "resync")
-	assert.Contains(t, overlay, "…")
+	assert.Contains(t, overlay, "refresh raw sessions")
+	assert.Contains(t, overlay, "and rebuild the local")
+	assert.Contains(t, overlay, "store")
 }

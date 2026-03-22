@@ -26,9 +26,10 @@ None.
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
+| internal/app/stats_keys.go | source | 330 | 74 | 362 |
 | internal/canonical/sqlite_store_persist.go | source | 345 | 72 | 374 |
 | internal/config/config.go | source | 310 | 71 | 367 |
-| internal/source/claude/scanner_assistant.go | source | 247 | 71 | 276 |
+| internal/source/claude/scanner_assistant.go | source | 248 | 71 | 277 |
 | internal/conversation/conversation_display.go | source | 252 | 69 | 280 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/canonical/sqlite_db.go | source | 276 | 67 | 300 |
@@ -43,11 +44,14 @@ None.
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
 | internal/source/claude/scanner_metadata.go | source | 360 | 59 | 388 |
 | internal/source/codex/json_field.go | source | 366 | 46 | 388 |
+| internal/app/stats_model.go | source | 337 | 42 | 386 |
 | internal/source/codex/drift.go | source | 328 | 41 | 378 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
-| internal/source/codex/records.go | source | 301 | 16 | 314 |
+| internal/source/codex/records.go | source | 300 | 16 | 313 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
+| internal/app/stats_model_test.go | test | 641 | 10 | 738 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
+| internal/app/stats_help.go | source | 325 | 4 | 333 |
 
 ## Notes
 

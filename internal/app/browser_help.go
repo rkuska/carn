@@ -61,6 +61,7 @@ func (m browserModel) listFooterItems() []helpItem {
 	}
 	items = append(items,
 		helpItem{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
+		helpItem{key: "S", desc: "stats"},
 		helpItem{key: "enter", desc: "open"},
 		helpItem{key: "r", desc: "resume"},
 	)
@@ -149,6 +150,11 @@ func (m browserModel) helpSections() []helpSection {
 		key:    "f",
 		desc:   "filter",
 		detail: "open filter overlay to narrow by provider, project, model, etc.",
+	})
+	actions = append(actions, helpItem{
+		key:    "S",
+		desc:   "stats",
+		detail: "open the fullscreen stats view for the current workspace archive",
 	})
 	if m.transcriptMode == transcriptSplit {
 		actions = append(actions,

@@ -194,6 +194,8 @@ func (m browserModel) handleListKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (brows
 		return m.clearSearch(cmds), nil
 	case key.Matches(msg, browserKeys.Filter):
 		return m.openFilterOverlay(), nil
+	case key.Matches(msg, browserKeys.Stats):
+		return m, updateOpenStatsCmd()
 	case key.Matches(msg, browserKeys.Enter):
 		if conv, ok := m.selectedConversation(); ok {
 			m.transcriptMode = transcriptSplit

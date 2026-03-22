@@ -2,6 +2,7 @@ package stats
 
 import (
 	"slices"
+	"strings"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -20,12 +21,15 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	topSessions := make([]SessionSummary, 0, len(sessions))
 
 	for _, session := range sessions {
-		topSessions = append(topSessions, accumulateOverviewSession(
+		summary, ok := accumulateOverviewSession(
 			&overview,
 			modelTotals,
 			projectTotals,
 			session,
-		))
+		)
+		if ok {
+			topSessions = append(topSessions, summary)
+		}
 	}
 
 	overview.ByModel = sortTokenGroups(modelTotals, func(name string, tokens int) ModelTokens {
@@ -47,7 +51,7 @@ func accumulateOverviewSession(
 	modelTotals map[string]int,
 	projectTotals map[string]int,
 	session conv.SessionMeta,
-) SessionSummary {
+) (SessionSummary, bool) {
 	totalTokens := session.TotalUsage.TotalTokens()
 	overview.SessionCount++
 	overview.MessageCount += session.MainMessageCount
@@ -56,16 +60,30 @@ func accumulateOverviewSession(
 	overview.Tokens.Output += session.TotalUsage.OutputTokens
 	overview.Tokens.CacheRead += session.TotalUsage.CacheReadInputTokens
 	overview.Tokens.CacheWrite += session.TotalUsage.CacheCreationInputTokens
-	modelTotals[session.Model] += totalTokens
-	projectTotals[session.Project.DisplayName] += totalTokens
+	addTokenGroupTotal(modelTotals, session.Model, totalTokens)
+	addTokenGroupTotal(projectTotals, session.Project.DisplayName, totalTokens)
 	return SessionSummary{
 		Project:      session.Project.DisplayName,
 		Slug:         session.DisplaySlug(),
 		Timestamp:    session.Timestamp,
-		MessageCount: session.MainMessageCount,
+		MessageCount: overviewSessionMessageCount(session),
 		Duration:     session.Duration(),
 		Tokens:       totalTokens,
+	}, totalTokens > 0
+}
+
+func addTokenGroupTotal(totals map[string]int, name string, tokens int) {
+	if tokens <= 0 || strings.TrimSpace(name) == "" {
+		return
 	}
+	totals[name] += tokens
+}
+
+func overviewSessionMessageCount(session conv.SessionMeta) int {
+	if session.IsSubagent && session.MessageCount > 0 {
+		return session.MessageCount
+	}
+	return session.MainMessageCount
 }
 
 func sortTokenGroups[T any](totals map[string]int, build func(string, int) T) []T {

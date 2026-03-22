@@ -89,3 +89,56 @@ func TestComputeOverviewLimitsTopSessionsToFive(t *testing.T) {
 	assert.Equal(t, "s6", got.TopSessions[0].Slug)
 	assert.Equal(t, "s2", got.TopSessions[4].Slug)
 }
+
+func TestComputeOverviewSkipsZeroTokenGroupsAndSessions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"zero",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withProject("ghost"),
+			withModel("unknown"),
+			withUsage(0, 0, 0, 0),
+		),
+		testMeta(
+			"real",
+			time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withModel("claude-sonnet-4"),
+			withUsage(100, 0, 0, 25),
+		),
+	}
+
+	got := ComputeOverview(sessions)
+
+	assert.Equal(t, []ModelTokens{{Model: "claude-sonnet-4", Tokens: 125}}, got.ByModel)
+	assert.Equal(t, []ProjectTokens{{Project: "alpha", Tokens: 125}}, got.ByProject)
+	require.Len(t, got.TopSessions, 1)
+	assert.Equal(t, "real", got.TopSessions[0].Slug)
+}
+
+func TestComputeOverviewUsesTotalMessageCountForSubagentTopSessions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"subagent-heavy",
+			time.Date(2026, 3, 12, 14, 43, 44, 0, time.UTC),
+			withProject("claude-search"),
+			withUsage(1000, 0, 0, 500),
+			func(meta *sessionMeta) {
+				meta.IsSubagent = true
+				meta.MessageCount = 191
+				meta.MainMessageCount = 0
+				meta.UserMessageCount = 14
+				meta.AssistantMessageCount = 177
+			},
+		),
+	}
+
+	got := ComputeOverview(sessions)
+
+	require.Len(t, got.TopSessions, 1)
+	assert.Equal(t, 191, got.TopSessions[0].MessageCount)
+}

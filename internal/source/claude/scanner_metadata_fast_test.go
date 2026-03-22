@@ -52,6 +52,42 @@ func TestVisitUserToolErrors(t *testing.T) {
 	assert.Equal(t, []string{"toolu_2"}, got)
 }
 
+func TestVisitUserToolErrorsIgnoresRejectedToolUse(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`[
+		{
+			"type":"tool_result",
+			"tool_use_id":"toolu_1",
+			"is_error":true,
+			"content":"The user doesn't want to proceed with this tool use. The tool use was rejected."
+		},
+		{
+			"type":"tool_result",
+			"tool_use_id":"toolu_2",
+			"is_error":true,
+			"content":"file does not exist"
+		}
+	]`)
+
+	var got []string
+	ok := visitUserToolErrors(raw, func(toolUseID string) bool {
+		got = append(got, toolUseID)
+		return true
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, []string{"toolu_2"}, got)
+}
+
+func TestInternClaudeToolNameNormalizesCaseVariants(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Bash", internClaudeToolName([]byte("bash")))
+	assert.Equal(t, "Read", internClaudeToolName([]byte("read")))
+	assert.Equal(t, "ExitPlanMode", internClaudeToolName([]byte("exitplanmode")))
+}
+
 func TestParseUsageObject(t *testing.T) {
 	t.Parallel()
 

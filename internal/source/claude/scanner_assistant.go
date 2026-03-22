@@ -176,6 +176,7 @@ func appendAssistantToolUseBlock(
 	if err != nil {
 		return fmt.Errorf("appendAssistantToolUseBlock_name: %w", err)
 	}
+	name = internClaudeToolName([]byte(name))
 	id, _, err := jsonStringField(value, "id")
 	if err != nil {
 		return fmt.Errorf("appendAssistantToolUseBlock_id: %w", err)

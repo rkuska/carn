@@ -23,6 +23,13 @@ var (
 	colorNormalTitle color.Color
 	colorNormalDesc  color.Color
 	colorTitleFg     color.Color // list title text on primary bg
+	colorChartBar    color.Color
+	colorChartError  color.Color
+	colorHeatmap0    color.Color
+	colorHeatmap1    color.Color
+	colorHeatmap2    color.Color
+	colorHeatmap3    color.Color
+	colorHeatmap4    color.Color
 
 	// Styles — rebuilt by initPalette.
 	styleSubtitle             lipgloss.Style
@@ -73,6 +80,13 @@ func initPalette(hasDarkBG bool) {
 		colorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
 		colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
 		colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
+		colorChartBar = lipgloss.Color("#39d353")
+		colorChartError = lipgloss.Color("#f85149")
+		colorHeatmap0 = lipgloss.Color("#161b22")
+		colorHeatmap1 = lipgloss.Color("#0e4429")
+		colorHeatmap2 = lipgloss.Color("#006d32")
+		colorHeatmap3 = lipgloss.Color("#26a641")
+		colorHeatmap4 = lipgloss.Color("#39d353")
 
 		styleSubtitle = lipgloss.NewStyle().
 			Foreground(colorSecondary)

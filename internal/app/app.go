@@ -13,6 +13,7 @@ type viewState int
 const (
 	viewImportOverview viewState = iota
 	viewBrowser
+	viewStats
 )
 
 type appModel struct {
@@ -27,6 +28,7 @@ type appModel struct {
 	state           viewState
 	importOverview  importOverviewModel
 	browser         browserModel
+	stats           statsModel
 	width           int
 	height          int
 	resyncEvents    <-chan tea.Msg
@@ -70,7 +72,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewImportOverview:
 		return m.updateImportOverview(msg)
 	case viewBrowser:
+		if _, ok := msg.(openStatsMsg); ok {
+			return m.updateStats(msg)
+		}
 		return m.updateBrowser(msg)
+	case viewStats:
+		return m.updateStats(msg)
 	}
 
 	return m, nil
@@ -107,6 +114,8 @@ func (m appModel) View() tea.View {
 		content = m.importOverview.View()
 	case viewBrowser:
 		content = m.browser.View()
+	case viewStats:
+		content = m.stats.View()
 	}
 
 	v := tea.NewView(content)

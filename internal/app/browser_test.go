@@ -349,7 +349,7 @@ func TestBrowserListFooterOrdersItemsByWorkflow(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "enter", "r", "?", "q"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "S", "enter", "r", "?", "q"},
 		helpItemKeys(b.listFooterItems()),
 	)
 }
@@ -408,7 +408,7 @@ func TestBrowserSplitListFooterUsesConsistentActionLabels(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "enter", "r", "tab", "O", "?", "q/esc"},
+		[]string{"j/k", "gg", "G", "ctrl+f/b", "/", "f", "S", "enter", "r", "tab", "O", "?", "q/esc"},
 		helpItemKeys(items),
 	)
 

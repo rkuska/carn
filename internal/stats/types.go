@@ -44,17 +44,19 @@ type Sessions struct {
 	AbandonedRate         float64
 	DurationHistogram     []HistogramBucket
 	MessageHistogram      []HistogramBucket
-	TokenGrowth           []PositionTokens
+	ClaudeTurnMetrics     []PositionTokenMetrics
 }
 
 type Tools struct {
 	TotalCalls             int
 	AverageCallsPerSession float64
 	ErrorRate              float64
+	RejectionRate          float64
 	ReadWriteBashRatio     ToolCategoryRatio
 	TopTools               []ToolStat
 	CallsPerSession        []HistogramBucket
-	ToolErrorRates         []ToolErrorRate
+	ToolErrorRates         []ToolRateStat
+	ToolRejectRates        []ToolRateStat
 }
 
 type ToolCategoryRatio struct {
@@ -100,10 +102,28 @@ type HistogramBucket struct {
 	Count int
 }
 
-type PositionTokens struct {
-	Position      int
-	AverageTokens float64
-	SampleCount   int
+type PositionTokenMetrics struct {
+	Position           int
+	AverageInputTokens float64
+	AverageTurnTokens  float64
+	SampleCount        int
+}
+
+type SessionTurnMetrics struct {
+	Timestamp time.Time
+	Turns     []TurnTokens
+}
+
+type SessionToolMetrics struct {
+	Timestamp        time.Time
+	ToolCounts       map[string]int
+	ToolErrorCounts  map[string]int
+	ToolRejectCounts map[string]int
+}
+
+type TurnTokens struct {
+	InputTokens int
+	TurnTokens  int
 }
 
 type ToolStat struct {
@@ -111,9 +131,9 @@ type ToolStat struct {
 	Count int
 }
 
-type ToolErrorRate struct {
-	Name   string
-	Errors int
-	Total  int
-	Rate   float64
+type ToolRateStat struct {
+	Name  string
+	Count int
+	Total int
+	Rate  float64
 }

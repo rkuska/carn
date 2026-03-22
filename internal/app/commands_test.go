@@ -15,14 +15,19 @@ import (
 )
 
 type fakeBrowserStore struct {
-	listResult        []conv.Conversation
-	listErr           error
-	loadResult        conv.Session
-	loadErr           error
-	loadCalls         int
-	deepSearchCalls   int
-	deepSearchResults map[string][]conv.Conversation
-	deepSearchErr     error
+	listResult         []conv.Conversation
+	listErr            error
+	loadResult         conv.Session
+	loadErr            error
+	loadCalls          int
+	loadSessionResult  conv.Session
+	loadSessionResults map[string]conv.Session
+	loadSessionErr     error
+	loadSessionCalls   int
+	loadSessionIDs     []string
+	deepSearchCalls    int
+	deepSearchResults  map[string][]conv.Conversation
+	deepSearchErr      error
 }
 
 func (s *fakeBrowserStore) List(context.Context, string) ([]conv.Conversation, error) {
@@ -36,6 +41,22 @@ func (s *fakeBrowserStore) Load(
 ) (conv.Session, error) {
 	s.loadCalls++
 	return s.loadResult, s.loadErr
+}
+
+func (s *fakeBrowserStore) LoadSession(
+	_ context.Context,
+	_ conv.Conversation,
+	sessionMeta conv.SessionMeta,
+) (conv.Session, error) {
+	s.loadSessionCalls++
+	s.loadSessionIDs = append(s.loadSessionIDs, sessionMeta.ID)
+	if s.loadSessionErr != nil {
+		return conv.Session{}, s.loadSessionErr
+	}
+	if result, ok := s.loadSessionResults[sessionMeta.ID]; ok {
+		return result, nil
+	}
+	return s.loadSessionResult, nil
 }
 
 func (s *fakeBrowserStore) DeepSearch(

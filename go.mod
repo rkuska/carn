@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.0
 	github.com/BurntSushi/toml v1.6.0
+	github.com/NimbleMarkets/ntcharts/v2 v2.0.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/boyter/scc/v3 v3.7.0
 	github.com/buger/jsonparser v1.1.1
@@ -22,7 +23,6 @@ require (
 )
 
 require (
-	github.com/NimbleMarkets/ntcharts/v2 v2.0.0 // indirect
 	github.com/agnivade/levenshtein v1.2.2-0.20250519083737-420867539855 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -47,6 +47,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/lrstanley/bubblezone/v2 v2.0.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

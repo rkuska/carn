@@ -1,0 +1,158 @@
+package app
+
+import (
+	"image/color"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+)
+
+func (m statsModel) View() string {
+	if m.width == 0 {
+		return "Loading..."
+	}
+
+	content := m.viewport.View()
+	switch {
+	case m.helpOpen:
+		content = renderHelpOverlay(m.contentWidth(), m.contentHeight()+framedFooterRows, "Stats Help", m.helpSections())
+	case m.filter.active:
+		content = renderFilterOverlayWithConversations(
+			m.conversations,
+			m.filter,
+			m.contentWidth(),
+			m.contentHeight()+framedFooterRows,
+		)
+	}
+
+	lines := []string{
+		renderBorderTop("Stats", m.width, colorPrimary, colorPrimary),
+		renderBodyLine(m.renderTabBar(), m.contentWidth()),
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth()),
+	}
+	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight())...)
+	lines = append(lines,
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth()),
+		renderBodyLine(m.footerHelpRow(), m.contentWidth()),
+		renderBodyLine(m.footerStatusRow(), m.contentWidth()),
+		renderBorderBottom(m.contentWidth(), colorPrimary),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m statsModel) renderTabBar() string {
+	tabs := []string{
+		m.renderTab(statsTabOverview, "Overview"),
+		m.renderTab(statsTabActivity, "Activity"),
+		m.renderTab(statsTabSessions, "Sessions"),
+		m.renderTab(statsTabTools, "Tools"),
+	}
+	left := strings.Join(tabs, " ")
+
+	ranges := []string{
+		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "7d", "7d"),
+		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "30d", "30d"),
+		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "90d", "90d"),
+		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "All", "All"),
+	}
+	right := strings.Join(ranges, " ")
+	return composeFooterRow(m.width, left, right)
+}
+
+func renderStatsSeparator(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	return styleRuleHR.Render(strings.Repeat("─", width))
+}
+
+func (m statsModel) renderTab(tab statsTab, title string) string {
+	if m.tab == tab {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorTitleFg).
+			Background(colorPrimary).
+			Padding(0, 1).
+			Render("▸ " + title)
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(colorNormalDesc).
+		Padding(0, 1).
+		Render(title)
+}
+
+func renderStatsRange(active bool, label string) string {
+	if active {
+		return lipgloss.NewStyle().Bold(true).Foreground(colorNormalTitle).Render("[" + label + "]")
+	}
+	return lipgloss.NewStyle().Foreground(colorNormalDesc).Render(label)
+}
+
+func renderBodyLine(content string, width int) string {
+	return "│" + fitToWidth(ansi.Truncate(content, width, "…"), width) + "│"
+}
+
+func renderBodyContent(content string, width, height int) []string {
+	lines := splitAndFitLines(content, width)
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for len(lines) < height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+
+	rows := make([]string, 0, len(lines))
+	for _, line := range lines {
+		rows = append(rows, "│"+fitToWidth(ansi.Truncate(line, width, "…"), width)+"│")
+	}
+	return rows
+}
+
+func renderBorderBottom(contentWidth int, borderColor color.Color) string {
+	border := lipgloss.RoundedBorder()
+	return lipgloss.NewStyle().Foreground(borderColor).Render(
+		string(border.BottomLeft) + strings.Repeat("─", contentWidth) + string(border.BottomRight),
+	)
+}
+
+func (m statsModel) footerHelpRow() string {
+	if m.helpOpen {
+		items := []helpItem{
+			{key: "?", desc: "close help", priority: helpPriorityEssential},
+			{key: "q/esc", desc: "close help", priority: helpPriorityHigh},
+		}
+		right := "Stats Help"
+		leftWidth := max(m.contentWidth()-lipgloss.Width(right)-1, 0)
+		return composeFooterRow(m.width, renderFittedHelpItems(items, leftWidth), right)
+	}
+
+	if m.filter.active {
+		return composeFooterRow(m.width, renderHelpItems(filterFooterItems(m.filter)), "")
+	}
+
+	items := []helpItem{
+		{key: "ctrl+f/b", desc: "tabs"},
+		{key: "r", desc: "range"},
+		{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
+		{key: "j/k", desc: "scroll"},
+		{key: "g/G", desc: "jump"},
+	}
+	if m.tab == statsTabActivity {
+		items = append(items, helpItem{key: "m", desc: "metric"})
+	}
+	items = append(items,
+		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
+		helpItem{key: "q/esc", desc: "close", priority: helpPriorityHigh},
+	)
+	return composeFooterRow(m.width, renderHelpItems(items), "")
+}
+
+func (m statsModel) footerStatusRow() string {
+	status := joinNonEmpty(m.footerStatusParts(), "  ")
+	if m.filter.active {
+		status = joinNonEmpty(filterFooterStatusParts(m.conversations, m.filter), "  ")
+	}
+	return composeFooterRow(m.width, status, m.scrollStatus())
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestComputeActivityBuildsDailySeriesHeatmapAndStreaks(t *testing.T) {
@@ -50,6 +51,29 @@ func TestComputeActivityCountsCurrentStreakFromRangeEnd(t *testing.T) {
 	})
 	assert.Equal(t, 3, got.CurrentStreak)
 	assert.Equal(t, 3, got.LongestStreak)
+}
+
+func TestComputeActivityUsesTimeRangeTimezoneForDailySeries(t *testing.T) {
+	t.Parallel()
+
+	prague := time.FixedZone("CET", 1*60*60)
+	sessions := []sessionMeta{
+		testMeta("d1", time.Date(2026, 3, 21, 23, 30, 0, 0, time.UTC), withMainMessages(4)),
+		testMeta("d2", time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC), withMainMessages(6)),
+	}
+
+	got := ComputeActivity(sessions, TimeRange{
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+		End:   time.Date(2026, 3, 22, 23, 59, 59, 0, prague),
+	})
+
+	require.Len(t, got.DailySessions, 1)
+	assert.Equal(t, 2, got.DailySessions[0].Count)
+	assert.Equal(t, 10, got.DailyMessages[0].Count)
+	assert.Equal(t, 1, got.ActiveDays)
+	assert.Equal(t, 1, got.TotalDays)
+	assert.Equal(t, 1, got.Heatmap[6][0])
+	assert.Equal(t, 1, got.Heatmap[6][11])
 }
 
 func dailyCounts(items []DailyCount) []int {

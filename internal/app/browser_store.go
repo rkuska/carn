@@ -8,11 +8,14 @@ import (
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
+	"github.com/rkuska/carn/internal/source/claude"
+	"github.com/rkuska/carn/internal/source/codex"
 )
 
 type browserStore interface {
 	List(ctx context.Context, archiveDir string) ([]conv.Conversation, error)
 	Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error)
+	LoadSession(ctx context.Context, conversation conv.Conversation, sessionMeta conv.SessionMeta) (conv.Session, error)
 	DeepSearch(
 		ctx context.Context,
 		archiveDir, query string,
@@ -21,15 +24,39 @@ type browserStore interface {
 }
 
 type canonicalBrowserStore struct {
-	store *canonical.Store
+	store   *canonical.Store
+	sources map[conv.Provider]sessionTranscriptSource
 }
 
 func newDefaultBrowserStore() browserStore {
-	return newBrowserStore(canonical.New())
+	return newBrowserStore(canonical.New(), claude.New(), codex.New())
 }
 
-func newBrowserStore(store *canonical.Store) browserStore {
-	return canonicalBrowserStore{store: store}
+type sessionTranscriptSource interface {
+	Provider() conv.Provider
+	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
+}
+
+func newBrowserStore(store *canonical.Store, sources ...sessionTranscriptSource) browserStore {
+	if len(sources) == 0 {
+		sources = []sessionTranscriptSource{
+			claude.New(),
+			codex.New(),
+		}
+	}
+
+	byProvider := make(map[conv.Provider]sessionTranscriptSource, len(sources))
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+		byProvider[source.Provider()] = source
+	}
+
+	return canonicalBrowserStore{
+		store:   store,
+		sources: byProvider,
+	}
 }
 
 func (s canonicalBrowserStore) List(
@@ -53,6 +80,30 @@ func (s canonicalBrowserStore) Load(
 	session, err := s.store.Load(ctx, archiveDir, conversation)
 	if err != nil {
 		return conv.Session{}, fmt.Errorf("store.Load: %w", err)
+	}
+	return session, nil
+}
+
+func (s canonicalBrowserStore) LoadSession(
+	ctx context.Context,
+	conversation conv.Conversation,
+	sessionMeta conv.SessionMeta,
+) (conv.Session, error) {
+	source, ok := s.sources[conversation.Ref.Provider]
+	if !ok {
+		return conv.Session{}, fmt.Errorf("loadSession: %w", errors.New("provider source unavailable"))
+	}
+
+	single := conv.Conversation{
+		Ref:       conv.Ref{Provider: conversation.Ref.Provider, ID: sessionMeta.ID},
+		Name:      conversation.Name,
+		Project:   conversation.Project,
+		Sessions:  []conv.SessionMeta{sessionMeta},
+		PlanCount: conversation.PlanCount,
+	}
+	session, err := source.Load(ctx, single)
+	if err != nil {
+		return conv.Session{}, fmt.Errorf("source.Load: %w", err)
 	}
 	return session, nil
 }

@@ -150,11 +150,11 @@ func (s *scanState) recordToolCall(callID, name string) {
 }
 
 func (s *scanState) recordToolResult(callID string, outputRaw, statusRaw []byte) {
-	if !hasCodexToolError(outputRaw, statusRaw) || s.callNameByID == nil {
+	if s.callNameByID == nil {
 		return
 	}
 	name := s.callNameByID[callID]
-	if name == "" {
+	if name == "" || !hasCodexToolError(name, outputRaw, statusRaw) {
 		return
 	}
 	if s.meta.ToolErrorCounts == nil {
