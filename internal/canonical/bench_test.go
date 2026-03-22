@@ -160,7 +160,7 @@ func makeBenchCanonicalStore(
 	return archiveDir, store
 }
 
-func BenchmarkLoadCatalogCold(b *testing.B) {
+func BenchmarkCanonicalStoreListCold(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
 
@@ -179,7 +179,7 @@ func BenchmarkLoadCatalogCold(b *testing.B) {
 	}
 }
 
-func BenchmarkLoadCatalogWarm(b *testing.B) {
+func BenchmarkCanonicalStoreListWarm(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
 
@@ -203,7 +203,7 @@ func BenchmarkLoadCatalogWarm(b *testing.B) {
 	}
 }
 
-func BenchmarkLoadSearchIndex(b *testing.B) {
+func BenchmarkCanonicalStoreSearchChunkCountQuery(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
 	db, err := store.loadDB(ctx, archiveDir)
@@ -223,7 +223,7 @@ func BenchmarkLoadSearchIndex(b *testing.B) {
 	}
 }
 
-func BenchmarkDeepSearchFuzzy(b *testing.B) {
+func BenchmarkCanonicalStoreDeepSearch(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 4, 50, 12)
 	conversations, err := store.List(ctx, archiveDir)
@@ -243,7 +243,7 @@ func BenchmarkDeepSearchFuzzy(b *testing.B) {
 	}
 }
 
-func BenchmarkCanonicalTranscriptOpen(b *testing.B) {
+func BenchmarkCanonicalStoreLoadTranscript(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 4, 50, 12)
 	conversations, err := store.List(ctx, archiveDir)

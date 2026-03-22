@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -39,6 +40,7 @@ func (s canonicalBrowserStore) List(
 	if err != nil {
 		return nil, fmt.Errorf("store.List: %w", err)
 	}
+	conversations = slices.Clone(conversations)
 	precomputeConversationDisplay(conversations)
 	return conversations, nil
 }

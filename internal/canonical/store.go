@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
-	"slices"
 	"sync"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -98,7 +96,7 @@ func (s *Store) RebuildAll(
 func (s *Store) List(ctx context.Context, archiveDir string) ([]conv.Conversation, error) {
 	path := canonicalStorePath(archiveDir)
 	if conversations, ok := s.cachedCatalog(path); ok {
-		return cloneConversations(conversations), nil
+		return conversations, nil
 	}
 
 	db, err := s.loadDB(ctx, archiveDir)
@@ -112,7 +110,7 @@ func (s *Store) List(ctx context.Context, archiveDir string) ([]conv.Conversatio
 	if err != nil {
 		return nil, fmt.Errorf("readSQLiteConversations: %w", err)
 	}
-	return s.cacheCatalog(path, conversations)
+	return s.cacheCatalog(path, conversations), nil
 }
 
 func (s *Store) Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error) {
@@ -259,16 +257,19 @@ func (s *Store) cacheDB(path string, opened *sql.DB) (*sql.DB, error) {
 	return opened, nil
 }
 
-func (s *Store) cacheCatalog(path string, conversations []conversation) ([]conversation, error) {
+func (s *Store) cacheCatalog(path string, conversations []conversation) []conversation {
 	if s == nil {
-		return cloneConversations(conversations), nil
+		return conversations
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if existing, ok := s.catalog[path]; ok {
+		return existing
+	}
 	s.catalog[path] = conversations
-	return cloneConversations(conversations), nil
+	return conversations
 }
 
 func (s *Store) invalidateCatalog(archiveDir string) {
@@ -304,22 +305,4 @@ func (s *Store) invalidateDB(archiveDir string) error {
 		}
 	}
 	return nil
-}
-
-func cloneConversations(conversations []conversation) []conversation {
-	cloned := make([]conversation, len(conversations))
-	for i, conversationValue := range conversations {
-		cloned[i] = conversationValue
-		cloned[i].Sessions = cloneSessions(conversationValue.Sessions)
-	}
-	return cloned
-}
-
-func cloneSessions(sessions []sessionMeta) []sessionMeta {
-	cloned := slices.Clone(sessions)
-	for i := range cloned {
-		cloned[i].ToolCounts = maps.Clone(cloned[i].ToolCounts)
-		cloned[i].ToolErrorCounts = maps.Clone(cloned[i].ToolErrorCounts)
-	}
-	return cloned
 }

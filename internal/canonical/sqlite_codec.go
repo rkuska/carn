@@ -90,14 +90,25 @@ func marshalToolCountsCached(counts map[string]int) string {
 }
 
 func unmarshalToolCounts(raw string) (map[string]int, error) {
-	if raw == "" {
+	if isEmptyJSONObject(raw) {
 		return nil, nil
 	}
 	var counts map[string]int
 	if err := json.Unmarshal([]byte(raw), &counts); err != nil {
 		return nil, fmt.Errorf("json.Unmarshal: %w", err)
 	}
+	if len(counts) == 0 {
+		return nil, nil
+	}
 	return counts, nil
+}
+
+func isEmptyJSONObject(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	trimmed := bytes.TrimSpace([]byte(raw))
+	return bytes.Equal(trimmed, []byte("{}"))
 }
 
 func timeToUnixNano(ts time.Time) int64 {

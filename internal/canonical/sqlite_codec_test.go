@@ -243,6 +243,28 @@ func TestMarshalUnmarshalToolCountsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUnmarshalToolCountsEmptyObjectReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "empty object", raw: "{}"},
+		{name: "empty object with whitespace", raw: " \n\t {} \t"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := unmarshalToolCounts(tt.raw)
+			require.NoError(t, err)
+			assert.Nil(t, got)
+		})
+	}
+}
+
 func TestMarshalToolCountsCachedStableOrder(t *testing.T) {
 	t.Parallel()
 

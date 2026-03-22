@@ -2,3 +2,6 @@ carn
 todo
 artifacts/
 dist/
+*.test
+specs/
+.DS_Store

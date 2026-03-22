@@ -222,7 +222,7 @@ func TestStoreDeepSearchMatchesQueriesAcrossTokenizerSeparators(t *testing.T) {
 	}
 }
 
-func TestStoreListReturnsIndependentCachedCopies(t *testing.T) {
+func TestStoreListReturnsSharedCachedCatalog(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
@@ -260,9 +260,9 @@ func TestStoreListReturnsIndependentCachedCopies(t *testing.T) {
 	second, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
 	require.Len(t, second, 1)
-	assert.Empty(t, second[0].SearchPreview)
-	assert.Equal(t, 1, second[0].Sessions[0].ToolCounts["Read"])
-	assert.Equal(t, 1, second[0].Sessions[0].ToolErrorCounts["Read"])
+	assert.Equal(t, "mutated preview", second[0].SearchPreview)
+	assert.Equal(t, 99, second[0].Sessions[0].ToolCounts["Read"])
+	assert.Equal(t, 42, second[0].Sessions[0].ToolErrorCounts["Read"])
 }
 
 func writeSQLiteTestStore(

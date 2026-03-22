@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"unsafe"
 
 	"github.com/rs/zerolog"
 
@@ -61,8 +62,8 @@ func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
 	if !extractIsSidechain(line) {
 		stats.mainOnly++
 	}
-	if ts := extractTimestamp(line); ts != "" {
-		if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+	if ts, ok := extractTimestamp(line); ok {
+		if t, ok := parseTimestampBytes(ts); ok {
 			stats.lastTS = t
 		}
 	}
@@ -75,41 +76,36 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	stats.totalUsage.CacheReadInputTokens += usage.CacheReadInputTokens
 	stats.totalUsage.OutputTokens += usage.OutputTokens
 
+	if !bytes.Contains(line, assistantToolUseMarker) {
+		return
+	}
 	contentRaw, ok := extractFirstContentValue(line)
 	if !ok {
 		return
 	}
-	_, _, _, toolCalls, toolCallIDs, ok := extractAssistantContent(contentRaw)
+	ok = visitAssistantToolUses(contentRaw, func(name, id string) bool {
+		stats.recordToolCall(name, id)
+		return true
+	})
 	if !ok {
 		return
-	}
-	for i, call := range toolCalls {
-		if call.Name == "" {
-			continue
-		}
-		stats.toolCounts[call.Name]++
-		if i < len(toolCallIDs) && toolCallIDs[i] != "" {
-			stats.toolCallNameByID[toolCallIDs[i]] = call.Name
-		}
 	}
 }
 
 func accumulateUserToolErrorCounts(line []byte, stats *scanStats) {
+	if len(stats.toolCallNameByID) == 0 ||
+		!bytes.Contains(line, userToolResultMarker) ||
+		!bytes.Contains(line, userToolResultErrorMarker) {
+		return
+	}
 	contentRaw, ok := extractFirstContentValue(line)
 	if !ok {
 		return
 	}
-	_, toolResults, toolUseIDs := extractUserContentWithToolUseIDs(contentRaw)
-	for i, result := range toolResults {
-		if !result.IsError || i >= len(toolUseIDs) {
-			continue
-		}
-		name := stats.toolCallNameByID[toolUseIDs[i]]
-		if name == "" {
-			continue
-		}
-		stats.toolErrorCounts[name]++
-	}
+	_ = visitUserToolErrors(contentRaw, func(toolUseID string) bool {
+		stats.recordToolError(toolUseID)
+		return true
+	})
 }
 
 func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
@@ -206,11 +202,7 @@ func newMetadataScanState(result *scannedSession) metadataScanState {
 	return metadataScanState{
 		result: result,
 		drift:  &drift,
-		stats: scanStats{
-			toolCounts:       make(map[string]int),
-			toolErrorCounts:  make(map[string]int),
-			toolCallNameByID: make(map[string]string),
-		},
+		stats:  scanStats{},
 	}
 }
 
@@ -227,6 +219,34 @@ func applyMetadataScanStats(meta *sessionMeta, stats scanStats) {
 	if len(stats.toolErrorCounts) > 0 {
 		meta.ToolErrorCounts = stats.toolErrorCounts
 	}
+}
+
+func (s *scanStats) recordToolCall(name, toolUseID string) {
+	if name == "" {
+		return
+	}
+	if s.toolCounts == nil {
+		s.toolCounts = make(map[string]int, 2)
+	}
+	s.toolCounts[name]++
+	if toolUseID == "" {
+		return
+	}
+	if s.toolCallNameByID == nil {
+		s.toolCallNameByID = make(map[string]string, 2)
+	}
+	s.toolCallNameByID[toolUseID] = name
+}
+
+func (s *scanStats) recordToolError(toolUseID string) {
+	name := s.toolCallNameByID[toolUseID]
+	if name == "" {
+		return
+	}
+	if s.toolErrorCounts == nil {
+		s.toolErrorCounts = make(map[string]int, 2)
+	}
+	s.toolErrorCounts[name]++
 }
 
 func extractType(line []byte) string {
@@ -247,18 +267,18 @@ func extractType(line []byte) string {
 	}
 }
 
-func extractTimestamp(line []byte) string {
+func extractTimestamp(line []byte) ([]byte, bool) {
 	marker := []byte(`"timestamp":"`)
 	idx := bytes.Index(line, marker)
 	if idx == -1 {
-		return ""
+		return nil, false
 	}
 	start := idx + len(marker)
 	end := bytes.IndexByte(line[start:], '"')
 	if end == -1 {
-		return ""
+		return nil, false
 	}
-	return string(line[start : start+end])
+	return line[start : start+end], true
 }
 
 func extractUsage(line []byte) tokenUsage {
@@ -317,6 +337,25 @@ func parseUsageObject(raw []byte) tokenUsage {
 		}
 	}
 	return usage
+}
+
+func parseTimestampBytes(raw []byte) (time.Time, bool) {
+	if len(raw) == 0 {
+		return time.Time{}, false
+	}
+
+	timestamp, err := time.Parse(time.RFC3339Nano, bytesToStringView(raw))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return timestamp, true
+}
+
+func bytesToStringView(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	return unsafe.String(unsafe.SliceData(raw), len(raw))
 }
 
 var isSidechainMarker = []byte(`"isSidechain":`)
