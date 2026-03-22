@@ -34,7 +34,9 @@ type parsedLinkedTranscript struct {
 func messagesFromParsed(messages []parsedMessage) []message {
 	projected := make([]message, 0, len(messages))
 	for _, msg := range messages {
-		projected = append(projected, msg.message)
+		m := msg.message
+		m.Usage = msg.usage
+		projected = append(projected, m)
 	}
 	return projected
 }

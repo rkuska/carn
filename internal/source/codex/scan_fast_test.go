@@ -44,6 +44,8 @@ func TestScanRolloutLineCountsVisibleResponseMessage(t *testing.T) {
 
 	assert.Equal(t, 1, state.meta.MessageCount)
 	assert.Equal(t, 1, state.meta.MainMessageCount)
+	assert.Equal(t, 0, state.meta.UserMessageCount)
+	assert.Equal(t, 1, state.meta.AssistantMessageCount)
 	assert.Equal(t, "Parser updated.", state.lastText)
 }
 
@@ -87,6 +89,24 @@ func TestScanRolloutLineTracksToolCountsAndTokenUsage(t *testing.T) {
 	assert.Equal(t, 100, state.meta.TotalUsage.InputTokens)
 	assert.Equal(t, 10, state.meta.TotalUsage.CacheReadInputTokens)
 	assert.Equal(t, 55, state.meta.TotalUsage.OutputTokens)
+}
+
+func TestScanRolloutLineTracksToolErrorCounts(t *testing.T) {
+	t.Parallel()
+
+	state := newScanState("/tmp/thread.jsonl")
+
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:03Z","type":"response_item","payload":{`+
+			`"type":"function_call","name":"exec_command","arguments":"{}","call_id":"call-1"}}`,
+	), &state))
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:04Z","type":"response_item","payload":{`+
+			`"type":"function_call_output","call_id":"call-1","output":"verification failed","status":"completed"}}`,
+	), &state))
+
+	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolCounts)
+	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolErrorCounts)
 }
 
 func TestScanRolloutParsesSingleFile(t *testing.T) {

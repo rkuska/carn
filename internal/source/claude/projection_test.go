@@ -75,5 +75,6 @@ func TestProjectConversationTranscriptKeepsViewerFieldsOnly(t *testing.T) {
 		}},
 		IsSidechain:    true,
 		IsAgentDivider: true,
+		Usage:          tokenUsage{InputTokens: 10, OutputTokens: 5},
 	}, got[0])
 }

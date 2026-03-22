@@ -15,27 +15,30 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 
 	session := sessionFull{
 		Meta: sessionMeta{
-			ID:               "sess-1",
-			Project:          project{DisplayName: "test-project"},
-			Slug:             "test-slug",
-			Timestamp:        time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
-			LastTimestamp:    time.Date(2025, 1, 15, 11, 0, 0, 0, time.UTC),
-			CWD:              "/home/user/project",
-			GitBranch:        "main",
-			Version:          "1.0.0",
-			Model:            "claude-3",
-			FirstMessage:     "hello",
-			MessageCount:     5,
-			MainMessageCount: 3,
-			FilePath:         "/tmp/sess.jsonl",
+			ID:                    "sess-1",
+			Project:               project{DisplayName: "test-project"},
+			Slug:                  "test-slug",
+			Timestamp:             time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+			LastTimestamp:         time.Date(2025, 1, 15, 11, 0, 0, 0, time.UTC),
+			CWD:                   "/home/user/project",
+			GitBranch:             "main",
+			Version:               "1.0.0",
+			Model:                 "claude-3",
+			FirstMessage:          "hello",
+			MessageCount:          5,
+			MainMessageCount:      3,
+			UserMessageCount:      2,
+			AssistantMessageCount: 3,
+			FilePath:              "/tmp/sess.jsonl",
 			TotalUsage: tokenUsage{
 				InputTokens:              1000,
 				CacheCreationInputTokens: 100,
 				CacheReadInputTokens:     200,
 				OutputTokens:             500,
 			},
-			ToolCounts: map[string]int{"Read": 3, "Write": 1},
-			IsSubagent: false,
+			ToolCounts:      map[string]int{"Read": 3, "Write": 1},
+			ToolErrorCounts: map[string]int{"Write": 1},
+			IsSubagent:      false,
 		},
 		Messages: []message{
 			{
@@ -74,6 +77,12 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 				},
 				IsSidechain:    true,
 				IsAgentDivider: false,
+				Usage: tokenUsage{
+					InputTokens:              600,
+					CacheCreationInputTokens: 80,
+					CacheReadInputTokens:     120,
+					OutputTokens:             240,
+				},
 			},
 		},
 	}
@@ -105,6 +114,7 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 	assert.Equal(t, session.Messages[1].ToolResults, decoded.Messages[1].ToolResults)
 	assert.Equal(t, session.Messages[1].Plans, decoded.Messages[1].Plans)
 	assert.Equal(t, session.Messages[1].IsSidechain, decoded.Messages[1].IsSidechain)
+	assert.Equal(t, session.Messages[1].Usage, decoded.Messages[1].Usage)
 }
 
 func TestWithEncodedSessionBlobMinimal(t *testing.T) {
@@ -167,6 +177,43 @@ func TestWithEncodedSessionBlobEmptyFields(t *testing.T) {
 	require.Len(t, decoded.Messages, 1)
 	assert.Equal(t, conv.RoleUser, decoded.Messages[0].Role)
 	assert.Equal(t, "", decoded.Messages[0].Text)
+}
+
+func TestWithEncodedSessionBlobMessageUsageRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		Meta: sessionMeta{
+			ID:        "usage-sess",
+			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+		},
+		Messages: []message{
+			{
+				Role:  conv.RoleAssistant,
+				Text:  "first reply",
+				Usage: tokenUsage{InputTokens: 120, OutputTokens: 30},
+			},
+			{
+				Role:  conv.RoleAssistant,
+				Text:  "second reply",
+				Usage: tokenUsage{InputTokens: 240, CacheReadInputTokens: 18, OutputTokens: 55},
+			},
+		},
+	}
+
+	var blob []byte
+	err := withEncodedSessionBlob(session, func(data []byte) error {
+		blob = make([]byte, len(data))
+		copy(blob, data)
+		return nil
+	})
+	require.NoError(t, err)
+
+	decoded, err := decodeSessionBlob(blob)
+	require.NoError(t, err)
+	require.Len(t, decoded.Messages, 2)
+	assert.Equal(t, session.Messages[0].Usage, decoded.Messages[0].Usage)
+	assert.Equal(t, session.Messages[1].Usage, decoded.Messages[1].Usage)
 }
 
 func TestMarshalUnmarshalToolCountsRoundTrip(t *testing.T) {

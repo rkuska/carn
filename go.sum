@@ -6,6 +6,8 @@ charm.land/lipgloss/v2 v2.0.0 h1:sd8N/B3x892oiOjFfBQdXBQp3cAkvjGaU5TvVZC3ivo=
 charm.land/lipgloss/v2 v2.0.0/go.mod h1:w6SnmsBFBmEFBodiEDurGS/sdUY/u1+v72DqUzc6J14=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
+github.com/NimbleMarkets/ntcharts/v2 v2.0.0 h1:nKsiSvjsBtJvAp6Sj8SPqXUCxuBjyacYQlCuCCh0o4c=
+github.com/NimbleMarkets/ntcharts/v2 v2.0.0/go.mod h1:gigw4ggjQaWojQAkSbhZ6fezCPiocBMw6MexapLfXZ4=
 github.com/agnivade/levenshtein v1.2.2-0.20250519083737-420867539855 h1:eecTPiTbYU25fX1PZ2euFs9ol/TwQsJbRZwOF6pddw8=
 github.com/agnivade/levenshtein v1.2.2-0.20250519083737-420867539855/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/alecthomas/assert/v2 v2.7.0 h1:QtqSACNS3tF7oasA8CU6A6sXZSBDqnm7RfpLl9bZqbE=
@@ -40,6 +42,8 @@ github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 h1:ZR7e0r
 github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834/go.mod h1:aKC/t2arECF6rNOnaKaVU6y4t4ZeHQzqfxedE/VkVhA=
 github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8 h1:eyFRbAmexyt43hVfeyBofiGSEmJ7krjLOYt/9CF5NKA=
 github.com/charmbracelet/ultraviolet v0.0.0-20260205113103-524a6607adb8/go.mod h1:SQpCTRNBtzJkwku5ye4S3HEuthAlGy2n9VXZnWkEW98=
+github.com/charmbracelet/ultraviolet v0.0.0-20260223171050-89c142e4aa73 h1:Af/L28Xh+pddhouT/6lJ7IAIYfu5tWJOB0iqt+mXsYM=
+github.com/charmbracelet/ultraviolet v0.0.0-20260223171050-89c142e4aa73/go.mod h1:E6/0abq9uG2SnM8IbLB9Y5SW09uIgfaFETk8aRzgXUQ=
 github.com/charmbracelet/x/ansi v0.11.6 h1:GhV21SiDz/45W9AnV2R61xZMRri5NlLnl6CVF7ihZW8=
 github.com/charmbracelet/x/ansi v0.11.6/go.mod h1:2JNYLgQUsyqaiLovhU2Rv/pb8r6ydXKS3NIttu3VGZQ=
 github.com/charmbracelet/x/cellbuf v0.0.15 h1:ur3pZy0o6z/R7EylET877CBxaiE1Sp1GMxoFPAIztPI=

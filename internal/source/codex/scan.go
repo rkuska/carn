@@ -11,13 +11,14 @@ import (
 )
 
 type scanState struct {
-	meta       conv.SessionMeta
-	firstRawTS string
-	lastRawTS  string
-	lastRole   conv.Role
-	lastText   string
-	link       subagentLink
-	drift      *src.DriftReport
+	meta         conv.SessionMeta
+	firstRawTS   string
+	lastRawTS    string
+	lastRole     conv.Role
+	lastText     string
+	callNameByID map[string]string
+	link         subagentLink
+	drift        *src.DriftReport
 }
 
 func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, src.DriftReport, error) {
@@ -83,7 +84,8 @@ func newScanState(path string) scanState {
 		meta: conv.SessionMeta{
 			FilePath: path,
 		},
-		drift: &drift,
+		callNameByID: make(map[string]string),
+		drift:        &drift,
 	}
 }
 
@@ -100,7 +102,7 @@ func (s *scanState) observeRecordTimestamp(value string) {
 }
 
 func (s *scanState) recordMessage(message visibleMessage, ok bool) {
-	if !ok || message.text == "" || message.isAgentDivider || message.visibility == conv.MessageVisibilityHiddenSystem {
+	if !shouldRecordMessage(message, ok) {
 		return
 	}
 
@@ -111,12 +113,26 @@ func (s *scanState) recordMessage(message visibleMessage, ok bool) {
 	s.lastText = message.text
 	s.meta.MessageCount++
 	s.meta.MainMessageCount++
+	switch message.role {
+	case conv.RoleUser:
+		s.meta.UserMessageCount++
+	case conv.RoleAssistant:
+		s.meta.AssistantMessageCount++
+	case conv.RoleSystem:
+	}
 	if message.role == conv.RoleUser && s.meta.FirstMessage == "" {
 		s.meta.FirstMessage = message.text
 	}
 }
 
-func (s *scanState) recordToolCallName(name string) {
+func shouldRecordMessage(message visibleMessage, ok bool) bool {
+	return ok &&
+		message.text != "" &&
+		!message.isAgentDivider &&
+		message.visibility != conv.MessageVisibilityHiddenSystem
+}
+
+func (s *scanState) recordToolCall(callID, name string) {
 	if name == "" {
 		return
 	}
@@ -124,6 +140,23 @@ func (s *scanState) recordToolCallName(name string) {
 		s.meta.ToolCounts = make(map[string]int, 2)
 	}
 	s.meta.ToolCounts[name]++
+	if callID != "" {
+		s.callNameByID[callID] = name
+	}
+}
+
+func (s *scanState) recordToolResult(callID, output, status string) {
+	if status != "failed" && status != "error" && !isCodexToolError(output) {
+		return
+	}
+	name := s.callNameByID[callID]
+	if name == "" {
+		return
+	}
+	if s.meta.ToolErrorCounts == nil {
+		s.meta.ToolErrorCounts = make(map[string]int, 2)
+	}
+	s.meta.ToolErrorCounts[name]++
 }
 
 func (s *scanState) rollout() (scannedRollout, bool, error) {
@@ -142,6 +175,9 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 	meta.Project = conv.Project{DisplayName: conv.ProjectName(meta.CWD)}
 	if len(meta.ToolCounts) == 0 {
 		meta.ToolCounts = nil
+	}
+	if len(meta.ToolErrorCounts) == 0 {
+		meta.ToolErrorCounts = nil
 	}
 	if meta.Slug == "" {
 		meta.Slug = slugFromThreadID(meta.ID)

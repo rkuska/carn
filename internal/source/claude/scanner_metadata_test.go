@@ -28,10 +28,48 @@ func TestScanMetadataCapturesCountsAndUsage(t *testing.T) {
 	assert.Equal(t, "claude-sonnet-4", meta.Model)
 	assert.Equal(t, 1, meta.ToolCounts["Read"])
 	assert.Equal(t, 1, meta.ToolCounts["Bash"])
+	assert.Equal(t, 2, meta.UserMessageCount)
+	assert.Equal(t, 3, meta.AssistantMessageCount)
+	assert.Nil(t, meta.ToolErrorCounts)
 	assert.Equal(t, 440, meta.TotalUsage.TotalTokens())
 	assert.Equal(t, 10*time.Second, meta.Duration())
 	assert.Equal(t, 5, meta.MessageCount)
 	assert.Equal(t, 4, meta.MainMessageCount)
+}
+
+func TestScanMetadataCapturesToolErrorCounts(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session-errors.jsonl")
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		makeTestAssistantToolUseRecord(t, "s1", "toolu_1"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "user",
+			"sessionId": "s1",
+			"slug":      "demo",
+			"timestamp": "2024-01-01T00:00:02Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "toolu_1",
+						"is_error":    true,
+						"content":     "read failed",
+					},
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	result, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]int{"Read": 1}, result.meta.ToolCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, result.meta.ToolErrorCounts)
 }
 
 func TestJSONLLinesHandlesLargeLines(t *testing.T) {

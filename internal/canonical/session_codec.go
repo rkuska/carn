@@ -55,9 +55,12 @@ func writeSessionMeta(w *bufio.Writer, meta sessionMeta) error {
 	bw.writeString(meta.FirstMessage)
 	bw.writeUint(uint64(meta.MessageCount))
 	bw.writeUint(uint64(meta.MainMessageCount))
+	bw.writeUint(uint64(meta.UserMessageCount))
+	bw.writeUint(uint64(meta.AssistantMessageCount))
 	bw.writeString(meta.FilePath)
 	bw.writeTokenUsage(meta.TotalUsage)
 	bw.writeStringIntMap(meta.ToolCounts)
+	bw.writeStringIntMap(meta.ToolErrorCounts)
 	bw.writeBool(meta.IsSubagent)
 	if bw.err != nil {
 		return fmt.Errorf("writeSessionMeta: %w", bw.err)
@@ -79,29 +82,35 @@ func readSessionMeta(r *bufio.Reader) (sessionMeta, error) {
 	firstMessage := br.readString()
 	messageCount := br.readUint()
 	mainMessageCount := br.readUint()
+	userMessageCount := br.readUint()
+	assistantMessageCount := br.readUint()
 	filePath := br.readString()
 	usage := br.readTokenUsage()
 	toolCounts := br.readStringIntMap()
+	toolErrorCounts := br.readStringIntMap()
 	isSubagent := br.readBool()
 	if br.err != nil {
 		return sessionMeta{}, fmt.Errorf("readSessionMeta: %w", br.err)
 	}
 
 	meta := sessionMeta{
-		ID:               id,
-		Project:          project{DisplayName: projectName},
-		Slug:             slug,
-		CWD:              cwd,
-		GitBranch:        gitBranch,
-		Version:          version,
-		Model:            model,
-		FirstMessage:     firstMessage,
-		MessageCount:     int(messageCount),
-		MainMessageCount: int(mainMessageCount),
-		FilePath:         filePath,
-		TotalUsage:       usage,
-		ToolCounts:       toolCounts,
-		IsSubagent:       isSubagent,
+		ID:                    id,
+		Project:               project{DisplayName: projectName},
+		Slug:                  slug,
+		CWD:                   cwd,
+		GitBranch:             gitBranch,
+		Version:               version,
+		Model:                 model,
+		FirstMessage:          firstMessage,
+		MessageCount:          int(messageCount),
+		MainMessageCount:      int(mainMessageCount),
+		UserMessageCount:      int(userMessageCount),
+		AssistantMessageCount: int(assistantMessageCount),
+		FilePath:              filePath,
+		TotalUsage:            usage,
+		ToolCounts:            toolCounts,
+		ToolErrorCounts:       toolErrorCounts,
+		IsSubagent:            isSubagent,
 	}
 	if timestampValue != 0 {
 		meta.Timestamp = unixTime(timestampValue)

@@ -72,8 +72,9 @@ func loadSQLiteSessions(
 		ctx,
 		`SELECT conversation_id, session_id, slug, timestamp_ns, last_timestamp_ns,
 		        cwd, git_branch, version, model, first_message, message_count, main_message_count,
+		        user_message_count, assistant_message_count,
 		        file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		        output_tokens, tool_counts_json, is_subagent
+		        output_tokens, tool_counts_json, tool_error_counts_json, is_subagent
 		   FROM conversation_sessions
 		  ORDER BY conversation_id, ordinal`,
 	)
@@ -92,6 +93,7 @@ func loadSQLiteSessions(
 		var timestampNS int64
 		var lastTimestampNS int64
 		var toolCountsJSON string
+		var toolErrorCountsJSON string
 		var isSubagent int
 		if err := sessionRows.Scan(
 			&rowID,
@@ -106,12 +108,15 @@ func loadSQLiteSessions(
 			&meta.FirstMessage,
 			&meta.MessageCount,
 			&meta.MainMessageCount,
+			&meta.UserMessageCount,
+			&meta.AssistantMessageCount,
 			&meta.FilePath,
 			&meta.TotalUsage.InputTokens,
 			&meta.TotalUsage.CacheCreationInputTokens,
 			&meta.TotalUsage.CacheReadInputTokens,
 			&meta.TotalUsage.OutputTokens,
 			&toolCountsJSON,
+			&toolErrorCountsJSON,
 			&isSubagent,
 		); err != nil {
 			return fmt.Errorf("sessionRows.Scan: %w", err)
@@ -121,7 +126,14 @@ func loadSQLiteSessions(
 			return fmt.Errorf("loadSQLiteSessions: %w", errors.New("session references unknown conversation"))
 		}
 
-		if err := finalizeSessionMeta(&meta, timestampNS, lastTimestampNS, toolCountsJSON, isSubagent); err != nil {
+		if err := finalizeSessionMeta(
+			&meta,
+			timestampNS,
+			lastTimestampNS,
+			toolCountsJSON,
+			toolErrorCountsJSON,
+			isSubagent,
+		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)
 		}
 		meta.Project = conversations[index].Project
@@ -137,6 +149,7 @@ func finalizeSessionMeta(
 	meta *sessionMeta,
 	timestampNS, lastTimestampNS int64,
 	toolCountsJSON string,
+	toolErrorCountsJSON string,
 	isSubagent int,
 ) error {
 	if timestampNS != 0 {
@@ -150,6 +163,10 @@ func finalizeSessionMeta(
 	meta.ToolCounts, err = unmarshalToolCounts(toolCountsJSON)
 	if err != nil {
 		return fmt.Errorf("unmarshalToolCounts: %w", err)
+	}
+	meta.ToolErrorCounts, err = unmarshalToolCounts(toolErrorCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts_toolErrorCounts: %w", err)
 	}
 	return nil
 }

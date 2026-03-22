@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 
@@ -143,9 +144,7 @@ func (r ProviderDriftReports) Providers() []conv.Provider {
 		}
 		providers = append(providers, provider)
 	}
-	sort.Slice(providers, func(i, j int) bool {
-		return providers[i] < providers[j]
-	})
+	slices.Sort(providers)
 	return providers
 }
 

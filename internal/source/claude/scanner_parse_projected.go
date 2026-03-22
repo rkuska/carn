@@ -31,7 +31,9 @@ func parseSessionProjectedWithContextInto(
 	}
 	var totalUsage tokenUsage
 	if err := visitSessionMessages(ctx, filePath, pc, func(msg parsedMessage) {
-		messages = append(messages, msg.message)
+		m := msg.message
+		m.Usage = msg.usage
+		messages = append(messages, m)
 		addUsage(&totalUsage, msg.usage)
 	}); err != nil {
 		return nil, tokenUsage{}, fmt.Errorf("visitSessionMessages: %w", err)

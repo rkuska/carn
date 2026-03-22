@@ -150,38 +150,70 @@ func applyScannedTurnContextPayload(payload []byte, state *scanState) {
 }
 
 func applyScannedResponseItemPayload(payload []byte, state *scanState) {
-	var (
-		itemTypeRaw []byte
-		roleRaw     []byte
-		nameRaw     []byte
-		contentRaw  []byte
-	)
+	item := collectResponseItemPayload(payload)
+	applyResponseItemPayload(item, state)
+}
 
+type scannedResponseItemPayload struct {
+	itemTypeRaw []byte
+	roleRaw     []byte
+	nameRaw     []byte
+	callIDRaw   []byte
+	outputRaw   []byte
+	statusRaw   []byte
+	contentRaw  []byte
+}
+
+func collectResponseItemPayload(payload []byte) scannedResponseItemPayload {
+	var item scannedResponseItemPayload
 	walkTopLevelFields(payload, func(field, value []byte) bool {
 		switch {
 		case bytes.Equal(field, typeFieldMarker):
-			itemTypeRaw = value
+			item.itemTypeRaw = value
 		case bytes.Equal(field, roleFieldMarker):
-			roleRaw = value
+			item.roleRaw = value
 		case bytes.Equal(field, nameFieldMarker):
-			nameRaw = value
+			item.nameRaw = value
+		case bytes.Equal(field, callIDFieldMarker):
+			item.callIDRaw = value
+		case bytes.Equal(field, outputFieldMarker):
+			item.outputRaw = value
+		case bytes.Equal(field, statusFieldMarker):
+			item.statusRaw = value
 		case bytes.Equal(field, contentFieldMarker):
-			contentRaw = value
+			item.contentRaw = value
 		}
 		return true
 	})
+	return item
+}
 
+func applyResponseItemPayload(item scannedResponseItemPayload, state *scanState) {
 	switch {
-	case bytes.Equal(itemTypeRaw, responseTypeMessageRaw):
-		state.recordMessage(classifyResponseMessageRaw(roleRaw, contentRaw))
-	case bytes.Equal(itemTypeRaw, responseTypeFunctionCallRaw),
-		bytes.Equal(itemTypeRaw, responseTypeCustomToolCallRaw):
-		if name, ok := readRawJSONString(nameRaw); ok {
-			state.recordToolCallName(name)
-		}
-	case bytes.Equal(itemTypeRaw, responseTypeWebSearchCallRaw):
-		state.recordToolCallName("web_search")
+	case bytes.Equal(item.itemTypeRaw, responseTypeMessageRaw):
+		state.recordMessage(classifyResponseMessageRaw(item.roleRaw, item.contentRaw))
+	case bytes.Equal(item.itemTypeRaw, responseTypeFunctionCallRaw),
+		bytes.Equal(item.itemTypeRaw, responseTypeCustomToolCallRaw):
+		recordScannedToolCall(item, state)
+	case bytes.Equal(item.itemTypeRaw, responseTypeWebSearchCallRaw):
+		callID, _ := readRawJSONString(item.callIDRaw)
+		state.recordToolCall(callID, "web_search")
+	case bytes.Equal(item.itemTypeRaw, responseTypeFunctionCallOutputRaw),
+		bytes.Equal(item.itemTypeRaw, responseTypeCustomToolCallOutputRaw):
+		callID, _ := readRawJSONString(item.callIDRaw)
+		output, _ := readRawJSONString(item.outputRaw)
+		status, _ := readRawJSONString(item.statusRaw)
+		state.recordToolResult(callID, output, status)
 	}
+}
+
+func recordScannedToolCall(item scannedResponseItemPayload, state *scanState) {
+	name, ok := readRawJSONString(item.nameRaw)
+	if !ok {
+		return
+	}
+	callID, _ := readRawJSONString(item.callIDRaw)
+	state.recordToolCall(callID, name)
 }
 
 type scannedEventPayload struct {

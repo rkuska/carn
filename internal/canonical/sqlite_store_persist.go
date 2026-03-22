@@ -239,6 +239,7 @@ func insertSQLiteSessionRows(
 	count := 0
 	for ordinal, meta := range conv.Sessions {
 		toolCountsJSON := marshalToolCountsCached(meta.ToolCounts)
+		toolErrorCountsJSON := marshalToolCountsCached(meta.ToolErrorCounts)
 		if _, err := stmt.ExecContext(
 			ctx,
 			conversationID,
@@ -254,12 +255,15 @@ func insertSQLiteSessionRows(
 			meta.FirstMessage,
 			meta.MessageCount,
 			meta.MainMessageCount,
+			meta.UserMessageCount,
+			meta.AssistantMessageCount,
 			meta.FilePath,
 			meta.TotalUsage.InputTokens,
 			meta.TotalUsage.CacheCreationInputTokens,
 			meta.TotalUsage.CacheReadInputTokens,
 			meta.TotalUsage.OutputTokens,
 			toolCountsJSON,
+			toolErrorCountsJSON,
 			boolToInt(meta.IsSubagent),
 		); err != nil {
 			return 0, fmt.Errorf("stmt.ExecContext: %w", err)

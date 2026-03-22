@@ -9,10 +9,7 @@ func codexScanParallelism(itemCount int) int {
 		return 1
 	}
 
-	limit := max(runtime.NumCPU()/2, 1)
-	if limit > maxScanParallelism {
-		limit = maxScanParallelism
-	}
+	limit := min(max(runtime.NumCPU()/2, 1), maxScanParallelism)
 	if itemCount < limit {
 		return itemCount
 	}

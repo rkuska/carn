@@ -25,20 +25,22 @@ None.
 
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
-| internal/canonical/message_codec.go | source | 240 | 77 | 254 |
+| internal/canonical/message_codec.go | source | 243 | 77 | 257 |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
-| internal/canonical/sqlite_store_persist.go | source | 341 | 72 | 370 |
+| internal/canonical/sqlite_store_persist.go | source | 345 | 72 | 374 |
 | internal/config/config.go | source | 310 | 71 | 367 |
 | internal/source/claude/scanner_assistant.go | source | 247 | 71 | 276 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
-| internal/canonical/store.go | source | 274 | 67 | 324 |
-| internal/canonical/sqlite_db.go | source | 273 | 67 | 297 |
+| internal/canonical/sqlite_db.go | source | 276 | 67 | 300 |
+| internal/canonical/store.go | source | 275 | 67 | 325 |
 | internal/source/claude/scanner_parse.go | source | 265 | 67 | 306 |
+| internal/source/codex/scan.go | source | 172 | 66 | 194 |
 | internal/source/claude/scanner_record_fast.go | source | 174 | 63 | 193 |
 | internal/source/codex/load.go | source | 267 | 62 | 300 |
 | internal/source/claude/drift.go | source | 244 | 61 | 277 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
+| internal/source/claude/scanner_metadata.go | source | 324 | 57 | 350 |
 | internal/source/codex/json_field.go | source | 355 | 44 | 377 |
 | internal/source/codex/drift.go | source | 328 | 41 | 378 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |

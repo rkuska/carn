@@ -208,3 +208,45 @@ func TestParseConversationWithoutLinkedTranscriptsMatchesProjectedParse(t *testi
 	assert.Equal(t, want.Meta.TotalUsage, got.Meta.TotalUsage)
 	assert.Equal(t, want.Messages, got.Messages)
 }
+
+func TestParseConversationProjectedCarriesPerMessageUsage(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"timestamp": "2024-01-01T00:00:01Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude",
+				"content": []map[string]any{
+					{"type": "text", "text": "done"},
+				},
+				"usage": map[string]any{
+					"input_tokens":  120,
+					"output_tokens": 30,
+				},
+			},
+		}),
+	}, "\n")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	got, err := parseConversationWithoutLinkedTranscripts(context.Background(), conversation{
+		Name:    "demo",
+		Project: project{DisplayName: "demo"},
+		Sessions: []sessionMeta{{
+			ID:       "s1",
+			Slug:     "demo",
+			FilePath: path,
+			Project:  project{DisplayName: "demo"},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	assert.Equal(t, tokenUsage{InputTokens: 120, OutputTokens: 30}, got.Messages[1].Usage)
+}

@@ -240,6 +240,9 @@ func TestStoreListReturnsIndependentCachedCopies(t *testing.T) {
 			FilePath:      "/raw/s1.jsonl",
 			Project:       project{DisplayName: "claude"},
 			ToolCounts:    map[string]int{"Read": 1},
+			ToolErrorCounts: map[string]int{
+				"Read": 1,
+			},
 		}},
 	}}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -252,12 +255,14 @@ func TestStoreListReturnsIndependentCachedCopies(t *testing.T) {
 
 	first[0].SetSearchPreview("mutated preview")
 	first[0].Sessions[0].ToolCounts["Read"] = 99
+	first[0].Sessions[0].ToolErrorCounts["Read"] = 42
 
 	second, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
 	require.Len(t, second, 1)
 	assert.Empty(t, second[0].SearchPreview)
 	assert.Equal(t, 1, second[0].Sessions[0].ToolCounts["Read"])
+	assert.Equal(t, 1, second[0].Sessions[0].ToolErrorCounts["Read"])
 }
 
 func writeSQLiteTestStore(

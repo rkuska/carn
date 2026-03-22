@@ -28,6 +28,7 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	}
 	bw.writeBool(msg.IsSidechain)
 	bw.writeBool(msg.IsAgentDivider)
+	bw.writeTokenUsage(msg.Usage)
 	bw.writeUint(uint64(len(msg.Plans)))
 	for _, plan := range msg.Plans {
 		if bw.err != nil {
@@ -73,6 +74,7 @@ func readMessage(r *bufio.Reader) (message, error) {
 
 	isSidechain := br.readBool()
 	isAgentDivider := br.readBool()
+	usage := br.readTokenUsage()
 	planCount := br.readUint()
 	if br.err != nil {
 		return message{}, fmt.Errorf("readMessage: %w", br.err)
@@ -96,6 +98,7 @@ func readMessage(r *bufio.Reader) (message, error) {
 		Plans:             plans,
 		IsSidechain:       isSidechain,
 		IsAgentDivider:    isAgentDivider,
+		Usage:             usage,
 	}, nil
 }
 

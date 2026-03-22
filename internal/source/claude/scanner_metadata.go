@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"iter"
 	"os"
 	"time"
 
@@ -16,11 +15,15 @@ import (
 )
 
 type scanStats struct {
-	total      int
-	mainOnly   int
-	lastTS     time.Time
-	totalUsage tokenUsage
-	toolCounts map[string]int
+	total            int
+	mainOnly         int
+	userCount        int
+	assistantCount   int
+	lastTS           time.Time
+	totalUsage       tokenUsage
+	toolCounts       map[string]int
+	toolErrorCounts  map[string]int
+	toolCallNameByID map[string]string
 }
 
 type metadataScanState struct {
@@ -49,6 +52,12 @@ func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
 		return
 	}
 	stats.total++
+	switch recRole {
+	case roleUser:
+		stats.userCount++
+	case roleAssistant:
+		stats.assistantCount++
+	}
 	if !extractIsSidechain(line) {
 		stats.mainOnly++
 	}
@@ -65,8 +74,41 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	stats.totalUsage.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	stats.totalUsage.CacheReadInputTokens += usage.CacheReadInputTokens
 	stats.totalUsage.OutputTokens += usage.OutputTokens
-	for name := range yieldToolNames(line) {
-		stats.toolCounts[name]++
+
+	contentRaw, ok := extractFirstContentValue(line)
+	if !ok {
+		return
+	}
+	_, _, _, toolCalls, toolCallIDs, ok := extractAssistantContent(contentRaw)
+	if !ok {
+		return
+	}
+	for i, call := range toolCalls {
+		if call.Name == "" {
+			continue
+		}
+		stats.toolCounts[call.Name]++
+		if i < len(toolCallIDs) && toolCallIDs[i] != "" {
+			stats.toolCallNameByID[toolCallIDs[i]] = call.Name
+		}
+	}
+}
+
+func accumulateUserToolErrorCounts(line []byte, stats *scanStats) {
+	contentRaw, ok := extractFirstContentValue(line)
+	if !ok {
+		return
+	}
+	_, toolResults, toolUseIDs := extractUserContentWithToolUseIDs(contentRaw)
+	for i, result := range toolResults {
+		if !result.IsError || i >= len(toolUseIDs) {
+			continue
+		}
+		name := stats.toolCallNameByID[toolUseIDs[i]]
+		if name == "" {
+			continue
+		}
+		stats.toolErrorCounts[name]++
 	}
 }
 
@@ -87,6 +129,7 @@ func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
 		}
 		if hasContent {
 			accumulateRecordCounts(line, recRole, &s.stats)
+			accumulateUserToolErrorCounts(line, &s.stats)
 		}
 	case roleAssistant:
 		accumulateRecordCounts(line, recRole, &s.stats)
@@ -122,25 +165,14 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 		}
 	}()
 
-	br, ok := metadataReaderPool.Get().(*bufio.Reader)
-	if !ok {
-		br = bufio.NewReaderSize(nil, jsonlMetadataBufferSize)
-	}
+	br := metadataScanReader()
 	br.Reset(file)
 	defer metadataReaderPool.Put(br)
 
 	result := scannedSession{
 		meta: sessionMeta{FilePath: filePath, Project: proj},
 	}
-	drift := src.NewDriftReport()
-	result.drift = drift
-	state := metadataScanState{
-		result: &result,
-		drift:  &drift,
-		stats: scanStats{
-			toolCounts: make(map[string]int),
-		},
-	}
+	state := newMetadataScanState(&result)
 
 	for line, err := range jsonlLines(br) {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -156,15 +188,45 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
 	}
 
-	result.meta.MessageCount = state.stats.total
-	result.meta.MainMessageCount = state.stats.mainOnly
-	result.meta.TotalUsage = state.stats.totalUsage
-	result.meta.LastTimestamp = state.stats.lastTS
-	if len(state.stats.toolCounts) > 0 {
-		result.meta.ToolCounts = state.stats.toolCounts
-	}
-	result.drift = drift
+	applyMetadataScanStats(&result.meta, state.stats)
 	return result, nil
+}
+
+func metadataScanReader() *bufio.Reader {
+	br, ok := metadataReaderPool.Get().(*bufio.Reader)
+	if !ok {
+		return bufio.NewReaderSize(nil, jsonlMetadataBufferSize)
+	}
+	return br
+}
+
+func newMetadataScanState(result *scannedSession) metadataScanState {
+	drift := src.NewDriftReport()
+	result.drift = drift
+	return metadataScanState{
+		result: result,
+		drift:  &drift,
+		stats: scanStats{
+			toolCounts:       make(map[string]int),
+			toolErrorCounts:  make(map[string]int),
+			toolCallNameByID: make(map[string]string),
+		},
+	}
+}
+
+func applyMetadataScanStats(meta *sessionMeta, stats scanStats) {
+	meta.MessageCount = stats.total
+	meta.MainMessageCount = stats.mainOnly
+	meta.UserMessageCount = stats.userCount
+	meta.AssistantMessageCount = stats.assistantCount
+	meta.TotalUsage = stats.totalUsage
+	meta.LastTimestamp = stats.lastTS
+	if len(stats.toolCounts) > 0 {
+		meta.ToolCounts = stats.toolCounts
+	}
+	if len(stats.toolErrorCounts) > 0 {
+		meta.ToolErrorCounts = stats.toolErrorCounts
+	}
 }
 
 func extractType(line []byte) string {
@@ -255,38 +317,6 @@ func parseUsageObject(raw []byte) tokenUsage {
 		}
 	}
 	return usage
-}
-
-func yieldToolNames(line []byte) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		search := []byte(`"type":"tool_use"`)
-		nameMarker := []byte(`"name":"`)
-
-		offset := 0
-		for offset < len(line) {
-			idx := bytes.Index(line[offset:], search)
-			if idx == -1 {
-				return
-			}
-			pos := offset + idx + len(search)
-			window := line[pos:]
-			if len(window) > 200 {
-				window = window[:200]
-			}
-
-			nameIdx := bytes.Index(window, nameMarker)
-			if nameIdx != -1 {
-				start := nameIdx + len(nameMarker)
-				end := bytes.IndexByte(window[start:], '"')
-				if end != -1 {
-					if !yield(string(window[start : start+end])) {
-						return
-					}
-				}
-			}
-			offset = pos
-		}
-	}
 }
 
 var isSidechainMarker = []byte(`"isSidechain":`)

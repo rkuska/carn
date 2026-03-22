@@ -319,6 +319,7 @@ func cloneSessions(sessions []sessionMeta) []sessionMeta {
 	cloned := slices.Clone(sessions)
 	for i := range cloned {
 		cloned[i].ToolCounts = maps.Clone(cloned[i].ToolCounts)
+		cloned[i].ToolErrorCounts = maps.Clone(cloned[i].ToolErrorCounts)
 	}
 	return cloned
 }

@@ -65,22 +65,25 @@ type ToolResult struct {
 }
 
 type SessionMeta struct {
-	ID               string
-	Project          Project
-	Slug             string
-	Timestamp        time.Time
-	LastTimestamp    time.Time
-	CWD              string
-	GitBranch        string
-	Version          string
-	Model            string
-	FirstMessage     string
-	MessageCount     int
-	MainMessageCount int
-	FilePath         string
-	TotalUsage       TokenUsage
-	ToolCounts       map[string]int
-	IsSubagent       bool
+	ID                    string
+	Project               Project
+	Slug                  string
+	Timestamp             time.Time
+	LastTimestamp         time.Time
+	CWD                   string
+	GitBranch             string
+	Version               string
+	Model                 string
+	FirstMessage          string
+	MessageCount          int
+	MainMessageCount      int
+	UserMessageCount      int
+	AssistantMessageCount int
+	FilePath              string
+	TotalUsage            TokenUsage
+	ToolCounts            map[string]int
+	ToolErrorCounts       map[string]int
+	IsSubagent            bool
 }
 
 const maxSlugFromMessage = 40
@@ -168,6 +171,7 @@ type Message struct {
 	Visibility        MessageVisibility
 	IsSidechain       bool
 	IsAgentDivider    bool
+	Usage             TokenUsage
 }
 
 func (m Message) IsVisible() bool {

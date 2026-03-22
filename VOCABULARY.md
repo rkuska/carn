@@ -73,6 +73,15 @@ Use these terms when referring to different parts of the project in prompts.
 | **Footer** | The bottom 2-line status bar. Top row: help hints or search input. Bottom row: status info and scroll %. |
 | **Notification** | Transient message in the footer — `info` (gray, 3s), `success` (green, 3s), or `error` (red, 5s). |
 
+## Stats View
+
+| Term | What it means |
+|---|---|
+| **Stats View** | A fullscreen analytics screen opened from the browser. Shows aggregate usage data across sessions instead of a single transcript. |
+| **Time Range** | The active date window applied across all stats tabs. Phase 1 uses predefined ranges like 7d, 30d, 90d, and All. |
+| **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, and tools. |
+| **Summary Chip** | A compact stats metric rendered as `label value` at the top of a tab, for example `sessions 42` or `error rate 3.2%`. |
+
 ## Search
 
 | Term | What it means |
