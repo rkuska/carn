@@ -40,6 +40,19 @@ func (s stubMultiSource) Load(_ context.Context, conversation conversation) (ses
 	return sessionFull{}, nil
 }
 
+func (s stubMultiSource) LoadSession(
+	_ context.Context,
+	_ conversation,
+	meta sessionMeta,
+) (sessionFull, error) {
+	for _, session := range s.sessions {
+		if session.Meta.ID == meta.ID {
+			return session, nil
+		}
+	}
+	return sessionFull{}, nil
+}
+
 func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 	t.Parallel()
 

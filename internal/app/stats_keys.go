@@ -99,7 +99,6 @@ func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 	m.timeRange = nextStatsTimeRange(m.timeRange)
 	m.snapshot = stats.ComputeSnapshot(m.filteredSessions(), m.timeRange)
 	claudeTurnMetricsCached := m.claudeTurnMetricsSourceKey == m.claudeTurnMetricsSourceCacheKey()
-	toolMetricsCached := m.toolMetricsSourceKey == m.toolMetricsSourceCacheKey()
 
 	if claudeTurnMetricsCached {
 		m.claudeTurnMetrics = stats.ComputeTurnTokenMetricsForRange(m.claudeTurnMetricSessions, m.timeRange)
@@ -107,11 +106,7 @@ func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 	} else {
 		m.claudeTurnMetrics = nil
 	}
-	if toolMetricsCached {
-		m.snapshot.Tools = stats.ComputeToolsFromSessionMetrics(m.toolMetricSessions, m.timeRange)
-	}
-	if (m.tab == statsTabSessions && !claudeTurnMetricsCached) ||
-		(m.tab == statsTabTools && !toolMetricsCached) {
+	if m.tab == statsTabSessions && !claudeTurnMetricsCached {
 		return m.renderViewportContentAndMaybeLoad(true)
 	}
 	return m.renderViewportContent(true), nil

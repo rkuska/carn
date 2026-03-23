@@ -40,6 +40,7 @@ func writeSessionMeta(w *bufio.Writer, meta sessionMeta) error {
 	bw.writeTokenUsage(meta.TotalUsage)
 	bw.writeStringIntMap(meta.ToolCounts)
 	bw.writeStringIntMap(meta.ToolErrorCounts)
+	bw.writeStringIntMap(meta.ToolRejectCounts)
 	bw.writeBool(meta.IsSubagent)
 	if bw.err != nil {
 		return fmt.Errorf("writeSessionMeta: %w", bw.err)

@@ -136,8 +136,8 @@ func prepareSQLiteConversationStatements(
 		cwd, git_branch, version, model, first_message, message_count, main_message_count,
 		user_message_count, assistant_message_count,
 		file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		output_tokens, tool_counts_json, tool_error_counts_json, is_subagent
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		output_tokens, tool_counts_json, tool_error_counts_json, tool_reject_counts_json, is_subagent
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		if closeErr := convStmt.Close(); closeErr != nil {
 			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("convStmt.Close")

@@ -74,7 +74,7 @@ func loadSQLiteSessions(
 		        cwd, git_branch, version, model, first_message, message_count, main_message_count,
 		        user_message_count, assistant_message_count,
 		        file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		        output_tokens, tool_counts_json, tool_error_counts_json, is_subagent
+		        output_tokens, tool_counts_json, tool_error_counts_json, tool_reject_counts_json, is_subagent
 		   FROM conversation_sessions
 		  ORDER BY conversation_id, ordinal`,
 	)
@@ -94,6 +94,7 @@ func loadSQLiteSessions(
 		var lastTimestampNS int64
 		var toolCountsJSON string
 		var toolErrorCountsJSON string
+		var toolRejectCountsJSON string
 		var isSubagent int
 		if err := sessionRows.Scan(
 			&rowID,
@@ -117,6 +118,7 @@ func loadSQLiteSessions(
 			&meta.TotalUsage.OutputTokens,
 			&toolCountsJSON,
 			&toolErrorCountsJSON,
+			&toolRejectCountsJSON,
 			&isSubagent,
 		); err != nil {
 			return fmt.Errorf("sessionRows.Scan: %w", err)
@@ -132,6 +134,7 @@ func loadSQLiteSessions(
 			lastTimestampNS,
 			toolCountsJSON,
 			toolErrorCountsJSON,
+			toolRejectCountsJSON,
 			isSubagent,
 		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)
@@ -150,6 +153,7 @@ func finalizeSessionMeta(
 	timestampNS, lastTimestampNS int64,
 	toolCountsJSON string,
 	toolErrorCountsJSON string,
+	toolRejectCountsJSON string,
 	isSubagent int,
 ) error {
 	if timestampNS != 0 {
@@ -167,6 +171,10 @@ func finalizeSessionMeta(
 	meta.ToolErrorCounts, err = unmarshalToolCounts(toolErrorCountsJSON)
 	if err != nil {
 		return fmt.Errorf("unmarshalToolCounts_toolErrorCounts: %w", err)
+	}
+	meta.ToolRejectCounts, err = unmarshalToolCounts(toolRejectCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts_toolRejectCounts: %w", err)
 	}
 	return nil
 }

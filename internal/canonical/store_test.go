@@ -17,6 +17,7 @@ import (
 type stubSource struct {
 	scanConversations []conversation
 	sessions          map[string]sessionFull
+	sessionLoads      map[string]sessionFull
 }
 
 func (s stubSource) Provider() conversationProvider {
@@ -29,6 +30,17 @@ func (s stubSource) Scan(context.Context, string) (src.ScanResult, error) {
 
 func (s stubSource) Load(_ context.Context, conversation conversation) (sessionFull, error) {
 	return s.sessions[conversation.CacheKey()], nil
+}
+
+func (s stubSource) LoadSession(
+	_ context.Context,
+	_ conversation,
+	meta sessionMeta,
+) (sessionFull, error) {
+	if session, ok := s.sessionLoads[meta.ID]; ok {
+		return session, nil
+	}
+	return sessionFull{}, nil
 }
 
 func TestParseConversationsParallelBuildsTranscriptsAndSearchUnits(t *testing.T) {
@@ -170,6 +182,103 @@ func TestStoreRebuildAllPersistsStreamingSearchAndPlans(t *testing.T) {
 	assert.True(t, available)
 	require.Len(t, results, 1)
 	assert.Contains(t, results[0].SearchPreview, "index this answer")
+}
+
+func TestStoreRebuildAllPersistsTranscriptDerivedToolOutcomesPerSession(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(src.ProviderRawDir(archiveDir, conversationProvider("claude")), 0o755))
+
+	convValue := conversation{
+		Ref:     conversationRef{Provider: conversationProvider("claude"), ID: "thread-1"},
+		Name:    "demo",
+		Project: project{DisplayName: "project-a"},
+		Sessions: []sessionMeta{
+			{
+				ID:              "session-1",
+				Slug:            "demo",
+				Timestamp:       time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
+				LastTimestamp:   time.Date(2026, 3, 8, 10, 5, 0, 0, time.UTC),
+				FilePath:        "/raw/session-1.jsonl",
+				Project:         project{DisplayName: "project-a"},
+				ToolCounts:      map[string]int{"Read": 99},
+				ToolErrorCounts: map[string]int{"Read": 99},
+			},
+			{
+				ID:              "session-2",
+				Slug:            "follow-up",
+				Timestamp:       time.Date(2026, 3, 8, 11, 0, 0, 0, time.UTC),
+				LastTimestamp:   time.Date(2026, 3, 8, 11, 10, 0, 0, time.UTC),
+				FilePath:        "/raw/session-2.jsonl",
+				Project:         project{DisplayName: "project-a"},
+				ToolCounts:      map[string]int{"Bash": 99},
+				ToolErrorCounts: map[string]int{"Bash": 99},
+			},
+		},
+	}
+
+	source := stubSource{
+		scanConversations: []conversation{convValue},
+		sessions: map[string]sessionFull{
+			convValue.CacheKey(): {
+				Meta: convValue.Sessions[0],
+				Messages: []message{
+					{Role: role("assistant"), Text: "merged transcript"},
+				},
+			},
+		},
+		sessionLoads: map[string]sessionFull{
+			"session-1": {
+				Meta: convValue.Sessions[0],
+				Messages: []message{
+					{
+						ToolCalls: []toolCall{{Name: "Read"}, {Name: "Read"}},
+						ToolResults: []toolResult{{
+							ToolName: "Read",
+							IsError:  true,
+							Content:  "file missing",
+						}},
+					},
+				},
+			},
+			"session-2": {
+				Meta: convValue.Sessions[1],
+				Messages: []message{
+					{
+						ToolCalls: []toolCall{{Name: "Bash"}},
+						ToolResults: []toolResult{{
+							ToolName: "Bash",
+							IsError:  true,
+							Content:  "User rejected tool use",
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	store := New(source)
+
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	require.Len(t, conversations[0].Sessions, 2)
+	assert.Equal(t, map[string]int{"Read": 2}, conversations[0].Sessions[0].ToolCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, conversations[0].Sessions[0].ToolErrorCounts)
+	assert.Nil(t, conversations[0].Sessions[0].ToolRejectCounts)
+	assert.Equal(t, map[string]int{"Bash": 1}, conversations[0].Sessions[1].ToolCounts)
+	assert.Nil(t, conversations[0].Sessions[1].ToolErrorCounts)
+	assert.Equal(t, map[string]int{"Bash": 1}, conversations[0].Sessions[1].ToolRejectCounts)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"Read": 2}, session.Meta.ToolCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, session.Meta.ToolErrorCounts)
+	assert.Nil(t, session.Meta.ToolRejectCounts)
 }
 
 func writeTestConversation(

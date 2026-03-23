@@ -16,12 +16,11 @@ const statsRejectedSuggestionsTitle = "Rejected Suggestions"
 
 func (m statsModel) renderToolsTab(width int) string {
 	tools := m.snapshot.Tools
-	loadingToolMetrics := !m.toolMetricsLoadedForCurrentFilter()
 	chips := renderSummaryChips([]chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},
 		{Label: "avg/session", Value: formatFloat(tools.AverageCallsPerSession)},
-		{Label: "error rate", Value: toolRateChipValue(loadingToolMetrics, tools.ErrorRate)},
-		{Label: "rejected", Value: toolRateChipValue(loadingToolMetrics, tools.RejectionRate)},
+		{Label: "error rate", Value: toolRateChipValue(tools.ErrorRate)},
+		{Label: "rejected", Value: toolRateChipValue(tools.RejectionRate)},
 		{Label: "read:write:bash", Value: formatToolRatio(tools.ReadWriteBashRatio)},
 	}, width)
 
@@ -45,14 +44,6 @@ func (m statsModel) renderToolsTab(width int) string {
 		renderToolRateChart(statsRejectedSuggestionsTitle, tools.ToolRejectRates, min(width, 72), colorPrimary),
 		width,
 	)
-	if loadingToolMetrics {
-		loadingMessage := statsLoadingText
-		if m.toolMetricsLoading() {
-			loadingMessage = fmt.Sprintf("%s Computing tool charts...", m.spinner.View())
-		}
-		errorChart = renderStatsStatusBlock("Tool Error Rate", loadingMessage)
-		rejectedChart = centerBlock(renderStatsStatusBlock(statsRejectedSuggestionsTitle, loadingMessage), width)
-	}
 	sideBySide := renderSideBySide(
 		renderVerticalHistogram("Tool Calls/Session", callBuckets, max((width-3)/2, 30), 8),
 		errorChart,
@@ -102,13 +93,6 @@ func renderToolRateChart(
 	return strings.Join(lines, "\n")
 }
 
-func renderStatsStatusBlock(title, message string) string {
-	return fmt.Sprintf("%s\n%s", renderStatsTitle(title), message)
-}
-
-func toolRateChipValue(loading bool, rate float64) string {
-	if loading {
-		return statsLoadingText
-	}
+func toolRateChipValue(rate float64) string {
 	return fmt.Sprintf("%.1f%%", rate)
 }

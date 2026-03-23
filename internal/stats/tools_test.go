@@ -144,6 +144,39 @@ func TestComputeToolsFromSessionMetricsSeparatesRejectedSuggestionsFromErrors(t 
 	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 3, Total: 10, Rate: 30}, got.ToolRejectRates[0])
 }
 
+func TestComputeToolsSeparatesRejectedSuggestionsFromErrors(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"recent",
+			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"Bash": 5, "Read": 5}),
+			withToolErrorCounts(map[string]int{"Read": 1}),
+			withToolRejectCounts(map[string]int{"Bash": 2}),
+		),
+		testMeta(
+			"older",
+			time.Date(2026, 1, 6, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"Bash": 5}),
+			withToolErrorCounts(map[string]int{"Bash": 1}),
+			withToolRejectCounts(map[string]int{"Bash": 1}),
+		),
+	}
+
+	got := ComputeTools(sessions)
+
+	assert.Equal(t, 15, got.TotalCalls)
+	assert.InDelta(t, 7.5, got.AverageCallsPerSession, 0.0001)
+	assert.InDelta(t, 13.3333, got.ErrorRate, 0.0001)
+	assert.InDelta(t, 20.0, got.RejectionRate, 0.0001)
+	require.Len(t, got.ToolErrorRates, 2)
+	assert.Equal(t, ToolRateStat{Name: "Read", Count: 1, Total: 5, Rate: 20}, got.ToolErrorRates[0])
+	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 1, Total: 10, Rate: 10}, got.ToolErrorRates[1])
+	require.Len(t, got.ToolRejectRates, 1)
+	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 3, Total: 10, Rate: 30}, got.ToolRejectRates[0])
+}
+
 func repeatedToolCalls(name string, count int) []conv.ToolCall {
 	calls := make([]conv.ToolCall, 0, count)
 	for range count {

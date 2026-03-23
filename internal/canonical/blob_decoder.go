@@ -58,6 +58,7 @@ func (d *blobDecoder) readSessionMeta() sessionMeta {
 	usage := d.readTokenUsage()
 	toolCounts := d.readStringIntMap()
 	toolErrorCounts := d.readStringIntMap()
+	toolRejectCounts := d.readStringIntMap()
 	isSubagent := d.readBool()
 
 	meta := sessionMeta{
@@ -77,6 +78,7 @@ func (d *blobDecoder) readSessionMeta() sessionMeta {
 		TotalUsage:            usage,
 		ToolCounts:            toolCounts,
 		ToolErrorCounts:       toolErrorCounts,
+		ToolRejectCounts:      toolRejectCounts,
 		IsSubagent:            isSubagent,
 	}
 

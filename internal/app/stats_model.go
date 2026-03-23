@@ -46,9 +46,6 @@ type statsModel struct {
 	claudeTurnMetricsSourceKey  string
 	claudeTurnMetrics           []stats.PositionTokenMetrics
 	claudeTurnMetricsLoadingKey string
-	toolMetricSessions          []stats.SessionToolMetrics
-	toolMetricsSourceKey        string
-	toolMetricsLoadingKey       string
 	filter                      browserFilterState
 	helpOpen                    bool
 	viewport                    viewport.Model
@@ -105,8 +102,6 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 		return m, nil
 	case claudeTurnMetricsLoadedMsg:
 		return m.applyClaudeTurnMetricsLoaded(msg), nil
-	case toolMetricsLoadedMsg:
-		return m.applyToolMetricsLoaded(msg), nil
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
 	}
@@ -148,9 +143,6 @@ func (m statsModel) applyFilterChange() statsModel {
 	m.claudeTurnMetricsSourceKey = ""
 	m.claudeTurnMetrics = nil
 	m.claudeTurnMetricsLoadingKey = ""
-	m.toolMetricSessions = nil
-	m.toolMetricsSourceKey = ""
-	m.toolMetricsLoadingKey = ""
 	return m.renderViewportContent(true)
 }
 

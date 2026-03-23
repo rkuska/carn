@@ -34,6 +34,14 @@ func (s stubBackend) Load(context.Context, conv.Conversation) (conv.Session, err
 	return conv.Session{}, nil
 }
 
+func (s stubBackend) LoadSession(
+	context.Context,
+	conv.Conversation,
+	conv.SessionMeta,
+) (conv.Session, error) {
+	return conv.Session{}, nil
+}
+
 func (s stubBackend) Analyze(context.Context, string, string, func(src.Progress)) (src.Analysis, error) {
 	return s.analysis, s.analyzeErr
 }

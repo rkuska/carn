@@ -14,11 +14,6 @@ type claudeTurnMetricsLoadedMsg struct {
 	sessions []stats.SessionTurnMetrics
 }
 
-type toolMetricsLoadedMsg struct {
-	key      string
-	sessions []stats.SessionToolMetrics
-}
-
 func loadClaudeTurnMetricsCmd(
 	ctx context.Context,
 	store browserStore,
@@ -35,28 +30,6 @@ func loadClaudeTurnMetricsCmd(
 			},
 		))
 		return claudeTurnMetricsLoadedMsg{
-			key:      key,
-			sessions: sessionMetrics,
-		}
-	}
-}
-
-func loadToolMetricsCmd(
-	ctx context.Context,
-	store browserStore,
-	targets []toolMetricSessionTarget,
-	key string,
-) tea.Cmd {
-	return func() tea.Msg {
-		sessionMetrics := stats.CollectSessionToolMetrics(loadStatsSessions(
-			ctx,
-			store,
-			targets,
-			func(target toolMetricSessionTarget) (conv.Conversation, conv.SessionMeta) {
-				return target.conversation, target.session
-			},
-		))
-		return toolMetricsLoadedMsg{
 			key:      key,
 			sessions: sessionMetrics,
 		}

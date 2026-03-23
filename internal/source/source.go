@@ -61,6 +61,7 @@ type Backend interface {
 	Provider() conv.Provider
 	Scan(ctx context.Context, rawDir string) (ScanResult, error)
 	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
+	LoadSession(ctx context.Context, conversation conv.Conversation, meta conv.SessionMeta) (conv.Session, error)
 	Analyze(ctx context.Context, sourceDir, rawDir string, onProgress func(Progress)) (Analysis, error)
 	SyncCandidates(ctx context.Context, sourceDir, rawDir string) ([]SyncCandidate, error)
 	ResumeCommand(target conv.ResumeTarget) (*exec.Cmd, error)

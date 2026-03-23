@@ -35,6 +35,7 @@ func newDefaultBrowserStore() browserStore {
 type sessionTranscriptSource interface {
 	Provider() conv.Provider
 	Load(ctx context.Context, conversation conv.Conversation) (conv.Session, error)
+	LoadSession(ctx context.Context, conversation conv.Conversation, meta conv.SessionMeta) (conv.Session, error)
 }
 
 func newBrowserStore(store *canonical.Store, sources ...sessionTranscriptSource) browserStore {
@@ -93,17 +94,9 @@ func (s canonicalBrowserStore) LoadSession(
 	if !ok {
 		return conv.Session{}, fmt.Errorf("loadSession: %w", errors.New("provider source unavailable"))
 	}
-
-	single := conv.Conversation{
-		Ref:       conv.Ref{Provider: conversation.Ref.Provider, ID: sessionMeta.ID},
-		Name:      conversation.Name,
-		Project:   conversation.Project,
-		Sessions:  []conv.SessionMeta{sessionMeta},
-		PlanCount: conversation.PlanCount,
-	}
-	session, err := source.Load(ctx, single)
+	session, err := source.LoadSession(ctx, conversation, sessionMeta)
 	if err != nil {
-		return conv.Session{}, fmt.Errorf("source.Load: %w", err)
+		return conv.Session{}, fmt.Errorf("source.LoadSession: %w", err)
 	}
 	return session, nil
 }

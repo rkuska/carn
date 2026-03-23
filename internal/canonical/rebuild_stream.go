@@ -131,6 +131,10 @@ func insertStreamingSQLiteConversation(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("loadConversationSession_%s: %w", conv.CacheKey(), err)
 	}
+	conv, session, err = enrichConversationToolOutcomes(ctx, sources, conv, session)
+	if err != nil {
+		return sqliteStoreCounts{}, fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
+	}
 
 	conv.PlanCount = countPlansInMessages(session.Messages)
 	inserted, err := insertSQLiteConversationStreaming(

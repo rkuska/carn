@@ -35,6 +35,19 @@ func (s *stubIncrementalSource) Load(_ context.Context, conversation conversatio
 	return s.sessions[conversation.CacheKey()], nil
 }
 
+func (s *stubIncrementalSource) LoadSession(
+	_ context.Context,
+	_ conversation,
+	meta sessionMeta,
+) (sessionFull, error) {
+	for _, session := range s.sessions {
+		if session.Meta.ID == meta.ID {
+			return session, nil
+		}
+	}
+	return sessionFull{}, nil
+}
+
 func (s *stubIncrementalSource) ResolveIncremental(
 	_ context.Context,
 	_ string,

@@ -86,6 +86,12 @@ func withToolErrorCounts(counts map[string]int) func(*conv.SessionMeta) {
 	}
 }
 
+func withToolRejectCounts(counts map[string]int) func(*conv.SessionMeta) {
+	return func(meta *conv.SessionMeta) {
+		meta.ToolRejectCounts = counts
+	}
+}
+
 func testSession(id string, messages []conv.Message) conv.Session {
 	return conv.Session{
 		Meta: conv.SessionMeta{

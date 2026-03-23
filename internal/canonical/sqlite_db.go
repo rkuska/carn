@@ -67,6 +67,7 @@ var sqliteSchemaStatements = []string{
 		output_tokens INTEGER NOT NULL,
 		tool_counts_json TEXT NOT NULL,
 		tool_error_counts_json TEXT NOT NULL DEFAULT '{}',
+		tool_reject_counts_json TEXT NOT NULL DEFAULT '{}',
 		is_subagent INTEGER NOT NULL,
 		PRIMARY KEY(conversation_id, ordinal)
 	)`,

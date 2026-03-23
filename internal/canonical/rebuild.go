@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	storeSchemaVersion       = 6
-	storeProjectionVersion   = 6
+	storeSchemaVersion       = 7
+	storeProjectionVersion   = 7
 	storeSearchCorpusVersion = 3
 )
 
@@ -32,9 +32,10 @@ type searchCorpus struct {
 }
 
 type parseResult struct {
-	key     string
-	session sessionFull
-	units   []searchUnit
+	key          string
+	conversation conversation
+	session      sessionFull
+	units        []searchUnit
 }
 
 func (c searchCorpus) Len() int {
@@ -157,12 +158,22 @@ func parseConversationsParallelResultsWithSources(
 			if err != nil {
 				return fmt.Errorf("loadConversationSession_%s: %w", conv.CacheKey(), err)
 			}
+			enrichedConv, enrichedSession, err := enrichConversationToolOutcomes(
+				groupCtx,
+				sources,
+				conv,
+				session,
+			)
+			if err != nil {
+				return fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
+			}
 
 			key := conv.CacheKey()
 			results[index] = parseResult{
-				key:     key,
-				session: session,
-				units:   buildSearchUnits(key, session),
+				key:          key,
+				conversation: enrichedConv,
+				session:      enrichedSession,
+				units:        buildSearchUnits(key, enrichedSession),
 			}
 			return nil
 		})
@@ -184,6 +195,14 @@ func buildParseOutputs(results []parseResult) (map[string]sessionFull, searchCor
 		corpus.byConversation[result.key] = result.units
 	}
 	return transcripts, corpus
+}
+
+func conversationsFromParseResults(results []parseResult) []conversation {
+	conversations := make([]conversation, len(results))
+	for i, result := range results {
+		conversations[i] = result.conversation
+	}
+	return conversations
 }
 
 func loadConversationSession(

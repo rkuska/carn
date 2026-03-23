@@ -61,6 +61,7 @@ func tryIncrementalRebuildWithSources(
 	if err != nil {
 		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
+	resolution.Conversations = conversationsFromParseResults(results)
 	parsedTranscripts, groupedUnits := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
 

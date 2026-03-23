@@ -16,6 +16,7 @@ type Source interface {
 	Provider() conv.Provider
 	Scan(ctx context.Context, rawDir string) (src.ScanResult, error)
 	Load(ctx context.Context, conv conv.Conversation) (conv.Session, error)
+	LoadSession(ctx context.Context, conv conv.Conversation, meta conv.SessionMeta) (conv.Session, error)
 }
 
 type sourceRegistry struct {

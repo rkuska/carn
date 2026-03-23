@@ -501,43 +501,11 @@ func TestStatsSessionsTabIgnoresStaleClaudeTurnMetricResults(t *testing.T) {
 	assert.Equal(t, 3, store.loadSessionCalls)
 }
 
-func TestStatsToolsTabLoadsToolMetricsInBackgroundAndReusesThemAcrossRanges(t *testing.T) {
+func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-	store := &fakeBrowserStore{
-		loadSessionResults: map[string]conv.Session{
-			"tools-1": testStatsLoadedToolSession(
-				"tools-1",
-				now.AddDate(0, 0, -10),
-				map[string]int{"Bash": 5},
-				[]conv.ToolResult{
-					{
-						ToolName: "Bash",
-						IsError:  true,
-						Content:  "The user doesn't want to proceed with this tool use. The tool use was rejected.",
-					},
-					{
-						ToolName: "Bash",
-						IsError:  true,
-						Content:  "User rejected tool use",
-					},
-				},
-			),
-			"tools-2": testStatsLoadedToolSession(
-				"tools-2",
-				now.AddDate(0, 0, -45),
-				map[string]int{"Bash": 5},
-				[]conv.ToolResult{
-					{
-						ToolName: "Bash",
-						IsError:  true,
-						Content:  "command failed",
-					},
-				},
-			),
-		},
-	}
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserStore{}
 
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -545,13 +513,19 @@ func TestStatsToolsTabLoadsToolMetricsInBackgroundAndReusesThemAcrossRanges(t *t
 				conv.ProviderClaude,
 				"tools-1",
 				"alpha",
-				testStatsSessionMeta("tools-1", "alpha", now.AddDate(0, 0, -10)),
+				testStatsSessionMeta("tools-1", "alpha", now.AddDate(0, 0, -10), func(meta *conv.SessionMeta) {
+					meta.ToolCounts = map[string]int{"Bash": 5}
+					meta.ToolRejectCounts = map[string]int{"Bash": 2}
+				}),
 			),
 			testStatsConversationWithProviderAndSessions(
 				conv.ProviderClaude,
 				"tools-2",
 				"alpha",
-				testStatsSessionMeta("tools-2", "alpha", now.AddDate(0, 0, -45)),
+				testStatsSessionMeta("tools-2", "alpha", now.AddDate(0, 0, -45), func(meta *conv.SessionMeta) {
+					meta.ToolCounts = map[string]int{"Bash": 5}
+					meta.ToolErrorCounts = map[string]int{"Bash": 1}
+				}),
 			),
 		},
 		store,
@@ -564,26 +538,18 @@ func TestStatsToolsTabLoadsToolMetricsInBackgroundAndReusesThemAcrossRanges(t *t
 	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
 
-	require.NotNil(t, cmd)
-	assert.True(t, m.toolMetricsLoading())
-	assert.Nil(t, m.toolMetricSessions)
+	assert.Nil(t, cmd)
 	assert.Zero(t, store.loadSessionCalls)
-	assert.Contains(t, ansi.Strip(m.View()), "Loading...")
-
-	firstLoad := requireBatchMsgType[toolMetricsLoadedMsg](t, cmd())
-	m, _ = m.Update(firstLoad)
-
-	require.NotEmpty(t, m.toolMetricSessions)
 	assert.InDelta(t, 0.0, m.snapshot.Tools.ErrorRate, 0.0001)
 	assert.InDelta(t, 40.0, m.snapshot.Tools.RejectionRate, 0.0001)
-	assert.Equal(t, []string{"tools-1", "tools-2"}, store.loadSessionIDs)
 	assert.Contains(t, ansi.Strip(m.View()), "Rejected Suggestions")
+	assert.NotContains(t, ansi.Strip(m.View()), "Loading...")
 
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "r"})
 	assert.Nil(t, cmd)
 	assert.InDelta(t, 10.0, m.snapshot.Tools.ErrorRate, 0.0001)
 	assert.InDelta(t, 20.0, m.snapshot.Tools.RejectionRate, 0.0001)
-	assert.Equal(t, 2, store.loadSessionCalls)
+	assert.Zero(t, store.loadSessionCalls)
 }
 
 func TestStatsCloseReturnsCloseMessage(t *testing.T) {
@@ -636,8 +602,12 @@ func testStatsConversationWithProviderAndSessions(
 	}
 }
 
-func testStatsSessionMeta(id, project string, ts time.Time) conv.SessionMeta {
-	return conv.SessionMeta{
+func testStatsSessionMeta(
+	id, project string,
+	ts time.Time,
+	options ...func(*conv.SessionMeta),
+) conv.SessionMeta {
+	meta := conv.SessionMeta{
 		ID:                    id,
 		Slug:                  id,
 		Project:               conv.Project{DisplayName: project},
@@ -655,6 +625,10 @@ func testStatsSessionMeta(id, project string, ts time.Time) conv.SessionMeta {
 			"Read": 1,
 		},
 	}
+	for _, option := range options {
+		option(&meta)
+	}
+	return meta
 }
 
 func helpItemDetail(t *testing.T, section helpSection, key string) string {
@@ -684,34 +658,6 @@ func testStatsLoadedSession(id string) conv.Session {
 		},
 	}
 	return session
-}
-
-func testStatsLoadedToolSession(
-	id string,
-	timestamp time.Time,
-	toolCalls map[string]int,
-	toolResults []conv.ToolResult,
-) conv.Session {
-	messages := make([]conv.Message, 0, len(toolCalls)+1)
-	for name, count := range toolCalls {
-		calls := make([]conv.ToolCall, 0, count)
-		for range count {
-			calls = append(calls, conv.ToolCall{Name: name})
-		}
-		messages = append(messages, conv.Message{ToolCalls: calls})
-	}
-	if len(toolResults) > 0 {
-		messages = append(messages, conv.Message{ToolResults: toolResults})
-	}
-
-	return conv.Session{
-		Meta: conv.SessionMeta{
-			ID:        id,
-			Project:   conv.Project{DisplayName: "alpha"},
-			Timestamp: timestamp,
-		},
-		Messages: messages,
-	}
 }
 
 func TestStatsOpenAndCloseMessagesSwitchViewState(t *testing.T) {

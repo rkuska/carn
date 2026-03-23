@@ -96,6 +96,7 @@ type SessionMeta struct {
 	TotalUsage            TokenUsage
 	ToolCounts            map[string]int
 	ToolErrorCounts       map[string]int
+	ToolRejectCounts      map[string]int
 	IsSubagent            bool
 }
 

@@ -23,25 +23,17 @@ func ComputeTools(sessions []conv.SessionMeta) Tools {
 	}
 
 	toolTotals := make(map[string]int)
+	errorCounts := make(map[string]int)
+	rejectCounts := make(map[string]int)
 	readCalls, writeCalls, bashCalls := 0, 0, 0
-	totalErrors := 0
+	totalErrors, totalRejects := 0, 0
 	for _, session := range sessions {
-		sessionCalls := 0
-		for name, count := range session.ToolCounts {
-			toolTotals[name] += count
-			sessionCalls += count
-			switch name {
-			case "Read", "Grep", "Glob":
-				readCalls += count
-			case "Edit", "Write":
-				writeCalls += count
-			case "Bash":
-				bashCalls += count
-			}
-		}
-		for _, count := range session.ToolErrorCounts {
-			totalErrors += count
-		}
+		sessionCalls, categories := accumulateToolCounts(toolTotals, session.ToolCounts)
+		readCalls += categories.read
+		writeCalls += categories.write
+		bashCalls += categories.bash
+		totalErrors += accumulateNamedCounts(errorCounts, session.ToolErrorCounts)
+		totalRejects += accumulateNamedCounts(rejectCounts, session.ToolRejectCounts)
 		tools.TotalCalls += sessionCalls
 		tools.CallsPerSession[toolCallsBucket(sessionCalls)].Count++
 	}
@@ -49,12 +41,14 @@ func ComputeTools(sessions []conv.SessionMeta) Tools {
 	tools.AverageCallsPerSession = float64(tools.TotalCalls) / float64(len(sessions))
 	if tools.TotalCalls > 0 {
 		tools.ErrorRate = float64(totalErrors) / float64(tools.TotalCalls) * 100
+		tools.RejectionRate = float64(totalRejects) / float64(tools.TotalCalls) * 100
 	}
 	tools.ReadWriteBashRatio = normalizeToolRatio(readCalls, writeCalls, bashCalls)
 	tools.TopTools = sortTokenGroups(toolTotals, func(name string, count int) ToolStat {
 		return ToolStat{Name: name, Count: count}
 	})
-	tools.ToolErrorRates = computeToolRates(toolTotals, aggregateToolErrorCounts(sessions))
+	tools.ToolErrorRates = computeToolRates(toolTotals, errorCounts)
+	tools.ToolRejectRates = computeToolRates(toolTotals, rejectCounts)
 	return tools
 }
 
@@ -65,34 +59,12 @@ func CollectSessionToolMetrics(sessions []conv.Session) []SessionToolMetrics {
 
 	metrics := make([]SessionToolMetrics, 0, len(sessions))
 	for _, session := range sessions {
-		toolCounts := make(map[string]int)
-		errorCounts := make(map[string]int)
-		rejectCounts := make(map[string]int)
-
-		for _, message := range session.Messages {
-			for _, call := range message.ToolCalls {
-				if call.Name == "" {
-					continue
-				}
-				toolCounts[call.Name]++
-			}
-			for _, result := range message.ToolResults {
-				if result.ToolName == "" || !result.IsError {
-					continue
-				}
-				if result.IsRejected() {
-					rejectCounts[result.ToolName]++
-					continue
-				}
-				errorCounts[result.ToolName]++
-			}
-		}
-
+		outcomes := conv.DeriveToolOutcomeCounts(session.Messages)
 		metrics = append(metrics, SessionToolMetrics{
 			Timestamp:        session.Meta.Timestamp,
-			ToolCounts:       nilIfZeroToolCounts(toolCounts),
-			ToolErrorCounts:  nilIfZeroToolCounts(errorCounts),
-			ToolRejectCounts: nilIfZeroToolCounts(rejectCounts),
+			ToolCounts:       outcomes.Calls,
+			ToolErrorCounts:  outcomes.Errors,
+			ToolRejectCounts: outcomes.Rejections,
 		})
 	}
 	return metrics
@@ -221,13 +193,6 @@ func computeToolRates(totalCounts, countMap map[string]int) []ToolRateStat {
 	return rates
 }
 
-func aggregateToolErrorCounts(sessions []conv.SessionMeta) map[string]int {
-	_, errorCounts := aggregateToolCountMaps(sessions, func(session conv.SessionMeta) map[string]int {
-		return session.ToolErrorCounts
-	})
-	return errorCounts
-}
-
 func aggregateToolCountMaps(
 	sessions []conv.SessionMeta,
 	extract func(conv.SessionMeta) map[string]int,
@@ -243,13 +208,6 @@ func aggregateToolCountMaps(
 		}
 	}
 	return totalCounts, counts
-}
-
-func nilIfZeroToolCounts(counts map[string]int) map[string]int {
-	if len(counts) == 0 {
-		return nil
-	}
-	return counts
 }
 
 func toolCallsBucket(total int) int {
