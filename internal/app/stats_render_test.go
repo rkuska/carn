@@ -99,6 +99,78 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 	assert.Contains(t, body, renderTokenValue(statspkg.FormatNumber(1235457)))
 }
 
+func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
+	t.Parallel()
+
+	previousNow := statsNow
+	statsNow = func() time.Time {
+		return time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	}
+	defer func() {
+		statsNow = previousNow
+	}()
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("prev", "alpha", time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 1000
+					meta.TotalUsage.OutputTokens = 0
+				}),
+				testStatsSessionMeta("curr", "alpha", time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 1250
+					meta.TotalUsage.OutputTokens = 0
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.timeRange = statsRange7d()
+	m = m.applyFilterChange()
+
+	body := ansi.Strip(m.renderOverviewTab(120))
+
+	assert.Contains(t, body, "tokens 1,250 +25%")
+}
+
+func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("prev", "alpha", time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 1000
+				}),
+				testStatsSessionMeta("curr", "alpha", time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 1250
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.timeRange = statspkg.TimeRange{}
+	m = m.applyFilterChange()
+
+	body := ansi.Strip(m.renderOverviewTab(120))
+
+	assert.Contains(t, body, "tokens 2,410")
+	assert.NotContains(t, body, "+")
+	assert.NotContains(t, body, "~")
+}
+
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {
 	t.Parallel()
 

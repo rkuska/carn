@@ -50,7 +50,7 @@ None.
 | internal/source/codex/records.go | source | 300 | 16 | 313 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats_help.go | source | 325 | 4 | 333 |
+| internal/app/stats_help.go | source | 326 | 4 | 334 |
 
 ## Notes
 

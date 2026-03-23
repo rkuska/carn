@@ -18,6 +18,7 @@ type Overview struct {
 	SessionCount int
 	MessageCount int
 	Tokens       TokenTotals
+	TokenTrend   TokenTrend
 	ByModel      []ModelTokens
 	ByProject    []ProjectTokens
 	TopSessions  []SessionSummary
@@ -136,4 +137,18 @@ type ToolRateStat struct {
 	Count int
 	Total int
 	Rate  float64
+}
+
+type TrendDirection int
+
+const (
+	TrendDirectionNone TrendDirection = iota
+	TrendDirectionUp
+	TrendDirectionDown
+	TrendDirectionFlat
+)
+
+type TokenTrend struct {
+	Direction     TrendDirection
+	PercentChange int
 }

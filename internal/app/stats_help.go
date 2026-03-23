@@ -157,7 +157,8 @@ func (m statsModel) summaryHelpSection() helpSection {
 					key:  "tokens",
 					desc: "total",
 					detail: "Shows overall token burn. This combines input, output, and " +
-						"cache token usage.",
+						"cache token usage. On 7d, 30d, and 90d ranges it also shows the " +
+						"change versus the previous period of the same length.",
 				},
 				{
 					key:  "input/output",

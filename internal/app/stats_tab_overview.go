@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 
+	"charm.land/lipgloss/v2"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
@@ -12,7 +14,7 @@ func (m statsModel) renderOverviewTab(width int) string {
 	chips := renderSummaryChips([]chip{
 		{Label: "sessions", Value: statspkg.FormatNumber(overview.SessionCount)},
 		{Label: "messages", Value: statspkg.FormatNumber(overview.MessageCount)},
-		{Label: "tokens", Value: statspkg.FormatNumber(overview.Tokens.Total)},
+		{Label: "tokens", Value: renderOverviewTokenValue(overview)},
 		{Label: "input", Value: statspkg.FormatNumber(overview.Tokens.Input)},
 		{Label: "output", Value: statspkg.FormatNumber(overview.Tokens.Output)},
 		{Label: "cache-rd", Value: statspkg.FormatNumber(overview.Tokens.CacheRead)},
@@ -49,4 +51,24 @@ func (m statsModel) renderOverviewTab(width int) string {
 		width,
 	)
 	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, sideBySide, table)
+}
+
+func renderOverviewTokenValue(overview statspkg.Overview) string {
+	value := statspkg.FormatNumber(overview.Tokens.Total)
+	switch overview.TokenTrend.Direction {
+	case statspkg.TrendDirectionUp:
+		return value + " " + lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#e3b341")).
+			Render(fmt.Sprintf("%+d%%", overview.TokenTrend.PercentChange))
+	case statspkg.TrendDirectionDown:
+		return value + " " + lipgloss.NewStyle().
+			Foreground(colorChartBar).
+			Render(fmt.Sprintf("%+d%%", overview.TokenTrend.PercentChange))
+	case statspkg.TrendDirectionFlat:
+		return value + " " + lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666666")).
+			Render("~")
+	default:
+		return value
+	}
 }
