@@ -78,18 +78,18 @@ func TestComputeToolErrorRatesSortsByRateDescending(t *testing.T) {
 			"s1",
 			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
 			withToolCounts(map[string]int{"Read": 40, "Write": 13, "Bash": 10, "Edit": 30}),
-			withToolErrorCounts(map[string]int{"Read": 1, "Write": 1, "Bash": 1, "Edit": 6}),
+			withToolErrorCounts(map[string]int{"Read": 3, "Write": 1, "Bash": 3, "Edit": 6}),
 		),
 	}
 
 	got := ComputeToolErrorRates(sessions)
-	require.Len(t, got, 4)
-	assert.Equal(t, "Edit", got[0].Name)
-	assert.InDelta(t, 20, got[0].Rate, 0.0001)
-	assert.Equal(t, "Bash", got[1].Name)
-	assert.InDelta(t, 10, got[1].Rate, 0.0001)
-	assert.Equal(t, "Read", got[3].Name)
-	assert.InDelta(t, 2.5, got[3].Rate, 0.0001)
+	require.Len(t, got, 3)
+	assert.Equal(t, "Bash", got[0].Name)
+	assert.InDelta(t, 30, got[0].Rate, 0.0001)
+	assert.Equal(t, "Edit", got[1].Name)
+	assert.InDelta(t, 20, got[1].Rate, 0.0001)
+	assert.Equal(t, "Read", got[2].Name)
+	assert.InDelta(t, 7.5, got[2].Rate, 0.0001)
 }
 
 func TestComputeToolErrorRatesSkipsLowVolumeTools(t *testing.T) {
@@ -100,14 +100,33 @@ func TestComputeToolErrorRatesSkipsLowVolumeTools(t *testing.T) {
 			"s1",
 			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
 			withToolCounts(map[string]int{"Bash": 2, "Read": 10}),
-			withToolErrorCounts(map[string]int{"Bash": 2, "Read": 1}),
+			withToolErrorCounts(map[string]int{"Bash": 2, "Read": 3}),
 		),
 	}
 
 	got := ComputeToolErrorRates(sessions)
 	require.Len(t, got, 1)
 	assert.Equal(t, "Read", got[0].Name)
-	assert.InDelta(t, 10, got[0].Rate, 0.0001)
+	assert.InDelta(t, 30, got[0].Rate, 0.0001)
+}
+
+func TestComputeToolErrorRatesSkipsLowAbsoluteErrorCounts(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"s1",
+			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"Read": 20, "Bash": 10}),
+			withToolErrorCounts(map[string]int{"Read": 2, "Bash": 3}),
+		),
+	}
+
+	got := ComputeToolErrorRates(sessions)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, "Bash", got[0].Name)
+	assert.Equal(t, 3, got[0].Count)
 }
 
 func TestComputeToolErrorRatesReturnsEmptyWithoutErrors(t *testing.T) {
@@ -172,9 +191,7 @@ func TestComputeToolsFromSessionMetricsSeparatesRejectedSuggestionsFromErrors(t 
 	assert.InDelta(t, 7.5, got.AverageCallsPerSession, 0.0001)
 	assert.InDelta(t, 13.3333, got.ErrorRate, 0.0001)
 	assert.InDelta(t, 20.0, got.RejectionRate, 0.0001)
-	require.Len(t, got.ToolErrorRates, 2)
-	assert.Equal(t, ToolRateStat{Name: "Read", Count: 1, Total: 5, Rate: 20}, got.ToolErrorRates[0])
-	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 1, Total: 10, Rate: 10}, got.ToolErrorRates[1])
+	assert.Empty(t, got.ToolErrorRates)
 	require.Len(t, got.ToolRejectRates, 1)
 	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 3, Total: 10, Rate: 30}, got.ToolRejectRates[0])
 }
@@ -205,9 +222,7 @@ func TestComputeToolsSeparatesRejectedSuggestionsFromErrors(t *testing.T) {
 	assert.InDelta(t, 7.5, got.AverageCallsPerSession, 0.0001)
 	assert.InDelta(t, 13.3333, got.ErrorRate, 0.0001)
 	assert.InDelta(t, 20.0, got.RejectionRate, 0.0001)
-	require.Len(t, got.ToolErrorRates, 2)
-	assert.Equal(t, ToolRateStat{Name: "Read", Count: 1, Total: 5, Rate: 20}, got.ToolErrorRates[0])
-	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 1, Total: 10, Rate: 10}, got.ToolErrorRates[1])
+	assert.Empty(t, got.ToolErrorRates)
 	require.Len(t, got.ToolRejectRates, 1)
 	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 3, Total: 10, Rate: 30}, got.ToolRejectRates[0])
 }

@@ -6,7 +6,10 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-const minToolRateCalls = 5
+const (
+	minToolRateCalls  = 5
+	minToolErrorCount = 3
+)
 
 type toolCategoryCounts struct {
 	read  int
@@ -47,8 +50,8 @@ func ComputeTools(sessions []conv.SessionMeta) Tools {
 	tools.TopTools = sortTokenGroups(toolTotals, func(name string, count int) ToolStat {
 		return ToolStat{Name: name, Count: count}
 	})
-	tools.ToolErrorRates = computeToolRates(toolTotals, errorCounts)
-	tools.ToolRejectRates = computeToolRates(toolTotals, rejectCounts)
+	tools.ToolErrorRates = computeToolRates(toolTotals, errorCounts, minToolErrorCount)
+	tools.ToolRejectRates = computeToolRates(toolTotals, rejectCounts, 1)
 	return tools
 }
 
@@ -113,8 +116,8 @@ func ComputeToolsFromSessionMetrics(sessions []SessionToolMetrics, timeRange Tim
 	tools.TopTools = sortTokenGroups(toolTotals, func(name string, count int) ToolStat {
 		return ToolStat{Name: name, Count: count}
 	})
-	tools.ToolErrorRates = computeToolRates(toolTotals, errorCounts)
-	tools.ToolRejectRates = computeToolRates(toolTotals, rejectCounts)
+	tools.ToolErrorRates = computeToolRates(toolTotals, errorCounts, minToolErrorCount)
+	tools.ToolRejectRates = computeToolRates(toolTotals, rejectCounts, 1)
 	return tools
 }
 
@@ -122,7 +125,7 @@ func ComputeToolErrorRates(sessions []conv.SessionMeta) []ToolRateStat {
 	totalCounts, errorCounts := aggregateToolCountMaps(sessions, func(session conv.SessionMeta) map[string]int {
 		return session.ToolErrorCounts
 	})
-	return computeToolRates(totalCounts, errorCounts)
+	return computeToolRates(totalCounts, errorCounts, minToolErrorCount)
 }
 
 func ComputeToolRejectRates(sessions []SessionToolMetrics, timeRange TimeRange) []ToolRateStat {
@@ -159,11 +162,11 @@ func accumulateNamedCounts(totals map[string]int, counts map[string]int) int {
 	return total
 }
 
-func computeToolRates(totalCounts, countMap map[string]int) []ToolRateStat {
+func computeToolRates(totalCounts, countMap map[string]int, minCount int) []ToolRateStat {
 	rates := make([]ToolRateStat, 0, len(countMap))
 	for name, count := range countMap {
 		total := totalCounts[name]
-		if total < minToolRateCalls {
+		if total < minToolRateCalls || count < minCount {
 			continue
 		}
 		rates = append(rates, ToolRateStat{

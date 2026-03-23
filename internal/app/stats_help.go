@@ -118,8 +118,10 @@ func (m statsModel) chartHelpSection() helpSection {
 					key:  "Tool Error Rate",
 					desc: "bars",
 					detail: "Shows which tools fail often enough to inspect once they are " +
-						"actually run. Y-axis lists tools; X-axis shows error rate percent. " +
-						"User-declined suggestions are excluded here and shown separately below.",
+						"actually run. Y-axis lists tools; X-axis shows error rate percent " +
+						"with the absolute error count alongside it. Tools with fewer than " +
+						"three errors are omitted. User-declined suggestions are excluded " +
+						"here and shown separately below.",
 				},
 				{
 					key:  statsRejectedSuggestionsTitle,

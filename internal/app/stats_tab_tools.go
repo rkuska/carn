@@ -39,9 +39,9 @@ func (m statsModel) renderToolsTab(width int) string {
 		width,
 	)
 	errorChartWidth := max((width-3)/2, 30)
-	errorChart := renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError)
+	errorChart := renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError, true)
 	rejectedChart := centerBlock(
-		renderToolRateChart(statsRejectedSuggestionsTitle, tools.ToolRejectRates, min(width, 72), colorPrimary),
+		renderToolRateChart(statsRejectedSuggestionsTitle, tools.ToolRejectRates, min(width, 72), colorPrimary, false),
 		width,
 	)
 	sideBySide := renderSideBySide(
@@ -57,6 +57,7 @@ func renderToolRateChart(
 	rates []statspkg.ToolRateStat,
 	width int,
 	barColor color.Color,
+	showCount bool,
 ) string {
 	if width <= 0 {
 		return ""
@@ -73,7 +74,7 @@ func renderToolRateChart(
 	maxRate := 0
 	values := make([]string, len(rates))
 	for i, item := range rates {
-		values[i] = fmt.Sprintf("%.1f%%", item.Rate)
+		values[i] = renderToolRateValue(item, showCount)
 		valueWidth = max(valueWidth, lipgloss.Width(values[i]))
 		maxRate = max(maxRate, int(math.Round(item.Rate*10)))
 	}
@@ -95,4 +96,14 @@ func renderToolRateChart(
 
 func toolRateChipValue(rate float64) string {
 	return fmt.Sprintf("%.1f%%", rate)
+}
+
+func renderToolRateValue(item statspkg.ToolRateStat, showCount bool) string {
+	percentage := fmt.Sprintf("%.1f%%", item.Rate)
+	if !showCount {
+		return percentage
+	}
+	return percentage + " " + lipgloss.NewStyle().
+		Foreground(colorNormalDesc).
+		Render(fmt.Sprintf("(%s)", statspkg.FormatNumber(item.Count)))
 }

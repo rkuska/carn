@@ -46,12 +46,23 @@ func TestRenderToolRateChartShowsDecimalPercentages(t *testing.T) {
 	t.Parallel()
 
 	got := ansi.Strip(renderToolRateChart("Tool Error Rate", []statspkg.ToolRateStat{
-		{Name: "Bash", Rate: 12.5},
-		{Name: "Read", Rate: 2.4},
-	}, 40, colorChartError))
+		{Name: "Bash", Rate: 12.5, Count: 67},
+		{Name: "Read", Rate: 2.4, Count: 6},
+	}, 48, colorChartError, true))
 
-	assert.Contains(t, got, "12.5%")
-	assert.Contains(t, got, "2.4%")
+	assert.Contains(t, got, "12.5% (67)")
+	assert.Contains(t, got, "2.4% (6)")
+}
+
+func TestRenderToolRateChartCanOmitAbsoluteCounts(t *testing.T) {
+	t.Parallel()
+
+	got := ansi.Strip(renderToolRateChart("Rejected Suggestions", []statspkg.ToolRateStat{
+		{Name: "Bash", Rate: 30, Count: 3},
+	}, 40, colorPrimary, false))
+
+	assert.Contains(t, got, "30.0%")
+	assert.NotContains(t, got, "(3)")
 }
 
 func TestRenderVerticalHistogramKeepsWidthsAndLabelsAligned(t *testing.T) {
