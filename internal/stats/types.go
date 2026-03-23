@@ -53,14 +53,14 @@ type Tools struct {
 	AverageCallsPerSession float64
 	ErrorRate              float64
 	RejectionRate          float64
-	ReadWriteBashRatio     ToolCategoryRatio
+	ReadWriteBashShare     ToolCategoryShare
 	TopTools               []ToolStat
 	CallsPerSession        []HistogramBucket
 	ToolErrorRates         []ToolRateStat
 	ToolRejectRates        []ToolRateStat
 }
 
-type ToolCategoryRatio struct {
+type ToolCategoryShare struct {
 	Read  float64
 	Write float64
 	Bash  float64

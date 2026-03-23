@@ -21,7 +21,9 @@ func (m statsModel) renderToolsTab(width int) string {
 		{Label: "avg/session", Value: formatFloat(tools.AverageCallsPerSession)},
 		{Label: "error rate", Value: toolRateChipValue(tools.ErrorRate)},
 		{Label: "rejected", Value: toolRateChipValue(tools.RejectionRate)},
-		{Label: "read:write:bash", Value: formatToolRatio(tools.ReadWriteBashRatio)},
+		{Label: "read", Value: formatToolShare(tools.ReadWriteBashShare.Read)},
+		{Label: "write", Value: formatToolShare(tools.ReadWriteBashShare.Write)},
+		{Label: "bash", Value: formatToolShare(tools.ReadWriteBashShare.Bash)},
 	}, width)
 
 	topTools := make([]barItem, 0, len(tools.TopTools))
@@ -106,4 +108,8 @@ func renderToolRateValue(item statspkg.ToolRateStat, showCount bool) string {
 	return percentage + " " + lipgloss.NewStyle().
 		Foreground(colorNormalDesc).
 		Render(fmt.Sprintf("(%s)", statspkg.FormatNumber(item.Count)))
+}
+
+func formatToolShare(value float64) string {
+	return fmt.Sprintf("%.0f%%", value)
 }

@@ -2,8 +2,6 @@ package app
 
 import (
 	"fmt"
-
-	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 func (m statsModel) helpSections() []helpSection {
@@ -296,10 +294,10 @@ func (m statsModel) summaryHelpSection() helpSection {
 						"runs. This is the share of tool calls that were explicitly rejected by the user.",
 				},
 				{
-					key:  "read:write:bash",
-					desc: "ratio",
-					detail: "Shows the working style behind the sessions. It compares read " +
-						"tools, write tools, and Bash on a normalized scale.",
+					key:  "read/write/bash",
+					desc: "shares",
+					detail: "Shows how the categorized tool mix breaks down. Each chip is " +
+						"the percentage of categorized calls spent on read tools, write tools, or Bash.",
 				},
 			},
 		}
@@ -337,8 +335,4 @@ func (m statsModel) navigationHelpSection() helpSection {
 
 func formatRatio(value float64) string {
 	return fmt.Sprintf("%.1f:1", value)
-}
-
-func formatToolRatio(ratio statspkg.ToolCategoryRatio) string {
-	return fmt.Sprintf("%.1f:%.1f:%.1f", ratio.Read, ratio.Write, ratio.Bash)
 }

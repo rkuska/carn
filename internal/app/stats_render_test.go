@@ -171,6 +171,39 @@ func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
 	assert.NotContains(t, body, "~")
 }
 
+func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
+					meta.ToolCounts = map[string]int{
+						"Read":  4,
+						"Write": 2,
+						"Bash":  1,
+					}
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabTools
+
+	body := ansi.Strip(m.renderToolsTab(120))
+
+	assert.Contains(t, body, "read 57%")
+	assert.Contains(t, body, "write 29%")
+	assert.Contains(t, body, "bash 14%")
+	assert.NotContains(t, body, "read:write:bash")
+}
+
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {
 	t.Parallel()
 

@@ -51,7 +51,7 @@ None.
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
 | internal/app/stats_model_test.go | test | 642 | 8 | 743 |
-| internal/app/stats_help.go | source | 336 | 7 | 344 |
+| internal/app/stats_help.go | source | 332 | 7 | 338 |
 
 ## Notes
 

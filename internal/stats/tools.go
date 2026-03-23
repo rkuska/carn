@@ -46,7 +46,7 @@ func ComputeTools(sessions []conv.SessionMeta) Tools {
 		tools.ErrorRate = float64(totalErrors) / float64(tools.TotalCalls) * 100
 		tools.RejectionRate = float64(totalRejects) / float64(tools.TotalCalls) * 100
 	}
-	tools.ReadWriteBashRatio = normalizeToolRatio(readCalls, writeCalls, bashCalls)
+	tools.ReadWriteBashShare = computeToolCategoryShare(readCalls, writeCalls, bashCalls)
 	tools.TopTools = sortTokenGroups(toolTotals, func(name string, count int) ToolStat {
 		return ToolStat{Name: name, Count: count}
 	})
@@ -112,7 +112,7 @@ func ComputeToolsFromSessionMetrics(sessions []SessionToolMetrics, timeRange Tim
 		tools.ErrorRate = float64(totalErrors) / float64(tools.TotalCalls) * 100
 		tools.RejectionRate = float64(totalRejects) / float64(tools.TotalCalls) * 100
 	}
-	tools.ReadWriteBashRatio = normalizeToolRatio(readCalls, writeCalls, bashCalls)
+	tools.ReadWriteBashShare = computeToolCategoryShare(readCalls, writeCalls, bashCalls)
 	tools.TopTools = sortTokenGroups(toolTotals, func(name string, count int) ToolStat {
 		return ToolStat{Name: name, Count: count}
 	})
@@ -228,20 +228,14 @@ func toolCallsBucket(total int) int {
 	}
 }
 
-func normalizeToolRatio(read, write, bash int) ToolCategoryRatio {
-	base := bash
-	switch {
-	case base > 0:
-	case write > 0:
-		base = write
-	case read > 0:
-		base = read
-	default:
-		return ToolCategoryRatio{}
+func computeToolCategoryShare(read, write, bash int) ToolCategoryShare {
+	total := read + write + bash
+	if total == 0 {
+		return ToolCategoryShare{}
 	}
-	return ToolCategoryRatio{
-		Read:  float64(read) / float64(base),
-		Write: float64(write) / float64(base),
-		Bash:  float64(bash) / float64(base),
+	return ToolCategoryShare{
+		Read:  float64(read) / float64(total) * 100,
+		Write: float64(write) / float64(total) * 100,
+		Bash:  float64(bash) / float64(total) * 100,
 	}
 }
