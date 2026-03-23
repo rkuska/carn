@@ -116,5 +116,12 @@ func assistantUsageMessage(input, output int) conv.Message {
 }
 
 func userMessage() conv.Message {
-	return conv.Message{Role: conv.RoleUser}
+	return conv.Message{Role: conv.RoleUser, Text: "user"}
+}
+
+func userToolResultMessage() conv.Message {
+	return conv.Message{
+		Role:        conv.RoleUser,
+		ToolResults: []conv.ToolResult{{ToolName: "Read", Content: "ok"}},
+	}
 }

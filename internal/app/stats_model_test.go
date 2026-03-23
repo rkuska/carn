@@ -265,16 +265,16 @@ func TestStatsChartHelpExplainsStoryAndReadingOrder(t *testing.T) {
 					key: "Context Growth",
 					substrings: []string{
 						"context tends to accumulate",
-						"usage-bearing turn number",
-						"average input tokens",
+						"user turn number",
+						"maximum input tokens",
 					},
 				},
 				{
 					key: "Turn Cost",
 					substrings: []string{
 						"prompt and response are counted together",
-						"usage-bearing turn number",
-						"average input+output tokens",
+						"user turn number",
+						"assistant steps",
 					},
 				},
 			},

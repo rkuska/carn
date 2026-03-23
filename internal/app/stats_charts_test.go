@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -264,7 +265,7 @@ func TestClaudeTurnChartPointsUseActualTurnPositions(t *testing.T) {
 	assert.Equal(t, 413.0, points[2].X)
 }
 
-func TestClaudeTurnChartRangeUsesActualTurnPositions(t *testing.T) {
+func TestClaudeTurnChartRangeLeavesTrailingTurnAfterLastPosition(t *testing.T) {
 	t.Parallel()
 
 	minX, maxX := claudeTurnChartRange([]statspkg.PositionTokenMetrics{
@@ -274,7 +275,7 @@ func TestClaudeTurnChartRangeUsesActualTurnPositions(t *testing.T) {
 	})
 
 	assert.Equal(t, 1.0, minX)
-	assert.Equal(t, 413.0, maxX)
+	assert.Equal(t, 414.0, maxX)
 }
 
 func TestClaudeTurnChartRangeExpandsSinglePoint(t *testing.T) {
@@ -329,4 +330,35 @@ func TestClaudeTurnAxisStepTargetsReadableTickDensity(t *testing.T) {
 	assert.Equal(t, 1, claudeTurnAxisStep(0, 6))
 	assert.Equal(t, 1, claudeTurnAxisStep(5, 6))
 	assert.Equal(t, 11, claudeTurnAxisStep(56, 6))
+}
+
+func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T) {
+	t.Parallel()
+
+	metrics := make([]statspkg.PositionTokenMetrics, 0, 30)
+	for i := 1; i <= 30; i++ {
+		metrics = append(metrics, statspkg.PositionTokenMetrics{
+			Position:           i,
+			AverageInputTokens: float64(i) * 10000,
+		})
+	}
+
+	rendered := ansi.Strip(renderClaudeTurnChart(
+		"Context Growth",
+		metrics,
+		38,
+		8,
+		colorChartToken,
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AverageInputTokens
+		},
+	))
+	lines := strings.Split(rendered, "\n")
+	require.NotEmpty(t, lines)
+
+	lastLine := lines[len(lines)-1]
+	assert.Equal(t, 38, lipgloss.Width(lastLine))
+
+	lastRune, _ := utf8.DecodeLastRuneInString(lastLine)
+	assert.Equal(t, ' ', lastRune)
 }

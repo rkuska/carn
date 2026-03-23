@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -67,7 +68,29 @@ const (
 	statsRangeLabelAll = "All"
 )
 
-var statsNow = time.Now
+var (
+	statsNowMu   sync.RWMutex
+	statsNowFunc = time.Now
+)
+
+func statsNow() time.Time {
+	statsNowMu.RLock()
+	now := statsNowFunc
+	statsNowMu.RUnlock()
+	return now()
+}
+
+func setStatsNowForTest(now func() time.Time) func() {
+	statsNowMu.Lock()
+	previous := statsNowFunc
+	statsNowFunc = now
+	statsNowMu.Unlock()
+	return func() {
+		statsNowMu.Lock()
+		statsNowFunc = previous
+		statsNowMu.Unlock()
+	}
+}
 
 func newStatsModel(
 	conversations []conv.Conversation,
@@ -105,23 +128,8 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 		return m.updateViewer(msg)
 	}
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		return m.setSize(msg.Width, msg.Height), nil
-	case closeStatsMsg:
-		return m, nil
-	case claudeTurnMetricsLoadedMsg:
-		return m.applyClaudeTurnMetricsLoaded(msg), nil
-	case statsSessionLoadedMsg:
-		return m.openLoadedViewer(msg), nil
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
-	case notificationMsg:
-		m.notification = msg.notification
-		return m, clearNotificationAfter(msg.notification.kind)
-	case clearNotificationMsg:
-		m.notification = notification{}
-		return m, nil
+	if next, cmd, handled := m.handleStatsMessage(msg); handled {
+		return next, cmd
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
@@ -137,6 +145,30 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
+}
+
+func (m statsModel) handleStatsMessage(msg tea.Msg) (statsModel, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return m.setSize(msg.Width, msg.Height), nil, true
+	case closeStatsMsg:
+		return m, nil, true
+	case claudeTurnMetricsLoadedMsg:
+		return m.applyClaudeTurnMetricsLoaded(msg), nil, true
+	case statsSessionLoadedMsg:
+		return m.openLoadedViewer(msg), nil, true
+	case spinner.TickMsg:
+		next, cmd := m.handleSpinnerTick(msg)
+		return next, cmd, true
+	case notificationMsg:
+		m.notification = msg.notification
+		return m, clearNotificationAfter(msg.notification.kind), true
+	case clearNotificationMsg:
+		m.notification = notification{}
+		return m, nil, true
+	default:
+		return m, nil, false
+	}
 }
 
 func (m statsModel) handleHelpKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {

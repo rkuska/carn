@@ -80,19 +80,20 @@ func (m statsModel) chartHelpSection() helpSection {
 					key:  statsClaudeContextGrowthTitle,
 					desc: "line chart",
 					detail: "Shows how context tends to accumulate as sessions go " +
-						"deeper. X-axis is usage-bearing turn number; Y-axis is average input " +
-						"tokens at that turn. Read it as context depth: rising lines mean " +
-						"later turns are reading more prompt context. Turns with fewer than " +
-						"three contributing sessions are omitted.",
+						"deeper. X-axis is user turn number; Y-axis is the average maximum " +
+						"input tokens reached while answering that turn. Read it as context " +
+						"depth: rising lines mean later turns are operating with deeper " +
+						"prompt context. Turns with fewer than three contributing sessions " +
+						"are omitted.",
 				},
 				{
 					key:  statsClaudeTurnCostTitle,
 					desc: "line chart",
 					detail: "Shows how expensive each turn becomes once prompt and " +
-						"response are counted together. X-axis is usage-bearing turn number; " +
-						"Y-axis is average input+output tokens at that turn. Read it as total " +
-						"turn cost rather than pure context size. Turns with fewer than three " +
-						"contributing sessions are omitted.",
+						"response are counted together. X-axis is user turn number; Y-axis " +
+						"is average input+output tokens spent across all assistant steps in " +
+						"that turn. Read it as total turn cost rather than pure context " +
+						"size. Turns with fewer than three contributing sessions are omitted.",
 				},
 			},
 		}

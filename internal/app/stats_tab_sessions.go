@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas"
@@ -160,9 +161,13 @@ func renderClaudeTurnChart(
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
 	}
 
+	// Leave one column of slack so the last X-axis label stays visible
+	// when the chart is composed into framed and side-by-side layouts.
+	chartWidth := max(width-1, 1)
+
 	minX, maxX := claudeTurnChartRange(metrics)
 	maxY := 1.0
-	// Keep the true usage-bearing turn positions so sparse samples render
+	// Keep the true turn positions so sparse samples render
 	// with their real horizontal gaps instead of equal spacing.
 	points := claudeTurnChartPoints(metrics, value)
 	for _, metric := range metrics {
@@ -170,7 +175,7 @@ func renderClaudeTurnChart(
 	}
 
 	baseChart := linechart.New(
-		width,
+		chartWidth,
 		height,
 		minX,
 		maxX,
@@ -180,7 +185,7 @@ func renderClaudeTurnChart(
 	)
 	baseChart.SetXStep(claudeTurnAxisStep(baseChart.GraphWidth(), 6))
 	chart := wlc.New(
-		width,
+		chartWidth,
 		height,
 		wlc.WithLineChart(&baseChart),
 		wlc.WithStyles(
@@ -196,7 +201,7 @@ func renderClaudeTurnChart(
 		chart.Plot(point)
 	}
 	chart.Draw()
-	lines = append(lines, chart.View())
+	lines = append(lines, strings.Join(splitAndFitLines(chart.View(), width), "\n"))
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
@@ -221,10 +226,7 @@ func claudeTurnChartRange(metrics []statspkg.PositionTokenMetrics) (float64, flo
 
 	minX := float64(metrics[0].Position)
 	maxX := float64(metrics[len(metrics)-1].Position)
-	if minX == maxX {
-		return minX, minX + 1
-	}
-	return minX, maxX
+	return minX, maxX + 1
 }
 
 func claudeTurnAxisStep(graphWidth, maxLabels int) int {

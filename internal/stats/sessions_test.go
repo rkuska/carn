@@ -144,16 +144,21 @@ func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T)
 		testSession("s1", []message{
 			userMessage(),
 			assistantUsageMessage(10, 5),
-			userMessage(),
 			assistantUsageMessage(30, 10),
+			userMessage(),
+			assistantUsageMessage(40, 10),
 		}),
 		testSession("s2", []message{
+			userMessage(),
 			assistantUsageMessage(20, 10),
+			userMessage(),
 			assistantUsageMessage(50, 20),
 			assistantUsageMessage(60, 20),
 		}),
 		testSession("s3", []message{
 			assistantUsageMessage(25, 5),
+			assistantUsageMessage(35, 10),
+			userMessage(),
 			assistantUsageMessage(70, 10),
 		}),
 		testSession("zero", []message{
@@ -166,56 +171,61 @@ func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T)
 	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
 	assert.Equal(t, 3, got[0].SampleCount)
-	assert.InDelta(t, 18.3333333333, got[0].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 25, got[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 28.3333333333, got[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 53.3333333333, got[0].AverageTurnTokens, 0.0001)
 	assert.Equal(t, 2, got[1].Position)
 	assert.Equal(t, 3, got[1].SampleCount)
-	assert.InDelta(t, 50, got[1].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 63.3333333333, got[1].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 56.6666666667, got[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 93.3333333333, got[1].AverageTurnTokens, 0.0001)
 }
 
-func TestComputeTurnTokenMetricsUsesUsageBearingTurnsInsteadOfRawMessagePositions(t *testing.T) {
+func TestComputeTurnTokenMetricsUsesRealTurnBoundariesInsteadOfAssistantSteps(t *testing.T) {
 	t.Parallel()
 
 	sessions := []session{
 		testSession("s1", []message{
 			userMessage(),
 			assistantUsageMessage(100, 10),
-			userMessage(),
 			assistantUsageMessage(200, 20),
+			userMessage(),
+			assistantUsageMessage(400, 40),
 		}),
 		testSession("s2", []message{
 			userMessage(),
-			userMessage(),
 			assistantUsageMessage(150, 15),
 			assistantUsageMessage(300, 30),
+			userMessage(),
+			assistantUsageMessage(500, 50),
 		}),
 		testSession("s3", []message{
 			assistantUsageMessage(50, 5),
-			userMessage(),
 			assistantUsageMessage(250, 25),
+			userMessage(),
+			assistantUsageMessage(600, 60),
 		}),
 	}
 
 	got := ComputeTurnTokenMetrics(sessions)
 	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
-	assert.InDelta(t, 100, got[0].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 110, got[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 250, got[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 385, got[0].AverageTurnTokens, 0.0001)
 	assert.Equal(t, 2, got[1].Position)
-	assert.InDelta(t, 250, got[1].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 275, got[1].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 500, got[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 550, got[1].AverageTurnTokens, 0.0001)
 }
 
-func TestCollectSessionTurnMetricsCapturesUsageBearingTurnsPerSession(t *testing.T) {
+func TestCollectSessionTurnMetricsCapturesUserTurnsPerSession(t *testing.T) {
 	t.Parallel()
 
 	sessions := []session{
 		testSession("s1", []message{
 			userMessage(),
 			assistantUsageMessage(100, 10),
-			userMessage(),
+			userToolResultMessage(),
 			assistantUsageMessage(200, 20),
+			userMessage(),
+			assistantUsageMessage(300, 30),
 		}),
 		testSession("empty", []message{
 			userMessage(),
@@ -227,8 +237,8 @@ func TestCollectSessionTurnMetricsCapturesUsageBearingTurnsPerSession(t *testing
 	require.Len(t, got, 1)
 	assert.Equal(t, sessions[0].Meta.Timestamp, got[0].Timestamp)
 	assert.Equal(t, []TurnTokens{
-		{InputTokens: 100, TurnTokens: 110},
-		{InputTokens: 200, TurnTokens: 220},
+		{InputTokens: 200, TurnTokens: 330},
+		{InputTokens: 300, TurnTokens: 330},
 	}, got[0].Turns)
 }
 

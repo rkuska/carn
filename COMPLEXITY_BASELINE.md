@@ -44,14 +44,14 @@ None.
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
 | internal/source/claude/scanner_metadata.go | source | 360 | 59 | 388 |
 | internal/source/codex/json_field.go | source | 370 | 46 | 392 |
-| internal/app/stats_model.go | source | 343 | 41 | 393 |
+| internal/app/stats_model.go | source | 372 | 42 | 425 |
 | internal/source/codex/drift.go | source | 328 | 41 | 378 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/source/codex/records.go | source | 300 | 16 | 313 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
 | internal/app/stats_model_test.go | test | 642 | 8 | 743 |
-| internal/app/stats_help.go | source | 332 | 7 | 338 |
+| internal/app/stats_help.go | source | 333 | 7 | 339 |
 
 ## Notes
 

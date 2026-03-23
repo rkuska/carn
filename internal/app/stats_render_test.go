@@ -102,13 +102,10 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 	t.Parallel()
 
-	previousNow := statsNow
-	statsNow = func() time.Time {
+	restoreNow := setStatsNowForTest(func() time.Time {
 		return time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	}
-	defer func() {
-		statsNow = previousNow
-	}()
+	})
+	defer restoreNow()
 
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -180,13 +177,18 @@ func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 				conv.ProviderClaude,
 				"stats-1",
 				"alpha",
-				testStatsSessionMeta("stats-1", "alpha", time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
-					meta.ToolCounts = map[string]int{
-						"Read":  4,
-						"Write": 2,
-						"Bash":  1,
-					}
-				}),
+				testStatsSessionMeta(
+					"stats-1",
+					"alpha",
+					time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC),
+					func(meta *conv.SessionMeta) {
+						meta.ToolCounts = map[string]int{
+							"Read":  4,
+							"Write": 2,
+							"Bash":  1,
+						}
+					},
+				),
 			),
 		},
 		&fakeBrowserStore{},

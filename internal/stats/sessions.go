@@ -2,6 +2,7 @@ package stats
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -51,18 +52,7 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 
 	series := make([]SessionTurnMetrics, 0, len(sessions))
 	for _, session := range sessions {
-		turns := make([]TurnTokens, 0)
-		for _, message := range session.Messages {
-			inputTokens := message.Usage.InputTokens
-			turnTokens := message.Usage.InputTokens + message.Usage.OutputTokens
-			if turnTokens <= 0 {
-				continue
-			}
-			turns = append(turns, TurnTokens{
-				InputTokens: inputTokens,
-				TurnTokens:  turnTokens,
-			})
-		}
+		turns := collectSessionTurns(session.Messages)
 		if len(turns) == 0 {
 			continue
 		}
@@ -72,6 +62,52 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 		})
 	}
 	return series
+}
+
+func collectSessionTurns(messages []conv.Message) []TurnTokens {
+	turns := make([]TurnTokens, 0)
+	current := TurnTokens{}
+	hasUsage := false
+
+	flush := func() {
+		if !hasUsage {
+			return
+		}
+		turns = append(turns, current)
+		current = TurnTokens{}
+		hasUsage = false
+	}
+
+	for _, message := range messages {
+		if isTurnBoundary(message) {
+			flush()
+			continue
+		}
+		if message.Role != conv.RoleAssistant {
+			continue
+		}
+
+		turnTokens := message.Usage.InputTokens + message.Usage.OutputTokens
+		if turnTokens <= 0 {
+			continue
+		}
+
+		// A single user turn can fan out into multiple assistant/tool steps.
+		// Track the deepest prompt reached in the turn and the total token cost.
+		current.InputTokens = max(current.InputTokens, message.Usage.InputTokens)
+		current.TurnTokens += turnTokens
+		hasUsage = true
+	}
+
+	flush()
+	return turns
+}
+
+func isTurnBoundary(message conv.Message) bool {
+	if message.IsAgentDivider {
+		return true
+	}
+	return message.Role == conv.RoleUser && strings.TrimSpace(message.Text) != ""
 }
 
 func ComputeTurnTokenMetricsForRange(

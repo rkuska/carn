@@ -57,6 +57,8 @@ func (m statsModel) renderOverviewTab(width int) string {
 func renderOverviewTokenValue(overview statspkg.Overview) string {
 	value := statspkg.FormatNumber(overview.Tokens.Total)
 	switch overview.TokenTrend.Direction {
+	case statspkg.TrendDirectionNone:
+		return value
 	case statspkg.TrendDirectionUp:
 		return value + " " + lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#e3b341")).
