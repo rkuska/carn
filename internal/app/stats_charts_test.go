@@ -89,7 +89,6 @@ func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	t.Parallel()
 
 	var cells [7][24]int
-	cells[0][0] = 0
 	cells[1][1] = 1
 	cells[2][2] = 2
 	cells[3][3] = 4
@@ -101,12 +100,40 @@ func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	assert.Contains(t, stripped, "Heatmap")
 	assert.Contains(t, stripped, "Mon")
 	assert.Contains(t, stripped, "Sun")
-	assert.Contains(t, stripped, "00")
-	assert.Contains(t, stripped, "23")
+	assert.Contains(t, stripped, "···")
+	assert.Contains(t, stripped, "01")
+	assert.Contains(t, stripped, "04")
 	assert.Contains(t, stripped, "░")
 	assert.Contains(t, stripped, "▒")
 	assert.Contains(t, stripped, "▓")
 	assert.Contains(t, stripped, "█")
+}
+
+func TestHeatmapDisplayRowsCompressEmptyHourRanges(t *testing.T) {
+	t.Parallel()
+
+	var cells [7][24]int
+	cells[0][8] = 1
+	cells[4][9] = 1
+	cells[2][16] = 1
+
+	assert.Equal(t, []int{-1, 8, 9, -1, 16, -1}, heatmapDisplayRows(cells))
+}
+
+func TestRenderActivityHeatmapOmitsFullyEmptyHours(t *testing.T) {
+	t.Parallel()
+
+	var cells [7][24]int
+	cells[0][8] = 1
+	cells[2][16] = 2
+
+	got := ansi.Strip(renderActivityHeatmap("Heatmap", cells, 56))
+
+	assert.Contains(t, got, "08")
+	assert.Contains(t, got, "16")
+	assert.Contains(t, got, "···")
+	assert.NotContains(t, got, "07")
+	assert.NotContains(t, got, "17")
 }
 
 func TestRenderSideBySideSplitsAtNormalWidthAndStacksWhenNarrow(t *testing.T) {

@@ -33,7 +33,12 @@ func renderActivityHeatmap(title string, cells [7][24]int, width int) string {
 		}
 	}
 
-	for hour := range 24 {
+	for _, hour := range heatmapDisplayRows(cells) {
+		if hour < 0 {
+			lines = append(lines, lipgloss.NewStyle().Foreground(colorSecondary).Render("···"))
+			continue
+		}
+
 		var row strings.Builder
 		_, _ = fmt.Fprintf(&row, "%02d ", hour)
 		for day := range 7 {
@@ -79,4 +84,44 @@ func heatmapCellStyle(level int) (string, color.Color) {
 	default:
 		return " ", colorHeatmap0
 	}
+}
+
+func heatmapDisplayRows(cells [7][24]int) []int {
+	activeHours := heatmapActiveHours(cells)
+	if len(activeHours) == 0 {
+		rows := make([]int, 0, 24)
+		for hour := range 24 {
+			rows = append(rows, hour)
+		}
+		return rows
+	}
+
+	rows := make([]int, 0, len(activeHours)+2)
+	if activeHours[0] > 0 {
+		rows = append(rows, -1)
+	}
+	rows = append(rows, activeHours[0])
+	for i := 1; i < len(activeHours); i++ {
+		if activeHours[i]-activeHours[i-1] > 1 {
+			rows = append(rows, -1)
+		}
+		rows = append(rows, activeHours[i])
+	}
+	if activeHours[len(activeHours)-1] < 23 {
+		rows = append(rows, -1)
+	}
+	return rows
+}
+
+func heatmapActiveHours(cells [7][24]int) []int {
+	hours := make([]int, 0, 24)
+	for hour := range 24 {
+		for day := range 7 {
+			if cells[day][hour] > 0 {
+				hours = append(hours, hour)
+				break
+			}
+		}
+	}
+	return hours
 }
