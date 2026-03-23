@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,6 +29,37 @@ type SessionSpec struct {
 	UserText      string
 	AssistantText string
 	Timestamp     time.Time
+}
+
+// GenerateSessionSpecs creates deterministic session specs spread across
+// five projects and roughly ninety days for tests and benchmarks.
+func GenerateSessionSpecs(count int) []SessionSpec {
+	if count <= 0 {
+		return nil
+	}
+
+	projects := []string{"alpha", "beta", "gamma", "delta", "epsilon"}
+	modelTimespan := 90 * 24 * time.Hour
+	step := time.Duration(0)
+	if count > 1 {
+		step = modelTimespan / time.Duration(count-1)
+	}
+
+	specs := make([]SessionSpec, 0, count)
+	start := scenarioTimestamp.Add(-modelTimespan)
+	for i := range count {
+		sessionID := fmt.Sprintf("bench-session-%05d", i)
+		specs = append(specs, SessionSpec{
+			Project:       projects[i%len(projects)],
+			FileName:      sessionID + ".jsonl",
+			Slug:          sessionID,
+			SessionID:     sessionID,
+			UserText:      fmt.Sprintf("benchmark question %d", i),
+			AssistantText: fmt.Sprintf("benchmark response %d", i),
+			Timestamp:     start.Add(step * time.Duration(i)),
+		})
+	}
+	return specs
 }
 
 // NewWorkspace creates an isolated source/archive layout for a scenario.

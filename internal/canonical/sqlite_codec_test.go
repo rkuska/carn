@@ -217,6 +217,58 @@ func TestWithEncodedSessionBlobMessageUsageRoundTrip(t *testing.T) {
 	assert.Equal(t, session.Messages[1].Usage, decoded.Messages[1].Usage)
 }
 
+func TestWithEncodedSessionBlobRoleCountsRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		Meta: sessionMeta{
+			ID:                    "role-counts",
+			Timestamp:             time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			MessageCount:          9,
+			MainMessageCount:      7,
+			UserMessageCount:      3,
+			AssistantMessageCount: 4,
+		},
+	}
+
+	var blob []byte
+	err := withEncodedSessionBlob(session, func(data []byte) error {
+		blob = append([]byte(nil), data...)
+		return nil
+	})
+	require.NoError(t, err)
+
+	decoded, err := decodeSessionBlob(blob)
+	require.NoError(t, err)
+	assert.Equal(t, session.Meta.MessageCount, decoded.Meta.MessageCount)
+	assert.Equal(t, session.Meta.MainMessageCount, decoded.Meta.MainMessageCount)
+	assert.Equal(t, session.Meta.UserMessageCount, decoded.Meta.UserMessageCount)
+	assert.Equal(t, session.Meta.AssistantMessageCount, decoded.Meta.AssistantMessageCount)
+}
+
+func TestWithEncodedSessionBlobToolErrorCountsRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	session := sessionFull{
+		Meta: sessionMeta{
+			ID:              "tool-errors",
+			Timestamp:       time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			ToolErrorCounts: map[string]int{"Bash": 2, "Read": 1},
+		},
+	}
+
+	var blob []byte
+	err := withEncodedSessionBlob(session, func(data []byte) error {
+		blob = append([]byte(nil), data...)
+		return nil
+	})
+	require.NoError(t, err)
+
+	decoded, err := decodeSessionBlob(blob)
+	require.NoError(t, err)
+	assert.Equal(t, session.Meta.ToolErrorCounts, decoded.Meta.ToolErrorCounts)
+}
+
 func TestWithEncodedSessionBlobToolRejectCountsRoundTrip(t *testing.T) {
 	t.Parallel()
 

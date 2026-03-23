@@ -52,6 +52,91 @@ func TestComputeSessionsAggregatesRatiosAndHistograms(t *testing.T) {
 	assert.Equal(t, HistogramBucket{Label: "60+", Count: 1}, got.MessageHistogram[4])
 }
 
+func TestComputeSessionsBucketBoundariesStayInclusiveAtUpperEdges(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"m5",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 1, 9, 5, 0, 0, time.UTC)),
+			withMainMessages(5),
+		),
+		testMeta(
+			"m15",
+			time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 1, 10, 15, 0, 0, time.UTC)),
+			withMainMessages(15),
+		),
+		testMeta(
+			"m30",
+			time.Date(2026, 1, 1, 11, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 1, 11, 30, 0, 0, time.UTC)),
+			withMainMessages(30),
+		),
+		testMeta(
+			"m60",
+			time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC)),
+			withMainMessages(60),
+		),
+		testMeta(
+			"m120",
+			time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 1, 16, 0, 0, 0, time.UTC)),
+			withMainMessages(61),
+		),
+	}
+
+	got := ComputeSessions(sessions)
+
+	assert.Equal(t, []HistogramBucket{
+		{Label: "<5m", Count: 0},
+		{Label: "5-15", Count: 1},
+		{Label: "15-30", Count: 1},
+		{Label: "30-60", Count: 1},
+		{Label: "1-2h", Count: 1},
+		{Label: "2h+", Count: 1},
+	}, got.DurationHistogram)
+	assert.Equal(t, []HistogramBucket{
+		{Label: "1-5", Count: 1},
+		{Label: "5-15", Count: 1},
+		{Label: "15-30", Count: 1},
+		{Label: "30-60", Count: 1},
+		{Label: "60+", Count: 1},
+	}, got.MessageHistogram)
+}
+
+func TestComputeSessionsDoesNotMarkExactAbandonThresholdsAsAbandoned(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"threshold",
+			time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 2, 9, 1, 0, 0, time.UTC)),
+			withMainMessages(3),
+		),
+		testMeta(
+			"short",
+			time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 2, 10, 0, 59, 0, time.UTC)),
+			withMainMessages(3),
+		),
+		testMeta(
+			"few",
+			time.Date(2026, 1, 2, 11, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 2, 11, 1, 0, 0, time.UTC)),
+			withMainMessages(2),
+		),
+	}
+
+	got := ComputeSessions(sessions)
+
+	assert.Equal(t, 2, got.AbandonedCount)
+	assert.InDelta(t, 66.6667, got.AbandonedRate, 0.0001)
+}
+
 func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T) {
 	t.Parallel()
 
@@ -198,4 +283,28 @@ func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t
 	assert.InDelta(t, 30, allTime[0].AverageTurnTokens, 0.0001)
 	assert.InDelta(t, 35, allTime[1].AverageInputTokens, 0.0001)
 	assert.InDelta(t, 45, allTime[1].AverageTurnTokens, 0.0001)
+}
+
+func TestComputeTurnTokenMetricsSkipsSparsePositions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("s1", []message{
+			assistantUsageMessage(100, 10),
+			assistantUsageMessage(200, 20),
+		}),
+		testSession("s2", []message{
+			assistantUsageMessage(110, 10),
+			assistantUsageMessage(210, 20),
+		}),
+		testSession("s3", []message{
+			assistantUsageMessage(120, 10),
+		}),
+	}
+
+	got := ComputeTurnTokenMetrics(sessions)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, 1, got[0].Position)
+	assert.Equal(t, 3, got[0].SampleCount)
 }

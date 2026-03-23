@@ -72,6 +72,48 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 	assert.Equal(t, "s3", got.TopSessions[2].Slug)
 }
 
+func TestComputeOverviewEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	got := ComputeOverview(nil)
+
+	assert.Zero(t, got.SessionCount)
+	assert.Zero(t, got.MessageCount)
+	assert.Zero(t, got.Tokens.Total)
+	assert.Empty(t, got.ByModel)
+	assert.Empty(t, got.ByProject)
+	assert.Empty(t, got.TopSessions)
+}
+
+func TestComputeOverviewSingleSession(t *testing.T) {
+	t.Parallel()
+
+	session := testMeta(
+		"single",
+		time.Date(2026, 2, 3, 9, 0, 0, 0, time.UTC),
+		withProject("alpha"),
+		withModel("gpt-5"),
+		withMainMessages(4),
+		withLastTimestamp(time.Date(2026, 2, 3, 9, 5, 0, 0, time.UTC)),
+		withUsage(500, 20, 10, 90),
+	)
+
+	got := ComputeOverview([]sessionMeta{session})
+
+	assert.Equal(t, 1, got.SessionCount)
+	assert.Equal(t, 4, got.MessageCount)
+	assert.Equal(
+		t,
+		TokenTotals{Total: 620, Input: 500, Output: 90, CacheRead: 10, CacheWrite: 20},
+		got.Tokens,
+	)
+	assert.Equal(t, []ModelTokens{{Model: "gpt-5", Tokens: 620}}, got.ByModel)
+	assert.Equal(t, []ProjectTokens{{Project: "alpha", Tokens: 620}}, got.ByProject)
+	require.Len(t, got.TopSessions, 1)
+	assert.Equal(t, "single", got.TopSessions[0].Slug)
+	assert.Equal(t, 4, got.TopSessions[0].MessageCount)
+}
+
 func TestComputeOverviewLimitsTopSessionsToFive(t *testing.T) {
 	t.Parallel()
 
@@ -88,6 +130,47 @@ func TestComputeOverviewLimitsTopSessionsToFive(t *testing.T) {
 	require.Len(t, got.TopSessions, 5)
 	assert.Equal(t, "s6", got.TopSessions[0].Slug)
 	assert.Equal(t, "s2", got.TopSessions[4].Slug)
+}
+
+func TestComputeOverviewOrdersTiedTopSessionsByTimestampThenName(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"older",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withProject("beta"),
+			withUsage(100, 0, 0, 0),
+		),
+		testMeta(
+			"newer",
+			time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC),
+			withProject("gamma"),
+			withUsage(100, 0, 0, 0),
+		),
+		testMeta(
+			"aaa",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withUsage(100, 0, 0, 0),
+		),
+		testMeta(
+			"bbb",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withUsage(100, 0, 0, 0),
+		),
+	}
+
+	got := ComputeOverview(sessions)
+
+	require.Len(t, got.TopSessions, 4)
+	assert.Equal(t, []string{"newer", "aaa", "bbb", "older"}, []string{
+		got.TopSessions[0].Slug,
+		got.TopSessions[1].Slug,
+		got.TopSessions[2].Slug,
+		got.TopSessions[3].Slug,
+	})
 }
 
 func TestComputeOverviewSkipsZeroTokenGroupsAndSessions(t *testing.T) {

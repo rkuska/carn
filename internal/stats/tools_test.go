@@ -49,6 +49,27 @@ func TestComputeToolsAggregatesTotalsRatiosAndHistograms(t *testing.T) {
 	assert.Equal(t, HistogramBucket{Label: "21-50", Count: 2}, got.CallsPerSession[1])
 }
 
+func TestComputeToolsKeepsOtherToolsInTotalsButOutOfRatio(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"s1",
+			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"Read": 4, "Write": 2, "Bash": 1, "WebSearch": 7}),
+		),
+	}
+
+	got := ComputeTools(sessions)
+
+	assert.Equal(t, 14, got.TotalCalls)
+	assert.InDelta(t, 4.0, got.ReadWriteBashRatio.Read, 0.0001)
+	assert.InDelta(t, 2.0, got.ReadWriteBashRatio.Write, 0.0001)
+	assert.InDelta(t, 1.0, got.ReadWriteBashRatio.Bash, 0.0001)
+	require.Len(t, got.TopTools, 4)
+	assert.Equal(t, ToolStat{Name: "WebSearch", Count: 7}, got.TopTools[0])
+}
+
 func TestComputeToolErrorRatesSortsByRateDescending(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +108,20 @@ func TestComputeToolErrorRatesSkipsLowVolumeTools(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "Read", got[0].Name)
 	assert.InDelta(t, 10, got[0].Rate, 0.0001)
+}
+
+func TestComputeToolErrorRatesReturnsEmptyWithoutErrors(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"s1",
+			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"Read": 8, "Bash": 5}),
+		),
+	}
+
+	assert.Empty(t, ComputeToolErrorRates(sessions))
 }
 
 func TestComputeToolsFromSessionMetricsSeparatesRejectedSuggestionsFromErrors(t *testing.T) {

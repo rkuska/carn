@@ -36,6 +36,12 @@ func TestComputeActivityBuildsDailySeriesHeatmapAndStreaks(t *testing.T) {
 	assert.Equal(t, 1, got.Heatmap[3][13])
 }
 
+func TestComputeActivityReturnsZeroForEmptyInput(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, Activity{}, ComputeActivity(nil, TimeRange{}))
+}
+
 func TestComputeActivityCountsCurrentStreakFromRangeEnd(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +57,59 @@ func TestComputeActivityCountsCurrentStreakFromRangeEnd(t *testing.T) {
 	})
 	assert.Equal(t, 3, got.CurrentStreak)
 	assert.Equal(t, 3, got.LongestStreak)
+}
+
+func TestComputeActivityCurrentStreakStopsAtGapBeforeYesterday(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta("d1", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)),
+		testMeta("d2", time.Date(2026, 1, 7, 9, 0, 0, 0, time.UTC)),
+	}
+
+	got := ComputeActivity(sessions, TimeRange{
+		Start: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 7, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, 1, got.CurrentStreak)
+	assert.Equal(t, 1, got.LongestStreak)
+}
+
+func TestComputeActivityCurrentStreakIsZeroWhenRangeEndsInactive(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta("d1", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)),
+		testMeta("d2", time.Date(2026, 1, 6, 9, 0, 0, 0, time.UTC)),
+	}
+
+	got := ComputeActivity(sessions, TimeRange{
+		Start: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 7, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, 0, got.CurrentStreak)
+	assert.Equal(t, 2, got.LongestStreak)
+}
+
+func TestComputeActivityPlacesWeekendSessionsInWeekendRows(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta("sat", time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC)),
+		testMeta("sun", time.Date(2026, 1, 11, 17, 0, 0, 0, time.UTC)),
+	}
+
+	got := ComputeActivity(sessions, TimeRange{
+		Start: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 11, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, 1, got.Heatmap[5][8])
+	assert.Equal(t, 1, got.Heatmap[6][17])
+	assert.Equal(t, 2, got.ActiveDays)
+	assert.Equal(t, 2, got.LongestStreak)
 }
 
 func TestComputeActivityUsesTimeRangeTimezoneForDailySeries(t *testing.T) {

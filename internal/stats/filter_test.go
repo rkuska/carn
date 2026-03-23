@@ -3,6 +3,8 @@ package stats
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFilterByTimeRange(t *testing.T) {
@@ -39,4 +41,13 @@ func TestFilterByTimeRangeZeroValueReturnsAll(t *testing.T) {
 	if len(got) != len(sessions) {
 		t.Fatalf("len(FilterByTimeRange) = %d, want %d", len(got), len(sessions))
 	}
+}
+
+func TestFilterByTimeRangeEmptyInputReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	assert.Nil(t, FilterByTimeRange(nil, TimeRange{
+		Start: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 20, 23, 59, 59, 0, time.UTC),
+	}))
 }

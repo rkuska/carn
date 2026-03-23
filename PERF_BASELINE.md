@@ -9,7 +9,9 @@ go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStorePar
 go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem ./internal/source/codex
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
+go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation)$' -benchmem ./internal/stats
 go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
@@ -22,6 +24,17 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/app` | BenchmarkBrowserDeepSearchWarm | 1,454,178 | 9,435 | 235 |
 | `User-Facing` | `internal/app` | BenchmarkViewerRenderContent | 1,908 | 0 | 0 |
 | `User-Facing` | `internal/app` | BenchmarkViewerSearch | 575.2 | 0 | 0 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 9,359 | 8,528 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 131,530 | 82,256 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 1,648,407 | 803,159 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeActivity/1000 | 113,993 | 66,368 | 61 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/100 | 36,171 | 56,744 | 507 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 342,472 | 547,434 | 5,007 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 8,317 | 2,304 | 1 |
+| `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 84,435 | 384 | 5 |
+| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 107,680 | 32,920 | 864 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 251,548 | 65,299 | 1,221 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 78,561 | 15,576 | 349 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 5,853,672 | 2,343,481 | 29,217 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,747,512 | 763,896 | 16,819 |
 | `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 5,538,338 | 4,470,844 | 61,649 |
@@ -50,6 +63,13 @@ Notes:
   path after the browser list has loaded.
 - `BenchmarkBrowserDeepSearchWarm` measures the actual browser deep-search
   command path after the browser list has loaded.
+- `BenchmarkComputeOverview`, `BenchmarkComputeActivity`,
+  `BenchmarkComputeTokenGrowth`, `BenchmarkComputeStreaks`, and
+  `BenchmarkToolAggregation` cover the backend aggregation work behind the
+  fullscreen stats view.
+- `BenchmarkStatsOverviewRender`, `BenchmarkStatsHeatmapRender`, and
+  `BenchmarkStatsHistogramRender` isolate the stats-view render paths that
+  shape the TUI output once the snapshot is ready.
 - `BenchmarkCanonicalStoreListCold`, `BenchmarkCanonicalStoreListWarm`, and
   `BenchmarkCanonicalStoreSearchChunkCountQuery` are diagnostic internal probes,
   not end-user latency metrics.
