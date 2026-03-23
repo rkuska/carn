@@ -235,20 +235,30 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 	m.tab = statsTabTools
 
 	body := ansi.Strip(m.renderToolsTab(120))
-	usageRow := findRenderedLine(t, body, "Top Tools")
+	usageRow := findRenderedLine(t, body, "Tool Calls/Session")
 	qualityRow := findRenderedLine(t, body, "Tool Error Rate")
 
-	assert.Equal(t, 0, strings.Index(usageRow, "Top Tools"))
-	assert.Contains(t, usageRow, "Tool Calls/Session")
+	assert.Equal(t, 0, strings.Index(usageRow, "Tool Calls/Session"))
+	assert.Contains(t, usageRow, "Top Tools")
 	assert.Contains(t, usageRow, "│")
-	assert.GreaterOrEqual(t, strings.Index(usageRow, "│"), 70)
-	assert.LessOrEqual(t, strings.Index(usageRow, "│"), 85)
+	assert.GreaterOrEqual(t, strings.Index(usageRow, "│"), 55)
+	assert.LessOrEqual(t, strings.Index(usageRow, "│"), 65)
+	assert.Greater(t, strings.Index(usageRow, "Top Tools"), strings.Index(usageRow, "│"))
 
 	assert.Equal(t, 0, strings.Index(qualityRow, "Tool Error Rate"))
 	assert.Contains(t, qualityRow, "Rejected Suggestions")
 	assert.Contains(t, qualityRow, "│")
 	assert.GreaterOrEqual(t, strings.Index(qualityRow, "│"), 55)
 	assert.LessOrEqual(t, strings.Index(qualityRow, "│"), 65)
+}
+
+func TestToolCallsChartHeightTracksToolErrorRateRows(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 1, toolCallsChartHeight(0))
+	assert.Equal(t, 1, toolCallsChartHeight(2))
+	assert.Equal(t, 1, toolCallsChartHeight(3))
+	assert.Equal(t, 4, toolCallsChartHeight(6))
 }
 
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {

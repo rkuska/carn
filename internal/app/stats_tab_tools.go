@@ -36,24 +36,26 @@ func (m statsModel) renderToolsTab(width int) string {
 		callBuckets = append(callBuckets, histBucket{Label: bucket.Label, Count: bucket.Count})
 	}
 
-	topToolsWidth, callChartWidth, usageStacked := statsColumnWidths(width, 8, 4, 30)
-	if usageStacked {
-		topToolsWidth = width
-		callChartWidth = width
-	}
-	usageCharts := renderColumns(
-		renderHorizontalBars("Top Tools", topTools, topToolsWidth, colorChartBar),
-		renderVerticalHistogram("Tool Calls/Session", callBuckets, callChartWidth, 8),
-		topToolsWidth,
-		callChartWidth,
-		usageStacked,
-	)
-
 	errorChartWidth, rejectedChartWidth, qualityStacked := statsColumnWidths(width, 1, 1, 30)
 	if qualityStacked {
 		errorChartWidth = width
 		rejectedChartWidth = width
 	}
+	callChartWidth := rejectedChartWidth
+	topToolsWidth := errorChartWidth
+	usageCharts := renderColumns(
+		renderVerticalHistogram(
+			"Tool Calls/Session",
+			callBuckets,
+			callChartWidth,
+			toolCallsChartHeight(len(tools.ToolErrorRates)),
+		),
+		renderHorizontalBars("Top Tools", topTools, topToolsWidth, colorChartBar),
+		callChartWidth,
+		topToolsWidth,
+		qualityStacked,
+	)
+
 	qualityCharts := renderColumns(
 		renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError, true),
 		renderToolRateChart(
@@ -68,6 +70,13 @@ func (m statsModel) renderToolsTab(width int) string {
 		qualityStacked,
 	)
 	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, usageCharts, qualityCharts)
+}
+
+func toolCallsChartHeight(errorRateCount int) int {
+	if errorRateCount <= 2 {
+		return 1
+	}
+	return errorRateCount - 2
 }
 
 func renderToolRateChart(
