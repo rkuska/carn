@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"image/color"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -25,7 +26,7 @@ func (m statsModel) renderActivityTab(width, height int) string {
 		chartHeight = max(height-6, 6)
 	}
 
-	lineChart := renderDailyActivityChart(chartTitle, counts, max(width-2, 10), chartHeight)
+	lineChart := renderDailyActivityChart(chartTitle, counts, max(width-2, 10), chartHeight, colorChartTime)
 	heatmap := renderActivityHeatmap("Activity Heatmap", activity.Heatmap, width)
 	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, lineChart, heatmap)
 }
@@ -43,7 +44,12 @@ func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {
 	}
 }
 
-func renderDailyActivityChart(title string, counts []statspkg.DailyCount, width, height int) string {
+func renderDailyActivityChart(
+	title string,
+	counts []statspkg.DailyCount,
+	width, height int,
+	lineColor color.Color,
+) string {
 	lines := []string{renderStatsTitle(title)}
 	if len(counts) == 0 {
 		lines = append(lines, "No data")
@@ -62,7 +68,7 @@ func renderDailyActivityChart(title string, counts []statspkg.DailyCount, width,
 		tslc.WithTimeRange(start, end),
 		tslc.WithYRange(0, float64(maxValue)),
 		tslc.WithLineStyle(runes.ArcLineStyle),
-		tslc.WithStyle(lipgloss.NewStyle().Foreground(colorChartBar)),
+		tslc.WithStyle(lipgloss.NewStyle().Foreground(lineColor)),
 		tslc.WithAxesStyles(
 			lipgloss.NewStyle().Foreground(colorSecondary),
 			lipgloss.NewStyle().Foreground(colorNormalDesc),

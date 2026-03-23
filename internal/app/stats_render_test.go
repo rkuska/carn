@@ -70,6 +70,35 @@ func TestStatsRenderOverviewCentersCappedTableInWideViewport(t *testing.T) {
 	assert.Greater(t, strings.Index(headerLine, "Project"), 0)
 }
 
+func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 1234567
+					meta.TotalUsage.OutputTokens = 890
+					meta.TotalUsage.CacheReadInputTokens = 0
+					meta.TotalUsage.CacheCreationInputTokens = 0
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+
+	body := m.renderOverviewTab(120)
+
+	assert.Contains(t, body, renderTokenValue(statspkg.FormatNumber(1235457)))
+}
+
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {
 	t.Parallel()
 

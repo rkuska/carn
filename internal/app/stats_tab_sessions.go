@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"image/color"
 
 	"charm.land/lipgloss/v2"
 	"github.com/NimbleMarkets/ntcharts/v2/canvas"
@@ -47,7 +48,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 	}
 
 	histograms := renderSideBySide(
-		renderVerticalHistogram("Session Duration", durationBuckets, max((width-3)/2, 30), 8),
+		renderVerticalHistogramWithColor("Session Duration", durationBuckets, max((width-3)/2, 30), 8, colorChartTime),
 		renderVerticalHistogram("Messages per Session", messageBuckets, max((width-3)/2, 30), 8),
 		width,
 	)
@@ -68,6 +69,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 				m.claudeTurnMetrics,
 				growthChartWidth,
 				10,
+				colorChartToken,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageInputTokens
 				},
@@ -77,6 +79,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 				m.claudeTurnMetrics,
 				growthChartWidth,
 				10,
+				colorChartToken,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageTurnTokens
 				},
@@ -148,6 +151,7 @@ func renderClaudeTurnChart(
 	title string,
 	metrics []statspkg.PositionTokenMetrics,
 	width, height int,
+	lineColor color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
 	lines := []string{renderStatsTitle(title)}
@@ -179,7 +183,7 @@ func renderClaudeTurnChart(
 		wlc.WithLineChart(&baseChart),
 		wlc.WithStyles(
 			runes.ArcLineStyle,
-			lipgloss.NewStyle().Foreground(colorChartBar),
+			lipgloss.NewStyle().Foreground(lineColor),
 		),
 		wlc.WithAxesStyles(
 			lipgloss.NewStyle().Foreground(colorSecondary),

@@ -67,6 +67,15 @@ func renderHorizontalBars(title string, items []barItem, width int, barColor col
 }
 
 func renderVerticalHistogram(title string, buckets []histBucket, width, maxHeight int) string {
+	return renderVerticalHistogramWithColor(title, buckets, width, maxHeight, colorChartBar)
+}
+
+func renderVerticalHistogramWithColor(
+	title string,
+	buckets []histBucket,
+	width, maxHeight int,
+	barColor color.Color,
+) string {
 	if width <= 0 {
 		return ""
 	}
@@ -84,7 +93,7 @@ func renderVerticalHistogram(title string, buckets []histBucket, width, maxHeigh
 	graphWidth := max(width-axisLabelWidth-3, 1)
 	bucketWidth := max((graphWidth-gapWidth*(len(buckets)-1))/len(buckets), 3)
 	graphWidth = bucketWidth*len(buckets) + gapWidth*(len(buckets)-1)
-	barStyle := lipgloss.NewStyle().Foreground(colorChartBar)
+	barStyle := lipgloss.NewStyle().Foreground(barColor)
 
 	for level := maxHeight; level >= 1; level-- {
 		lines = append(lines, renderHistogramLevel(
@@ -254,6 +263,10 @@ func renderSideBySide(left, right string, width int) string {
 
 func renderStatsTitle(title string) string {
 	return lipgloss.NewStyle().Bold(true).Foreground(colorPrimary).Render(title)
+}
+
+func renderTokenValue(text string) string {
+	return lipgloss.NewStyle().Foreground(colorChartToken).Render(text)
 }
 
 func renderSummaryChips(chips []chip, width int) string {

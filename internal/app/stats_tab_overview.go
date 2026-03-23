@@ -38,14 +38,14 @@ func (m statsModel) renderOverviewTab(width int) string {
 			session.Timestamp.Format("2006-01-02"),
 			statspkg.FormatNumber(session.MessageCount),
 			conv.FormatDuration(session.Duration),
-			statspkg.FormatNumber(session.Tokens),
+			renderTokenValue(statspkg.FormatNumber(session.Tokens)),
 		}})
 	}
 
 	table := renderRankedTable("Most Token-Heavy Sessions", rows, width)
 	sideBySide := renderSideBySide(
-		renderHorizontalBars("Tokens by Model", modelBars, max((width-3)/2, 30), colorChartBar),
-		renderHorizontalBars("Tokens by Project", projectBars, max((width-3)/2, 30), colorChartBar),
+		renderHorizontalBars("Tokens by Model", modelBars, max((width-3)/2, 30), colorChartToken),
+		renderHorizontalBars("Tokens by Project", projectBars, max((width-3)/2, 30), colorChartToken),
 		width,
 	)
 	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, sideBySide, table)
