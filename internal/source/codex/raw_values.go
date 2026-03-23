@@ -38,7 +38,8 @@ func isKnownRecordTypeRaw(raw []byte) bool {
 	return bytes.Equal(raw, recordTypeSessionMetaRaw) ||
 		bytes.Equal(raw, recordTypeTurnContextRaw) ||
 		bytes.Equal(raw, recordTypeResponseItemRaw) ||
-		bytes.Equal(raw, recordTypeEventMsgRaw)
+		bytes.Equal(raw, recordTypeEventMsgRaw) ||
+		codexKnownSchemaExtras.HasRaw("record_type", raw)
 }
 
 func isKnownResponseItemTypeRaw(raw []byte) bool {
@@ -48,7 +49,8 @@ func isKnownResponseItemTypeRaw(raw []byte) bool {
 		bytes.Equal(raw, responseTypeCustomToolCallRaw) ||
 		bytes.Equal(raw, responseTypeWebSearchCallRaw) ||
 		bytes.Equal(raw, responseTypeFunctionCallOutputRaw) ||
-		bytes.Equal(raw, responseTypeCustomToolCallOutputRaw)
+		bytes.Equal(raw, responseTypeCustomToolCallOutputRaw) ||
+		codexKnownSchemaExtras.HasRaw("response_item_type", raw)
 }
 
 func isKnownRoleRaw(raw []byte) bool {
@@ -63,12 +65,14 @@ func isKnownEventTypeRaw(raw []byte) bool {
 		bytes.Equal(raw, eventTypeAgentMessageRaw) ||
 		bytes.Equal(raw, eventTypeAgentReasoningRaw) ||
 		bytes.Equal(raw, eventTypeItemCompletedRaw) ||
-		bytes.Equal(raw, eventTypeTaskCompleteRaw)
+		bytes.Equal(raw, eventTypeTaskCompleteRaw) ||
+		codexKnownSchemaExtras.HasRaw("event_type", raw)
 }
 
 func isKnownContentBlockTypeRaw(raw []byte) bool {
 	return bytes.Equal(raw, contentTypeInputTextRaw) ||
-		bytes.Equal(raw, contentTypeOutputTextRaw)
+		bytes.Equal(raw, contentTypeOutputTextRaw) ||
+		codexKnownSchemaExtras.HasRaw("content_block_type", raw)
 }
 
 func isKnownReasoningSummaryBlockTypeRaw(raw []byte) bool {

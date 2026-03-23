@@ -153,13 +153,16 @@ func detectReasoningSummaryObjectDrift(raw []byte, report *src.DriftReport) {
 }
 
 func isKnownUserMessageField(field []byte) bool {
-	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, messageFieldMarker)
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, messageFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("user_message_field", field)
 }
 
 func isKnownAgentMessageField(field []byte) bool {
 	return bytes.Equal(field, typeFieldMarker) ||
 		bytes.Equal(field, phaseFieldMarker) ||
-		bytes.Equal(field, messageFieldMarker)
+		bytes.Equal(field, messageFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("agent_message_field", field)
 }
 
 func isKnownAgentReasoningField(field []byte) bool {
@@ -167,7 +170,9 @@ func isKnownAgentReasoningField(field []byte) bool {
 }
 
 func isKnownItemCompletedField(field []byte) bool {
-	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, itemFieldMarker)
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, itemFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("item_completed_field", field)
 }
 
 func isKnownCompletedItemField(field []byte) bool {
@@ -177,16 +182,21 @@ func isKnownCompletedItemField(field []byte) bool {
 }
 
 func isKnownTaskCompleteField(field []byte) bool {
-	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, lastAgentMessageFieldMarker)
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, lastAgentMessageFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("task_complete_field", field)
 }
 
 func isKnownTokenCountField(field []byte) bool {
-	return bytes.Equal(field, typeFieldMarker) || bytes.Equal(field, infoFieldMarker)
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, infoFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("token_count_field", field)
 }
 
 func isKnownTokenCountInfoField(field []byte) bool {
 	return bytes.Equal(field, totalTokenUsageFieldMarker) ||
-		bytes.Equal(field, lastTokenUsageFieldMarker)
+		bytes.Equal(field, lastTokenUsageFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("token_count_info_field", field)
 }
 
 func isKnownTokenUsageField(field []byte) bool {

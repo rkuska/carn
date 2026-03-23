@@ -59,14 +59,14 @@ func TestDetectLineDrift(t *testing.T) {
 				"slug":      "demo",
 				"timestamp": "2026-03-21T10:00:01Z",
 				"message": map[string]any{
-					"role":        "assistant",
-					"model":       "claude-sonnet-4",
-					"content":     []map[string]any{{"type": "text", "text": "hello"}},
-					"stop_reason": "end_turn",
+					"role":      "assistant",
+					"model":     "claude-sonnet-4",
+					"content":   []map[string]any{{"type": "text", "text": "hello"}},
+					"transport": "v2",
 				},
 			},
 			want: []src.DriftFinding{
-				{Category: "message_field", Value: "stop_reason"},
+				{Category: "message_field", Value: "transport"},
 			},
 		},
 		{
@@ -96,7 +96,7 @@ func TestDetectLineDrift(t *testing.T) {
 		{
 			name: "unknown record type",
 			raw: map[string]any{
-				"type":      "summary",
+				"type":      "transport-summary",
 				"sessionId": "session-1",
 				"slug":      "demo",
 				"timestamp": "2026-03-21T10:00:00Z",
@@ -106,7 +106,7 @@ func TestDetectLineDrift(t *testing.T) {
 				},
 			},
 			want: []src.DriftFinding{
-				{Category: "record_type", Value: "summary"},
+				{Category: "record_type", Value: "transport-summary"},
 			},
 		},
 		{

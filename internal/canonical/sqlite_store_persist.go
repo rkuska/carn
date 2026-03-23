@@ -158,35 +158,6 @@ func insertSQLiteConversation(
 	}, nil
 }
 
-func insertSQLiteConversationStreaming(
-	ctx context.Context,
-	convStmt *sql.Stmt,
-	sessionStmt *sql.Stmt,
-	chunkExec sqliteExecContext,
-	conv conversation,
-	session sessionFull,
-) (sqliteStoreCounts, error) {
-	conversationID, err := insertSQLiteConversationRow(ctx, convStmt, conv, session)
-	if err != nil {
-		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversationRow: %w", err)
-	}
-
-	sessionCount, err := insertSQLiteSessionRows(ctx, sessionStmt, conversationID, conv)
-	if err != nil {
-		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteSessionRows: %w", err)
-	}
-	searchChunkCount, err := insertSQLiteSearchChunksFromSession(ctx, chunkExec, conversationID, session)
-	if err != nil {
-		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteSearchChunksFromSession: %w", err)
-	}
-
-	return sqliteStoreCounts{
-		conversations: 1,
-		sessions:      sessionCount,
-		searchChunks:  searchChunkCount,
-	}, nil
-}
-
 func insertSQLiteConversationRow(
 	ctx context.Context,
 	stmt *sql.Stmt,
@@ -299,54 +270,6 @@ func insertSQLiteSearchChunks(
 			return 0, fmt.Errorf("batchExec.execBatch: %w", err)
 		}
 		count += end - start
-	}
-	return count, nil
-}
-
-func insertSQLiteSearchChunksFromSession(
-	ctx context.Context,
-	exec sqliteExecContext,
-	conversationID int64,
-	session sessionFull,
-) (int, error) {
-	count := 0
-	args := make([]any, 0, searchChunkBatchSize*3)
-	batchExec := newSQLiteChunkBatchExec(exec)
-	defer func() {
-		if err := batchExec.close(); err != nil {
-			zerolog.Ctx(ctx).Warn().Err(err).Msg("batchExec.close")
-		}
-	}()
-	flush := func() error {
-		batchSize := len(args) / 3
-		if batchSize == 0 {
-			return nil
-		}
-		if err := batchExec.execBatch(ctx, batchSize, args); err != nil {
-			return fmt.Errorf("batchExec.execBatch: %w", err)
-		}
-		args = args[:0]
-		return nil
-	}
-
-	var flushErr error
-	yieldSessionSearchUnits(session, func(ordinal int, text string) bool {
-		args = append(args, conversationID, ordinal, text)
-		count++
-		if len(args) < cap(args) {
-			return true
-		}
-		if err := flush(); err != nil {
-			flushErr = err
-			return false
-		}
-		return true
-	})
-	if flushErr != nil {
-		return 0, fmt.Errorf("flush: %w", flushErr)
-	}
-	if err := flush(); err != nil {
-		return 0, fmt.Errorf("flush_tail: %w", err)
 	}
 	return count, nil
 }

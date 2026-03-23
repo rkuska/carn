@@ -1,0 +1,573 @@
+{
+  "provider": "codex",
+  "categories": {
+    "record_type": {
+      "compacted": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["compacted"],
+        "description": "Context-compaction envelope emitted by newer Codex sessions.",
+        "future_use": "Could preserve compaction boundaries or replacement history in transcripts.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "timestamp": "2026-03-23T08:48:50.458Z",
+          "type": "compacted",
+          "payload": {
+            "message": "",
+            "replacement_history": [
+              {
+                "type": "message",
+                "role": "assistant"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "session_meta_field": {
+      "instructions": {
+        "status": "ignored",
+        "path": "payload.instructions",
+        "record_types": ["session_meta"],
+        "description": "Session bootstrap instructions captured directly in older Codex session metadata.",
+        "future_use": "Could backfill hidden bootstrap transcript rendering for older sessions.",
+        "first_seen": "2025-11-20",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "instructions": "## Skills\nThese skills are discovered at startup..."
+          }
+        }
+      },
+      "base_instructions": {
+        "status": "ignored",
+        "path": "payload.base_instructions",
+        "record_types": ["session_meta"],
+        "description": "Structured base instructions embedded by newer Codex sessions.",
+        "future_use": "Could feed richer system-message reconstruction and provider instruction views.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "base_instructions": {
+              "text": "You are Codex, a coding agent based on GPT-5."
+            }
+          }
+        }
+      },
+      "agent_nickname": {
+        "status": "ignored",
+        "path": "payload.agent_nickname",
+        "record_types": ["session_meta"],
+        "description": "Nickname assigned to a spawned Codex subagent.",
+        "future_use": "Could improve merged subagent dividers and resume displays.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "agent_nickname": "Poincare"
+          }
+        }
+      },
+      "agent_role": {
+        "status": "ignored",
+        "path": "payload.agent_role",
+        "record_types": ["session_meta"],
+        "description": "Role assigned to a spawned Codex subagent.",
+        "future_use": "Could classify subagent transcripts by responsibility in the UI.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "agent_role": "explorer"
+          }
+        }
+      },
+      "forked_from_id": {
+        "status": "ignored",
+        "path": "payload.forked_from_id",
+        "record_types": ["session_meta"],
+        "description": "Parent thread identifier for forked or subagent Codex sessions.",
+        "future_use": "Could strengthen parent-child linking when source metadata is incomplete.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "forked_from_id": "019cd1ce-cc99-7193-b257-406f8059cb1f"
+          }
+        }
+      }
+    },
+    "git_field": {
+      "repository_url": {
+        "status": "ignored",
+        "path": "payload.git.repository_url",
+        "record_types": ["session_meta"],
+        "description": "Repository remote URL captured in Codex git metadata.",
+        "future_use": "Could support repo-aware filters, badges, or external links.",
+        "first_seen": "2025-11-20",
+        "example": {
+          "type": "session_meta",
+          "payload": {
+            "git": {
+              "repository_url": "git@github.com:apropos-inc/apropos.git"
+            }
+          }
+        }
+      }
+    },
+    "turn_context_field": {
+      "turn_id": {
+        "status": "ignored",
+        "path": "payload.turn_id",
+        "record_types": ["turn_context"],
+        "description": "Identifier for the current Codex turn.",
+        "future_use": "Could anchor turn-level metadata, aborts, and per-turn stats.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "turn_id": "019cbe16-0a67-7960-8114-8ae3f63498c1"
+          }
+        }
+      },
+      "current_date": {
+        "status": "ignored",
+        "path": "payload.current_date",
+        "record_types": ["turn_context"],
+        "description": "Date string injected into Codex turn context.",
+        "future_use": "Could explain time-sensitive reasoning or provenance in transcript metadata.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "current_date": "2026-03-05"
+          }
+        }
+      },
+      "timezone": {
+        "status": "ignored",
+        "path": "payload.timezone",
+        "record_types": ["turn_context"],
+        "description": "Timezone injected into Codex turn context.",
+        "future_use": "Could support deterministic transcript rendering or review of date reasoning.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "timezone": "Europe/Prague"
+          }
+        }
+      },
+      "personality": {
+        "status": "ignored",
+        "path": "payload.personality",
+        "record_types": ["turn_context"],
+        "description": "Named assistant personality setting for the turn.",
+        "future_use": "Could help explain response style changes across sessions.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "personality": "pragmatic"
+          }
+        }
+      },
+      "collaboration_mode": {
+        "status": "ignored",
+        "path": "payload.collaboration_mode",
+        "record_types": ["turn_context"],
+        "description": "Structured collaboration-mode settings active for the turn.",
+        "future_use": "Could reconstruct tool availability and interaction mode in hidden system context.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "collaboration_mode": {
+              "mode": "default"
+            }
+          }
+        }
+      },
+      "realtime_active": {
+        "status": "ignored",
+        "path": "payload.realtime_active",
+        "record_types": ["turn_context"],
+        "description": "Realtime session flag emitted in turn context.",
+        "future_use": "Could distinguish offline transcripts from realtime sessions.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "realtime_active": false
+          }
+        }
+      },
+      "effort": {
+        "status": "ignored",
+        "path": "payload.effort",
+        "record_types": ["turn_context"],
+        "description": "Reasoning effort setting for the active turn.",
+        "future_use": "Could explain latency and transcript shape differences across turns.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "effort": "xhigh"
+          }
+        }
+      },
+      "summary": {
+        "status": "ignored",
+        "path": "payload.summary",
+        "record_types": ["turn_context"],
+        "description": "Turn-summary mode stored alongside other context controls.",
+        "future_use": "Could drive transcript compaction or browsing hints.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "summary": "none"
+          }
+        }
+      },
+      "user_instructions": {
+        "status": "ignored",
+        "path": "payload.user_instructions",
+        "record_types": ["turn_context"],
+        "description": "Expanded user instructions carried in turn context.",
+        "future_use": "Could help rebuild hidden bootstrap messages from turn context alone.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "user_instructions": "# carn"
+          }
+        }
+      },
+      "developer_instructions": {
+        "status": "ignored",
+        "path": "payload.developer_instructions",
+        "record_types": ["turn_context"],
+        "description": "Top-level developer instructions present in some Codex turn-context revisions.",
+        "future_use": "Could preserve historical turn-context variants when reconstructing system context.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "developer_instructions": "# Collaboration Mode: Default"
+          }
+        }
+      },
+      "truncation_policy": {
+        "status": "ignored",
+        "path": "payload.truncation_policy",
+        "record_types": ["turn_context"],
+        "description": "Truncation policy metadata included in some turn-context payloads.",
+        "future_use": "Could explain compaction behavior and transcript clipping decisions.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "turn_context",
+          "payload": {
+            "truncation_policy": {
+              "mode": "tokens",
+              "limit": 10000
+            }
+          }
+        }
+      }
+    },
+    "response_item_type": {
+      "ghost_snapshot": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["response_item"],
+        "description": "Snapshot of the worktree state recorded before Codex edits or commands.",
+        "future_use": "Could support git-state previews and restore-oriented transcript views.",
+        "first_seen": "2025-11-24",
+        "example": {
+          "type": "response_item",
+          "payload": {
+            "type": "ghost_snapshot",
+            "ghost_commit": {
+              "id": "41e0004c6de7dbd8bbc9c64ef5def0e7ca53e361"
+            }
+          }
+        }
+      }
+    },
+    "response_message_field": {
+      "phase": {
+        "status": "ignored",
+        "path": "payload.phase",
+        "record_types": ["response_item"],
+        "description": "Assistant response phase, such as commentary or final answer.",
+        "future_use": "Could render assistant progress and final-answer boundaries more faithfully.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "response_item",
+          "payload": {
+            "type": "message",
+            "phase": "commentary"
+          }
+        }
+      }
+    },
+    "content_block_type": {
+      "input_image": {
+        "status": "ignored",
+        "path": "payload.content[].type",
+        "record_types": ["response_item"],
+        "description": "Image content block included in Codex response-item content arrays.",
+        "future_use": "Could enable inline image previews or richer media markers in transcripts.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "response_item",
+          "payload": {
+            "type": "message",
+            "content": [
+              {
+                "type": "input_image",
+                "image_url": "file:///tmp/example.png"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "event_type": {
+      "task_started": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["event_msg"],
+        "description": "Marker emitted when Codex starts a new turn.",
+        "future_use": "Could support turn lifecycle analytics and abort grouping.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_id": "019cbe16-0a67-7960-8114-8ae3f63498c1",
+            "model_context_window": 258400
+          }
+        }
+      },
+      "turn_aborted": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["event_msg"],
+        "description": "Marker emitted when a turn is interrupted or aborted.",
+        "future_use": "Could explain incomplete reasoning or cancelled tool runs in transcripts.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "turn_aborted",
+            "turn_id": "019d19ef-a530-74a3-8c15-9266f56c81d4",
+            "reason": "interrupted"
+          }
+        }
+      },
+      "context_compacted": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["event_msg"],
+        "description": "Event emitted when Codex compacts context mid-session.",
+        "future_use": "Could show compaction boundaries in the browser or viewer.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "context_compacted"
+          }
+        }
+      },
+      "entered_review_mode": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["event_msg"],
+        "description": "Event emitted when Codex enters review mode.",
+        "future_use": "Could annotate transcript mode switches or reviewer-specific flows.",
+        "first_seen": "2026-02-21",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "entered_review_mode",
+            "target": {
+              "type": "custom"
+            }
+          }
+        }
+      },
+      "exited_review_mode": {
+        "status": "ignored",
+        "path": "payload.type",
+        "record_types": ["event_msg"],
+        "description": "Event emitted when Codex exits review mode.",
+        "future_use": "Could bracket review-only transcript segments.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "exited_review_mode"
+          }
+        }
+      }
+    },
+    "user_message_field": {
+      "images": {
+        "status": "ignored",
+        "path": "payload.images",
+        "record_types": ["event_msg"],
+        "description": "Image attachments array included with user_message events.",
+        "future_use": "Could render user-supplied images or attachment counts.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "user_message",
+            "images": []
+          }
+        }
+      },
+      "local_images": {
+        "status": "ignored",
+        "path": "payload.local_images",
+        "record_types": ["event_msg"],
+        "description": "Local image references included with user_message events.",
+        "future_use": "Could link local image assets shown to Codex during a turn.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "user_message",
+            "local_images": []
+          }
+        }
+      },
+      "text_elements": {
+        "status": "ignored",
+        "path": "payload.text_elements",
+        "record_types": ["event_msg"],
+        "description": "Structured user text elements included alongside the plain message field.",
+        "future_use": "Could preserve richer prompt segmentation in transcripts.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "user_message",
+            "text_elements": [
+              {
+                "type": "input_text",
+                "text": "Inspect the parser."
+              }
+            ]
+          }
+        }
+      }
+    },
+    "agent_message_field": {
+      "memory_citation": {
+        "status": "ignored",
+        "path": "payload.memory_citation",
+        "record_types": ["event_msg"],
+        "description": "Optional memory-citation metadata attached to agent_message events.",
+        "future_use": "Could show when a response relied on stored memory or retrieved context.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "agent_message",
+            "phase": "commentary",
+            "memory_citation": null
+          }
+        }
+      }
+    },
+    "item_completed_field": {
+      "thread_id": {
+        "status": "ignored",
+        "path": "payload.thread_id",
+        "record_types": ["event_msg"],
+        "description": "Thread identifier attached to item_completed events.",
+        "future_use": "Could tie completed plans back to their source thread during rebuild.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "thread-1"
+          }
+        }
+      },
+      "turn_id": {
+        "status": "ignored",
+        "path": "payload.turn_id",
+        "record_types": ["event_msg"],
+        "description": "Turn identifier attached to item_completed events.",
+        "future_use": "Could associate plans and artifacts with specific turns.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "turn_id": "turn-1"
+          }
+        }
+      }
+    },
+    "task_complete_field": {
+      "turn_id": {
+        "status": "ignored",
+        "path": "payload.turn_id",
+        "record_types": ["event_msg"],
+        "description": "Turn identifier included on task_complete events.",
+        "future_use": "Could tie final assistant messages back to the completed turn lifecycle.",
+        "first_seen": "2026-03-23",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "turn_id": "turn-1"
+          }
+        }
+      }
+    },
+    "token_count_field": {
+      "rate_limits": {
+        "status": "ignored",
+        "path": "payload.rate_limits",
+        "record_types": ["event_msg"],
+        "description": "Rate-limit snapshot attached to token_count events.",
+        "future_use": "Could power quota diagnostics or rate-limit status views.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "token_count",
+            "rate_limits": null
+          }
+        }
+      }
+    },
+    "token_count_info_field": {
+      "model_context_window": {
+        "status": "ignored",
+        "path": "payload.info.model_context_window",
+        "record_types": ["event_msg"],
+        "description": "Model context-window size reported with token_count usage info.",
+        "future_use": "Could explain compaction thresholds and context-depth charts.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "event_msg",
+          "payload": {
+            "type": "token_count",
+            "info": {
+              "model_context_window": 258400
+            }
+          }
+        }
+      }
+    }
+  }
+}

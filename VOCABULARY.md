@@ -47,6 +47,7 @@ Use these terms when referring to different parts of the project in prompts.
 | **Format Drift** | A raw-source schema change detected during scan, such as an unknown field, record type, or content block type. Logged as a warning and surfaced to the UI after import. |
 | **Drift Report** | The deduplicated set of **format drift** findings collected during one provider scan or rebuild pass. |
 | **Known Schema** | The provider-owned compile-time set of fields and type values considered expected by drift detection. |
+| **Known Schema Extras** | A provider-owned documented catalog of observed raw-source fields or type values that are intentionally tolerated by drift detection even though the app does not yet model them. Each entry includes a description, future-use note, and example. |
 
 ## Import Wizard (first screen)
 

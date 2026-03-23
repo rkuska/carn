@@ -321,24 +321,29 @@ func isKnownSessionMetaField(field []byte) bool {
 		bytes.Equal(field, cliVersionFieldMarker) ||
 		bytes.Equal(field, sourceFieldMarker) ||
 		bytes.Equal(field, modelProviderFieldMarker) ||
-		bytes.Equal(field, gitFieldMarker)
+		bytes.Equal(field, gitFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("session_meta_field", field)
 }
 
 func isKnownGitField(field []byte) bool {
-	return bytes.Equal(field, branchFieldMarker) || bytes.Equal(field, commitHashFieldMarker)
+	return bytes.Equal(field, branchFieldMarker) ||
+		bytes.Equal(field, commitHashFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("git_field", field)
 }
 
 func isKnownTurnContextField(field []byte) bool {
 	return bytes.Equal(field, cwdFieldMarker) ||
 		bytes.Equal(field, modelFieldMarker) ||
 		bytes.Equal(field, approvalPolicyFieldMarker) ||
-		bytes.Equal(field, sandboxPolicyFieldMarker)
+		bytes.Equal(field, sandboxPolicyFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("turn_context_field", field)
 }
 
 func isKnownResponseMessageField(field []byte) bool {
 	return bytes.Equal(field, typeFieldMarker) ||
 		bytes.Equal(field, roleFieldMarker) ||
-		bytes.Equal(field, contentFieldMarker)
+		bytes.Equal(field, contentFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("response_message_field", field)
 }
 
 func isKnownReasoningField(field []byte) bool {

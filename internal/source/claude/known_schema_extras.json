@@ -1,0 +1,883 @@
+{
+  "provider": "claude",
+  "categories": {
+    "record_type": {
+      "agent-name": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["agent-name"],
+        "description": "Record naming a Claude subagent or delegated worker.",
+        "future_use": "Could label merged subagent transcripts more precisely in the UI.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "agent-name",
+          "agentName": "format-drift-detection",
+          "sessionId": "session-1"
+        }
+      },
+      "custom-title": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["custom-title"],
+        "description": "Record storing a user-defined or agent-defined conversation title.",
+        "future_use": "Could override slug generation with provider-native custom titles.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "custom-title",
+          "customTitle": "format-drift-detection",
+          "sessionId": "session-1"
+        }
+      },
+      "file-history-snapshot": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["file-history-snapshot"],
+        "description": "Record capturing Claude file-backup state while editing local files.",
+        "future_use": "Could power file-history browsing or restore-oriented transcript views.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "file-history-snapshot",
+          "messageId": "msg-1",
+          "snapshot": {
+            "messageId": "msg-1",
+            "trackedFileBackups": {},
+            "timestamp": "2026-02-02T14:52:10.748Z"
+          },
+          "isSnapshotUpdate": false
+        }
+      },
+      "last-prompt": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["last-prompt"],
+        "description": "Record storing the latest prompt text for a Claude conversation.",
+        "future_use": "Could improve conversation previews when the full user message is unavailable.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "last-prompt",
+          "lastPrompt": "commit this",
+          "sessionId": "session-1"
+        }
+      },
+      "pr-link": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["pr-link"],
+        "description": "Record linking a Claude session to a pull request.",
+        "future_use": "Could surface PR badges or repository-aware filters in the browser.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "pr-link",
+          "sessionId": "session-1",
+          "prNumber": 705,
+          "prUrl": "https://github.com/example/repo/pull/705",
+          "prRepository": "example/repo",
+          "timestamp": "2026-03-12T12:07:59.289Z"
+        }
+      },
+      "progress": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["progress"],
+        "description": "Record streaming Claude progress updates outside the main user or assistant transcript.",
+        "future_use": "Could expose progress timelines or background-task diagnostics.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "progress",
+          "sessionId": "session-1",
+          "agentId": "agent-1",
+          "data": {
+            "type": "hook_progress"
+          }
+        }
+      },
+      "queue-operation": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["queue-operation"],
+        "description": "Record describing enqueue, dequeue, or removal events in Claude's background work queue.",
+        "future_use": "Could reconstruct delegated-task lifecycle and queue history.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "queue-operation",
+          "operation": "enqueue",
+          "timestamp": "2026-02-19T10:11:56.545Z",
+          "sessionId": "session-1",
+          "content": "commit this"
+        }
+      },
+      "summary": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["summary"],
+        "description": "Record storing a compact provider-generated summary for a session or branch.",
+        "future_use": "Could provide native summary previews without re-summarizing transcripts.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "summary",
+          "summary": "Fix drift detection",
+          "leafUuid": "leaf-1"
+        }
+      },
+      "system": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["system"],
+        "description": "Provider system record for local commands, compaction boundaries, and timing metadata.",
+        "future_use": "Could preserve provider-native system events in hidden transcript views.",
+        "first_seen": "2026-02-09",
+        "example": {
+          "type": "system",
+          "subtype": "turn_duration",
+          "durationMs": 1234,
+          "timestamp": "2026-02-18T10:11:50.506Z"
+        }
+      }
+    },
+    "envelope_field": {
+      "agentId": {
+        "status": "ignored",
+        "path": "agentId",
+        "record_types": ["progress"],
+        "description": "Identifier for the Claude subagent that produced a progress record.",
+        "future_use": "Could strengthen subagent grouping and provenance in merged transcripts.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "progress",
+          "agentId": "agent-1"
+        }
+      },
+      "agentName": {
+        "status": "ignored",
+        "path": "agentName",
+        "record_types": ["agent-name"],
+        "description": "Human-readable name associated with a Claude subagent record.",
+        "future_use": "Could label background workers and delegated runs in the UI.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "agent-name",
+          "agentName": "format-drift-detection"
+        }
+      },
+      "apiError": {
+        "status": "ignored",
+        "path": "apiError",
+        "record_types": ["assistant"],
+        "description": "Short API error code attached to synthetic Claude assistant error messages.",
+        "future_use": "Could classify provider transport failures separately from transcript content.",
+        "first_seen": "2026-02-24",
+        "example": {
+          "type": "assistant",
+          "apiError": "max_output_tokens"
+        }
+      },
+      "compactMetadata": {
+        "status": "ignored",
+        "path": "compactMetadata",
+        "record_types": ["system"],
+        "description": "Structured metadata describing a Claude context compaction event.",
+        "future_use": "Could show why compaction happened and how large the context was beforehand.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "system",
+          "compactMetadata": {
+            "trigger": "manual",
+            "preTokens": 183892
+          }
+        }
+      },
+      "content": {
+        "status": "ignored",
+        "path": "content",
+        "record_types": ["queue-operation", "system"],
+        "description": "Top-level content body used by non-message Claude records such as queue or system events.",
+        "future_use": "Could surface local-command output, queue notifications, or compaction notices.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "queue-operation",
+          "content": "commit this"
+        }
+      },
+      "customTitle": {
+        "status": "ignored",
+        "path": "customTitle",
+        "record_types": ["custom-title"],
+        "description": "Top-level custom title stored on Claude custom-title records.",
+        "future_use": "Could override generated conversation names with provider-native titles.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "custom-title",
+          "customTitle": "format-drift-detection"
+        }
+      },
+      "data": {
+        "status": "ignored",
+        "path": "data",
+        "record_types": ["progress"],
+        "description": "Structured progress payload emitted during Claude background or hook execution.",
+        "future_use": "Could power richer progress timelines and hook diagnostics.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "progress",
+          "data": {
+            "type": "hook_progress",
+            "hookEvent": "PostToolUse"
+          }
+        }
+      },
+      "durationMs": {
+        "status": "ignored",
+        "path": "durationMs",
+        "record_types": ["system"],
+        "description": "Turn-duration measurement attached to Claude system timing records.",
+        "future_use": "Could improve per-turn latency analytics and transcript timing chips.",
+        "first_seen": "2026-02-09",
+        "example": {
+          "type": "system",
+          "durationMs": 1234
+        }
+      },
+      "entrypoint": {
+        "status": "ignored",
+        "path": "entrypoint",
+        "record_types": ["assistant", "system", "user"],
+        "description": "Entry point label showing how a Claude session was started.",
+        "future_use": "Could distinguish CLI, resumed, or integration-started sessions.",
+        "first_seen": "2026-03-22",
+        "example": {
+          "type": "assistant",
+          "entrypoint": "cli"
+        }
+      },
+      "error": {
+        "status": "ignored",
+        "path": "error",
+        "record_types": ["assistant", "system"],
+        "description": "Structured or scalar error payload attached to Claude transport or system records.",
+        "future_use": "Could surface provider retry behavior and failure details in diagnostics.",
+        "first_seen": "2026-02-23",
+        "example": {
+          "type": "system",
+          "error": {
+            "status": 529
+          }
+        }
+      },
+      "imagePasteIds": {
+        "status": "ignored",
+        "path": "imagePasteIds",
+        "record_types": ["user"],
+        "description": "Identifiers tracking pasted images attached to a Claude user record.",
+        "future_use": "Could link pasted image assets back to prompt attachments.",
+        "first_seen": "2026-03-22",
+        "example": {
+          "type": "user",
+          "imagePasteIds": ["img-1"]
+        }
+      },
+      "isApiErrorMessage": {
+        "status": "ignored",
+        "path": "isApiErrorMessage",
+        "record_types": ["assistant"],
+        "description": "Boolean marker identifying a synthetic Claude assistant message as an API error wrapper.",
+        "future_use": "Could hide or style API failures differently from normal assistant replies.",
+        "first_seen": "2026-02-24",
+        "example": {
+          "type": "assistant",
+          "isApiErrorMessage": true
+        }
+      },
+      "isCompactSummary": {
+        "status": "ignored",
+        "path": "isCompactSummary",
+        "record_types": ["summary"],
+        "description": "Boolean marker indicating a summary record came from a compaction step.",
+        "future_use": "Could distinguish regular summaries from compaction-produced summaries.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "summary",
+          "isCompactSummary": true
+        }
+      },
+      "isSnapshotUpdate": {
+        "status": "ignored",
+        "path": "isSnapshotUpdate",
+        "record_types": ["file-history-snapshot"],
+        "description": "Boolean marker telling whether a file-history snapshot extends a previous snapshot.",
+        "future_use": "Could support delta-aware file-history rendering.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "file-history-snapshot",
+          "isSnapshotUpdate": true
+        }
+      },
+      "isVisibleInTranscriptOnly": {
+        "status": "ignored",
+        "path": "isVisibleInTranscriptOnly",
+        "record_types": ["assistant"],
+        "description": "Boolean marker for Claude records intended only for transcript rendering.",
+        "future_use": "Could refine what participates in previews, search, or default browser counts.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "assistant",
+          "isVisibleInTranscriptOnly": true
+        }
+      },
+      "lastPrompt": {
+        "status": "ignored",
+        "path": "lastPrompt",
+        "record_types": ["last-prompt"],
+        "description": "Top-level prompt text stored by Claude last-prompt records.",
+        "future_use": "Could improve previews or restore recent prompt context.",
+        "first_seen": "2026-03-05",
+        "example": {
+          "type": "last-prompt",
+          "lastPrompt": "commit this"
+        }
+      },
+      "leafUuid": {
+        "status": "ignored",
+        "path": "leafUuid",
+        "record_types": ["summary"],
+        "description": "Leaf transcript node identifier attached to Claude summary records.",
+        "future_use": "Could anchor summaries to specific transcript branches or leaves.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "summary",
+          "leafUuid": "leaf-1"
+        }
+      },
+      "level": {
+        "status": "ignored",
+        "path": "level",
+        "record_types": ["system"],
+        "description": "Logging severity attached to Claude system records.",
+        "future_use": "Could differentiate info, warning, and error system events in transcript views.",
+        "first_seen": "2026-02-09",
+        "example": {
+          "type": "system",
+          "level": "info"
+        }
+      },
+      "logicalParentUuid": {
+        "status": "ignored",
+        "path": "logicalParentUuid",
+        "record_types": ["system"],
+        "description": "Logical parent identifier used to relate Claude system records to prior nodes.",
+        "future_use": "Could improve branching reconstruction for hidden system records.",
+        "first_seen": "2026-03-08",
+        "example": {
+          "type": "system",
+          "logicalParentUuid": "uuid-logical"
+        }
+      },
+      "maxRetries": {
+        "status": "ignored",
+        "path": "maxRetries",
+        "record_types": ["system"],
+        "description": "Maximum retry count tracked on Claude API error system records.",
+        "future_use": "Could explain retry policies and degraded upstream conditions.",
+        "first_seen": "2026-02-23",
+        "example": {
+          "type": "system",
+          "maxRetries": 10
+        }
+      },
+      "messageId": {
+        "status": "ignored",
+        "path": "messageId",
+        "record_types": ["file-history-snapshot"],
+        "description": "Top-level message identifier attached to Claude file-history snapshots.",
+        "future_use": "Could link file-history state back to the message that caused it.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "file-history-snapshot",
+          "messageId": "msg-1"
+        }
+      },
+      "microcompactMetadata": {
+        "status": "ignored",
+        "path": "microcompactMetadata",
+        "record_types": ["system"],
+        "description": "Structured metadata for Claude microcompaction events.",
+        "future_use": "Could show token savings and affected tool calls for microcompactions.",
+        "first_seen": "2026-01-30",
+        "example": {
+          "type": "system",
+          "microcompactMetadata": {
+            "trigger": "auto",
+            "preTokens": 54410
+          }
+        }
+      },
+      "operation": {
+        "status": "ignored",
+        "path": "operation",
+        "record_types": ["queue-operation"],
+        "description": "Queue operation verb such as enqueue, dequeue, or remove.",
+        "future_use": "Could reconstruct delegated-work queue history in the browser.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "queue-operation",
+          "operation": "enqueue"
+        }
+      },
+      "parentToolUseID": {
+        "status": "ignored",
+        "path": "parentToolUseID",
+        "record_types": ["progress"],
+        "description": "Identifier of the parent tool invocation that spawned a Claude progress record.",
+        "future_use": "Could anchor progress streams back to the originating tool call.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "progress",
+          "parentToolUseID": "toolu-parent"
+        }
+      },
+      "parentUuid": {
+        "status": "ignored",
+        "path": "parentUuid",
+        "record_types": ["assistant", "system", "user"],
+        "description": "Parent transcript node identifier attached to Claude records.",
+        "future_use": "Could help reconstruct exact provider-side parent-child ordering.",
+        "first_seen": "2026-02-09",
+        "example": {
+          "type": "system",
+          "parentUuid": "uuid-parent"
+        }
+      },
+      "permissionMode": {
+        "status": "ignored",
+        "path": "permissionMode",
+        "record_types": ["user"],
+        "description": "Claude permission mode active when the user record was created.",
+        "future_use": "Could explain plan-mode or execution-mode behavior in transcripts.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "user",
+          "permissionMode": "plan"
+        }
+      },
+      "planContent": {
+        "status": "ignored",
+        "path": "planContent",
+        "record_types": ["user"],
+        "description": "Full plan text stored on some Claude user records.",
+        "future_use": "Could backfill plans without re-parsing only the message body.",
+        "first_seen": "2026-02-26",
+        "example": {
+          "type": "user",
+          "planContent": "# plan"
+        }
+      },
+      "prNumber": {
+        "status": "ignored",
+        "path": "prNumber",
+        "record_types": ["pr-link"],
+        "description": "Pull request number attached to Claude PR-link records.",
+        "future_use": "Could render compact PR references in browser metadata.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "pr-link",
+          "prNumber": 705
+        }
+      },
+      "prRepository": {
+        "status": "ignored",
+        "path": "prRepository",
+        "record_types": ["pr-link"],
+        "description": "Repository slug attached to Claude PR-link records.",
+        "future_use": "Could support repository filters or outbound links.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "pr-link",
+          "prRepository": "example/repo"
+        }
+      },
+      "prUrl": {
+        "status": "ignored",
+        "path": "prUrl",
+        "record_types": ["pr-link"],
+        "description": "Pull request URL attached to Claude PR-link records.",
+        "future_use": "Could expose clickable PR links from the browser or viewer header.",
+        "first_seen": "2026-03-12",
+        "example": {
+          "type": "pr-link",
+          "prUrl": "https://github.com/example/repo/pull/705"
+        }
+      },
+      "promptId": {
+        "status": "ignored",
+        "path": "promptId",
+        "record_types": ["user"],
+        "description": "Claude prompt identifier attached to some user records with richer attachment state.",
+        "future_use": "Could deduplicate prompt assets or correlate pasted media with prompts.",
+        "first_seen": "2026-03-16",
+        "example": {
+          "type": "user",
+          "promptId": "prompt-1"
+        }
+      },
+      "requestId": {
+        "status": "ignored",
+        "path": "requestId",
+        "record_types": ["assistant"],
+        "description": "Claude request identifier attached to assistant transport records.",
+        "future_use": "Could aid debugging of provider-side failures or retries.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "requestId": "req_1"
+        }
+      },
+      "retryAttempt": {
+        "status": "ignored",
+        "path": "retryAttempt",
+        "record_types": ["system"],
+        "description": "Retry attempt count recorded for Claude API error system events.",
+        "future_use": "Could explain repeated upstream failures or degraded sessions.",
+        "first_seen": "2026-02-23",
+        "example": {
+          "type": "system",
+          "retryAttempt": 1
+        }
+      },
+      "retryInMs": {
+        "status": "ignored",
+        "path": "retryInMs",
+        "record_types": ["system"],
+        "description": "Backoff delay in milliseconds recorded on Claude API error system events.",
+        "future_use": "Could expose provider retry timing for diagnostics.",
+        "first_seen": "2026-02-23",
+        "example": {
+          "type": "system",
+          "retryInMs": 617.8
+        }
+      },
+      "snapshot": {
+        "status": "ignored",
+        "path": "snapshot",
+        "record_types": ["file-history-snapshot"],
+        "description": "Snapshot payload describing tracked file backups for a Claude file-history record.",
+        "future_use": "Could show which files were modified at each backup point.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "file-history-snapshot",
+          "snapshot": {
+            "messageId": "msg-1",
+            "trackedFileBackups": {}
+          }
+        }
+      },
+      "sourceToolAssistantUUID": {
+        "status": "ignored",
+        "path": "sourceToolAssistantUUID",
+        "record_types": ["user"],
+        "description": "Assistant UUID associated with the originating tool result for a Claude user record.",
+        "future_use": "Could reconnect pasted or transformed content back to its generating assistant turn.",
+        "first_seen": "2026-03-16",
+        "example": {
+          "type": "user",
+          "sourceToolAssistantUUID": "assistant-uuid-1"
+        }
+      },
+      "sourceToolUseID": {
+        "status": "ignored",
+        "path": "sourceToolUseID",
+        "record_types": ["user"],
+        "description": "Tool invocation identifier attached to Claude user records derived from prior tool output.",
+        "future_use": "Could preserve provenance between user follow-ups and source tool results.",
+        "first_seen": "2026-03-10",
+        "example": {
+          "type": "user",
+          "sourceToolUseID": "toolu-1"
+        }
+      },
+      "subtype": {
+        "status": "ignored",
+        "path": "subtype",
+        "record_types": ["system"],
+        "description": "Subtype label attached to Claude system records.",
+        "future_use": "Could distinguish timing events, compaction boundaries, local commands, and API errors.",
+        "first_seen": "2026-02-09",
+        "example": {
+          "type": "system",
+          "subtype": "turn_duration"
+        }
+      },
+      "summary": {
+        "status": "ignored",
+        "path": "summary",
+        "record_types": ["summary"],
+        "description": "Top-level summary text stored in Claude summary records.",
+        "future_use": "Could populate provider-native conversation summaries in the browser.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "summary",
+          "summary": "Fix drift detection"
+        }
+      },
+      "thinkingMetadata": {
+        "status": "ignored",
+        "path": "thinkingMetadata",
+        "record_types": ["user"],
+        "description": "Thinking-related configuration attached to a Claude user record.",
+        "future_use": "Could explain why a turn produced extended thinking or token-heavy reasoning.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "user",
+          "thinkingMetadata": {
+            "maxThinkingTokens": 32000
+          }
+        }
+      },
+      "todos": {
+        "status": "ignored",
+        "path": "todos",
+        "record_types": ["user"],
+        "description": "Structured to-do metadata attached to some Claude user records.",
+        "future_use": "Could preserve task lists or planning state in future transcript features.",
+        "first_seen": "2026-02-19",
+        "example": {
+          "type": "user",
+          "todos": []
+        }
+      },
+      "toolUseID": {
+        "status": "ignored",
+        "path": "toolUseID",
+        "record_types": ["progress"],
+        "description": "Tool invocation identifier attached to Claude progress records.",
+        "future_use": "Could link progress updates to exact tool calls or background commands.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "progress",
+          "toolUseID": "toolu-child"
+        }
+      },
+      "userType": {
+        "status": "ignored",
+        "path": "userType",
+        "record_types": ["assistant", "system", "user"],
+        "description": "Provider-side user classification attached to Claude envelope records.",
+        "future_use": "Could distinguish external users from internal or synthetic record sources.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "userType": "external"
+        }
+      },
+      "uuid": {
+        "status": "ignored",
+        "path": "uuid",
+        "record_types": ["assistant", "system", "user"],
+        "description": "Provider UUID assigned to an individual Claude record.",
+        "future_use": "Could support stable cross-links, branch reconstruction, or precise anchors.",
+        "first_seen": "2026-02-02",
+        "example": {
+          "type": "assistant",
+          "uuid": "uuid-1"
+        }
+      }
+    },
+    "message_field": {
+      "container": {
+        "status": "ignored",
+        "path": "message.container",
+        "record_types": ["assistant"],
+        "description": "Claude message container metadata present on newer assistant transport records.",
+        "future_use": "Could preserve transport context or provider-side grouping information.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "container": null
+          }
+        }
+      },
+      "context_management": {
+        "status": "ignored",
+        "path": "message.context_management",
+        "record_types": ["assistant"],
+        "description": "Context-management metadata nested on Claude assistant message objects.",
+        "future_use": "Could explain compaction decisions or provider context controls.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "context_management": null
+          }
+        }
+      },
+      "id": {
+        "status": "ignored",
+        "path": "message.id",
+        "record_types": ["assistant"],
+        "description": "Provider message identifier nested in Claude assistant message objects.",
+        "future_use": "Could connect fragments, retries, or tool results back to a provider message id.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "id": "msg-1"
+          }
+        }
+      },
+      "stop_reason": {
+        "status": "ignored",
+        "path": "message.stop_reason",
+        "record_types": ["assistant"],
+        "description": "Claude stop reason describing why generation ended.",
+        "future_use": "Could explain end-turn behavior, truncation, or tool-use transitions.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "stop_reason": "end_turn"
+          }
+        }
+      },
+      "stop_sequence": {
+        "status": "ignored",
+        "path": "message.stop_sequence",
+        "record_types": ["assistant"],
+        "description": "Claude stop sequence value nested on assistant message objects.",
+        "future_use": "Could preserve provider stop markers for debugging or transcript fidelity.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "stop_sequence": null
+          }
+        }
+      }
+    },
+    "usage_field": {
+      "cache_creation": {
+        "status": "ignored",
+        "path": "message.usage.cache_creation",
+        "record_types": ["assistant"],
+        "description": "Nested cache-creation breakdown inside Claude usage metadata.",
+        "future_use": "Could enable more detailed cache token charts or debugging.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 3
+              }
+            }
+          }
+        }
+      },
+      "inference_geo": {
+        "status": "ignored",
+        "path": "message.usage.inference_geo",
+        "record_types": ["assistant"],
+        "description": "Inference geography marker nested in Claude usage metadata.",
+        "future_use": "Could help diagnose regional latency or provider routing issues.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "inference_geo": "not_available"
+            }
+          }
+        }
+      },
+      "iterations": {
+        "status": "ignored",
+        "path": "message.usage.iterations",
+        "record_types": ["assistant"],
+        "description": "Iteration metadata nested in Claude usage objects.",
+        "future_use": "Could expose provider retry or iterative generation details.",
+        "first_seen": "2026-03-16",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "iterations": []
+            }
+          }
+        }
+      },
+      "server_tool_use": {
+        "status": "ignored",
+        "path": "message.usage.server_tool_use",
+        "record_types": ["assistant"],
+        "description": "Server-side tool usage counters nested in Claude usage metadata.",
+        "future_use": "Could distinguish provider-side tool calls from local transcript tool calls.",
+        "first_seen": "2026-03-16",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "server_tool_use": {
+                "web_search_requests": 0
+              }
+            }
+          }
+        }
+      },
+      "service_tier": {
+        "status": "ignored",
+        "path": "message.usage.service_tier",
+        "record_types": ["assistant"],
+        "description": "Claude service-tier value nested in usage metadata.",
+        "future_use": "Could support cost or latency analysis by provider tier.",
+        "first_seen": "2026-02-04",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "service_tier": "standard"
+            }
+          }
+        }
+      },
+      "speed": {
+        "status": "ignored",
+        "path": "message.usage.speed",
+        "record_types": ["assistant"],
+        "description": "Claude speed profile nested in usage metadata.",
+        "future_use": "Could explain latency differences across otherwise similar turns.",
+        "first_seen": "2026-03-16",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "speed": "standard"
+            }
+          }
+        }
+      }
+    },
+    "content_block_type": {
+      "image": {
+        "status": "ignored",
+        "path": "message.content[].type",
+        "record_types": ["user"],
+        "description": "Claude image content block embedded in a message content array.",
+        "future_use": "Could render attached images or show richer media markers in transcripts.",
+        "first_seen": "2026-03-22",
+        "example": {
+          "type": "user",
+          "message": {
+            "content": [
+              {
+                "type": "image",
+                "source": {
+                  "type": "base64",
+                  "media_type": "image/png"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

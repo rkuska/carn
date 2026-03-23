@@ -51,32 +51,10 @@ var knownContentBlockTypes = map[string]struct{}{
 }
 
 var (
-	envelopeTypeFieldKey          = []byte(`"type"`)
-	envelopeSessionIDFieldKey     = []byte(`"sessionId"`)
-	envelopeSlugFieldKey          = []byte(`"slug"`)
-	envelopeCWDFieldKey           = []byte(`"cwd"`)
-	envelopeGitBranchFieldKey     = []byte(`"gitBranch"`)
-	envelopeVersionFieldKey       = []byte(`"version"`)
-	envelopeTimestampFieldKey     = []byte(`"timestamp"`)
-	envelopeIsSidechainFieldKey   = []byte(`"isSidechain"`)
-	envelopeIsMetaFieldKey        = []byte(`"isMeta"`)
-	envelopeToolUseResultFieldKey = []byte(`"toolUseResult"`)
-	envelopeMessageFieldKey       = []byte(`"message"`)
-	messageRoleFieldKey           = []byte(`"role"`)
-	messageTypeFieldKey           = []byte(`"type"`)
-	messageContentFieldKey        = []byte(`"content"`)
-	messageModelFieldKey          = []byte(`"model"`)
-	messageUsageFieldKey          = []byte(`"usage"`)
-	usageInputTokensFieldKey      = []byte(`"input_tokens"`)
-	usageOutputTokensFieldKey     = []byte(`"output_tokens"`)
-	usageCacheCreateFieldKey      = []byte(`"cache_creation_input_tokens"`)
-	usageCacheReadFieldKey        = []byte(`"cache_read_input_tokens"`)
-	recordTypeUserValue           = []byte(`"user"`)
-	recordTypeAssistantValue      = []byte(`"assistant"`)
-	contentBlockTextValue         = []byte(`"text"`)
-	contentBlockToolUseValue      = []byte(`"tool_use"`)
-	contentBlockToolResultValue   = []byte(`"tool_result"`)
-	contentBlockThinkingValue     = []byte(`"thinking"`)
+	envelopeTypeFieldKey    = []byte(`"type"`)
+	envelopeMessageFieldKey = []byte(`"message"`)
+	messageContentFieldKey  = []byte(`"content"`)
+	messageUsageFieldKey    = []byte(`"usage"`)
 )
 
 func detectEnvelopeDrift(raw []byte, report *src.DriftReport) ([]byte, []byte) {
@@ -102,15 +80,7 @@ func detectEnvelopeDrift(raw []byte, report *src.DriftReport) ([]byte, []byte) {
 			recordTypeRaw = raw[valueStart:valueEnd]
 		case bytes.Equal(field, envelopeMessageFieldKey):
 			messageRaw = raw[valueStart:valueEnd]
-		case bytes.Equal(field, envelopeSessionIDFieldKey),
-			bytes.Equal(field, envelopeSlugFieldKey),
-			bytes.Equal(field, envelopeCWDFieldKey),
-			bytes.Equal(field, envelopeGitBranchFieldKey),
-			bytes.Equal(field, envelopeVersionFieldKey),
-			bytes.Equal(field, envelopeTimestampFieldKey),
-			bytes.Equal(field, envelopeIsSidechainFieldKey),
-			bytes.Equal(field, envelopeIsMetaFieldKey),
-			bytes.Equal(field, envelopeToolUseResultFieldKey):
+		case isKnownEnvelopeFieldRaw(field):
 		default:
 			recordUnknownField(report, "envelope_field", field)
 		}
@@ -144,9 +114,7 @@ func detectMessageDrift(raw []byte, report *src.DriftReport) ([]byte, json.RawMe
 			usageRaw = raw[valueStart:valueEnd]
 		case bytes.Equal(field, messageContentFieldKey):
 			contentRaw = raw[valueStart:valueEnd]
-		case bytes.Equal(field, messageRoleFieldKey),
-			bytes.Equal(field, messageTypeFieldKey),
-			bytes.Equal(field, messageModelFieldKey):
+		case isKnownMessageFieldRaw(field):
 		default:
 			recordUnknownField(report, "message_field", field)
 		}
@@ -172,12 +140,7 @@ func detectUsageDrift(raw []byte, report *src.DriftReport) {
 			return
 		}
 
-		switch {
-		case bytes.Equal(field, usageInputTokensFieldKey),
-			bytes.Equal(field, usageOutputTokensFieldKey),
-			bytes.Equal(field, usageCacheCreateFieldKey),
-			bytes.Equal(field, usageCacheReadFieldKey):
-		default:
+		if !isKnownUsageFieldRaw(field) {
 			recordUnknownField(report, "usage_field", field)
 		}
 
@@ -187,9 +150,7 @@ func detectUsageDrift(raw []byte, report *src.DriftReport) {
 
 func detectRecordTypeDrift(recordTypeRaw []byte, report *src.DriftReport) {
 	switch {
-	case len(recordTypeRaw) == 0,
-		bytes.Equal(recordTypeRaw, recordTypeUserValue),
-		bytes.Equal(recordTypeRaw, recordTypeAssistantValue):
+	case len(recordTypeRaw) == 0, isKnownRecordTypeRaw(recordTypeRaw):
 		return
 	}
 	recordType, ok := decodeJSONStringFast(recordTypeRaw)
@@ -270,8 +231,35 @@ func extractObjectStringFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
 }
 
 func isKnownContentBlockTypeRaw(raw []byte) bool {
-	return bytes.Equal(raw, contentBlockTextValue) ||
-		bytes.Equal(raw, contentBlockToolUseValue) ||
-		bytes.Equal(raw, contentBlockToolResultValue) ||
-		bytes.Equal(raw, contentBlockThinkingValue)
+	return hasKnownJSONStringRaw(raw, knownContentBlockTypes) ||
+		claudeKnownSchemaExtras.HasRaw("content_block_type", raw)
+}
+
+func isKnownEnvelopeFieldRaw(raw []byte) bool {
+	return hasKnownJSONStringRaw(raw, knownEnvelopeFields) ||
+		claudeKnownSchemaExtras.HasRaw("envelope_field", raw)
+}
+
+func isKnownMessageFieldRaw(raw []byte) bool {
+	return hasKnownJSONStringRaw(raw, knownMessageFields) ||
+		claudeKnownSchemaExtras.HasRaw("message_field", raw)
+}
+
+func isKnownUsageFieldRaw(raw []byte) bool {
+	return hasKnownJSONStringRaw(raw, knownUsageFields) ||
+		claudeKnownSchemaExtras.HasRaw("usage_field", raw)
+}
+
+func isKnownRecordTypeRaw(raw []byte) bool {
+	return hasKnownJSONStringRaw(raw, knownRecordTypes) ||
+		claudeKnownSchemaExtras.HasRaw("record_type", raw)
+}
+
+func hasKnownJSONStringRaw(raw []byte, known map[string]struct{}) bool {
+	value, ok := decodeJSONStringFast(raw)
+	if !ok {
+		return false
+	}
+	_, exists := known[value]
+	return exists
 }
