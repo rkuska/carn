@@ -25,6 +25,9 @@ Code is split by ownership under `internal/`.
   transcript codecs, transcript persistence, targeted incremental rebuilds,
   and FTS deep search.
 - `internal/archive/` owns sync, import analysis, and pipeline orchestration.
+- `internal/stats/` owns stats computation: overview aggregates, activity
+  heatmaps, session histograms, tool breakdowns, token trends, and streak
+  tracking.
 
 Defaults: sources `~/.claude/projects/`, `~/.codex/sessions/`, archive:
 `~/.local/share/carn/`. Runtime paths come from the user config file resolved
@@ -51,7 +54,7 @@ by `internal/config`.
 
 **TUI core**: `internal/app/browser_*.go`, `internal/app/viewer_*.go`,
 `internal/app/transcript_*.go`, `internal/app/import_overview*.go`,
-`internal/app/import_sync_activity.go`
+`internal/app/import_sync_activity.go`, `internal/app/stats_*.go`
 
 **TUI support**: `internal/app/commands.go`, `internal/app/config_reload.go`,
 `internal/app/delegate.go`, `internal/app/export_names.go`,
@@ -63,7 +66,8 @@ by `internal/config`.
 `internal/app/session_launcher.go`, `internal/app/styles.go`,
 `internal/app/tool_result_style.go`,
 `internal/app/conversation_header.go`, `internal/app/browser_store.go`,
-`internal/app/import_pipeline_binding.go`
+`internal/app/import_pipeline_binding.go`,
+`internal/app/drift_notification.go`, `internal/app/version.go`
 
 **Shared conversation model**: `internal/conversation/*.go`
 
@@ -76,6 +80,8 @@ by `internal/config`.
 **Config backend**: `internal/config/*.go`
 
 **Canonical Store backend**: `internal/canonical/*.go`
+
+**Stats backend**: `internal/stats/*.go`
 
 **Archive/import backend**: `internal/archive/*.go`
 

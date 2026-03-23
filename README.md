@@ -53,6 +53,18 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 - **o**pen conversation, plan, or raw files in `$EDITOR`
 - **R**esync from source directories without restarting
 
+**Stats**
+
+- Fullscreen analytics dashboard (`S` from the browser)
+- Four tabs: Overview, Activity, Sessions, Tools — switch with `ctrl+f` /
+  `ctrl+b`
+- Time range selector (`r`): 7d, 30d, 90d, all
+- Provider and project filters (`f`)
+- Token-by-model and token-by-project charts, heaviest session table
+- Daily activity line chart and weekday × hour heatmap
+- Session duration and message-count histograms, token growth chart
+- Tool call shares, error and rejection rates
+
 **First launch**
 
 On first run, carn shows an import overview with source and archive paths,
@@ -151,6 +163,7 @@ Press `?` at any time to open the help overlay.
 | `O` | Toggle fullscreen / split layout |
 | `tab` | Toggle focus between list and transcript |
 | `r` | **r**esume session in provider |
+| `S` | **S**tats dashboard |
 | `R` | **R**esync conversations from source |
 | `o` | **o**pen session in editor |
 | `?` | Help |
@@ -175,6 +188,18 @@ Press `?` at any time to open the help overlay.
 | `o` | **o**pen — choose target: conversation, plan, or raw |
 | `e` | **e**xport as Markdown |
 | `r` | **r**esume session |
+| `q` / `esc` | Back to browser |
+
+### Stats view
+
+| Key | Action |
+|---|---|
+| `ctrl+f` / `ctrl+b` | Next / previous tab |
+| `r` | Time **r**ange selector |
+| `f` | **f**ilter (provider / project) |
+| `m` | Cycle **m**etric (activity tab) |
+| `1`–`5` | Open heavy session (overview tab) |
+| `?` | Help |
 | `q` / `esc` | Back to browser |
 
 ### Import overview

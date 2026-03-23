@@ -20,7 +20,10 @@ Use these terms when referring to different parts of the project in prompts.
 | **Tool Call** | An assistant's invocation of a tool — `name` + optional `summary`. |
 | **Tool Result** | The output returned to the user message — `toolName`, `content`, `isError`, and optionally a `structuredPatch` (for Edit diffs). |
 | **Token Usage** | Input/output/cache token counts per message, aggregated per session as `totalUsage`. |
-| **Tool Counts** | A map of tool name → invocation count per session. |
+| **Tool Counts** | A map of tool name → invocation count per session. Tracks call volume only; see **Tool Outcome** for success/error/rejection breakdown. |
+| **Tool Outcome** | Per-tool success, error, and rejection counts derived from transcript tool results. Distinct from Tool Counts which only tracks invocations. Persisted in the canonical store during rebuild. |
+| **Tool Rejection** | A user-rejected tool call, detected by "user rejected" in the error content of a tool result. Counted separately from generic errors in stats. |
+| **Recency Hint** | A relative time string ("5m ago", "3h ago", "7d ago") shown alongside timestamps in the browser list and conversation headers. |
 
 ## Pipeline & Storage
 
@@ -78,9 +81,17 @@ Use these terms when referring to different parts of the project in prompts.
 | Term | What it means |
 |---|---|
 | **Stats View** | A fullscreen analytics screen opened from the browser. Shows aggregate usage data across sessions instead of a single transcript. |
-| **Time Range** | The active date window applied across all stats tabs. Phase 1 uses predefined ranges like 7d, 30d, 90d, and All. |
+| **Time Range** | The active date window applied across all stats tabs. Predefined ranges: 7d, 30d, 90d, and All. |
 | **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, and tools. |
 | **Summary Chip** | A compact stats metric rendered as `label value` at the top of a tab, for example `sessions 42` or `error rate 3.2%`. |
+| **Heatmap** | A weekday × hour grid (7 rows × 24 columns) showing session density. Darker cells mean more sessions in that slot. Empty hours are compressed. |
+| **Histogram** | A bucketed bar chart for distributions: session duration, message count, or tool calls per session. |
+| **Streak** | Consecutive calendar days with at least one session. Tracked as current streak and longest streak. |
+| **Active Days / Total Days** | Active days is the count of calendar days with at least one session. Total days is the span from first to last session. |
+| **Token Trend** | Direction (up/down/flat) and percent change in token usage over the selected time range, shown in the overview tab. |
+| **Tool Category Share** | Breakdown of tool usage by category: read, write, and bash. Shown as proportional shares in the tools tab. |
+| **Abandoned Session** | A session with fewer than 3 messages or a duration under 1 minute. Counted separately in the sessions tab. |
+| **Error Rate / Rejection Rate** | Fraction of tool calls that returned an error or were rejected by the user, respectively. Shown in the tools tab. |
 
 ## Search
 
