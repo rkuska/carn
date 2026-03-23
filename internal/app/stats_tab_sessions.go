@@ -162,6 +162,8 @@ func renderClaudeTurnChart(
 
 	minX, maxX := claudeTurnChartRange(metrics)
 	maxY := 1.0
+	// Keep the true usage-bearing turn positions so sparse samples render
+	// with their real horizontal gaps instead of equal spacing.
 	points := claudeTurnChartPoints(metrics, value)
 	for _, metric := range metrics {
 		maxY = max(maxY, value(metric))

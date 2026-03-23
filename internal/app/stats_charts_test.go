@@ -277,6 +277,41 @@ func TestClaudeTurnChartRangeExpandsSinglePoint(t *testing.T) {
 	assert.Equal(t, 8.0, maxX)
 }
 
+func TestRenderClaudeTurnChartRespectsActualTurnGapSpacing(t *testing.T) {
+	t.Parallel()
+
+	compact := ansi.Strip(renderClaudeTurnChart(
+		"Context Growth",
+		[]statspkg.PositionTokenMetrics{
+			{Position: 1, AverageInputTokens: 10},
+			{Position: 2, AverageInputTokens: 20},
+			{Position: 10, AverageInputTokens: 30},
+		},
+		40,
+		8,
+		colorChartToken,
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AverageInputTokens
+		},
+	))
+	wideGap := ansi.Strip(renderClaudeTurnChart(
+		"Context Growth",
+		[]statspkg.PositionTokenMetrics{
+			{Position: 1, AverageInputTokens: 10},
+			{Position: 6, AverageInputTokens: 20},
+			{Position: 10, AverageInputTokens: 30},
+		},
+		40,
+		8,
+		colorChartToken,
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AverageInputTokens
+		},
+	))
+
+	assert.NotEqual(t, compact, wideGap)
+}
+
 func TestClaudeTurnAxisStepTargetsReadableTickDensity(t *testing.T) {
 	t.Parallel()
 
