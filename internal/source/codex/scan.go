@@ -154,7 +154,17 @@ func (s *scanState) recordToolResult(callID string, outputRaw, statusRaw []byte)
 		return
 	}
 	name := s.callNameByID[callID]
-	if name == "" || !hasCodexToolError(name, outputRaw, statusRaw) {
+	if name == "" {
+		return
+	}
+	if isCodexToolRejectRaw(outputRaw) {
+		if s.meta.ToolRejectCounts == nil {
+			s.meta.ToolRejectCounts = make(map[string]int, 2)
+		}
+		s.meta.ToolRejectCounts[name]++
+		return
+	}
+	if !hasCodexToolError(name, outputRaw, statusRaw) {
 		return
 	}
 	if s.meta.ToolErrorCounts == nil {
@@ -182,6 +192,9 @@ func (s *scanState) rollout() (scannedRollout, bool, error) {
 	}
 	if len(meta.ToolErrorCounts) == 0 {
 		meta.ToolErrorCounts = nil
+	}
+	if len(meta.ToolRejectCounts) == 0 {
+		meta.ToolRejectCounts = nil
 	}
 	if meta.Slug == "" {
 		meta.Slug = slugFromThreadID(meta.ID)

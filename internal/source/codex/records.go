@@ -269,6 +269,14 @@ func hasCodexToolError(toolName string, outputRaw, statusRaw []byte) bool {
 		isCodexToolErrorRaw(toolName, outputRaw)
 }
 
+func isCodexToolRejectRaw(outputRaw []byte) bool {
+	output, ok := readRawJSONString(outputRaw)
+	if !ok {
+		return false
+	}
+	return conv.IsRejectedToolResultContent(output)
+}
+
 func isCodexToolErrorRaw(toolName string, outputRaw []byte) bool {
 	if toolName != toolNameApplyPatch {
 		return false

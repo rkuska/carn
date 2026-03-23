@@ -72,6 +72,42 @@ func TestScanMetadataCapturesToolErrorCounts(t *testing.T) {
 	assert.Equal(t, map[string]int{"Read": 1}, result.meta.ToolErrorCounts)
 }
 
+func TestScanMetadataCapturesToolRejectCounts(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session-rejects.jsonl")
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		makeTestAssistantToolUseRecord(t, "s1", "toolu_1"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "user",
+			"sessionId": "s1",
+			"slug":      "demo",
+			"timestamp": "2024-01-01T00:00:02Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "toolu_1",
+						"is_error":    true,
+						"content":     "The tool use was rejected by the user.",
+					},
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	result, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]int{"Read": 1}, result.meta.ToolCounts)
+	assert.Nil(t, result.meta.ToolErrorCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, result.meta.ToolRejectCounts)
+}
+
 func TestJSONLLinesHandlesLargeLines(t *testing.T) {
 	t.Parallel()
 

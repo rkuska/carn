@@ -24,6 +24,7 @@ type scanStats struct {
 	totalUsage       tokenUsage
 	toolCounts       map[string]int
 	toolErrorCounts  map[string]int
+	toolRejectCounts map[string]int
 	toolCallNameByID map[string]string
 }
 
@@ -91,7 +92,7 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	}
 }
 
-func accumulateUserToolErrorCounts(line []byte, stats *scanStats) {
+func accumulateUserToolOutcomeCounts(line []byte, stats *scanStats) {
 	if len(stats.toolCallNameByID) == 0 ||
 		!bytes.Contains(line, userToolResultMarker) ||
 		!bytes.Contains(line, userToolResultErrorMarker) {
@@ -101,7 +102,11 @@ func accumulateUserToolErrorCounts(line []byte, stats *scanStats) {
 	if !ok {
 		return
 	}
-	_ = visitUserToolErrors(contentRaw, func(toolUseID string) bool {
+	_ = visitUserToolOutcomes(contentRaw, func(toolUseID string, rejected bool) bool {
+		if rejected {
+			stats.recordToolReject(toolUseID)
+			return true
+		}
 		stats.recordToolError(toolUseID)
 		return true
 	})
@@ -124,7 +129,7 @@ func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
 		}
 		if hasContent {
 			accumulateRecordCounts(line, recRole, &s.stats)
-			accumulateUserToolErrorCounts(line, &s.stats)
+			accumulateUserToolOutcomeCounts(line, &s.stats)
 		}
 	case roleAssistant:
 		accumulateRecordCounts(line, recRole, &s.stats)
@@ -218,6 +223,9 @@ func applyMetadataScanStats(meta *sessionMeta, stats scanStats) {
 	if len(stats.toolErrorCounts) > 0 {
 		meta.ToolErrorCounts = stats.toolErrorCounts
 	}
+	if len(stats.toolRejectCounts) > 0 {
+		meta.ToolRejectCounts = stats.toolRejectCounts
+	}
 }
 
 func (s *scanStats) recordToolCall(name, toolUseID string) {
@@ -246,6 +254,17 @@ func (s *scanStats) recordToolError(toolUseID string) {
 		s.toolErrorCounts = make(map[string]int, 2)
 	}
 	s.toolErrorCounts[name]++
+}
+
+func (s *scanStats) recordToolReject(toolUseID string) {
+	name := s.toolCallNameByID[toolUseID]
+	if name == "" {
+		return
+	}
+	if s.toolRejectCounts == nil {
+		s.toolRejectCounts = make(map[string]int, 2)
+	}
+	s.toolRejectCounts[name]++
 }
 
 func extractType(line []byte) string {

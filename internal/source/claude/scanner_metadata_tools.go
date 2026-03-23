@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/buger/jsonparser"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 var (
@@ -18,7 +20,7 @@ var (
 	nameFieldMarker           = []byte(`"name":"`)
 	idFieldMarker             = []byte(`"id":"`)
 	toolUseIDFieldMarker      = []byte(`"tool_use_id":"`)
-	userRejectedToolUseMarker = []byte(`The user doesn't want to proceed with this tool use.`)
+	contentFieldMarker        = []byte(`"content":"`)
 	claudeToolNamesByLower    = map[string]string{
 		"read":            "Read",
 		"write":           "Write",
@@ -55,14 +57,23 @@ func visitAssistantToolUses(raw json.RawMessage, yield func(name, id string) boo
 	})
 }
 
-func visitUserToolErrors(raw json.RawMessage, yield func(toolUseID string) bool) bool {
+func visitUserToolOutcomes(raw json.RawMessage, yield func(toolUseID string, rejected bool) bool) bool {
 	if !bytes.Contains(raw, userToolResultMarker) || !bytes.Contains(raw, userToolResultErrorMarker) {
 		return true
 	}
 
 	return visitJSONArrayObjects(raw, func(value []byte) bool {
-		toolUseID, ok := userToolErrorID(value)
+		toolUseID, rejected, ok := userToolOutcome(value)
 		if !ok {
+			return true
+		}
+		return yield(toolUseID, rejected)
+	})
+}
+
+func visitUserToolErrors(raw json.RawMessage, yield func(toolUseID string) bool) bool {
+	return visitUserToolOutcomes(raw, func(toolUseID string, rejected bool) bool {
+		if rejected {
 			return true
 		}
 		return yield(toolUseID)
@@ -104,18 +115,18 @@ func assistantToolUseFields(value []byte) (string, string, bool) {
 	return internClaudeToolName(nameRaw), string(idRaw), true
 }
 
-func userToolErrorID(value []byte) (string, bool) {
+func userToolOutcome(value []byte) (string, bool, bool) {
 	if !bytes.Contains(value, toolResultTypeMarker) ||
-		!bytes.Contains(value, isErrorTrueMarker) ||
-		bytes.Contains(value, userRejectedToolUseMarker) {
-		return "", false
+		!bytes.Contains(value, isErrorTrueMarker) {
+		return "", false, false
 	}
 
 	toolUseIDRaw, ok := extractFastJSONStringFieldBytes(value, toolUseIDFieldMarker)
 	if !ok || len(toolUseIDRaw) == 0 {
-		return "", false
+		return "", false, false
 	}
-	return string(toolUseIDRaw), true
+	contentRaw, _ := extractFastJSONStringFieldBytes(value, contentFieldMarker)
+	return string(toolUseIDRaw), conv.IsRejectedToolResultContent(bytesToStringView(contentRaw)), true
 }
 
 func extractFastJSONStringFieldBytes(raw []byte, marker []byte) ([]byte, bool) {

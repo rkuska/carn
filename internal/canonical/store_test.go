@@ -20,6 +20,10 @@ type stubSource struct {
 	sessionLoads      map[string]sessionFull
 }
 
+type metadataAwareStubSource struct {
+	stubSource
+}
+
 func (s stubSource) Provider() conversationProvider {
 	return conversationProvider("claude")
 }
@@ -41,6 +45,10 @@ func (s stubSource) LoadSession(
 		return session, nil
 	}
 	return sessionFull{}, nil
+}
+
+func (metadataAwareStubSource) UsesScannedToolOutcomeCounts() bool {
+	return true
 }
 
 func TestParseConversationsParallelBuildsTranscriptsAndSearchUnits(t *testing.T) {
@@ -279,6 +287,65 @@ func TestStoreRebuildAllPersistsTranscriptDerivedToolOutcomesPerSession(t *testi
 	assert.Equal(t, map[string]int{"Read": 2}, session.Meta.ToolCounts)
 	assert.Equal(t, map[string]int{"Read": 1}, session.Meta.ToolErrorCounts)
 	assert.Nil(t, session.Meta.ToolRejectCounts)
+}
+
+func TestStoreRebuildAllUsesScannedToolOutcomesWhenSourceOptsIn(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(src.ProviderRawDir(archiveDir, conversationProvider("claude")), 0o755))
+
+	convValue := conversation{
+		Ref:     conversationRef{Provider: conversationProvider("claude"), ID: "thread-1"},
+		Name:    "demo",
+		Project: project{DisplayName: "project-a"},
+		Sessions: []sessionMeta{
+			{
+				ID:               "session-1",
+				Slug:             "demo",
+				Timestamp:        time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC),
+				LastTimestamp:    time.Date(2026, 3, 8, 10, 5, 0, 0, time.UTC),
+				FilePath:         "/raw/session-1.jsonl",
+				Project:          project{DisplayName: "project-a"},
+				ToolCounts:       map[string]int{"Read": 2},
+				ToolErrorCounts:  map[string]int{"Read": 1},
+				ToolRejectCounts: map[string]int{"Read": 1},
+			},
+		},
+	}
+
+	source := metadataAwareStubSource{
+		stubSource: stubSource{
+			scanConversations: []conversation{convValue},
+			sessions: map[string]sessionFull{
+				convValue.CacheKey(): {
+					Meta: convValue.Sessions[0],
+					Messages: []message{
+						{Role: role("assistant"), Text: "merged transcript"},
+					},
+				},
+			},
+		},
+	}
+
+	store := New(source)
+
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	require.Len(t, conversations[0].Sessions, 1)
+	assert.Equal(t, map[string]int{"Read": 2}, conversations[0].Sessions[0].ToolCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, conversations[0].Sessions[0].ToolErrorCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, conversations[0].Sessions[0].ToolRejectCounts)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"Read": 2}, session.Meta.ToolCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, session.Meta.ToolErrorCounts)
+	assert.Equal(t, map[string]int{"Read": 1}, session.Meta.ToolRejectCounts)
 }
 
 func writeTestConversation(

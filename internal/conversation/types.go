@@ -70,7 +70,11 @@ func (r ToolResult) IsRejected() bool {
 		return false
 	}
 
-	lower := strings.ToLower(strings.TrimSpace(r.Content))
+	return IsRejectedToolResultContent(r.Content)
+}
+
+func IsRejectedToolResultContent(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
 	return strings.Contains(lower, "the user doesn't want to proceed with this tool use") ||
 		strings.Contains(lower, "the user does not want to proceed with this tool use") ||
 		strings.Contains(lower, "tool use was rejected") ||

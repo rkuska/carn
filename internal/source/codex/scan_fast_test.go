@@ -111,6 +111,26 @@ func TestScanRolloutLineTracksToolErrorCounts(t *testing.T) {
 	assert.Equal(t, map[string]int{"apply_patch": 1}, state.meta.ToolErrorCounts)
 }
 
+func TestScanRolloutLineTracksToolRejectCounts(t *testing.T) {
+	t.Parallel()
+
+	state := newScanState("/tmp/thread.jsonl")
+
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:03Z","type":"response_item","payload":{`+
+			`"type":"function_call","name":"exec_command","arguments":"{}","call_id":"call-1"}}`,
+	), &state))
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:04Z","type":"response_item","payload":{`+
+			`"type":"function_call_output","call_id":"call-1",`+
+			`"output":"The user doesn't want to proceed with this tool use.","status":"failed"}}`,
+	), &state))
+
+	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolCounts)
+	assert.Nil(t, state.meta.ToolErrorCounts)
+	assert.Equal(t, map[string]int{"exec_command": 1}, state.meta.ToolRejectCounts)
+}
+
 func TestScanRolloutLineTracksToolErrorCountsFromFailedStatusWithoutStringOutput(t *testing.T) {
 	t.Parallel()
 

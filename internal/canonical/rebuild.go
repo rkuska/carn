@@ -71,16 +71,26 @@ func rebuildCanonicalStore(
 		return drift, fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
-	if err := writeCanonicalStoreStreamingAtomically(
-		ctx,
-		archiveDir,
-		conversations,
-		store.sources,
-	); err != nil {
-		return drift, fmt.Errorf("writeCanonicalStoreStreamingAtomically: %w", err)
+	results, err := parseConversationsParallelResultsWithSources(ctx, store.sources, conversations)
+	if err != nil {
+		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
 
-	zerolog.Ctx(ctx).Info().Int("conversations", len(conversations)).Msg("canonical rebuild completed")
+	parsedConversations := conversationsFromParseResults(results)
+	transcripts, corpus := buildParseOutputs(results)
+	setPlanCounts(parsedConversations, transcripts)
+
+	if err := writeCanonicalStoreAtomically(
+		ctx,
+		archiveDir,
+		parsedConversations,
+		transcripts,
+		corpus,
+	); err != nil {
+		return drift, fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
+	}
+
+	zerolog.Ctx(ctx).Info().Int("conversations", len(parsedConversations)).Msg("canonical rebuild completed")
 	return drift, nil
 }
 

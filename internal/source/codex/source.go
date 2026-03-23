@@ -18,6 +18,10 @@ func (Source) Provider() conv.Provider {
 	return conv.ProviderCodex
 }
 
+func (Source) UsesScannedToolOutcomeCounts() bool {
+	return true
+}
+
 func (Source) Scan(ctx context.Context, rawDir string) (src.ScanResult, error) {
 	conversations, drift, err := scanRollouts(ctx, rawDir)
 	if err != nil {

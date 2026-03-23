@@ -8,6 +8,10 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
+type scannedToolOutcomeSource interface {
+	UsesScannedToolOutcomeCounts() bool
+}
+
 func enrichConversationToolOutcomes(
 	ctx context.Context,
 	sources sourceRegistry,
@@ -24,6 +28,10 @@ func enrichConversationToolOutcomes(
 			"enrichConversationToolOutcomes: %w",
 			errors.New("provider is not registered"),
 		)
+	}
+	if metadataSource, ok := any(source).(scannedToolOutcomeSource); ok && metadataSource.UsesScannedToolOutcomeCounts() {
+		enriched, enrichedSession := applyScannedToolOutcomeCounts(convValue, session)
+		return enriched, enrichedSession, nil
 	}
 
 	enriched := convValue
@@ -43,6 +51,19 @@ func enrichConversationToolOutcomes(
 		session.Meta.ToolRejectCounts = enriched.Sessions[0].ToolRejectCounts
 	}
 	return enriched, session, nil
+}
+
+func applyScannedToolOutcomeCounts(convValue conversation, session sessionFull) (conversation, sessionFull) {
+	enriched := convValue
+	enriched.Sessions = append([]sessionMeta(nil), convValue.Sessions...)
+	if len(enriched.Sessions) == 0 {
+		return enriched, session
+	}
+
+	session.Meta.ToolCounts = enriched.Sessions[0].ToolCounts
+	session.Meta.ToolErrorCounts = enriched.Sessions[0].ToolErrorCounts
+	session.Meta.ToolRejectCounts = enriched.Sessions[0].ToolRejectCounts
+	return enriched, session
 }
 
 func applyToolOutcomeCounts(meta *sessionMeta, counts conv.ToolOutcomeCounts) {
