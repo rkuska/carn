@@ -83,7 +83,7 @@ func initPalette(hasDarkBG bool) {
 		colorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
 		colorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
 		colorChartBar = lipgloss.Color("#39d353")
-		colorChartToken = lipgloss.Color("#58a6ff")
+		colorChartToken = lipgloss.Color("#a371f7")
 		colorChartTime = lipgloss.Color("#d2a8ff")
 		colorChartError = lipgloss.Color("#f85149")
 		colorHeatmap0 = lipgloss.Color("#161b22")
