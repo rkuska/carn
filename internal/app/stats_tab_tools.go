@@ -36,22 +36,38 @@ func (m statsModel) renderToolsTab(width int) string {
 		callBuckets = append(callBuckets, histBucket{Label: bucket.Label, Count: bucket.Count})
 	}
 
-	topChart := centerBlock(
-		renderHorizontalBars("Top Tools", topTools, min(width, 72), colorChartBar),
-		width,
+	topToolsWidth, callChartWidth, usageStacked := statsColumnWidths(width, 8, 4, 30)
+	if usageStacked {
+		topToolsWidth = width
+		callChartWidth = width
+	}
+	usageCharts := renderColumns(
+		renderHorizontalBars("Top Tools", topTools, topToolsWidth, colorChartBar),
+		renderVerticalHistogram("Tool Calls/Session", callBuckets, callChartWidth, 8),
+		topToolsWidth,
+		callChartWidth,
+		usageStacked,
 	)
-	errorChartWidth := max((width-3)/2, 30)
-	errorChart := renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError, true)
-	rejectedChart := centerBlock(
-		renderToolRateChart(statsRejectedSuggestionsTitle, tools.ToolRejectRates, min(width, 72), colorPrimary, false),
-		width,
+
+	errorChartWidth, rejectedChartWidth, qualityStacked := statsColumnWidths(width, 1, 1, 30)
+	if qualityStacked {
+		errorChartWidth = width
+		rejectedChartWidth = width
+	}
+	qualityCharts := renderColumns(
+		renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError, true),
+		renderToolRateChart(
+			statsRejectedSuggestionsTitle,
+			tools.ToolRejectRates,
+			rejectedChartWidth,
+			colorPrimary,
+			false,
+		),
+		errorChartWidth,
+		rejectedChartWidth,
+		qualityStacked,
 	)
-	sideBySide := renderSideBySide(
-		renderVerticalHistogram("Tool Calls/Session", callBuckets, max((width-3)/2, 30), 8),
-		errorChart,
-		width,
-	)
-	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, topChart, sideBySide, rejectedChart)
+	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, usageCharts, qualityCharts)
 }
 
 func renderToolRateChart(

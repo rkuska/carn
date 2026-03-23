@@ -206,6 +206,51 @@ func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 	assert.NotContains(t, body, "read:write:bash")
 }
 
+func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.ToolCounts = map[string]int{
+						"Read":  12,
+						"Write": 6,
+						"Bash":  5,
+					}
+					meta.ToolErrorCounts = map[string]int{"Bash": 3}
+					meta.ToolRejectCounts = map[string]int{"Write": 2}
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabTools
+
+	body := ansi.Strip(m.renderToolsTab(120))
+	usageRow := findRenderedLine(t, body, "Top Tools")
+	qualityRow := findRenderedLine(t, body, "Tool Error Rate")
+
+	assert.Equal(t, 0, strings.Index(usageRow, "Top Tools"))
+	assert.Contains(t, usageRow, "Tool Calls/Session")
+	assert.Contains(t, usageRow, "│")
+	assert.GreaterOrEqual(t, strings.Index(usageRow, "│"), 70)
+	assert.LessOrEqual(t, strings.Index(usageRow, "│"), 85)
+
+	assert.Equal(t, 0, strings.Index(qualityRow, "Tool Error Rate"))
+	assert.Contains(t, qualityRow, "Rejected Suggestions")
+	assert.Contains(t, qualityRow, "│")
+	assert.GreaterOrEqual(t, strings.Index(qualityRow, "│"), 55)
+	assert.LessOrEqual(t, strings.Index(qualityRow, "│"), 65)
+}
+
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {
 	t.Parallel()
 

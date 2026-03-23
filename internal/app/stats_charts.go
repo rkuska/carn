@@ -104,17 +104,51 @@ func renderRankedTable(title string, rows []tableRow, maxWidth int) string {
 }
 
 func renderSideBySide(left, right string, width int) string {
+	return renderWeightedColumns(left, right, width, 1, 1)
+}
+
+func renderWeightedColumns(left, right string, width, leftWeight, rightWeight int) string {
 	if width <= 0 {
 		return ""
 	}
 
-	halfWidth := (width - 3) / 2
-	if halfWidth < 30 {
+	leftWidth, rightWidth, stacked := statsColumnWidths(width, leftWeight, rightWeight, 30)
+	return renderColumns(left, right, leftWidth, rightWidth, stacked)
+}
+
+func statsColumnWidths(
+	width, leftWeight, rightWeight, minColumnWidth int,
+) (int, int, bool) {
+	if width <= 0 {
+		return 0, 0, true
+	}
+	if leftWeight <= 0 || rightWeight <= 0 {
+		leftWeight, rightWeight = 1, 1
+	}
+	if minColumnWidth <= 0 {
+		minColumnWidth = 1
+	}
+
+	available := width - 3
+	if available < minColumnWidth*2 {
+		return 0, 0, true
+	}
+	totalWeight := leftWeight + rightWeight
+	leftWidth := available * leftWeight / totalWeight
+	rightWidth := available - leftWidth
+	if leftWidth < minColumnWidth || rightWidth < minColumnWidth {
+		return 0, 0, true
+	}
+	return leftWidth, rightWidth, false
+}
+
+func renderColumns(left, right string, leftWidth, rightWidth int, stacked bool) string {
+	if stacked || leftWidth <= 0 || rightWidth <= 0 {
 		return strings.TrimSpace(left) + "\n\n" + strings.TrimSpace(right)
 	}
 
-	leftLines := splitAndFitLines(left, halfWidth)
-	rightLines := splitAndFitLines(right, halfWidth)
+	leftLines := splitAndFitLines(left, leftWidth)
+	rightLines := splitAndFitLines(right, rightWidth)
 	lineCount := max(len(leftLines), len(rightLines))
 
 	rows := make([]string, 0, lineCount)
@@ -128,9 +162,9 @@ func renderSideBySide(left, right string, width int) string {
 			rightLine = rightLines[i]
 		}
 		rows = append(rows,
-			fitToWidth(leftLine, halfWidth)+" "+
+			fitToWidth(leftLine, leftWidth)+" "+
 				styleRuleHR.Render("│")+" "+
-				fitToWidth(rightLine, halfWidth),
+				fitToWidth(rightLine, rightWidth),
 		)
 	}
 	return strings.Join(rows, "\n")
@@ -175,19 +209,6 @@ func splitAndFitLines(content string, width int) []string {
 		result = append(result, fitToWidth(ansi.Truncate(line, width, "…"), width))
 	}
 	return result
-}
-
-func centerBlock(content string, outerWidth int) string {
-	if outerWidth <= 0 {
-		return ""
-	}
-
-	lines := strings.Split(content, "\n")
-	centered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		centered = append(centered, lipgloss.PlaceHorizontal(outerWidth, lipgloss.Center, line))
-	}
-	return strings.Join(centered, "\n")
 }
 
 func formatFloat(value float64) string {

@@ -160,6 +160,20 @@ func TestRenderSideBySideSplitsAtNormalWidthAndStacksWhenNarrow(t *testing.T) {
 	assert.Contains(t, stacked, "left\n\nright")
 }
 
+func TestStatsColumnWidthsUseWeightsAndStackWhenNeeded(t *testing.T) {
+	t.Parallel()
+
+	leftWidth, rightWidth, stacked := statsColumnWidths(120, 8, 4, 30)
+	assert.Equal(t, 78, leftWidth)
+	assert.Equal(t, 39, rightWidth)
+	assert.False(t, stacked)
+
+	leftWidth, rightWidth, stacked = statsColumnWidths(60, 8, 4, 30)
+	assert.Zero(t, leftWidth)
+	assert.Zero(t, rightWidth)
+	assert.True(t, stacked)
+}
+
 func TestRenderRankedTableCentersTitleWhenContentIsCapped(t *testing.T) {
 	t.Parallel()
 
