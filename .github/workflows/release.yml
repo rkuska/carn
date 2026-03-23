@@ -28,11 +28,22 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Resolve release notes
+        id: notes
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          NOTES_FILE="releases/${TAG}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            echo "args=release --clean --release-notes=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=release --clean" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Release
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: ${{ steps.notes.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
