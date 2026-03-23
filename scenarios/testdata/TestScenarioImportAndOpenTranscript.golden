@@ -1,8 +1,8 @@
-╭─  Conversations  ───────────────────────────────────────╮ ╭─  project-a / first-session  2026-03-07 12:00  ──────────╮
+╭─  Conversations  ───────────────────────────────────────╮ ╭─  project-a / first-session  2026-03-07 13:00  ──────────╮
 │  1 item                                                 │ │ ╭──────────────────────────────────────────────────────╮ │
 │                                                         │ │ │ provider Claude  model claude-opus-4-1  duration 1s  │ │
-││ project-a / first-session  2026-03-07 12:00            │ │ │ msgs 2                                               │ │
-││ Claude  claude-opus-4-1  2 msgs  1s                    │ │ │ started 2026-03-07 12:00  last 2026-03-07 12:00      │ │
+││ project-a / first-session  2026-03-07 13:00 (15d ago)  │ │ │ msgs 2                                               │ │
+││ Claude  claude-opus-4-1  2 msgs  1s                    │ │ │ started 2026-03-07 13:00  last 2026-03-07 13:00      │ │
 ││ Test session question                                  │ │ ╰──────────────────────────────────────────────────────╯ │
 │                                                         │ │                                                          │
 │                                                         │ │  User ────────────────────────────────────────────────── │

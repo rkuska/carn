@@ -18,6 +18,23 @@ import (
 	"github.com/rkuska/carn/scenarios/helpers"
 )
 
+var scenarioLocation = time.FixedZone("CET", 60*60)
+
+func pinScenarioClock(t *testing.T) {
+	t.Helper()
+
+	previousLocal := time.Local
+	time.Local = scenarioLocation
+	t.Cleanup(func() {
+		time.Local = previousLocal
+	})
+
+	restoreNow := conv.SetNowForTesting(func() time.Time {
+		return time.Date(2026, time.March, 23, 12, 0, 0, 0, scenarioLocation)
+	})
+	t.Cleanup(restoreNow)
+}
+
 func newScenarioHarness(
 	t *testing.T,
 	workspace helpers.Workspace,
@@ -36,6 +53,7 @@ func newScenarioHarnessWithSourceDirs(
 ) *programHarness {
 	t.Helper()
 	t.Setenv("HOME", workspace.RootDir)
+	pinScenarioClock(t)
 
 	model, err := app.NewModel(t.Context(), app.Config{
 		SourceDirs:           sourceDirs,
@@ -56,6 +74,7 @@ func newScenarioHarnessWithConfigState(
 	width, height int,
 ) *programHarness {
 	t.Helper()
+	pinScenarioClock(t)
 
 	archCfg := state.Config.ArchiveConfig()
 	model, err := app.NewModel(t.Context(), app.Config{

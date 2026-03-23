@@ -1,31 +1,31 @@
-╭─  Conversations  ───────────────────────────────────────╮ ╭─  work/sample-project / plan-session  2026-03-08 10:00  ─╮
+╭─  Conversations  ───────────────────────────────────────╮ ╭─  work/sample-project / plan-session  2026-03-08 11:00  ─╮
 │  7 items                                                │ │ ╭──────────────────────────────────────────────────────╮ │
 │                                                         │ │ │  2 plans                                             │ │
-│  work/sample-project / subagent-parent  2026-03-09 10:00│ │ │ provider Claude  model claude-sonnet-4               │ │
+│  work/sample-project / subagent-parent  2026-03-09 11...│ │ │ provider Claude  model claude-sonnet-4               │ │
 │  Claude  claude-opus-4-1  3 msgs  0k tokens  8s         │ │ │ version 1.0.0  branch main  duration 30s  msgs 7     │ │
-│  Investigate flaky search results.                      │ │ │ started 2026-03-08 10:00  last 2026-03-08 10:00      │ │
+│  Investigate flaky search results.                      │ │ │ started 2026-03-08 11:00  last 2026-03-08 11:00      │ │
 │                                                         │ │ │ tools ExitPlanMode:2                                 │ │
-││ work/sample-project / plan-session  2026-03-08 10:00...│ │ │ cwd work/sample-project                              │ │
+││ work/sample-project / plan-session  2026-03-08 11:00...│ │ │ cwd work/sample-project                              │ │
 ││ Claude  1.0.0  claude-sonnet-4  7 msgs  30s  ExitPla...│ │ ╰──────────────────────────────────────────────────────╯ │
 ││ Plan the data migration.                               │ │                                                          │
 │                                                         │ │ ╭──────────────────────────────────────────────────────╮ │
-│  work/sample-project / tool-runbook  2026-03-08 09:00...│ │ │ Plan: migration-plan.md                              │ │
+│  work/sample-project / tool-runbook  2026-03-08 10:00...│ │ │ Plan: migration-plan.md                              │ │
 │  Claude  1.0.1  claude-sonnet-4  5 msgs (4 main)  0k ...│ │ │                                                      │ │
 │  Inspect the main package and run the tests.            │ │ │ # Migration Plan                                     │ │
 │                                                         │ │ │                                                      │ │
-│  work/sample-project / usage-summary  2026-03-08 08:00  │ │ │ ## Step 1                                            │ │
+│  work/sample-project / usage-summary  2026-03-08 09:0...│ │ │ ## Step 1                                            │ │
 │  Claude  claude-haiku-3.5  2 msgs  0k tokens  4s        │ │ │ Backup database                                      │ │
 │  Give me token totals.                                  │ │ │                                                      │ │
 │                                                         │ │ │ ## Step 2                                            │ │
-│  work/sample-project / fixture-basic  2026-03-07 09:0...│ │ │ Run migration                                        │ │
+│  work/sample-project / fixture-basic  2026-03-07 10:0...│ │ │ Run migration                                        │ │
 │  Claude  1.0.0  claude-sonnet-4  2 msgs  0k tokens  5s  │ │ ╰──────────────────────────────────────────────────────╯ │
 │  Summarize the deployment checklist.                    │ │                                                          │
 │                                                         │ │ ╭──────────────────────────────────────────────────────╮ │
-│  work/legacy-project / legacy-format  2026-03-06 08:00  │ │ │ Plan: rollback-plan.md                               │ │
+│  work/legacy-project / legacy-format  2026-03-06 09:0...│ │ │ Plan: rollback-plan.md                               │ │
 │  Claude  claude-2.1  2 msgs  4s                         │ │ │                                                      │ │
 │  Can you read the older transcript?                     │ │ │ # Rollback Plan                                      │ │
 │                                                         │ │ │                                                      │ │
-│  work/sample-project / signed-thinking  2026-03-05 10...│ │ │ ## Step 1                                            │ │
+│  work/sample-project / signed-thinking  2026-03-05 11...│ │ │ ## Step 1                                            │ │
 │  Claude  1.0.1  claude-opus-4-6  2 msgs  0k tokens  3s  │ │ │ Restore backup                                       │ │
 │  Analyze the code.                                      │ │ │                                                      │ │
 │                                                         │ │ │ ## Step 2                                            │ │

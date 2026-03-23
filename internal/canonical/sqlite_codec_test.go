@@ -18,8 +18,8 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 			ID:                    "sess-1",
 			Project:               project{DisplayName: "test-project"},
 			Slug:                  "test-slug",
-			Timestamp:             time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
-			LastTimestamp:         time.Date(2025, 1, 15, 11, 0, 0, 0, time.UTC),
+			Timestamp:             time.Date(2025, 1, 15, 10, 30, 0, 0, time.Local),
+			LastTimestamp:         time.Date(2025, 1, 15, 11, 0, 0, 0, time.Local),
 			CWD:                   "/home/user/project",
 			GitBranch:             "main",
 			Version:               "1.0.0",
@@ -73,7 +73,7 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 					{
 						FilePath:  "/tmp/plan.md",
 						Content:   "step 1: do something",
-						Timestamp: time.Date(2025, 1, 15, 10, 45, 0, 0, time.UTC),
+						Timestamp: time.Date(2025, 1, 15, 10, 45, 0, 0, time.Local),
 					},
 				},
 				IsSidechain:    true,
@@ -124,7 +124,7 @@ func TestWithEncodedSessionBlobMinimal(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:        "min-sess",
-			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 		},
 		Messages: []message{
 			{Role: conv.RoleUser, Text: "hi"},
@@ -154,7 +154,7 @@ func TestWithEncodedSessionBlobEmptyFields(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:        "empty-sess",
-			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 		},
 		Messages: []message{
 			{
@@ -186,7 +186,7 @@ func TestWithEncodedSessionBlobMessageUsageRoundTrip(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:        "usage-sess",
-			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp: time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 		},
 		Messages: []message{
 			{
@@ -223,7 +223,7 @@ func TestWithEncodedSessionBlobRoleCountsRoundTrip(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:                    "role-counts",
-			Timestamp:             time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp:             time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 			MessageCount:          9,
 			MainMessageCount:      7,
 			UserMessageCount:      3,
@@ -252,7 +252,7 @@ func TestWithEncodedSessionBlobToolErrorCountsRoundTrip(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:              "tool-errors",
-			Timestamp:       time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp:       time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 			ToolErrorCounts: map[string]int{"Bash": 2, "Read": 1},
 		},
 	}
@@ -275,7 +275,7 @@ func TestWithEncodedSessionBlobToolRejectCountsRoundTrip(t *testing.T) {
 	session := sessionFull{
 		Meta: sessionMeta{
 			ID:               "reject-sess",
-			Timestamp:        time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+			Timestamp:        time.Date(2025, 6, 1, 0, 0, 0, 0, time.Local),
 			ToolRejectCounts: map[string]int{"Bash": 2, "Read": 1},
 		},
 	}

@@ -67,6 +67,7 @@ func (c Conversation) computeTitle() string {
 		c.Project.DisplayName,
 		c.DisplayName(),
 		c.Timestamp().Format("2006-01-02 15:04"),
+		FormatRelativeTime(c.Timestamp(), displayNow()),
 		c.IsSubagent(),
 		c.GitBranch(),
 		c.PartCount(),
@@ -169,12 +170,13 @@ func buildDisplayTitle(
 	projectName string,
 	displayName string,
 	date string,
+	relativeHint string,
 	isSubagent bool,
 	branch string,
 	partCount int,
 ) string {
 	var builder strings.Builder
-	builder.Grow(len(projectName) + len(displayName) + len(date) + len(branch) + 24)
+	builder.Grow(len(projectName) + len(displayName) + len(date) + len(relativeHint) + len(branch) + 28)
 	if isSubagent {
 		builder.WriteString("[sub] ")
 	}
@@ -183,6 +185,11 @@ func buildDisplayTitle(
 	builder.WriteString(displayName)
 	builder.WriteString("  ")
 	builder.WriteString(date)
+	if relativeHint != "" {
+		builder.WriteString(" (")
+		builder.WriteString(relativeHint)
+		builder.WriteByte(')')
+	}
 	if branch != "" {
 		builder.WriteString("  ")
 		builder.WriteString(branch)

@@ -1,15 +1,15 @@
-╭─  Conversations  ───────────────────────────────────────╮ ╭─  project / 019cexample-  2026-03-13 10:15  ─────────────╮
+╭─  Conversations  ───────────────────────────────────────╮ ╭─  project / 019cexample-  2026-03-13 11:15  ─────────────╮
 │  3 items                                                │ │ ╭──────────────────────────────────────────────────────╮ │
 │                                                         │ │ │ provider Codex  model gpt-5.4  version 0.114.0       │ │
-││ project / 019cexample-  2026-03-13 10:15  main         │ │ │ branch main  duration 8s  msgs 4  tokens 10          │ │
-││ Codex  0.114.0  gpt-5.4  4 msgs  0k tokens  8s         │ │ │ started 2026-03-13 10:15  last 2026-03-13 10:15      │ │
+││ project / 019cexample-  2026-03-13 11:15 (10d ago)  ...│ │ │ branch main  duration 8s  msgs 4  tokens 10          │ │
+││ Codex  0.114.0  gpt-5.4  4 msgs  0k tokens  8s         │ │ │ started 2026-03-13 11:15  last 2026-03-13 11:15      │ │
 ││ Explain hidden reasoning.                              │ │ │ cwd workspace/project                                │ │
 │                                                         │ │ ╰──────────────────────────────────────────────────────╯ │
-│  project / 019cexample-  2026-03-13 10:05               │ │                                                          │
+│  project / 019cexample-  2026-03-13 11:05 (10d ago)     │ │                                                          │
 │  Codex  0.113.0  gpt-5.3-codex  2 msgs  5s  apply_pat...│ │  User ────────────────────────────────────────────────── │
 │  Apply a patch.                                         │ │                                                          │
 │                                                         │ │                                                          │
-│  project / 019cexample-  2026-03-13 10:00  main         │ │   Explain hidden reasoning.                              │
+│  project / 019cexample-  2026-03-13 11:00 (10d ago)  ...│ │   Explain hidden reasoning.                              │
 │  Codex  0.114.0  gpt-5.4  4 msgs (2 main)  0k tokens ...│ │  Assistant ───────────────────────────────────────────── │
 │  # Import Codex sessions                                │ │                                                          │
 │                                                         │ │ Thinking unavailable                                     │

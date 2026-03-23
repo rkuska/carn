@@ -107,6 +107,8 @@ type SessionMeta struct {
 const maxSlugFromMessage = 40
 const untitledDisplayName = "untitled"
 
+var displayNow = time.Now
+
 func (s SessionMeta) DisplaySlug() string {
 	if s.Slug != "" {
 		return s.Slug
@@ -139,6 +141,27 @@ func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh %dm", h, m)
 }
 
+func FormatRelativeTime(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	duration := now.Sub(t)
+	if duration < time.Minute {
+		return "now"
+	}
+	if duration < time.Hour {
+		return fmt.Sprintf("%dm ago", int(duration.Minutes()))
+	}
+	if duration < 24*time.Hour {
+		return fmt.Sprintf("%dh ago", int(duration.Hours()))
+	}
+	if duration < 30*24*time.Hour {
+		return fmt.Sprintf("%dd ago", int(duration.Hours()/24))
+	}
+	return ""
+}
+
 func (s SessionMeta) FilterValue() string {
 	return fmt.Sprintf("%s %s %s %s", s.Project.DisplayName, s.DisplaySlug(), s.FirstMessage, s.GitBranch)
 }
@@ -148,10 +171,23 @@ func (s SessionMeta) Title() string {
 		s.Project.DisplayName,
 		s.DisplaySlug(),
 		s.Timestamp.Format("2006-01-02 15:04"),
+		FormatRelativeTime(s.Timestamp, displayNow()),
 		s.IsSubagent,
 		s.GitBranch,
 		0,
 	)
+}
+
+func SetNowForTesting(now func() time.Time) func() {
+	previous := displayNow
+	if now == nil {
+		displayNow = time.Now
+	} else {
+		displayNow = now
+	}
+	return func() {
+		displayNow = previous
+	}
 }
 
 func (s SessionMeta) Description() string {
