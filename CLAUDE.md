@@ -259,12 +259,20 @@ Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
 go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStoreParseConversationWithSubagents)$' -benchmem ./internal/source/claude
 go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem ./internal/source/codex
-go test -run '^$' -bench 'Benchmark(LoadCatalogCold|LoadCatalogWarm|LoadSearchIndex|DeepSearchFuzzy|CanonicalTranscriptOpen|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
+go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
-go test -run '^$' -bench 'Benchmark(ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation)$' -benchmem ./internal/stats
+go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender)$' -benchmem ./internal/app
 ```
 
-When identifying optimization candidates, always start with a benchmark for the target path and inspect a CPU profile before coding:
+Run these benchmark commands one at a time. Do not execute multiple
+`go test -bench` invocations in parallel.
+
+When identifying optimization candidates, always start with a benchmark for
+the target path and inspect a CPU profile before coding. Use
+[goperf.dev](https://goperf.dev/) for implementation ideas after the profile
+identifies the hot path:
 ```bash
 go test -run '^$' -bench '<benchmark>' -cpuprofile /tmp/carn.cpu <package>
 go tool pprof -top /tmp/carn.cpu

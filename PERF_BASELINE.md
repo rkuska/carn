@@ -2,6 +2,20 @@
 
 Captured on March 23, 2026.
 
+## Workflow
+
+- Run benchmark commands one at a time. Do not launch multiple
+  `go test -bench` invocations in parallel, and avoid collecting numbers while
+  other heavy local workloads are running.
+- The suite below is grouped for readability, but investigation should narrow
+  `-bench` to the specific benchmark being studied whenever possible.
+- Start every performance refactor with measurement and profiling: benchmark
+  the target path, capture a CPU profile with `-cpuprofile`, and inspect it
+  with `go tool pprof` before changing code.
+- Use [goperf.dev](https://goperf.dev/) as a Go performance reference when
+  choosing optimization techniques, but only after the profile identifies the
+  hot path in this codebase.
+
 Current benchmark commands:
 
 ```bash
@@ -54,6 +68,9 @@ Notes:
 - Benchmarks live with the package that owns the runtime path.
 - `PERF_BASELINE.md` should always include the full benchmark suite, even
   when the benchmark code is split across packages.
+- The benchmark commands above must be run sequentially. Do not parallelize
+  benchmark collection across packages, terminals, or CI jobs when refreshing
+  this baseline.
 - `BenchmarkBrowserLoadSessionsCold` measures the app browser load path with a
   cold canonical store instance.
 - `BenchmarkBrowserLoadSessionsWarm` measures the actual TUI session-list load
@@ -81,6 +98,8 @@ Notes:
 - `App-Triggered Maintenance` benchmarks cover sync, import analysis, source
   scans, source transcript loads, and canonical rebuild work initiated by the
   app, but not directly felt as interactive browser/viewer latency.
+- Performance refactors should be profile-driven. Do not change code for speed
+  until the relevant benchmark and `pprof` output point to the target path.
 - The top allocation-byte benchmarks in the current suite are
   `BenchmarkCanonicalStoreFullRebuild`,
   `BenchmarkCanonicalStoreParseConversations`,
