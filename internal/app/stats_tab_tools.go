@@ -122,17 +122,24 @@ func renderToolRateChart(
 }
 
 func toolRateChipValue(rate float64) string {
-	return fmt.Sprintf("%.1f%%", rate)
+	return formatToolRatePercent(rate)
 }
 
 func renderToolRateValue(item statspkg.ToolRateStat, showCount bool) string {
-	percentage := fmt.Sprintf("%.1f%%", item.Rate)
+	percentage := formatToolRatePercent(item.Rate)
 	if !showCount {
 		return percentage
 	}
 	return percentage + " " + lipgloss.NewStyle().
 		Foreground(colorNormalDesc).
 		Render(fmt.Sprintf("(%s)", statspkg.FormatNumber(item.Count)))
+}
+
+func formatToolRatePercent(rate float64) string {
+	if rate > 0 && rate < 0.1 {
+		return "<0.1%"
+	}
+	return fmt.Sprintf("%.1f%%", rate)
 }
 
 func formatToolShare(value float64) string {

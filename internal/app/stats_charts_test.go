@@ -66,6 +66,24 @@ func TestRenderToolRateChartCanOmitAbsoluteCounts(t *testing.T) {
 	assert.NotContains(t, got, "(3)")
 }
 
+func TestRenderToolRateChartShowsLessThanPointOneForTinyNonZeroRate(t *testing.T) {
+	t.Parallel()
+
+	got := ansi.Strip(renderToolRateChart("Rejected Suggestions", []statspkg.ToolRateStat{
+		{Name: "Bash", Rate: 0.04, Count: 1},
+	}, 40, colorPrimary, false))
+
+	assert.Contains(t, got, "<0.1%")
+	assert.NotContains(t, got, "0.0%")
+}
+
+func TestToolRateChipValueShowsLessThanPointOneForTinyNonZeroRate(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "<0.1%", toolRateChipValue(0.04))
+	assert.Equal(t, "0.0%", toolRateChipValue(0))
+}
+
 func TestRenderVerticalHistogramKeepsWidthsAndLabelsAligned(t *testing.T) {
 	t.Parallel()
 
