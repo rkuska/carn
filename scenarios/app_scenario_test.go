@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rkuska/carn/internal/app"
+	"github.com/rkuska/carn/internal/canonical"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/scenarios/helpers"
@@ -23,11 +24,8 @@ var scenarioLocation = time.FixedZone("CET", 60*60)
 func pinScenarioClock(t *testing.T) {
 	t.Helper()
 
-	previousLocal := time.Local
-	time.Local = scenarioLocation
-	t.Cleanup(func() {
-		time.Local = previousLocal
-	})
+	restoreLocation := canonical.SetTimeLocationForTesting(scenarioLocation)
+	t.Cleanup(restoreLocation)
 
 	restoreNow := conv.SetNowForTesting(func() time.Time {
 		return time.Date(2026, time.March, 23, 12, 0, 0, 0, scenarioLocation)

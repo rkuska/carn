@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -177,4 +178,17 @@ func TestBinWriterErrorPropagation(t *testing.T) {
 	bw.writeInt(-1)
 	bw.writeBool(false)
 	assert.ErrorIs(t, bw.err, assert.AnError)
+}
+
+func TestSetTimeLocationForTestingOverridesUnixTimeLocation(t *testing.T) {
+	t.Parallel()
+
+	location := time.FixedZone("CET", 60*60)
+	restoreLocation := SetTimeLocationForTesting(location)
+	t.Cleanup(restoreLocation)
+
+	got := unixTime(time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC).UnixNano())
+
+	assert.Equal(t, location, got.Location())
+	assert.Equal(t, 13, got.Hour())
 }

@@ -299,6 +299,23 @@ func TestStatsFooterHelpRowShowsMetricOnlyOnActivityTab(t *testing.T) {
 	assert.Contains(t, ansi.Strip(m.footerHelpRow()), "metric")
 }
 
+func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {
+	t.Parallel()
+
+	border := lipgloss.NewStyle().Foreground(colorPrimary).Render("│")
+
+	line := renderBodyLine("tabs", 8, colorPrimary)
+	assert.True(t, strings.HasPrefix(line, border))
+	assert.True(t, strings.HasSuffix(line, border))
+
+	rows := renderBodyContent("alpha\nbeta", 8, 3, colorPrimary)
+	assert.Len(t, rows, 3)
+	for _, row := range rows {
+		assert.True(t, strings.HasPrefix(row, border))
+		assert.True(t, strings.HasSuffix(row, border))
+	}
+}
+
 func TestRenderStatsTitleUsesPrimaryStyle(t *testing.T) {
 	t.Parallel()
 

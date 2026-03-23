@@ -3,6 +3,7 @@ package conversation
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -108,6 +109,14 @@ const maxSlugFromMessage = 40
 const untitledDisplayName = "untitled"
 
 var displayNow = time.Now
+var displayNowMu sync.RWMutex
+
+func currentDisplayNow() time.Time {
+	displayNowMu.RLock()
+	now := displayNow
+	displayNowMu.RUnlock()
+	return now()
+}
 
 func (s SessionMeta) DisplaySlug() string {
 	if s.Slug != "" {
@@ -171,7 +180,7 @@ func (s SessionMeta) Title() string {
 		s.Project.DisplayName,
 		s.DisplaySlug(),
 		s.Timestamp.Format("2006-01-02 15:04"),
-		FormatRelativeTime(s.Timestamp, displayNow()),
+		FormatRelativeTime(s.Timestamp, currentDisplayNow()),
 		s.IsSubagent,
 		s.GitBranch,
 		0,
@@ -179,14 +188,18 @@ func (s SessionMeta) Title() string {
 }
 
 func SetNowForTesting(now func() time.Time) func() {
+	displayNowMu.Lock()
 	previous := displayNow
 	if now == nil {
 		displayNow = time.Now
 	} else {
 		displayNow = now
 	}
+	displayNowMu.Unlock()
 	return func() {
+		displayNowMu.Lock()
 		displayNow = previous
+		displayNowMu.Unlock()
 	}
 }
 

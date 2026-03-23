@@ -8,6 +8,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetNowForTestingOverridesDisplayClock(t *testing.T) {
+	t.Parallel()
+
+	restoreNow := SetNowForTesting(func() time.Time {
+		return time.Date(2026, time.March, 23, 12, 0, 0, 0, time.UTC)
+	})
+	t.Cleanup(restoreNow)
+
+	meta := SessionMeta{
+		Project:   Project{DisplayName: "proj"},
+		Slug:      "slug",
+		Timestamp: time.Date(2026, time.March, 22, 12, 0, 0, 0, time.UTC),
+	}
+
+	assert.Contains(t, meta.Title(), "1d ago")
+}
+
 func TestConversationAccessors(t *testing.T) {
 	t.Parallel()
 

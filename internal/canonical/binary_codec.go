@@ -260,5 +260,5 @@ func (bw *binWriter) writeStringIntMap(value map[string]int) {
 }
 
 func unixTime(value int64) time.Time {
-	return time.Unix(0, value).Local()
+	return time.Unix(0, value).In(canonicalTimeLocation())
 }

@@ -67,7 +67,7 @@ func (c Conversation) computeTitle() string {
 		c.Project.DisplayName,
 		c.DisplayName(),
 		c.Timestamp().Format("2006-01-02 15:04"),
-		FormatRelativeTime(c.Timestamp(), displayNow()),
+		FormatRelativeTime(c.Timestamp(), currentDisplayNow()),
 		c.IsSubagent(),
 		c.GitBranch(),
 		c.PartCount(),

@@ -31,14 +31,14 @@ func (m statsModel) View() string {
 
 	lines := []string{
 		renderBorderTop("Stats", m.width, colorPrimary, colorPrimary),
-		renderBodyLine(m.renderTabBar(), m.contentWidth()),
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth()),
+		renderBodyLine(m.renderTabBar(), m.contentWidth(), colorPrimary),
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), colorPrimary),
 	}
-	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight())...)
+	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight(), colorPrimary)...)
 	lines = append(lines,
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth()),
-		renderBodyLine(m.footerHelpRow(), m.contentWidth()),
-		renderBodyLine(m.footerStatusRow(), m.contentWidth()),
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), colorPrimary),
+		renderBodyLine(m.footerHelpRow(), m.contentWidth(), colorPrimary),
+		renderBodyLine(m.footerStatusRow(), m.contentWidth(), colorPrimary),
 		renderBorderBottom(m.contentWidth(), colorPrimary),
 	)
 	return strings.Join(lines, "\n")
@@ -93,11 +93,11 @@ func renderStatsRange(active bool, label string) string {
 	return lipgloss.NewStyle().Foreground(colorNormalDesc).Render(label)
 }
 
-func renderBodyLine(content string, width int) string {
-	return "│" + fitToWidth(ansi.Truncate(content, width, "…"), width) + "│"
+func renderBodyLine(content string, width int, borderColor color.Color) string {
+	return renderBodyRow(content, width, borderColor)
 }
 
-func renderBodyContent(content string, width, height int) []string {
+func renderBodyContent(content string, width, height int, borderColor color.Color) []string {
 	lines := splitAndFitLines(content, width)
 	if len(lines) > height {
 		lines = lines[:height]
@@ -108,9 +108,14 @@ func renderBodyContent(content string, width, height int) []string {
 
 	rows := make([]string, 0, len(lines))
 	for _, line := range lines {
-		rows = append(rows, "│"+fitToWidth(ansi.Truncate(line, width, "…"), width)+"│")
+		rows = append(rows, renderBodyRow(line, width, borderColor))
 	}
 	return rows
+}
+
+func renderBodyRow(content string, width int, borderColor color.Color) string {
+	border := lipgloss.NewStyle().Foreground(borderColor).Render("│")
+	return border + fitToWidth(ansi.Truncate(content, width, "…"), width) + border
 }
 
 func renderBorderBottom(contentWidth int, borderColor color.Color) string {
