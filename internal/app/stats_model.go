@@ -47,11 +47,17 @@ type statsModel struct {
 	claudeTurnMetrics           []stats.PositionTokenMetrics
 	claudeTurnMetricsLoadingKey string
 	filter                      browserFilterState
+	viewer                      viewerModel
+	viewerOpen                  bool
+	notification                notification
 	helpOpen                    bool
 	viewport                    viewport.Model
 	spinner                     spinner.Model
 	width, height               int
 	activityMetric              activityMetric
+	glamourStyle                string
+	timestampFormat             string
+	launcher                    sessionLauncher
 }
 
 const (
@@ -95,6 +101,10 @@ func newStatsModel(
 }
 
 func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
+	if m.viewerOpen {
+		return m.updateViewer(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.setSize(msg.Width, msg.Height), nil
@@ -102,8 +112,16 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 		return m, nil
 	case claudeTurnMetricsLoadedMsg:
 		return m.applyClaudeTurnMetricsLoaded(msg), nil
+	case statsSessionLoadedMsg:
+		return m.openLoadedViewer(msg), nil
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
+	case notificationMsg:
+		m.notification = msg.notification
+		return m, clearNotificationAfter(msg.notification.kind)
+	case clearNotificationMsg:
+		m.notification = notification{}
+		return m, nil
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {

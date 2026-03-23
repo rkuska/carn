@@ -31,10 +31,11 @@ func (m statsModel) renderOverviewTab(width int) string {
 	}
 
 	rows := []tableRow{
-		{Columns: []string{"Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
+		{Columns: []string{"#", "Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
 	}
-	for _, session := range overview.TopSessions {
+	for i, session := range overview.TopSessions {
 		rows = append(rows, tableRow{Columns: []string{
+			fmt.Sprintf("%d", i+1),
 			session.Project,
 			session.Slug,
 			session.Timestamp.Format("2006-01-02"),

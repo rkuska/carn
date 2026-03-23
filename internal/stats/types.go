@@ -87,6 +87,8 @@ type ProjectTokens struct {
 type SessionSummary struct {
 	Project      string
 	Slug         string
+	SessionID    string
+	FilePath     string
 	Timestamp    time.Time
 	MessageCount int
 	Duration     time.Duration

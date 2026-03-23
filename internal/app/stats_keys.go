@@ -55,6 +55,9 @@ func (m statsModel) handleStatsKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
 	if next, cmd, handled := m.handleStatsActionKey(msg); handled {
 		return next, cmd
 	}
+	if next, cmd, handled := m.handleStatsOpenSessionKey(msg); handled {
+		return next, cmd
+	}
 	if next, handled := m.handleStatsJumpKey(msg); handled {
 		return next, nil
 	}
@@ -112,6 +115,15 @@ func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 	return m.renderViewportContent(true), nil
 }
 
+func (m statsModel) handleStatsOpenSessionKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd, bool) {
+	rank, ok := heavySessionRankFromKey(msg.Text)
+	if !ok {
+		return m, nil, false
+	}
+	next, cmd := m.openHeavySession(rank)
+	return next, cmd, true
+}
+
 func (m statsModel) handleStatsJumpKey(msg tea.KeyPressMsg) (statsModel, bool) {
 	switch {
 	case msg.Text == "g" || msg.Code == tea.KeyHome:
@@ -122,6 +134,15 @@ func (m statsModel) handleStatsJumpKey(msg tea.KeyPressMsg) (statsModel, bool) {
 		return m, true
 	default:
 		return m, false
+	}
+}
+
+func heavySessionRankFromKey(text string) (int, bool) {
+	switch text {
+	case "1", "2", "3", "4", "5":
+		return int(text[0] - '1'), true
+	default:
+		return 0, false
 	}
 }
 

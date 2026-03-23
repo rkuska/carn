@@ -9,6 +9,9 @@ import (
 )
 
 func (m statsModel) View() string {
+	if m.viewerOpen {
+		return m.viewer.View()
+	}
 	if m.width == 0 {
 		return "Loading..."
 	}
@@ -142,6 +145,9 @@ func (m statsModel) footerHelpRow() string {
 	if m.tab == statsTabActivity {
 		items = append(items, helpItem{key: "m", desc: "metric"})
 	}
+	if m.tab == statsTabOverview && len(m.snapshot.Overview.TopSessions) > 0 {
+		items = append(items, helpItem{key: "1-5", desc: "open"})
+	}
 	items = append(items,
 		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
 		helpItem{key: "q/esc", desc: "close", priority: helpPriorityHigh},
@@ -153,6 +159,9 @@ func (m statsModel) footerStatusRow() string {
 	status := joinNonEmpty(m.footerStatusParts(), "  ")
 	if m.filter.active {
 		status = joinNonEmpty(filterFooterStatusParts(m.conversations, m.filter), "  ")
+	}
+	if m.notification.text != "" {
+		status = joinNonEmpty([]string{status, renderNotification(m.notification)}, "  ")
 	}
 	return composeFooterRow(m.width, status, m.scrollStatus())
 }

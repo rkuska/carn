@@ -552,6 +552,65 @@ func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
 	assert.Zero(t, store.loadSessionCalls)
 }
 
+func TestStatsOverviewDigitShortcutOpensHeavySessionAndBackReturnsToStats(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserStore{
+		loadSessionResults: map[string]conv.Session{
+			"heavy": {
+				Meta: testStatsSessionMeta("heavy", "alpha", now),
+				Messages: []conv.Message{
+					{Role: conv.RoleUser, Text: "question"},
+					{Role: conv.RoleAssistant, Text: "answer"},
+				},
+			},
+		},
+	}
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("heavy", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 4000
+					meta.TotalUsage.OutputTokens = 500
+					meta.FilePath = "/tmp/heavy.jsonl"
+				}),
+				testStatsSessionMeta("light", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 300
+					meta.TotalUsage.OutputTokens = 50
+					meta.FilePath = "/tmp/light.jsonl"
+				}),
+			),
+		},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.glamourStyle = "dark"
+	m.timestampFormat = "2006-01-02 15:04"
+
+	next, cmd := m.Update(tea.KeyPressMsg{Text: "1"})
+	require.NotNil(t, cmd)
+
+	loaded, ok := cmd().(statsSessionLoadedMsg)
+	require.True(t, ok)
+
+	next, _ = next.Update(loaded)
+
+	assert.True(t, next.viewerOpen)
+	assert.Equal(t, []string{"heavy"}, store.loadSessionIDs)
+	assert.Equal(t, "heavy", next.viewer.session.Meta.ID)
+
+	next, _ = next.Update(tea.KeyPressMsg{Text: "q"})
+
+	assert.False(t, next.viewerOpen)
+	assert.Equal(t, statsTabOverview, next.tab)
+}
+
 func TestStatsCloseReturnsCloseMessage(t *testing.T) {
 	t.Parallel()
 

@@ -80,7 +80,7 @@ func TestStatsHelpNavigationSectionIsConsistentAcrossTabs(t *testing.T) {
 		{
 			name: "overview",
 			tab:  statsTabOverview,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc", "1-5"},
 		},
 		{
 			name: "activity",

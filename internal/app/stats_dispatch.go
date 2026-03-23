@@ -33,6 +33,9 @@ func (m appModel) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		stats.ctx = m.ctx
 		stats.archiveDir = m.cfg.ArchiveDir
+		stats.glamourStyle = m.glamourStyle
+		stats.timestampFormat = m.browser.timestampFormat
+		stats.launcher = m.launcher
 		m.stats = stats
 		m.state = viewStats
 		return m, nil

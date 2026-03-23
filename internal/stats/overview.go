@@ -65,6 +65,8 @@ func accumulateOverviewSession(
 	return SessionSummary{
 		Project:      session.Project.DisplayName,
 		Slug:         session.DisplaySlug(),
+		SessionID:    session.ID,
+		FilePath:     session.FilePath,
 		Timestamp:    session.Timestamp,
 		MessageCount: overviewSessionMessageCount(session),
 		Duration:     session.Duration(),

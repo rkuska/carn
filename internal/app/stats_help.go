@@ -37,8 +37,9 @@ func (m statsModel) chartHelpSection() helpSection {
 					key:  "Most Token-Heavy Sessions",
 					desc: "table",
 					detail: "Shows the heaviest individual sessions, not grouped " +
-						"conversations. Columns read left to right as project, slug, date, " +
-						"messages, duration, and total tokens.",
+						"conversations. Columns read left to right as rank, project, slug, " +
+						"date, messages, duration, and total tokens. Press 1-5 to open the " +
+						"listed session directly.",
 				},
 			},
 		}
@@ -322,6 +323,13 @@ func (m statsModel) navigationHelpSection() helpSection {
 			key:    "m",
 			desc:   "metric",
 			detail: "cycle the daily chart between sessions, messages, and tokens",
+		})
+	}
+	if m.tab == statsTabOverview && len(m.snapshot.Overview.TopSessions) > 0 {
+		items = append(items, helpItem{
+			key:    "1-5",
+			desc:   "open session",
+			detail: "open the corresponding token-heavy session in the viewer and return here with q/esc",
 		})
 	}
 	return helpSection{title: "Navigation", items: items}
