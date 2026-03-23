@@ -15,12 +15,14 @@ type loadState struct {
 	link                  subagentLink
 	callMeta              map[string]toolEventMeta
 	messages              []parsedMessage
+	pendingUsage          conv.TokenUsage
 	thinkingParts         []string
 	pendingHiddenThinking bool
 	pendingCalls          []conv.ToolCall
 	pendingResults        []conv.ToolResult
 	pendingPlans          []conv.Plan
 	pendingTimestamp      time.Time
+	usageTargetIndex      int
 }
 
 func loadConversation(ctx context.Context, conversation conv.Conversation) (conv.Session, error) {
@@ -61,13 +63,14 @@ func loadRollout(ctx context.Context, meta conv.SessionMeta) (rolloutTranscript,
 
 func newLoadState(meta conv.SessionMeta) loadState {
 	return loadState{
-		meta:           meta,
-		callMeta:       make(map[string]toolEventMeta),
-		messages:       make([]parsedMessage, 0),
-		thinkingParts:  make([]string, 0),
-		pendingCalls:   make([]conv.ToolCall, 0),
-		pendingResults: make([]conv.ToolResult, 0),
-		pendingPlans:   make([]conv.Plan, 0),
+		meta:             meta,
+		callMeta:         make(map[string]toolEventMeta),
+		messages:         make([]parsedMessage, 0),
+		thinkingParts:    make([]string, 0),
+		pendingCalls:     make([]conv.ToolCall, 0),
+		pendingResults:   make([]conv.ToolResult, 0),
+		pendingPlans:     make([]conv.Plan, 0),
+		usageTargetIndex: -1,
 	}
 }
 
@@ -179,6 +182,8 @@ func (s *loadState) applyEvent(payload []byte, timestamp string) {
 	}
 
 	switch itemType {
+	case eventTypeTokenCount:
+		s.applyTokenCount(payload)
 	case eventTypeAgentReasoning:
 		s.markPendingTimestamp(ts)
 		if text, ok := extractTopLevelRawJSONStringFieldByMarker(payload, textFieldMarker); ok {
@@ -215,12 +220,15 @@ func (s *loadState) applyClassifiedMessage(message visibleMessage, timestamp tim
 	switch {
 	case message.isAgentDivider:
 		s.flushAssistant("", time.Time{})
+		s.clearAssistantUsageTarget()
 		s.messages = appendParsedDividerMessage(s.messages, message.text, timestamp)
 	case message.role == conv.RoleSystem:
 		s.flushAssistant("", time.Time{})
+		s.clearAssistantUsageTarget()
 		s.messages = appendParsedSystemMessage(s.messages, message.text, message.visibility, timestamp)
 	case message.role == conv.RoleUser:
 		s.flushAssistant("", time.Time{})
+		s.clearAssistantUsageTarget()
 		s.messages = appendParsedUserMessage(s.messages, message.text, timestamp)
 	case message.role == conv.RoleAssistant:
 		s.flushAssistant(message.text, timestamp)
@@ -255,23 +263,56 @@ func (s *loadState) applyPlan(plan conv.Plan, timestamp time.Time) {
 	s.pendingPlans = appendUniquePlans(s.pendingPlans, []conv.Plan{plan})
 }
 
+func (s *loadState) applyTokenCount(payload []byte) {
+	info, ok := extractTopLevelRawJSONFieldByMarker(payload, infoFieldMarker)
+	if !ok {
+		return
+	}
+	usage, ok := scanLastTokenUsageInfo(info)
+	if !ok {
+		return
+	}
+	s.attachAssistantUsage(usage)
+}
+
+func (s *loadState) attachAssistantUsage(usage conv.TokenUsage) {
+	if s.hasPendingAssistantContent() {
+		s.pendingUsage = usage
+		return
+	}
+	if s.usageTargetIndex < 0 || s.usageTargetIndex >= len(s.messages) {
+		return
+	}
+	target := &s.messages[s.usageTargetIndex]
+	if target.role != conv.RoleAssistant || target.isAgentDivider {
+		return
+	}
+	target.usage = usage
+}
+
 func (s *loadState) flushAssistant(text string, timestamp time.Time) {
 	thinking := joinText(s.thinkingParts)
 	hasHiddenThinking := s.pendingHiddenThinking && strings.TrimSpace(thinking) == ""
-	s.messages = appendParsedAssistantMessage(s.messages, assistantContent{
+	var appended bool
+	s.messages, s.usageTargetIndex, appended = appendParsedAssistantMessage(s.messages, assistantContent{
 		thinking:          thinking,
 		hasHiddenThinking: hasHiddenThinking,
 		calls:             s.pendingCalls,
 		results:           s.pendingResults,
 		plans:             s.pendingPlans,
+		usage:             s.pendingUsage,
 		text:              text,
 		timestamp:         maxTime(s.pendingTimestamp, timestamp),
 	})
+	if !appended && text == "" && !s.hasPendingAssistantContent() {
+		s.clearAssistantUsageTarget()
+	}
 	s.thinkingParts = s.thinkingParts[:0]
 	s.pendingHiddenThinking = false
 	s.pendingCalls = s.pendingCalls[:0]
 	s.pendingResults = s.pendingResults[:0]
 	s.pendingPlans = s.pendingPlans[:0]
+	s.pendingUsage = conv.TokenUsage{}
 	s.pendingTimestamp = time.Time{}
 }
 
@@ -290,6 +331,18 @@ func (s *loadState) markPendingTimestamp(timestamp time.Time) {
 	if timestamp.After(s.pendingTimestamp) {
 		s.pendingTimestamp = timestamp
 	}
+}
+
+func (s *loadState) hasPendingAssistantContent() bool {
+	return len(s.thinkingParts) > 0 ||
+		s.pendingHiddenThinking ||
+		len(s.pendingCalls) > 0 ||
+		len(s.pendingResults) > 0 ||
+		len(s.pendingPlans) > 0
+}
+
+func (s *loadState) clearAssistantUsageTarget() {
+	s.usageTargetIndex = -1
 }
 
 func maxTime(a, b time.Time) time.Time {

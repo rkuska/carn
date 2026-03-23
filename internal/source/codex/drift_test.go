@@ -335,7 +335,7 @@ func TestKnownCodexSchemaSets(t *testing.T) {
 	assert.ElementsMatch(t, []string{eventItemTypePlan}, setKeys(knownCompletedItemTypes))
 	assert.ElementsMatch(t, []string{"type", "last_agent_message"}, setKeys(knownTaskCompleteFields))
 	assert.ElementsMatch(t, []string{"type", "info"}, setKeys(knownTokenCountFields))
-	assert.ElementsMatch(t, []string{"total_token_usage"}, setKeys(knownTokenCountInfoFields))
+	assert.ElementsMatch(t, []string{"total_token_usage", "last_token_usage"}, setKeys(knownTokenCountInfoFields))
 	assert.ElementsMatch(
 		t,
 		[]string{

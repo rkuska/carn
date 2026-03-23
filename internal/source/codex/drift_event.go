@@ -61,6 +61,7 @@ var knownTokenCountFields = map[string]struct{}{
 
 var knownTokenCountInfoFields = map[string]struct{}{
 	"total_token_usage": {},
+	"last_token_usage":  {},
 }
 
 var knownTokenUsageFields = map[string]struct{}{
@@ -71,12 +72,7 @@ var knownTokenUsageFields = map[string]struct{}{
 	"total_tokens":            {},
 }
 
-var (
-	phaseFieldMarker           = []byte(`"phase"`)
-	infoFieldMarker            = []byte(`"info"`)
-	totalTokenUsageFieldMarker = []byte(`"total_token_usage"`)
-	totalTokensFieldMarker     = []byte(`"total_tokens"`)
-)
+var phaseFieldMarker = []byte(`"phase"`)
 
 func detectEventPayloadDrift(payload []byte, report *src.DriftReport) {
 	eventTypeRaw, _ := extractTopLevelRawJSONStringByMarker(payload, typeFieldMarker)
@@ -111,10 +107,17 @@ func detectTokenCountPayloadDrift(payload []byte, report *src.DriftReport) {
 	recordUnknownTopLevelFields(report, "token_count_field", payload, isKnownTokenCountField)
 	if info, ok := extractTopLevelRawJSONFieldByMarker(payload, infoFieldMarker); ok {
 		recordUnknownTopLevelFields(report, "token_count_info_field", info, isKnownTokenCountInfoField)
-		if usage, ok := extractTopLevelRawJSONFieldByMarker(info, totalTokenUsageFieldMarker); ok {
-			recordUnknownTopLevelFields(report, "token_usage_field", usage, isKnownTokenUsageField)
-		}
+		detectTokenUsageFieldDrift(info, totalTokenUsageFieldMarker, report)
+		detectTokenUsageFieldDrift(info, lastTokenUsageFieldMarker, report)
 	}
+}
+
+func detectTokenUsageFieldDrift(info []byte, fieldMarker []byte, report *src.DriftReport) {
+	usage, ok := extractTopLevelRawJSONFieldByMarker(info, fieldMarker)
+	if !ok {
+		return
+	}
+	recordUnknownTopLevelFields(report, "token_usage_field", usage, isKnownTokenUsageField)
 }
 
 func detectReasoningSummaryBlockDrift(summary json.RawMessage, report *src.DriftReport) {
@@ -182,7 +185,8 @@ func isKnownTokenCountField(field []byte) bool {
 }
 
 func isKnownTokenCountInfoField(field []byte) bool {
-	return bytes.Equal(field, totalTokenUsageFieldMarker)
+	return bytes.Equal(field, totalTokenUsageFieldMarker) ||
+		bytes.Equal(field, lastTokenUsageFieldMarker)
 }
 
 func isKnownTokenUsageField(field []byte) bool {

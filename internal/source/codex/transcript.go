@@ -13,6 +13,7 @@ type parsedMessage struct {
 	text              string
 	thinking          string
 	hasHiddenThinking bool
+	usage             conv.TokenUsage
 	toolCalls         []conv.ToolCall
 	toolResults       []conv.ToolResult
 	plans             []conv.Plan
@@ -26,6 +27,7 @@ type assistantContent struct {
 	calls             []conv.ToolCall
 	results           []conv.ToolResult
 	plans             []conv.Plan
+	usage             conv.TokenUsage
 	text              string
 	timestamp         time.Time
 }
@@ -36,25 +38,27 @@ func (c assistantContent) empty() bool {
 		!c.hasHiddenThinking &&
 		len(c.calls) == 0 &&
 		len(c.results) == 0 &&
-		len(c.plans) == 0
+		len(c.plans) == 0 &&
+		c.usage.TotalTokens() == 0
 }
 
-func appendParsedAssistantMessage(messages []parsedMessage, c assistantContent) []parsedMessage {
+func appendParsedAssistantMessage(messages []parsedMessage, c assistantContent) ([]parsedMessage, int, bool) {
 	if c.empty() {
-		return messages
+		return messages, -1, false
 	}
 
 	msg := newParsedAssistantMessage(c)
 
 	if len(messages) == 0 {
-		return append(messages, msg)
+		return append(messages, msg), 0, true
 	}
 
 	if merged := mergeAdjacentAssistantMessage(messages, msg); merged != nil {
-		return merged
+		return merged, len(merged) - 1, true
 	}
 
-	return append(messages, msg)
+	messages = append(messages, msg)
+	return messages, len(messages) - 1, true
 }
 
 func newParsedAssistantMessage(c assistantContent) parsedMessage {
@@ -64,6 +68,7 @@ func newParsedAssistantMessage(c assistantContent) parsedMessage {
 		text:              c.text,
 		thinking:          c.thinking,
 		hasHiddenThinking: c.hasHiddenThinking,
+		usage:             c.usage,
 		toolCalls:         append([]conv.ToolCall(nil), c.calls...),
 		toolResults:       append([]conv.ToolResult(nil), c.results...),
 		plans:             append([]conv.Plan(nil), c.plans...),
@@ -79,6 +84,7 @@ func mergeAdjacentAssistantMessage(messages []parsedMessage, msg parsedMessage) 
 	last.thinking = joinUniqueText(last.thinking, msg.thinking)
 	last.hasHiddenThinking = strings.TrimSpace(last.thinking) == "" &&
 		(last.hasHiddenThinking || msg.hasHiddenThinking)
+	last.usage = preferTokenUsage(last.usage, msg.usage)
 	last.toolCalls = append(last.toolCalls, msg.toolCalls...)
 	last.toolResults = append(last.toolResults, msg.toolResults...)
 	last.plans = appendUniquePlans(last.plans, msg.plans)
@@ -86,6 +92,13 @@ func mergeAdjacentAssistantMessage(messages []parsedMessage, msg parsedMessage) 
 		last.timestamp = msg.timestamp
 	}
 	return messages
+}
+
+func preferTokenUsage(current, next conv.TokenUsage) conv.TokenUsage {
+	if next.TotalTokens() > current.TotalTokens() {
+		return next
+	}
+	return current
 }
 
 func appendParsedUserMessage(messages []parsedMessage, text string, timestamp time.Time) []parsedMessage {
@@ -150,6 +163,7 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 			Text:              msg.text,
 			Thinking:          msg.thinking,
 			HasHiddenThinking: msg.hasHiddenThinking,
+			Usage:             msg.usage,
 			ToolCalls:         msg.toolCalls,
 			ToolResults:       msg.toolResults,
 			Plans:             msg.plans,

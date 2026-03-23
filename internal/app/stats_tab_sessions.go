@@ -15,10 +15,10 @@ import (
 
 const (
 	statsLoadingText               = "Loading..."
-	statsClaudeContextGrowthTitle  = "Claude Context Growth"
-	statsClaudeTurnCostTitle       = "Claude Turn Cost"
-	statsNoClaudeTurnMetricsData   = "No Claude message usage data"
-	statsClaudeMetricsNoDataLabel  = "claude turn metrics"
+	statsClaudeContextGrowthTitle  = "Context Growth"
+	statsClaudeTurnCostTitle       = "Turn Cost"
+	statsNoClaudeTurnMetricsData   = "No message usage data"
+	statsClaudeMetricsNoDataLabel  = "turn metrics"
 	statsClaudeContextEarlyLabel   = "context 1-5 avg"
 	statsClaudeContextLateLabel    = "context 20+ avg"
 	statsClaudeContextFactorLabel  = "context multiplier"
@@ -56,7 +56,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 	growthCharts := statsLoadingText
 	switch {
 	case loadingClaudeTurnMetrics:
-		growthCharts = fmt.Sprintf("%s Computing Claude charts...", m.spinner.View())
+		growthCharts = fmt.Sprintf("%s Computing turn charts...", m.spinner.View())
 	case m.claudeTurnMetrics != nil:
 		growthChartWidth := max(width-2, 12)
 		if (width-3)/2 >= 30 {
@@ -92,7 +92,7 @@ func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics, loading bool
 		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: statsLoadingText}}
 	}
 	if len(metrics) == 0 {
-		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: "No Claude data"}}
+		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: "No data"}}
 	}
 
 	contextFirstFive := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {

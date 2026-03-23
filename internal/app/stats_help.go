@@ -80,20 +80,20 @@ func (m statsModel) chartHelpSection() helpSection {
 				{
 					key:  statsClaudeContextGrowthTitle,
 					desc: "line chart",
-					detail: "Shows how context tends to accumulate as Claude sessions go " +
-						"deeper. X-axis is Claude usage-bearing turn number; Y-axis is average input " +
+					detail: "Shows how context tends to accumulate as sessions go " +
+						"deeper. X-axis is usage-bearing turn number; Y-axis is average input " +
 						"tokens at that turn. Read it as context depth: rising lines mean " +
 						"later turns are reading more prompt context. Turns with fewer than " +
-						"three contributing sessions are omitted. Claude only for now.",
+						"three contributing sessions are omitted.",
 				},
 				{
 					key:  statsClaudeTurnCostTitle,
 					desc: "line chart",
-					detail: "Shows how expensive each Claude turn becomes once prompt and " +
-						"response are counted together. X-axis is Claude usage-bearing turn number; " +
+					detail: "Shows how expensive each turn becomes once prompt and " +
+						"response are counted together. X-axis is usage-bearing turn number; " +
 						"Y-axis is average input+output tokens at that turn. Read it as total " +
 						"turn cost rather than pure context size. Turns with fewer than three " +
-						"contributing sessions are omitted. Claude only for now.",
+						"contributing sessions are omitted.",
 				},
 			},
 		}
@@ -228,37 +228,37 @@ func (m statsModel) summaryHelpSection() helpSection {
 				{
 					key:  statsClaudeContextEarlyLabel,
 					desc: "early context",
-					detail: "Shows the baseline context depth early in a Claude session. It " +
-						"is the average input tokens across Claude turns one through five.",
+					detail: "Shows the baseline context depth early in a session. It " +
+						"is the average input tokens across turns one through five.",
 				},
 				{
 					key:  statsClaudeContextLateLabel,
 					desc: "late context",
-					detail: "Shows how much prompt context late Claude turns are carrying. " +
-						"It is the average input tokens from Claude turn twenty onward.",
+					detail: "Shows how much prompt context late turns are carrying. " +
+						"It is the average input tokens from turn twenty onward.",
 				},
 				{
 					key:  statsClaudeContextFactorLabel,
 					desc: "context factor",
 					detail: "Shows how much the prompt context swells from early to late " +
-						"Claude turns. It is the late-context average divided by the first-five average.",
+						"turns. It is the late-context average divided by the first-five average.",
 				},
 				{
 					key:  statsClaudeTurnCostEarlyLabel,
 					desc: "early turn cost",
-					detail: "Shows the typical total cost of early Claude turns. It is the " +
-						"average input+output tokens across Claude turns one through five.",
+					detail: "Shows the typical total cost of early turns. It is the " +
+						"average input+output tokens across turns one through five.",
 				},
 				{
 					key:  statsClaudeTurnCostLateLabel,
 					desc: "late turn cost",
-					detail: "Shows how expensive deep Claude turns become in total. It is " +
-						"the average input+output tokens from Claude turn twenty onward.",
+					detail: "Shows how expensive deep turns become in total. It is " +
+						"the average input+output tokens from turn twenty onward.",
 				},
 				{
 					key:  statsClaudeTurnCostFactorLabel,
 					desc: "cost factor",
-					detail: "Shows how much total Claude turn cost expands from early to " +
+					detail: "Shows how much total turn cost expands from early to " +
 						"late turns. It is the late turn-cost average divided by the first-five average.",
 				},
 			},

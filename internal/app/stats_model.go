@@ -229,9 +229,6 @@ func (m statsModel) claudeTurnMetricSessionTargets() []claudeTurnMetricSessionTa
 	conversations := m.filteredConversations()
 	targets := make([]claudeTurnMetricSessionTarget, 0, len(conversations))
 	for _, conversation := range conversations {
-		if conversation.Ref.Provider != conv.ProviderClaude {
-			continue
-		}
 		for _, session := range conversation.Sessions {
 			targets = append(targets, claudeTurnMetricSessionTarget{
 				conversation: conversation,
@@ -243,7 +240,7 @@ func (m statsModel) claudeTurnMetricSessionTargets() []claudeTurnMetricSessionTa
 }
 
 func (m statsModel) claudeTurnMetricsSourceCacheKey() string {
-	parts := []string{"claude-turn-metrics"}
+	parts := []string{"turn-metrics"}
 	parts = append(parts, filterBadges(m.filter.dimensions)...)
 	return strings.Join(parts, "|")
 }

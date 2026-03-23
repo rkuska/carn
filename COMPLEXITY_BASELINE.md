@@ -26,6 +26,7 @@ None.
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
 | internal/canonical/binary_codec.go | source | 234 | 77 | 264 |
+| internal/source/codex/load.go | source | 316 | 74 | 353 |
 | internal/canonical/sqlite_store_persist.go | source | 347 | 72 | 376 |
 | internal/config/config.go | source | 310 | 71 | 367 |
 | internal/source/claude/scanner_assistant.go | source | 248 | 71 | 277 |
@@ -38,14 +39,13 @@ None.
 | internal/source/codex/scan.go | source | 176 | 66 | 198 |
 | internal/source/claude/scanner_record_fast.go | source | 174 | 63 | 193 |
 | internal/source/claude/scanner.go | source | 271 | 62 | 308 |
-| internal/source/codex/load.go | source | 267 | 62 | 300 |
 | internal/source/claude/drift.go | source | 244 | 61 | 277 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
 | internal/source/claude/scanner_metadata.go | source | 360 | 59 | 388 |
-| internal/source/codex/json_field.go | source | 366 | 46 | 388 |
-| internal/app/stats_model.go | source | 329 | 42 | 378 |
+| internal/source/codex/json_field.go | source | 370 | 46 | 392 |
 | internal/source/codex/drift.go | source | 328 | 41 | 378 |
+| internal/app/stats_model.go | source | 326 | 40 | 375 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/source/codex/records.go | source | 300 | 16 | 313 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |

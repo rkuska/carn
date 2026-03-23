@@ -281,17 +281,32 @@ func scanGitBranchRaw(raw []byte) (string, bool) {
 }
 
 func scanTokenUsageInfo(raw []byte) conv.TokenUsage {
+	usage, _ := scanTokenUsageInfoField(raw, totalTokenUsageFieldMarker)
+	return usage
+}
+
+func scanLastTokenUsageInfo(raw []byte) (conv.TokenUsage, bool) {
+	return scanTokenUsageInfoField(raw, lastTokenUsageFieldMarker)
+}
+
+func scanTokenUsageInfoField(raw []byte, fieldMarker []byte) (conv.TokenUsage, bool) {
 	var usageRaw []byte
 	walkTopLevelFields(raw, func(field, value []byte) bool {
-		if bytes.Equal(field, totalTokenUsageFieldMarker) {
+		if bytes.Equal(field, fieldMarker) {
 			usageRaw = value
 			return false
 		}
 		return true
 	})
+	if len(usageRaw) == 0 {
+		return conv.TokenUsage{}, false
+	}
+	return scanTokenUsageRaw(usageRaw), true
+}
 
+func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 	var usage conv.TokenUsage
-	walkTopLevelFields(usageRaw, func(field, value []byte) bool {
+	walkTopLevelFields(raw, func(field, value []byte) bool {
 		switch {
 		case bytes.Equal(field, inputTokensFieldMarker):
 			usage.InputTokens, _ = readRawJSONInt(value, 0)

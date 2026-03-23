@@ -195,8 +195,8 @@ func TestStatsSessionsHelpListsAllChipGroupsBeforeCharts(t *testing.T) {
 	assert.Equal(t, []string{
 		"Session Duration",
 		"Messages per Session",
-		"Claude Context Growth",
-		"Claude Turn Cost",
+		"Context Growth",
+		"Turn Cost",
 	}, []string{
 		sections[1].items[0].key,
 		sections[1].items[1].key,
@@ -262,18 +262,18 @@ func TestStatsChartHelpExplainsStoryAndReadingOrder(t *testing.T) {
 					substrings: []string{"quick checks or long runs", "X-axis is duration bucket", "Y-axis is session count"},
 				},
 				{
-					key: "Claude Context Growth",
+					key: "Context Growth",
 					substrings: []string{
 						"context tends to accumulate",
-						"Claude usage-bearing turn number",
+						"usage-bearing turn number",
 						"average input tokens",
 					},
 				},
 				{
-					key: "Claude Turn Cost",
+					key: "Turn Cost",
 					substrings: []string{
 						"prompt and response are counted together",
-						"Claude usage-bearing turn number",
+						"usage-bearing turn number",
 						"average input+output tokens",
 					},
 				},
@@ -387,7 +387,7 @@ func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 	assert.Contains(t, view, "[stats] 1 sessions")
 }
 
-func TestStatsSessionsTabLoadsClaudeTurnMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
+func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeBrowserStore{
@@ -438,22 +438,22 @@ func TestStatsSessionsTabLoadsClaudeTurnMetricsInBackgroundOncePerFilterAndReuse
 
 	require.NotEmpty(t, m.claudeTurnMetrics)
 	assert.Equal(t, 4, m.snapshot.Overview.SessionCount)
-	assert.Equal(t, 4, store.loadSessionCalls)
-	assert.Equal(t, []string{"stats-1", "stats-2a", "stats-2b", "stats-3"}, store.loadSessionIDs)
+	assert.Equal(t, 5, store.loadSessionCalls)
+	assert.Equal(t, []string{"stats-1", "stats-2a", "stats-2b", "codex-1", "stats-3"}, store.loadSessionIDs)
 
 	m, cmd = m.Update(ctrlKey("b"))
 	assert.Nil(t, cmd)
 
 	m, cmd = m.Update(ctrlKey("f"))
 	assert.Nil(t, cmd)
-	assert.Equal(t, 4, store.loadSessionCalls)
+	assert.Equal(t, 5, store.loadSessionCalls)
 
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "r"})
 	assert.Nil(t, cmd)
 	require.NotEmpty(t, m.claudeTurnMetrics)
 	assert.Equal(t, statsRangeLabel90d, statsTimeRangeLabel(m.timeRange))
 	assert.Equal(t, 5, m.snapshot.Overview.SessionCount)
-	assert.Equal(t, 4, store.loadSessionCalls)
+	assert.Equal(t, 5, store.loadSessionCalls)
 }
 
 func TestStatsSessionsTabIgnoresStaleClaudeTurnMetricResults(t *testing.T) {

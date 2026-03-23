@@ -2,6 +2,7 @@ package canonical
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -355,6 +356,89 @@ func TestStoreCodexLoadPreservesHiddenThinkingAndDoesNotIndexViewerNote(t *testi
 	assert.Empty(t, results)
 }
 
+func TestStoreCodexLoadPreservesReconstructedTurnUsage(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("codex"))
+	writeCodexRolloutFixture(t, rawDir, "2026/03/16/rollout-2026-03-16T10-00-00-usage.jsonl", []map[string]any{
+		{
+			"timestamp": "2026-03-16T10:00:00Z",
+			"type":      "session_meta",
+			"payload": map[string]any{
+				"id":             "usage-thread",
+				"timestamp":      "2026-03-16T10:00:00Z",
+				"cwd":            "/workspace/project",
+				"cli_version":    "0.114.0",
+				"model_provider": "openai",
+				"git":            map[string]any{"branch": "main"},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:01Z",
+			"type":      "event_msg",
+			"payload": map[string]any{
+				"type":    "user_message",
+				"message": "Explain the parser.",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      "response_item",
+			"payload": map[string]any{
+				"type": "message",
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "output_text", "text": "Parser updated."},
+				},
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:03Z",
+			"type":      "event_msg",
+			"payload": map[string]any{
+				"type": "token_count",
+				"info": map[string]any{
+					"total_token_usage": map[string]any{
+						"input_tokens":            500,
+						"cached_input_tokens":     50,
+						"output_tokens":           140,
+						"reasoning_output_tokens": 10,
+					},
+					"last_token_usage": map[string]any{
+						"input_tokens":            120,
+						"cached_input_tokens":     15,
+						"output_tokens":           30,
+						"reasoning_output_tokens": 5,
+					},
+				},
+			},
+		},
+	})
+
+	store := New(codex.New())
+	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
+	require.NoError(t, err)
+
+	conversations, err := store.List(context.Background(), archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := store.Load(context.Background(), archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, conv.TokenUsage{
+		InputTokens:          120,
+		CacheReadInputTokens: 15,
+		OutputTokens:         35,
+	}, session.Messages[1].Usage)
+	assert.Equal(t, conv.TokenUsage{
+		InputTokens:          500,
+		CacheReadInputTokens: 50,
+		OutputTokens:         150,
+	}, session.Meta.TotalUsage)
+}
+
 func TestStoreDeepSearchSkipsHiddenSystemMessages(t *testing.T) {
 	t.Parallel()
 
@@ -514,6 +598,24 @@ func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {
 		return os.WriteFile(dstPath, data, 0o644)
 	})
 	require.NoError(tb, err)
+}
+
+func writeCodexRolloutFixture(tb testing.TB, rawDir, name string, lines []map[string]any) {
+	tb.Helper()
+
+	encoded := make([]byte, 0, len(lines)*128)
+	for i, line := range lines {
+		raw, err := json.Marshal(line)
+		require.NoError(tb, err)
+		encoded = append(encoded, raw...)
+		if i < len(lines)-1 {
+			encoded = append(encoded, '\n')
+		}
+	}
+
+	path := filepath.Join(rawDir, name)
+	require.NoError(tb, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(tb, os.WriteFile(path, encoded, 0o644))
 }
 
 func replaceClaudeAssistantText(t *testing.T, path, oldText, newText string) {
