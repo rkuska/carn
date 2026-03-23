@@ -72,6 +72,19 @@ func TestRenderVerticalHistogramKeepsWidthsAndLabelsAligned(t *testing.T) {
 	assert.Contains(t, ansi.Strip(got), "█")
 }
 
+func TestRenderVerticalHistogramShowsValueLabelsAboveBars(t *testing.T) {
+	t.Parallel()
+
+	got := ansi.Strip(renderVerticalHistogram("Durations", []histBucket{
+		{Label: "A", Count: 8},
+		{Label: "B", Count: 5},
+		{Label: "C", Count: 2},
+	}, 34, 6))
+
+	assert.Contains(t, got, "5")
+	assert.Contains(t, got, "2")
+}
+
 func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +167,33 @@ func TestRenderVerticalHistogramAddsYAxisWithoutUnitCaption(t *testing.T) {
 	assert.Contains(t, got, "0")
 	assert.Contains(t, got, "3")
 	assert.NotContains(t, got, "y:")
+}
+
+func TestHistogramValueLabelPlacementUsesAboveBarByDefault(t *testing.T) {
+	t.Parallel()
+
+	level, inside := histogramValueLabelPlacement(3, 8)
+
+	assert.Equal(t, 4, level)
+	assert.False(t, inside)
+}
+
+func TestHistogramValueLabelPlacementUsesInsideBarWhenBarReachesTop(t *testing.T) {
+	t.Parallel()
+
+	level, inside := histogramValueLabelPlacement(8, 8)
+
+	assert.Equal(t, 8, level)
+	assert.True(t, inside)
+}
+
+func TestHistogramValueLabelPlacementUsesBaselineForZeroBars(t *testing.T) {
+	t.Parallel()
+
+	level, inside := histogramValueLabelPlacement(0, 8)
+
+	assert.Equal(t, 1, level)
+	assert.False(t, inside)
 }
 
 func TestActivityChartRangeExpandsSingleDaySeries(t *testing.T) {
