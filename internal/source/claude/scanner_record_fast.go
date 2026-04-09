@@ -94,7 +94,7 @@ func parseRecordMessageFields(raw []byte, rec *parseRecord) error {
 	if err != nil {
 		return fmt.Errorf("parseRecordMessageFields_model: %w", err)
 	}
-	rec.Message.StopReason, _, err = jsonStringField(raw, "message", "stop_reason")
+	rec.Message.StopReason, _, err = jsonNullableStringField(raw, "message", "stop_reason")
 	if err != nil {
 		return fmt.Errorf("parseRecordMessageFields_stop_reason: %w", err)
 	}
@@ -154,6 +154,20 @@ func jsonStringField(raw []byte, keys ...string) (string, bool, error) {
 		return "", false, fmt.Errorf("jsonparser.GetString_%s: %w", strings.Join(keys, "."), err)
 	}
 	return value, true, nil
+}
+
+func jsonNullableStringField(raw []byte, keys ...string) (string, bool, error) {
+	_, dataType, _, err := jsonparser.Get(raw, keys...)
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("jsonparser.Get_%s: %w", strings.Join(keys, "."), err)
+	}
+	if dataType == jsonparser.Null {
+		return "", false, nil
+	}
+	return jsonStringField(raw, keys...)
 }
 
 func jsonBoolField(raw []byte, keys ...string) (bool, bool, error) {

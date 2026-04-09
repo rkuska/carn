@@ -195,3 +195,55 @@ func TestSourceScanAndLoadCapturePerformanceMetadataAndActions(t *testing.T) {
 	assert.Equal(t, meta.ActionCounts, session.Meta.ActionCounts)
 	assert.Equal(t, meta.Performance, session.Meta.Performance)
 }
+
+func TestSourceLoadAcceptsNullStopReason(t *testing.T) {
+	t.Parallel()
+
+	rawDir := t.TempDir()
+	projectDir := filepath.Join(rawDir, "project-a")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+
+	path := filepath.Join(projectDir, "session-performance.jsonl")
+	content := strings.Join([]string{
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "user",
+			"sessionId": "s1",
+			"slug":      "performance",
+			"timestamp": "2026-03-21T10:00:00Z",
+			"cwd":       "/workspace/project",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "inspect the session",
+			},
+		}),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"timestamp": "2026-03-21T10:00:01Z",
+			"message": map[string]any{
+				"role":        "assistant",
+				"model":       "claude-sonnet-4",
+				"stop_reason": nil,
+				"content": []map[string]any{
+					{"type": "text", "text": "done"},
+				},
+				"usage": map[string]any{
+					"input_tokens":  120,
+					"output_tokens": 30,
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	source := New()
+	scanResult, err := source.Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, scanResult.Conversations, 1)
+	assert.Nil(t, scanResult.Conversations[0].Sessions[0].Performance.StopReasonCounts)
+
+	session, err := source.Load(context.Background(), scanResult.Conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Empty(t, session.Messages[1].Performance.StopReason)
+}

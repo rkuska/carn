@@ -28,6 +28,7 @@ None.
 | internal/app/stats_keys.go | source | 347 | 77 | 381 |
 | internal/config/config.go | source | 310 | 71 | 367 |
 | internal/conversation/conversation_display.go | source | 259 | 71 | 287 |
+| internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/source/claude/known_schema_extras.go | source | 241 | 68 | 269 |
 | internal/canonical/sqlite_db.go | source | 283 | 67 | 307 |
@@ -35,7 +36,6 @@ None.
 | internal/canonical/store.go | source | 261 | 66 | 309 |
 | internal/source/codex/known_schema_extras.go | source | 235 | 66 | 262 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
-| internal/source/claude/scanner_record_fast.go | source | 178 | 65 | 197 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
 | internal/stats/performance_messages_collect.go | source | 209 | 64 | 232 |
 | internal/source/claude/scanner.go | source | 271 | 62 | 308 |
