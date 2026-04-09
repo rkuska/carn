@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 	"unsafe"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 var (
@@ -32,9 +34,10 @@ func decodeSessionBlobFast(blob []byte) (sessionFull, error) {
 func (d *blobDecoder) readSessionFull() sessionFull {
 	meta := d.readSessionMeta()
 	messageCount := d.readUint()
+	var targetArena actionTargetArena
 	messages := makeDecodedSlice[message](d, messageCount)
 	for i := range messages {
-		messages[i] = d.readMessage()
+		messages[i] = d.readMessage(&targetArena)
 	}
 	return sessionFull{Meta: meta, Messages: messages}
 }
@@ -59,6 +62,10 @@ func (d *blobDecoder) readSessionMeta() sessionMeta {
 	toolCounts := d.readStringIntMap()
 	toolErrorCounts := d.readStringIntMap()
 	toolRejectCounts := d.readStringIntMap()
+	actionCounts := d.readStringIntMap()
+	actionErrorCounts := d.readStringIntMap()
+	actionRejectCounts := d.readStringIntMap()
+	performance := d.readSessionPerformanceMeta()
 	isSubagent := d.readBool()
 
 	meta := sessionMeta{
@@ -79,6 +86,10 @@ func (d *blobDecoder) readSessionMeta() sessionMeta {
 		ToolCounts:            toolCounts,
 		ToolErrorCounts:       toolErrorCounts,
 		ToolRejectCounts:      toolRejectCounts,
+		ActionCounts:          actionCounts,
+		ActionErrorCounts:     actionErrorCounts,
+		ActionRejectCounts:    actionRejectCounts,
+		Performance:           performance,
 		IsSubagent:            isSubagent,
 	}
 
@@ -91,7 +102,7 @@ func (d *blobDecoder) readSessionMeta() sessionMeta {
 	return meta
 }
 
-func (d *blobDecoder) readMessage() message {
+func (d *blobDecoder) readMessage(targetArena *actionTargetArena) message {
 	roleValue := d.readString()
 	visibilityValue := d.readString()
 	msg := message{
@@ -108,18 +119,20 @@ func (d *blobDecoder) readMessage() message {
 		msg.ToolCalls[i] = toolCall{
 			Name:    d.readString(),
 			Summary: d.readString(),
+			Action:  d.readNormalizedActionInto(targetArena),
 		}
 	}
 
 	resultCount := d.readUint()
 	msg.ToolResults = makeDecodedSlice[toolResult](d, resultCount)
 	for i := range msg.ToolResults {
-		msg.ToolResults[i] = d.readToolResult()
+		msg.ToolResults[i] = d.readToolResult(targetArena)
 	}
 
 	msg.IsSidechain = d.readBool()
 	msg.IsAgentDivider = d.readBool()
 	msg.Usage = d.readTokenUsage()
+	msg.Performance = d.readMessagePerformanceMeta()
 
 	planCount := d.readUint()
 	msg.Plans = makeDecodedSlice[plan](d, planCount)
@@ -130,7 +143,7 @@ func (d *blobDecoder) readMessage() message {
 	return msg
 }
 
-func (d *blobDecoder) readToolResult() toolResult {
+func (d *blobDecoder) readToolResult(targetArena *actionTargetArena) toolResult {
 	result := toolResult{
 		ToolName:    d.readString(),
 		ToolSummary: d.readString(),
@@ -143,6 +156,7 @@ func (d *blobDecoder) readToolResult() toolResult {
 	for i := range result.StructuredPatch {
 		result.StructuredPatch[i] = d.readDiffHunk()
 	}
+	result.Action = d.readNormalizedActionInto(targetArena)
 	return result
 }
 
@@ -183,6 +197,69 @@ func (d *blobDecoder) readTokenUsage() tokenUsage {
 		CacheCreationInputTokens: d.readIntCount(d.readUint()),
 		CacheReadInputTokens:     d.readIntCount(d.readUint()),
 		OutputTokens:             d.readIntCount(d.readUint()),
+		ReasoningOutputTokens:    d.readIntCount(d.readUint()),
+	}
+}
+
+func (d *blobDecoder) readNormalizedActionInto(targetArena *actionTargetArena) conv.NormalizedAction {
+	if d.err != nil {
+		return conv.NormalizedAction{}
+	}
+
+	actionType := conv.NormalizedActionType(d.readString())
+	targetCount := d.readUint()
+	action := conv.NormalizedAction{Type: actionType}
+	if d.err != nil || targetCount == 0 {
+		return action
+	}
+
+	action.Targets = targetArena.allocate(d.readIntCount(targetCount))
+	if d.err != nil {
+		return conv.NormalizedAction{}
+	}
+	for i := range action.Targets {
+		action.Targets[i] = conv.ActionTarget{
+			Type:  conv.ActionTargetType(d.readString()),
+			Value: d.readString(),
+		}
+	}
+	return action
+}
+
+func (d *blobDecoder) readMessagePerformanceMeta() conv.MessagePerformanceMeta {
+	return conv.MessagePerformanceMeta{
+		ReasoningBlockCount:     d.readIntCount(d.readUint()),
+		ReasoningRedactionCount: d.readIntCount(d.readUint()),
+		StopReason:              d.readString(),
+		Phase:                   d.readString(),
+		Effort:                  d.readString(),
+	}
+}
+
+func (d *blobDecoder) readSessionPerformanceMeta() conv.SessionPerformanceMeta {
+	return conv.SessionPerformanceMeta{
+		ReasoningBlockCount:     d.readIntCount(d.readUint()),
+		ReasoningRedactionCount: d.readIntCount(d.readUint()),
+		MaxThinkingTokens:       d.readIntCount(d.readUint()),
+		ModelContextWindow:      d.readIntCount(d.readUint()),
+		DurationMS:              d.readIntCount(d.readUint()),
+		RetryAttemptCount:       d.readIntCount(d.readUint()),
+		RetryDelayMS:            d.readIntCount(d.readUint()),
+		MaxRetries:              d.readIntCount(d.readUint()),
+		AbortCount:              d.readIntCount(d.readUint()),
+		CompactionCount:         d.readIntCount(d.readUint()),
+		MicroCompactionCount:    d.readIntCount(d.readUint()),
+		TaskStartedCount:        d.readIntCount(d.readUint()),
+		TaskCompleteCount:       d.readIntCount(d.readUint()),
+		ContextCompactedCount:   d.readIntCount(d.readUint()),
+		RateLimitSnapshotCount:  d.readIntCount(d.readUint()),
+		APIErrorCounts:          d.readStringIntMap(),
+		StopReasonCounts:        d.readStringIntMap(),
+		PhaseCounts:             d.readStringIntMap(),
+		EffortCounts:            d.readStringIntMap(),
+		ServerToolUseCounts:     d.readStringIntMap(),
+		ServiceTierCounts:       d.readStringIntMap(),
+		SpeedCounts:             d.readStringIntMap(),
 	}
 }
 
@@ -276,9 +353,30 @@ func makeDecodedSlice[T any](d *blobDecoder, count uint64) []T {
 		return nil
 	}
 	if size == 0 {
-		return make([]T, 0)
+		return nil
 	}
 	return make([]T, size)
+}
+
+type actionTargetArena struct {
+	items []conv.ActionTarget
+}
+
+func (a *actionTargetArena) allocate(count int) []conv.ActionTarget {
+	if count <= 0 {
+		return nil
+	}
+
+	start := len(a.items)
+	needed := start + count
+	if cap(a.items) < needed {
+		grown := make([]conv.ActionTarget, needed, max(needed, cap(a.items)*2))
+		copy(grown, a.items)
+		a.items = grown[:start]
+	}
+	a.items = a.items[:needed]
+	clear(a.items[start:needed])
+	return a.items[start:needed:needed]
 }
 
 func bytesToString(raw []byte) string {

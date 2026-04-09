@@ -59,7 +59,7 @@ func newStatsScenarioWorkspace(tb testing.TB, sessions int) helpers.Workspace {
 	tb.Helper()
 
 	workspace := helpers.NewWorkspace(tb)
-	base := time.Date(2026, time.March, 7, 12, 0, 0, 0, time.UTC)
+	base := time.Now().UTC().Add(-7 * 24 * time.Hour)
 	for i := range sessions {
 		writeStatsScenarioSession(
 			tb,

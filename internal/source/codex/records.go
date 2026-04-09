@@ -121,42 +121,68 @@ func extractReasoningBlockText(raw []byte) string {
 	return text
 }
 
-func buildToolCall(itemType string, payload []byte) conv.ToolCall {
+func buildToolCall(itemType string, payload []byte, readEvidence map[string]struct{}) conv.ToolCall {
 	name, _ := extractTopLevelRawJSONStringFieldByMarker(payload, nameFieldMarker)
 	if itemType == responseTypeWebSearchCall {
-		name = "web_search"
+		action, _ := extractTopLevelRawJSONFieldByMarker(payload, actionFieldMarker)
+		return conv.ToolCall{
+			Name:    toolNameWebSearch,
+			Summary: buildWebSearchSummaryFromActionRaw(action),
+			Action: conv.NormalizedAction{
+				Type:    conv.NormalizedActionWeb,
+				Targets: webSearchTargetsFromActionRaw(action),
+			},
+		}
 	}
+
+	input := extractToolInputString(payload)
 	return conv.ToolCall{
 		Name:    name,
-		Summary: buildToolSummary(itemType, name, payload),
+		Summary: buildToolSummaryFromInput(name, input),
+		Action:  classifyCodexToolActionFromInput(name, input, readEvidence),
 	}
 }
 
-func buildToolSummary(itemType, name string, payload []byte) string {
-	if itemType == responseTypeWebSearchCall {
-		action, ok := extractTopLevelRawJSONFieldByMarker(payload, actionFieldMarker)
-		if !ok {
-			return ""
-		}
-		if query, ok := extractTopLevelRawJSONStringFieldByMarker(action, queryFieldMarker); ok {
-			return query
-		}
-		if queries, ok := extractTopLevelRawJSONFieldByMarker(action, queriesFieldMarker); ok {
-			return extractFirstJSONString(queries)
-		}
-		return ""
+func buildWebSearchSummaryFromActionRaw(action []byte) string {
+	if query, ok := extractTopLevelRawJSONStringFieldByMarker(action, queryFieldMarker); ok {
+		return query
 	}
-
-	if arguments, ok := extractTopLevelRawJSONStringFieldByMarker(payload, argumentsFieldMarker); ok && arguments != "" {
-		if cmd, ok := extractJSONStringField(arguments, "cmd"); ok {
-			return cmd
-		}
+	if queries, ok := extractTopLevelRawJSONFieldByMarker(action, queriesFieldMarker); ok {
+		return extractFirstJSONString(queries)
 	}
+	return ""
+}
 
+func buildToolSummaryFromInput(name, toolInput string) string {
+	if summary, ok := buildCommandSummary(name, toolInput); ok {
+		return summary
+	}
 	if name == toolNameApplyPatch {
 		return "apply patch"
 	}
 	return ""
+}
+
+func buildCommandSummary(name, toolInput string) (string, bool) {
+	if toolInput == "" {
+		return "", false
+	}
+	if cmd, ok := extractJSONStringField(toolInput, "cmd"); ok {
+		return cmd, true
+	}
+	if isCommandToolName(name) {
+		return unwrapCommand(toolInput), true
+	}
+	return "", false
+}
+
+func isCommandToolName(name string) bool {
+	switch name {
+	case toolNameExecCommand, toolNameShellCommand, toolNameWriteStdin:
+		return true
+	default:
+		return false
+	}
 }
 
 func buildToolResult(payload []byte, meta toolEventMeta) conv.ToolResult {
@@ -168,6 +194,7 @@ func buildToolResult(payload []byte, meta toolEventMeta) conv.ToolResult {
 		Content:         output,
 		IsError:         status == "failed" || status == "error" || isCodexToolError(meta.call.Name, output),
 		StructuredPatch: parseStructuredPatch(meta.input),
+		Action:          meta.call.Action,
 	}
 }
 

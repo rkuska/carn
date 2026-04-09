@@ -20,21 +20,31 @@ import (
 // the intermediate json.RawMessage copy for the "message" field.
 // Used in both the parse phase and metadata scan path.
 type parseRecord struct {
-	Type          string          `json:"type"`
-	SessionID     string          `json:"sessionId"`
-	Slug          string          `json:"slug"`
-	CWD           string          `json:"cwd"`
-	GitBranch     string          `json:"gitBranch"`
-	Version       string          `json:"version"`
-	Timestamp     string          `json:"timestamp"`
-	IsSidechain   bool            `json:"isSidechain"`
-	IsMeta        bool            `json:"isMeta"`
-	ToolUseResult json.RawMessage `json:"toolUseResult"`
-	Message       struct {
-		Role    string          `json:"role"`
-		Content json.RawMessage `json:"content"`
-		Model   string          `json:"model"`
-		Usage   *jsonUsage      `json:"usage"`
+	Type                 string          `json:"type"`
+	SessionID            string          `json:"sessionId"`
+	Slug                 string          `json:"slug"`
+	CWD                  string          `json:"cwd"`
+	GitBranch            string          `json:"gitBranch"`
+	Version              string          `json:"version"`
+	Timestamp            string          `json:"timestamp"`
+	IsSidechain          bool            `json:"isSidechain"`
+	IsMeta               bool            `json:"isMeta"`
+	ToolUseResult        json.RawMessage `json:"toolUseResult"`
+	ThinkingMetadata     json.RawMessage `json:"thinkingMetadata"`
+	Subtype              string          `json:"subtype"`
+	DurationMS           int             `json:"durationMs"`
+	RetryAttempt         int             `json:"retryAttempt"`
+	RetryInMS            float64         `json:"retryInMs"`
+	MaxRetries           int             `json:"maxRetries"`
+	Error                json.RawMessage `json:"error"`
+	CompactMetadata      json.RawMessage `json:"compactMetadata"`
+	MicrocompactMetadata json.RawMessage `json:"microcompactMetadata"`
+	Message              struct {
+		Role       string          `json:"role"`
+		Content    json.RawMessage `json:"content"`
+		Model      string          `json:"model"`
+		StopReason string          `json:"stop_reason"`
+		Usage      *jsonUsage      `json:"usage"`
 	} `json:"message"`
 }
 
@@ -294,6 +304,7 @@ func linkToolResults(
 		if tc, found := toolCallIndex[toolUseIDs[i]]; found {
 			toolResults[i].ToolName = tc.Name
 			toolResults[i].ToolSummary = tc.Summary
+			toolResults[i].Action = tc.Action
 		}
 	}
 }

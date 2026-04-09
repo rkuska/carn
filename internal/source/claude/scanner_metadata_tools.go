@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	assistantToolUseMarker    = []byte(`"tool_use"`)
 	userToolResultMarker      = []byte(`"tool_result"`)
 	userToolResultErrorMarker = []byte(`"is_error"`)
 	toolUseTypeMarker         = []byte(`"type":"tool_use"`)
@@ -45,6 +44,7 @@ var (
 		"enterplanmode":   "EnterPlanMode",
 		"exitplanmode":    "ExitPlanMode",
 	}
+	claudeToolNamesByRaw = rawJSONStringValueMap(claudeToolNamesByLower)
 )
 
 func visitAssistantToolUses(raw json.RawMessage, yield func(name, id string) bool) bool {
@@ -144,6 +144,20 @@ func extractFastJSONStringFieldBytes(raw []byte, marker []byte) ([]byte, bool) {
 
 func internClaudeToolName(raw []byte) string {
 	name := string(raw)
+	if canonical, ok := claudeToolNamesByLower[strings.ToLower(name)]; ok {
+		return canonical
+	}
+	return name
+}
+
+func internClaudeToolNameRaw(raw []byte) string {
+	if canonical, ok := claudeToolNamesByRaw[bytesToStringView(raw)]; ok {
+		return canonical
+	}
+	name, ok := decodeJSONStringFast(raw)
+	if !ok {
+		return ""
+	}
 	if canonical, ok := claudeToolNamesByLower[strings.ToLower(name)]; ok {
 		return canonical
 	}

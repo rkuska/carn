@@ -100,8 +100,6 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 }
 
 func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
-	t.Parallel()
-
 	restoreNow := setStatsNowForTest(func() time.Time {
 		return time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	})

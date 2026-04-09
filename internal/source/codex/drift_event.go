@@ -10,12 +10,15 @@ import (
 )
 
 var knownEventTypes = map[string]struct{}{
-	eventTypeTokenCount:     {},
-	eventTypeUserMessage:    {},
-	eventTypeAgentMessage:   {},
-	eventTypeAgentReasoning: {},
-	eventTypeItemCompleted:  {},
-	eventTypeTaskComplete:   {},
+	eventTypeTokenCount:       {},
+	eventTypeUserMessage:      {},
+	eventTypeAgentMessage:     {},
+	eventTypeAgentReasoning:   {},
+	eventTypeItemCompleted:    {},
+	eventTypeTaskStarted:      {},
+	eventTypeTaskComplete:     {},
+	eventTypeTurnAborted:      {},
+	eventTypeContextCompacted: {},
 }
 
 var knownUserMessageFields = map[string]struct{}{
@@ -54,14 +57,31 @@ var knownTaskCompleteFields = map[string]struct{}{
 	"last_agent_message": {},
 }
 
-var knownTokenCountFields = map[string]struct{}{
+var knownTaskStartedFields = map[string]struct{}{
+	"type":                 {},
+	"turn_id":              {},
+	"model_context_window": {},
+}
+
+var knownTurnAbortedFields = map[string]struct{}{
+	"type":    {},
+	"turn_id": {},
+}
+
+var knownContextCompactedFields = map[string]struct{}{
 	"type": {},
-	"info": {},
+}
+
+var knownTokenCountFields = map[string]struct{}{
+	"type":        {},
+	"rate_limits": {},
+	"info":        {},
 }
 
 var knownTokenCountInfoFields = map[string]struct{}{
-	"total_token_usage": {},
-	"last_token_usage":  {},
+	"total_token_usage":    {},
+	"last_token_usage":     {},
+	"model_context_window": {},
 }
 
 var knownTokenUsageFields = map[string]struct{}{
@@ -87,8 +107,14 @@ func detectEventPayloadDrift(payload []byte, report *src.DriftReport) {
 		recordUnknownTopLevelFields(report, "agent_reasoning_field", payload, isKnownAgentReasoningField)
 	case bytes.Equal(eventTypeRaw, eventTypeItemCompletedRaw):
 		detectItemCompletedPayloadDrift(payload, report)
+	case bytes.Equal(eventTypeRaw, eventTypeTaskStartedRaw):
+		recordUnknownTopLevelFields(report, "task_started_field", payload, isKnownTaskStartedField)
 	case bytes.Equal(eventTypeRaw, eventTypeTaskCompleteRaw):
 		recordUnknownTopLevelFields(report, "task_complete_field", payload, isKnownTaskCompleteField)
+	case bytes.Equal(eventTypeRaw, eventTypeTurnAbortedRaw):
+		recordUnknownTopLevelFields(report, "turn_aborted_field", payload, isKnownTurnAbortedField)
+	case bytes.Equal(eventTypeRaw, eventTypeContextCompactedRaw):
+		recordUnknownTopLevelFields(report, "context_compacted_field", payload, isKnownContextCompactedField)
 	case bytes.Equal(eventTypeRaw, eventTypeTokenCountRaw):
 		detectTokenCountPayloadDrift(payload, report)
 	}
@@ -187,8 +213,27 @@ func isKnownTaskCompleteField(field []byte) bool {
 		codexKnownSchemaExtras.HasRaw("task_complete_field", field)
 }
 
+func isKnownTaskStartedField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, modelContextWindowFieldMarker) ||
+		bytes.Equal(field, []byte(`"turn_id"`)) ||
+		codexKnownSchemaExtras.HasRaw("task_started_field", field)
+}
+
+func isKnownTurnAbortedField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, []byte(`"turn_id"`)) ||
+		codexKnownSchemaExtras.HasRaw("turn_aborted_field", field)
+}
+
+func isKnownContextCompactedField(field []byte) bool {
+	return bytes.Equal(field, typeFieldMarker) ||
+		codexKnownSchemaExtras.HasRaw("context_compacted_field", field)
+}
+
 func isKnownTokenCountField(field []byte) bool {
 	return bytes.Equal(field, typeFieldMarker) ||
+		bytes.Equal(field, rateLimitsFieldMarker) ||
 		bytes.Equal(field, infoFieldMarker) ||
 		codexKnownSchemaExtras.HasRaw("token_count_field", field)
 }
@@ -196,6 +241,7 @@ func isKnownTokenCountField(field []byte) bool {
 func isKnownTokenCountInfoField(field []byte) bool {
 	return bytes.Equal(field, totalTokenUsageFieldMarker) ||
 		bytes.Equal(field, lastTokenUsageFieldMarker) ||
+		bytes.Equal(field, modelContextWindowFieldMarker) ||
 		codexKnownSchemaExtras.HasRaw("token_count_info_field", field)
 }
 

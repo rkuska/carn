@@ -41,6 +41,7 @@ var knownGitFields = map[string]struct{}{
 var knownTurnContextFields = map[string]struct{}{
 	"cwd":             {},
 	"model":           {},
+	"effort":          {},
 	"approval_policy": {},
 	"sandbox_policy":  {},
 }
@@ -64,6 +65,7 @@ var knownRoles = map[string]struct{}{
 var knownResponseMessageFields = map[string]struct{}{
 	"type":    {},
 	"role":    {},
+	"phase":   {},
 	"content": {},
 }
 
@@ -334,6 +336,7 @@ func isKnownGitField(field []byte) bool {
 func isKnownTurnContextField(field []byte) bool {
 	return bytes.Equal(field, cwdFieldMarker) ||
 		bytes.Equal(field, modelFieldMarker) ||
+		bytes.Equal(field, effortFieldMarker) ||
 		bytes.Equal(field, approvalPolicyFieldMarker) ||
 		bytes.Equal(field, sandboxPolicyFieldMarker) ||
 		codexKnownSchemaExtras.HasRaw("turn_context_field", field)
@@ -342,6 +345,7 @@ func isKnownTurnContextField(field []byte) bool {
 func isKnownResponseMessageField(field []byte) bool {
 	return bytes.Equal(field, typeFieldMarker) ||
 		bytes.Equal(field, roleFieldMarker) ||
+		bytes.Equal(field, phaseFieldMarker) ||
 		bytes.Equal(field, contentFieldMarker) ||
 		codexKnownSchemaExtras.HasRaw("response_message_field", field)
 }

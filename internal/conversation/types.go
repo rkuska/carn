@@ -39,10 +39,15 @@ type TokenUsage struct {
 	CacheCreationInputTokens int
 	CacheReadInputTokens     int
 	OutputTokens             int
+	ReasoningOutputTokens    int
 }
 
 func (u TokenUsage) TotalTokens() int {
-	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens + u.OutputTokens
+	return u.InputTokens +
+		u.CacheCreationInputTokens +
+		u.CacheReadInputTokens +
+		u.OutputTokens +
+		u.ReasoningOutputTokens
 }
 
 type DiffHunk struct {
@@ -56,6 +61,7 @@ type DiffHunk struct {
 type ToolCall struct {
 	Name    string
 	Summary string
+	Action  NormalizedAction
 }
 
 type ToolResult struct {
@@ -64,6 +70,7 @@ type ToolResult struct {
 	Content         string
 	IsError         bool
 	StructuredPatch []DiffHunk
+	Action          NormalizedAction
 }
 
 func (r ToolResult) IsRejected() bool {
@@ -102,6 +109,10 @@ type SessionMeta struct {
 	ToolCounts            map[string]int
 	ToolErrorCounts       map[string]int
 	ToolRejectCounts      map[string]int
+	ActionCounts          map[string]int
+	ActionErrorCounts     map[string]int
+	ActionRejectCounts    map[string]int
+	Performance           SessionPerformanceMeta
 	IsSubagent            bool
 }
 
@@ -228,6 +239,7 @@ type Message struct {
 	IsSidechain       bool
 	IsAgentDivider    bool
 	Usage             TokenUsage
+	Performance       MessagePerformanceMeta
 }
 
 func (m Message) IsVisible() bool {

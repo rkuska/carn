@@ -94,6 +94,10 @@ func parseRecordMessageFields(raw []byte, rec *parseRecord) error {
 	if err != nil {
 		return fmt.Errorf("parseRecordMessageFields_model: %w", err)
 	}
+	rec.Message.StopReason, _, err = jsonStringField(raw, "message", "stop_reason")
+	if err != nil {
+		return fmt.Errorf("parseRecordMessageFields_stop_reason: %w", err)
+	}
 
 	usageRaw, ok, err := jsonRawField(raw, "message", "usage")
 	if err != nil {

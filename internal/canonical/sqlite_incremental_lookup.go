@@ -199,7 +199,10 @@ func loadSQLiteConversationSessionsByRowID(
 		        cwd, git_branch, version, model, first_message, message_count, main_message_count,
 		        user_message_count, assistant_message_count,
 		        file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		        output_tokens, tool_counts_json, tool_error_counts_json, tool_reject_counts_json, is_subagent
+		        output_tokens, reasoning_output_tokens,
+		        tool_counts_json, tool_error_counts_json, tool_reject_counts_json,
+		        action_counts_json, action_error_counts_json, action_reject_counts_json,
+		        performance_meta_json, is_subagent
 		   FROM conversation_sessions
 		  WHERE conversation_id = ?
 		  ORDER BY ordinal`,
@@ -221,6 +224,10 @@ func loadSQLiteConversationSessionsByRowID(
 		var toolCountsJSON string
 		var toolErrorCountsJSON string
 		var toolRejectCountsJSON string
+		var actionCountsJSON string
+		var actionErrorCountsJSON string
+		var actionRejectCountsJSON string
+		var performanceMetaJSON string
 		var isSubagent int
 		if err := rows.Scan(
 			&meta.ID,
@@ -241,9 +248,14 @@ func loadSQLiteConversationSessionsByRowID(
 			&meta.TotalUsage.CacheCreationInputTokens,
 			&meta.TotalUsage.CacheReadInputTokens,
 			&meta.TotalUsage.OutputTokens,
+			&meta.TotalUsage.ReasoningOutputTokens,
 			&toolCountsJSON,
 			&toolErrorCountsJSON,
 			&toolRejectCountsJSON,
+			&actionCountsJSON,
+			&actionErrorCountsJSON,
+			&actionRejectCountsJSON,
+			&performanceMetaJSON,
 			&isSubagent,
 		); err != nil {
 			return fmt.Errorf("rows.Scan: %w", err)
@@ -256,6 +268,10 @@ func loadSQLiteConversationSessionsByRowID(
 			toolCountsJSON,
 			toolErrorCountsJSON,
 			toolRejectCountsJSON,
+			actionCountsJSON,
+			actionErrorCountsJSON,
+			actionRejectCountsJSON,
+			performanceMetaJSON,
 			isSubagent,
 		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)

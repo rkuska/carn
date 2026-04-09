@@ -20,8 +20,10 @@ Use these terms when referring to different parts of the project in prompts.
 | **Tool Call** | An assistant's invocation of a tool — `name` + optional `summary`. |
 | **Tool Result** | The output returned to the user message — `toolName`, `content`, `isError`, and optionally a `structuredPatch` (for Edit diffs). |
 | **Token Usage** | Input/output/cache token counts per message, aggregated per session as `totalUsage`. |
+| **Normalized Action** | A provider-neutral classification of model work such as `read`, `search`, `mutate`, `rewrite`, `test`, `build`, `web`, `plan`, or `delegate`. Derived from provider-specific tool calls and command payloads. |
 | **Tool Counts** | A map of tool name → invocation count per session. Tracks call volume only; see **Tool Outcome** for success/error/rejection breakdown. |
 | **Tool Outcome** | Per-tool success, error, and rejection counts derived from transcript tool results. Distinct from Tool Counts which only tracks invocations. Persisted in the canonical store during rebuild. |
+| **Outcome Proxy** | A transcript-derived approximation of task success, such as first-pass resolution or correction burden, used when no external correctness label exists. |
 | **Tool Rejection** | A user-rejected tool call, detected by "user rejected" in the error content of a tool result. Counted separately from generic errors in stats. |
 | **Recency Hint** | A relative time string ("5m ago", "3h ago", "7d ago") shown alongside timestamps in the browser list and conversation headers. |
 
@@ -93,6 +95,9 @@ Use these terms when referring to different parts of the project in prompts.
 | **Tool Category Share** | Breakdown of tool usage by category: read, write, and bash. Shown as proportional shares in the tools tab. |
 | **Abandoned Session** | A session with fewer than 3 messages or a duration under 1 minute. Counted separately in the sessions tab. |
 | **Error Rate / Rejection Rate** | Fraction of tool calls that returned an error or were rejected by the user, respectively. Shown in the tools tab. |
+| **Performance Scorecard** | A stats view that summarizes model behavior and quality trends across multiple lanes instead of a single raw metric. |
+| **Performance Lane** | One dimension of the performance scorecard such as outcome, discipline, efficiency, or robustness. |
+| **Context Pressure** | Signals that a conversation is near model-context limits, such as compaction events, high prompt growth, or large context-window utilization. |
 
 ## Search
 

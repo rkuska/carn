@@ -16,16 +16,20 @@ import (
 )
 
 type scanStats struct {
-	total            int
-	mainOnly         int
-	userCount        int
-	assistantCount   int
-	lastTS           time.Time
-	totalUsage       tokenUsage
-	toolCounts       map[string]int
-	toolErrorCounts  map[string]int
-	toolRejectCounts map[string]int
-	toolCallNameByID map[string]string
+	total             int
+	mainOnly          int
+	userCount         int
+	assistantCount    int
+	lastTS            time.Time
+	totalUsage        tokenUsage
+	toolCounts        map[string]int
+	toolErrorCounts   map[string]int
+	toolRejectCounts  map[string]int
+	actionCounts      map[string]int
+	actionErrorCounts map[string]int
+	actionRejects     map[string]int
+	toolCallByID      map[string]toolCall
+	performance       sessionPerformanceMeta
 }
 
 type metadataScanState struct {
@@ -40,13 +44,17 @@ var (
 	typeMarker                = []byte(`"type":"`)
 	recordTypeUserSuffix      = []byte("user")
 	recordTypeAssistantSuffix = []byte("assistant")
+	recordTypeSystemSuffix    = []byte("system")
 )
 
 type jsonUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-	OutputTokens             int `json:"output_tokens"`
+	InputTokens              int             `json:"input_tokens"`
+	CacheCreationInputTokens int             `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int             `json:"cache_read_input_tokens"`
+	OutputTokens             int             `json:"output_tokens"`
+	ServerToolUse            json.RawMessage `json:"server_tool_use"`
+	ServiceTier              string          `json:"service_tier"`
+	Speed                    string          `json:"speed"`
 }
 
 func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
@@ -76,24 +84,10 @@ func accumulateAssistantStats(line []byte, stats *scanStats) {
 	stats.totalUsage.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	stats.totalUsage.CacheReadInputTokens += usage.CacheReadInputTokens
 	stats.totalUsage.OutputTokens += usage.OutputTokens
-
-	if !bytes.Contains(line, assistantToolUseMarker) {
-		return
-	}
-	contentRaw, ok := extractFirstContentValue(line)
-	if !ok {
-		return
-	}
-	if !visitAssistantToolUses(contentRaw, func(name, id string) bool {
-		stats.recordToolCall(name, id)
-		return true
-	}) {
-		return
-	}
 }
 
 func accumulateUserToolOutcomeCounts(line []byte, stats *scanStats) {
-	if len(stats.toolCallNameByID) == 0 ||
+	if len(stats.toolCallByID) == 0 ||
 		!bytes.Contains(line, userToolResultMarker) ||
 		!bytes.Contains(line, userToolResultErrorMarker) {
 		return
@@ -116,37 +110,54 @@ func (s *metadataScanState) scanLine(ctx context.Context, line []byte) {
 	detectLineDrift(line, s.drift)
 
 	recRole := role(extractType(line))
-
 	switch recRole {
 	case roleUser:
-		hasContent, err := parseUserRecord(line, &s.result.meta, &s.foundUser)
-		if err != nil {
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", s.result.meta.FilePath)
-			return
-		}
-		if !s.result.hasConversationContent && hasContent {
-			s.result.hasConversationContent = true
-		}
-		if hasContent {
-			accumulateRecordCounts(line, recRole, &s.stats)
-			accumulateUserToolOutcomeCounts(line, &s.stats)
-		}
+		s.scanUserLine(ctx, line)
 	case roleAssistant:
-		accumulateRecordCounts(line, recRole, &s.stats)
-		hasContent, err := parseAssistantRecord(
-			line,
-			&s.result.meta,
-			&s.foundAssistant,
-			s.result.hasConversationContent,
-		)
-		if err != nil {
-			zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", s.result.meta.FilePath)
-			return
-		}
-		if !s.result.hasConversationContent && hasContent {
-			s.result.hasConversationContent = true
-		}
-		accumulateAssistantStats(line, &s.stats)
+		s.scanAssistantLine(ctx, line, recRole)
+	case roleSystem:
+		s.scanSystemLine(line)
+	}
+}
+
+func (s *metadataScanState) scanUserLine(ctx context.Context, line []byte) {
+	hasContent, err := parseUserRecord(line, &s.result.meta, &s.foundUser)
+	if err != nil {
+		zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseUserRecord failed in %s", s.result.meta.FilePath)
+		return
+	}
+	accumulateUserPerformanceStats(line, &s.stats)
+	s.recordConversationContent(hasContent)
+	if hasContent {
+		accumulateRecordCounts(line, roleUser, &s.stats)
+	}
+	accumulateUserToolOutcomeCounts(line, &s.stats)
+}
+
+func (s *metadataScanState) scanAssistantLine(ctx context.Context, line []byte, recRole role) {
+	accumulateRecordCounts(line, recRole, &s.stats)
+	hasContent, err := parseAssistantRecord(
+		line,
+		&s.result.meta,
+		&s.foundAssistant,
+		s.result.hasConversationContent,
+	)
+	if err != nil {
+		zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", s.result.meta.FilePath)
+		return
+	}
+	s.recordConversationContent(hasContent)
+	accumulateAssistantStats(line, &s.stats)
+	accumulateAssistantPerformanceStats(line, &s.stats)
+}
+
+func (s *metadataScanState) scanSystemLine(line []byte) {
+	accumulateSystemPerformanceStats(line, &s.stats)
+}
+
+func (s *metadataScanState) recordConversationContent(hasContent bool) {
+	if !s.result.hasConversationContent && hasContent {
+		s.result.hasConversationContent = true
 	}
 }
 
@@ -226,45 +237,16 @@ func applyMetadataScanStats(meta *sessionMeta, stats scanStats) {
 	if len(stats.toolRejectCounts) > 0 {
 		meta.ToolRejectCounts = stats.toolRejectCounts
 	}
-}
-
-func (s *scanStats) recordToolCall(name, toolUseID string) {
-	if name == "" {
-		return
+	if len(stats.actionCounts) > 0 {
+		meta.ActionCounts = stats.actionCounts
 	}
-	if s.toolCounts == nil {
-		s.toolCounts = make(map[string]int, 2)
+	if len(stats.actionErrorCounts) > 0 {
+		meta.ActionErrorCounts = stats.actionErrorCounts
 	}
-	s.toolCounts[name]++
-	if toolUseID == "" {
-		return
+	if len(stats.actionRejects) > 0 {
+		meta.ActionRejectCounts = stats.actionRejects
 	}
-	if s.toolCallNameByID == nil {
-		s.toolCallNameByID = make(map[string]string, 2)
-	}
-	s.toolCallNameByID[toolUseID] = name
-}
-
-func (s *scanStats) recordToolError(toolUseID string) {
-	name := s.toolCallNameByID[toolUseID]
-	if name == "" {
-		return
-	}
-	if s.toolErrorCounts == nil {
-		s.toolErrorCounts = make(map[string]int, 2)
-	}
-	s.toolErrorCounts[name]++
-}
-
-func (s *scanStats) recordToolReject(toolUseID string) {
-	name := s.toolCallNameByID[toolUseID]
-	if name == "" {
-		return
-	}
-	if s.toolRejectCounts == nil {
-		s.toolRejectCounts = make(map[string]int, 2)
-	}
-	s.toolRejectCounts[name]++
+	meta.Performance = normalizeSessionPerformanceMeta(stats.performance)
 }
 
 func extractType(line []byte) string {
@@ -280,6 +262,9 @@ func extractType(line []byte) string {
 		}
 		if bytes.HasPrefix(rest, recordTypeAssistantSuffix) {
 			return "assistant"
+		}
+		if bytes.HasPrefix(rest, recordTypeSystemSuffix) {
+			return "system"
 		}
 		remaining = rest
 	}
@@ -402,6 +387,7 @@ func aggregateUsage(messages []parsedMessage) tokenUsage {
 		total.CacheCreationInputTokens += messages[i].usage.CacheCreationInputTokens
 		total.CacheReadInputTokens += messages[i].usage.CacheReadInputTokens
 		total.OutputTokens += messages[i].usage.OutputTokens
+		total.ReasoningOutputTokens += messages[i].usage.ReasoningOutputTokens
 	}
 	return total
 }

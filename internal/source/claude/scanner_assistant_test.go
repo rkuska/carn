@@ -71,6 +71,36 @@ func TestExtractAssistantContentNoSignatureNoThinking(t *testing.T) {
 	assert.False(t, hiddenThinking)
 }
 
+func TestExtractAssistantContentCapturesPerformanceAndActions(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`[
+		{"type":"thinking","thinking":"inspect"},
+		{"type":"thinking","thinking":"","signature":"Ev8DCkYICxgCFakeSignature"},
+		{"type":"tool_use","id":"toolu_1","name":"Write","input":{"file_path":"/tmp/main.go"}},
+		{"type":"tool_use","id":"toolu_2","name":"Bash","input":{"command":"go test ./..."}},
+		{"type":"text","text":"done"}
+	]`)
+
+	extracted, ok := extractAssistantContentDetails(raw)
+	require.True(t, ok)
+	require.Len(t, extracted.toolCalls, 2)
+	assert.Equal(t, "done", extracted.text)
+	assert.Equal(t, "inspect", extracted.thinking)
+	assert.Equal(t, 2, extracted.performance.ReasoningBlockCount)
+	assert.Equal(t, 1, extracted.performance.ReasoningRedactionCount)
+	assert.Equal(t, conv.NormalizedActionRewrite, extracted.toolCalls[0].Action.Type)
+	assert.Contains(t, extracted.toolCalls[0].Action.Targets, conv.ActionTarget{
+		Type:  conv.ActionTargetFilePath,
+		Value: "/tmp/main.go",
+	})
+	assert.Equal(t, conv.NormalizedActionTest, extracted.toolCalls[1].Action.Type)
+	assert.Contains(t, extracted.toolCalls[1].Action.Targets, conv.ActionTarget{
+		Type:  conv.ActionTargetCommand,
+		Value: "go test ./...",
+	})
+}
+
 func TestSummarizeToolCallFast(t *testing.T) {
 	t.Parallel()
 

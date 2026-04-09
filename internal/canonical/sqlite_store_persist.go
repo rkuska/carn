@@ -182,6 +182,7 @@ func insertSQLiteConversationRow(
 			usage.CacheCreationInputTokens,
 			usage.CacheReadInputTokens,
 			usage.OutputTokens,
+			usage.ReasoningOutputTokens,
 			conv.TotalMessageCount(),
 			conv.MainMessageCount(),
 			transcriptBlob,
@@ -212,6 +213,13 @@ func insertSQLiteSessionRows(
 		toolCountsJSON := marshalToolCountsCached(meta.ToolCounts)
 		toolErrorCountsJSON := marshalToolCountsCached(meta.ToolErrorCounts)
 		toolRejectCountsJSON := marshalToolCountsCached(meta.ToolRejectCounts)
+		actionCountsJSON := marshalToolCountsCached(meta.ActionCounts)
+		actionErrorCountsJSON := marshalToolCountsCached(meta.ActionErrorCounts)
+		actionRejectCountsJSON := marshalToolCountsCached(meta.ActionRejectCounts)
+		performanceMetaJSON, err := marshalSessionPerformanceMeta(meta.Performance)
+		if err != nil {
+			return 0, fmt.Errorf("marshalSessionPerformanceMeta: %w", err)
+		}
 		if _, err := stmt.ExecContext(
 			ctx,
 			conversationID,
@@ -234,9 +242,14 @@ func insertSQLiteSessionRows(
 			meta.TotalUsage.CacheCreationInputTokens,
 			meta.TotalUsage.CacheReadInputTokens,
 			meta.TotalUsage.OutputTokens,
+			meta.TotalUsage.ReasoningOutputTokens,
 			toolCountsJSON,
 			toolErrorCountsJSON,
 			toolRejectCountsJSON,
+			actionCountsJSON,
+			actionErrorCountsJSON,
+			actionRejectCountsJSON,
+			performanceMetaJSON,
 			boolToInt(meta.IsSubagent),
 		); err != nil {
 			return 0, fmt.Errorf("stmt.ExecContext: %w", err)

@@ -203,20 +203,6 @@
           }
         }
       },
-      "effort": {
-        "status": "ignored",
-        "path": "payload.effort",
-        "record_types": ["turn_context"],
-        "description": "Reasoning effort setting for the active turn.",
-        "future_use": "Could explain latency and transcript shape differences across turns.",
-        "first_seen": "2026-03-05",
-        "example": {
-          "type": "turn_context",
-          "payload": {
-            "effort": "xhigh"
-          }
-        }
-      },
       "summary": {
         "status": "ignored",
         "path": "payload.summary",
@@ -296,23 +282,6 @@
         }
       }
     },
-    "response_message_field": {
-      "phase": {
-        "status": "ignored",
-        "path": "payload.phase",
-        "record_types": ["response_item"],
-        "description": "Assistant response phase, such as commentary or final answer.",
-        "future_use": "Could render assistant progress and final-answer boundaries more faithfully.",
-        "first_seen": "2026-03-12",
-        "example": {
-          "type": "response_item",
-          "payload": {
-            "type": "message",
-            "phase": "commentary"
-          }
-        }
-      }
-    },
     "content_block_type": {
       "input_image": {
         "status": "ignored",
@@ -336,52 +305,6 @@
       }
     },
     "event_type": {
-      "task_started": {
-        "status": "ignored",
-        "path": "payload.type",
-        "record_types": ["event_msg"],
-        "description": "Marker emitted when Codex starts a new turn.",
-        "future_use": "Could support turn lifecycle analytics and abort grouping.",
-        "first_seen": "2026-03-05",
-        "example": {
-          "type": "event_msg",
-          "payload": {
-            "type": "task_started",
-            "turn_id": "019cbe16-0a67-7960-8114-8ae3f63498c1",
-            "model_context_window": 258400
-          }
-        }
-      },
-      "turn_aborted": {
-        "status": "ignored",
-        "path": "payload.type",
-        "record_types": ["event_msg"],
-        "description": "Marker emitted when a turn is interrupted or aborted.",
-        "future_use": "Could explain incomplete reasoning or cancelled tool runs in transcripts.",
-        "first_seen": "2026-03-23",
-        "example": {
-          "type": "event_msg",
-          "payload": {
-            "type": "turn_aborted",
-            "turn_id": "019d19ef-a530-74a3-8c15-9266f56c81d4",
-            "reason": "interrupted"
-          }
-        }
-      },
-      "context_compacted": {
-        "status": "ignored",
-        "path": "payload.type",
-        "record_types": ["event_msg"],
-        "description": "Event emitted when Codex compacts context mid-session.",
-        "future_use": "Could show compaction boundaries in the browser or viewer.",
-        "first_seen": "2026-03-23",
-        "example": {
-          "type": "event_msg",
-          "payload": {
-            "type": "context_compacted"
-          }
-        }
-      },
       "entered_review_mode": {
         "status": "ignored",
         "path": "payload.type",
@@ -529,42 +452,6 @@
           "payload": {
             "type": "task_complete",
             "turn_id": "turn-1"
-          }
-        }
-      }
-    },
-    "token_count_field": {
-      "rate_limits": {
-        "status": "ignored",
-        "path": "payload.rate_limits",
-        "record_types": ["event_msg"],
-        "description": "Rate-limit snapshot attached to token_count events.",
-        "future_use": "Could power quota diagnostics or rate-limit status views.",
-        "first_seen": "2026-03-05",
-        "example": {
-          "type": "event_msg",
-          "payload": {
-            "type": "token_count",
-            "rate_limits": null
-          }
-        }
-      }
-    },
-    "token_count_info_field": {
-      "model_context_window": {
-        "status": "ignored",
-        "path": "payload.info.model_context_window",
-        "record_types": ["event_msg"],
-        "description": "Model context-window size reported with token_count usage info.",
-        "future_use": "Could explain compaction thresholds and context-depth charts.",
-        "first_seen": "2026-03-05",
-        "example": {
-          "type": "event_msg",
-          "payload": {
-            "type": "token_count",
-            "info": {
-              "model_context_window": 258400
-            }
           }
         }
       }

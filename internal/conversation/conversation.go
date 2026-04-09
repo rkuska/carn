@@ -82,6 +82,7 @@ func (c Conversation) TotalTokenUsage() TokenUsage {
 		total.CacheCreationInputTokens += s.TotalUsage.CacheCreationInputTokens
 		total.CacheReadInputTokens += s.TotalUsage.CacheReadInputTokens
 		total.OutputTokens += s.TotalUsage.OutputTokens
+		total.ReasoningOutputTokens += s.TotalUsage.ReasoningOutputTokens
 	}
 	return total
 }

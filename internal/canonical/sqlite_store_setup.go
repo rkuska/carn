@@ -125,8 +125,9 @@ func prepareSQLiteConversationStatements(
 		provider, provider_id, cache_key, name, project_display_name,
 		first_timestamp_ns, last_timestamp_ns, first_message, plan_count,
 		total_input_tokens, total_cache_creation_tokens, total_cache_read_tokens, total_output_tokens,
+		total_reasoning_output_tokens,
 		total_message_count, total_main_message_count, transcript_blob
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return nil, nil, fmt.Errorf("tx.PrepareContext_conversations: %w", err)
 	}
@@ -136,8 +137,11 @@ func prepareSQLiteConversationStatements(
 		cwd, git_branch, version, model, first_message, message_count, main_message_count,
 		user_message_count, assistant_message_count,
 		file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		output_tokens, tool_counts_json, tool_error_counts_json, tool_reject_counts_json, is_subagent
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		output_tokens, reasoning_output_tokens,
+		tool_counts_json, tool_error_counts_json, tool_reject_counts_json,
+		action_counts_json, action_error_counts_json, action_reject_counts_json,
+		performance_meta_json, is_subagent
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		if closeErr := convStmt.Close(); closeErr != nil {
 			zerolog.Ctx(ctx).Warn().Err(closeErr).Msg("convStmt.Close")

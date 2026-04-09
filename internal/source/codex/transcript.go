@@ -19,6 +19,7 @@ type parsedMessage struct {
 	plans             []conv.Plan
 	visibility        conv.MessageVisibility
 	isAgentDivider    bool
+	performance       conv.MessagePerformanceMeta
 }
 
 type assistantContent struct {
@@ -30,6 +31,7 @@ type assistantContent struct {
 	usage             conv.TokenUsage
 	text              string
 	timestamp         time.Time
+	performance       conv.MessagePerformanceMeta
 }
 
 func (c assistantContent) empty() bool {
@@ -72,6 +74,7 @@ func newParsedAssistantMessage(c assistantContent) parsedMessage {
 		toolCalls:         append([]conv.ToolCall(nil), c.calls...),
 		toolResults:       append([]conv.ToolResult(nil), c.results...),
 		plans:             append([]conv.Plan(nil), c.plans...),
+		performance:       c.performance,
 	}
 }
 
@@ -88,10 +91,29 @@ func mergeAdjacentAssistantMessage(messages []parsedMessage, msg parsedMessage) 
 	last.toolCalls = append(last.toolCalls, msg.toolCalls...)
 	last.toolResults = append(last.toolResults, msg.toolResults...)
 	last.plans = appendUniquePlans(last.plans, msg.plans)
+	last.performance = mergeMessagePerformance(last.performance, msg.performance)
 	if msg.timestamp.After(last.timestamp) {
 		last.timestamp = msg.timestamp
 	}
 	return messages
+}
+
+func mergeMessagePerformance(
+	current conv.MessagePerformanceMeta,
+	next conv.MessagePerformanceMeta,
+) conv.MessagePerformanceMeta {
+	current.ReasoningBlockCount += next.ReasoningBlockCount
+	current.ReasoningRedactionCount += next.ReasoningRedactionCount
+	if current.StopReason == "" {
+		current.StopReason = next.StopReason
+	}
+	if current.Phase == "" {
+		current.Phase = next.Phase
+	}
+	if current.Effort == "" {
+		current.Effort = next.Effort
+	}
+	return current
 }
 
 func preferTokenUsage(current, next conv.TokenUsage) conv.TokenUsage {
@@ -169,6 +191,7 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 			Plans:             msg.plans,
 			Visibility:        msg.visibility,
 			IsAgentDivider:    msg.isAgentDivider,
+			Performance:       msg.performance,
 		})
 	}
 	return projected

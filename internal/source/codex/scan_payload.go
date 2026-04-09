@@ -2,8 +2,6 @@ package codex
 
 import (
 	"bytes"
-
-	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func scanRolloutPayload(recordTypeRaw []byte, payload []byte, state *scanState) error {
@@ -128,144 +126,58 @@ func applySessionSourceRaw(raw []byte, state *scanState) {
 }
 
 func applyScannedTurnContextPayload(payload []byte, state *scanState) {
-	var cwdRaw []byte
-	var modelRaw []byte
+	applyTurnContextPayload(collectTurnContextPayload(payload), state)
+}
 
+type scannedTurnContextPayload struct {
+	cwdRaw    []byte
+	modelRaw  []byte
+	effortRaw []byte
+}
+
+func collectTurnContextPayload(payload []byte) scannedTurnContextPayload {
+	var scanned scannedTurnContextPayload
 	walkTopLevelFields(payload, func(field, value []byte) bool {
 		switch {
 		case bytes.Equal(field, cwdFieldMarker):
-			cwdRaw = value
+			scanned.cwdRaw = value
 		case bytes.Equal(field, modelFieldMarker):
-			modelRaw = value
-		}
-		return true
-	})
-
-	if cwd, ok := readRawJSONString(cwdRaw); ok && cwd != "" {
-		state.meta.CWD = cwd
-	}
-	if model, ok := readRawJSONString(modelRaw); ok && model != "" {
-		state.meta.Model = model
-	}
-}
-
-func applyScannedResponseItemPayload(payload []byte, state *scanState) {
-	item := collectResponseItemPayload(payload)
-	applyResponseItemPayload(item, state)
-}
-
-type scannedResponseItemPayload struct {
-	itemTypeRaw []byte
-	roleRaw     []byte
-	nameRaw     []byte
-	callIDRaw   []byte
-	outputRaw   []byte
-	statusRaw   []byte
-	contentRaw  []byte
-}
-
-func collectResponseItemPayload(payload []byte) scannedResponseItemPayload {
-	var item scannedResponseItemPayload
-	walkTopLevelFields(payload, func(field, value []byte) bool {
-		switch {
-		case bytes.Equal(field, typeFieldMarker):
-			item.itemTypeRaw = value
-		case bytes.Equal(field, roleFieldMarker):
-			item.roleRaw = value
-		case bytes.Equal(field, nameFieldMarker):
-			item.nameRaw = value
-		case bytes.Equal(field, callIDFieldMarker):
-			item.callIDRaw = value
-		case bytes.Equal(field, outputFieldMarker):
-			item.outputRaw = value
-		case bytes.Equal(field, statusFieldMarker):
-			item.statusRaw = value
-		case bytes.Equal(field, contentFieldMarker):
-			item.contentRaw = value
-		}
-		return true
-	})
-	return item
-}
-
-func applyResponseItemPayload(item scannedResponseItemPayload, state *scanState) {
-	switch {
-	case bytes.Equal(item.itemTypeRaw, responseTypeMessageRaw):
-		state.recordMessage(classifyResponseMessageRaw(item.roleRaw, item.contentRaw))
-	case bytes.Equal(item.itemTypeRaw, responseTypeFunctionCallRaw),
-		bytes.Equal(item.itemTypeRaw, responseTypeCustomToolCallRaw):
-		recordScannedToolCall(item, state)
-	case bytes.Equal(item.itemTypeRaw, responseTypeWebSearchCallRaw):
-		callID, _ := readRawJSONString(item.callIDRaw)
-		state.recordToolCall(callID, "web_search")
-	case bytes.Equal(item.itemTypeRaw, responseTypeFunctionCallOutputRaw),
-		bytes.Equal(item.itemTypeRaw, responseTypeCustomToolCallOutputRaw):
-		callID, _ := readRawJSONString(item.callIDRaw)
-		state.recordToolResult(callID, item.outputRaw, item.statusRaw)
-	}
-}
-
-func recordScannedToolCall(item scannedResponseItemPayload, state *scanState) {
-	name, ok := scanToolName(item.nameRaw)
-	if !ok {
-		return
-	}
-	callID, _ := readRawJSONString(item.callIDRaw)
-	state.recordToolCall(callID, name)
-}
-
-type scannedEventPayload struct {
-	eventTypeRaw        []byte
-	messageRaw          []byte
-	lastAgentMessageRaw []byte
-	infoRaw             []byte
-}
-
-func applyScannedEventPayload(payload []byte, state *scanState) {
-	applyEventPayload(collectEventPayload(payload), state)
-}
-
-func collectEventPayload(payload []byte) scannedEventPayload {
-	var scanned scannedEventPayload
-	walkTopLevelFields(payload, func(field, value []byte) bool {
-		switch {
-		case bytes.Equal(field, typeFieldMarker):
-			scanned.eventTypeRaw = value
-		case bytes.Equal(field, messageFieldMarker):
-			scanned.messageRaw = value
-		case bytes.Equal(field, lastAgentMessageFieldMarker):
-			scanned.lastAgentMessageRaw = value
-		case bytes.Equal(field, infoFieldMarker):
-			scanned.infoRaw = value
+			scanned.modelRaw = value
+		case bytes.Equal(field, effortFieldMarker):
+			scanned.effortRaw = value
 		}
 		return true
 	})
 	return scanned
 }
 
-func applyEventPayload(scanned scannedEventPayload, state *scanState) {
-	switch {
-	case bytes.Equal(scanned.eventTypeRaw, eventTypeTokenCountRaw):
-		state.meta.TotalUsage = scanTokenUsageInfo(scanned.infoRaw)
-	case bytes.Equal(scanned.eventTypeRaw, eventTypeUserMessageRaw):
-		recordEventMessage(scanned.messageRaw, classifyEventUserMessage, state)
-	case bytes.Equal(scanned.eventTypeRaw, eventTypeAgentMessageRaw):
-		recordEventMessage(scanned.messageRaw, classifyEventAssistantMessage, state)
-	case bytes.Equal(scanned.eventTypeRaw, eventTypeTaskCompleteRaw):
-		recordEventMessage(scanned.lastAgentMessageRaw, classifyTaskCompleteMessage, state)
+func applyTurnContextPayload(scanned scannedTurnContextPayload, state *scanState) {
+	applyTurnContextCWD(scanned.cwdRaw, state)
+	applyTurnContextModel(scanned.modelRaw, state)
+	applyTurnContextEffort(scanned.effortRaw, state)
+}
+
+func applyTurnContextCWD(raw []byte, state *scanState) {
+	if cwd, ok := readRawJSONString(raw); ok && cwd != "" {
+		state.meta.CWD = cwd
 	}
 }
 
-func recordEventMessage(
-	raw []byte,
-	classify func(string) (visibleMessage, bool),
-	state *scanState,
-) {
-	message, ok := readRawJSONString(raw)
-	if !ok {
+func applyTurnContextModel(raw []byte, state *scanState) {
+	if model, ok := readRawJSONString(raw); ok && model != "" {
+		state.meta.Model = model
+	}
+}
+
+func applyTurnContextEffort(raw []byte, state *scanState) {
+	effort, ok := readRawJSONString(raw)
+	if !ok || effort == "" {
 		return
 	}
-	state.recordMessage(classify(message))
+	if state.meta.Performance.EffortCounts == nil {
+		state.meta.Performance.EffortCounts = make(map[string]int, 1)
+	}
+	state.meta.Performance.EffortCounts[effort]++
 }
 
 func scanGitBranchRaw(raw []byte) (string, bool) {
@@ -278,47 +190,4 @@ func scanGitBranchRaw(raw []byte) (string, bool) {
 		return true
 	})
 	return readRawJSONString(branchRaw)
-}
-
-func scanTokenUsageInfo(raw []byte) conv.TokenUsage {
-	usage, _ := scanTokenUsageInfoField(raw, totalTokenUsageFieldMarker)
-	return usage
-}
-
-func scanLastTokenUsageInfo(raw []byte) (conv.TokenUsage, bool) {
-	return scanTokenUsageInfoField(raw, lastTokenUsageFieldMarker)
-}
-
-func scanTokenUsageInfoField(raw []byte, fieldMarker []byte) (conv.TokenUsage, bool) {
-	var usageRaw []byte
-	walkTopLevelFields(raw, func(field, value []byte) bool {
-		if bytes.Equal(field, fieldMarker) {
-			usageRaw = value
-			return false
-		}
-		return true
-	})
-	if len(usageRaw) == 0 {
-		return conv.TokenUsage{}, false
-	}
-	return scanTokenUsageRaw(usageRaw), true
-}
-
-func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
-	var usage conv.TokenUsage
-	walkTopLevelFields(raw, func(field, value []byte) bool {
-		switch {
-		case bytes.Equal(field, inputTokensFieldMarker):
-			usage.InputTokens, _ = readRawJSONInt(value, 0)
-		case bytes.Equal(field, cachedInputTokensFieldMarker):
-			usage.CacheReadInputTokens, _ = readRawJSONInt(value, 0)
-		case bytes.Equal(field, outputTokensFieldMarker):
-			usage.OutputTokens, _ = readRawJSONInt(value, 0)
-		case bytes.Equal(field, reasoningTokensFieldMarker):
-			reasoningTokens, _ := readRawJSONInt(value, 0)
-			usage.OutputTokens += reasoningTokens
-		}
-		return true
-	})
-	return usage
 }

@@ -48,14 +48,16 @@ func TestLoadAttachesLastTokenUsageToVisibleAssistantTurn(t *testing.T) {
 	require.Len(t, session.Messages, 3)
 	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:          120,
-		CacheReadInputTokens: 15,
-		OutputTokens:         35,
+		InputTokens:           120,
+		CacheReadInputTokens:  15,
+		OutputTokens:          30,
+		ReasoningOutputTokens: 5,
 	}, session.Messages[1].Usage)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:          500,
-		CacheReadInputTokens: 50,
-		OutputTokens:         150,
+		InputTokens:           500,
+		CacheReadInputTokens:  50,
+		OutputTokens:          140,
+		ReasoningOutputTokens: 10,
 	}, session.Meta.TotalUsage)
 }
 
@@ -108,9 +110,10 @@ func TestLoadAttachesLastTokenUsageToToolOnlyAssistantTurn(t *testing.T) {
 	require.Len(t, session.Messages[1].ToolResults, 1)
 	assert.Empty(t, session.Messages[1].Text)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:          90,
-		CacheReadInputTokens: 10,
-		OutputTokens:         25,
+		InputTokens:           90,
+		CacheReadInputTokens:  10,
+		OutputTokens:          20,
+		ReasoningOutputTokens: 5,
 	}, session.Messages[1].Usage)
 }
 

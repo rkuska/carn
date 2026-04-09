@@ -6,6 +6,12 @@ type ToolOutcomeCounts struct {
 	Rejections map[string]int
 }
 
+type ActionOutcomeCounts struct {
+	Calls      map[string]int
+	Errors     map[string]int
+	Rejections map[string]int
+}
+
 func DeriveToolOutcomeCounts(messages []Message) ToolOutcomeCounts {
 	var counts ToolOutcomeCounts
 
@@ -46,5 +52,34 @@ func nilIfZeroToolOutcomeCounts(counts map[string]int) map[string]int {
 	if len(counts) == 0 {
 		return nil
 	}
+	return counts
+}
+
+func DeriveActionOutcomeCounts(messages []Message) ActionOutcomeCounts {
+	var counts ActionOutcomeCounts
+
+	for _, message := range messages {
+		for _, call := range message.ToolCalls {
+			if call.Action.IsZero() {
+				continue
+			}
+			counts.Calls = incrementToolOutcomeCount(counts.Calls, string(call.Action.Type))
+		}
+		for _, result := range message.ToolResults {
+			if result.Action.IsZero() || !result.IsError {
+				continue
+			}
+			key := string(result.Action.Type)
+			if result.IsRejected() {
+				counts.Rejections = incrementToolOutcomeCount(counts.Rejections, key)
+				continue
+			}
+			counts.Errors = incrementToolOutcomeCount(counts.Errors, key)
+		}
+	}
+
+	counts.Calls = nilIfZeroToolOutcomeCounts(counts.Calls)
+	counts.Errors = nilIfZeroToolOutcomeCounts(counts.Errors)
+	counts.Rejections = nilIfZeroToolOutcomeCounts(counts.Rejections)
 	return counts
 }

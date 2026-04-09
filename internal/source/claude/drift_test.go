@@ -170,6 +170,15 @@ func TestKnownClaudeSchemaCoversParseRecordJSONTags(t *testing.T) {
 		"isSidechain",
 		"isMeta",
 		"toolUseResult",
+		"thinkingMetadata",
+		"subtype",
+		"durationMs",
+		"retryAttempt",
+		"retryInMs",
+		"maxRetries",
+		"error",
+		"compactMetadata",
+		"microcompactMetadata",
 		"message",
 	}, setKeys(knownEnvelopeFields))
 
@@ -177,11 +186,12 @@ func TestKnownClaudeSchemaCoversParseRecordJSONTags(t *testing.T) {
 		"role",
 		"content",
 		"model",
+		"stop_reason",
 		"usage",
 	})
 
 	assert.ElementsMatch(t, jsonTagsOfType(reflect.TypeFor[jsonUsage]()), setKeys(knownUsageFields))
-	assert.ElementsMatch(t, []string{"user", "assistant"}, setKeys(knownRecordTypes))
+	assert.ElementsMatch(t, []string{"user", "assistant", "system"}, setKeys(knownRecordTypes))
 	assert.ElementsMatch(
 		t,
 		[]string{"text", "tool_use", "tool_result", "thinking"},

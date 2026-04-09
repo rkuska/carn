@@ -35,11 +35,39 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 				CacheCreationInputTokens: 100,
 				CacheReadInputTokens:     200,
 				OutputTokens:             500,
+				ReasoningOutputTokens:    40,
 			},
-			ToolCounts:       map[string]int{"Read": 3, "Write": 1},
-			ToolErrorCounts:  map[string]int{"Write": 1},
-			ToolRejectCounts: map[string]int{"Read": 1},
-			IsSubagent:       false,
+			ToolCounts:         map[string]int{"Read": 3, "Write": 1},
+			ToolErrorCounts:    map[string]int{"Write": 1},
+			ToolRejectCounts:   map[string]int{"Read": 1},
+			ActionCounts:       map[string]int{"read": 3, "rewrite": 1},
+			ActionErrorCounts:  map[string]int{"rewrite": 1},
+			ActionRejectCounts: map[string]int{"read": 1},
+			Performance: conv.SessionPerformanceMeta{
+				ReasoningBlockCount:     2,
+				ReasoningRedactionCount: 1,
+				MaxThinkingTokens:       32000,
+				ModelContextWindow:      258400,
+				DurationMS:              1500,
+				RetryAttemptCount:       1,
+				RetryDelayMS:            620,
+				MaxRetries:              5,
+				AbortCount:              1,
+				CompactionCount:         1,
+				MicroCompactionCount:    1,
+				TaskStartedCount:        2,
+				TaskCompleteCount:       2,
+				ContextCompactedCount:   1,
+				RateLimitSnapshotCount:  1,
+				APIErrorCounts:          map[string]int{"overloaded_error": 1},
+				StopReasonCounts:        map[string]int{"tool_use": 1},
+				PhaseCounts:             map[string]int{"commentary": 1},
+				EffortCounts:            map[string]int{"xhigh": 1},
+				ServerToolUseCounts:     map[string]int{"web_search_requests": 2},
+				ServiceTierCounts:       map[string]int{"priority": 1},
+				SpeedCounts:             map[string]int{"fast": 1},
+			},
+			IsSubagent: false,
 		},
 		Messages: []message{
 			{
@@ -52,7 +80,17 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 				Text:     "I'll help you",
 				Thinking: "let me think about this",
 				ToolCalls: []toolCall{
-					{Name: "Read", Summary: "Read /tmp/test.go"},
+					{
+						Name:    "Read",
+						Summary: "Read /tmp/test.go",
+						Action: conv.NormalizedAction{
+							Type: conv.NormalizedActionRead,
+							Targets: []conv.ActionTarget{{
+								Type:  conv.ActionTargetFilePath,
+								Value: "/tmp/test.go",
+							}},
+						},
+					},
 				},
 				ToolResults: []toolResult{
 					{
@@ -60,6 +98,13 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 						ToolSummary: "Read /tmp/test.go",
 						Content:     "package main\n\nfunc main() {}",
 						IsError:     false,
+						Action: conv.NormalizedAction{
+							Type: conv.NormalizedActionRead,
+							Targets: []conv.ActionTarget{{
+								Type:  conv.ActionTargetFilePath,
+								Value: "/tmp/test.go",
+							}},
+						},
 						StructuredPatch: []diffHunk{
 							{
 								OldStart: 1, OldLines: 3,
@@ -83,6 +128,14 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 					CacheCreationInputTokens: 80,
 					CacheReadInputTokens:     120,
 					OutputTokens:             240,
+					ReasoningOutputTokens:    12,
+				},
+				Performance: conv.MessagePerformanceMeta{
+					ReasoningBlockCount:     2,
+					ReasoningRedactionCount: 1,
+					StopReason:              "tool_use",
+					Phase:                   "commentary",
+					Effort:                  "xhigh",
 				},
 			},
 		},

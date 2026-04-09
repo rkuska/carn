@@ -28,6 +28,7 @@ func classifyLoadedEventAssistantMessage(payload []byte) visibleMessage {
 		return visibleMessage{}
 	}
 	classified, _ := classifyEventAssistantMessage(message)
+	classified.phase, _ = extractTopLevelRawJSONStringFieldByMarker(payload, phaseFieldMarker)
 	return classified
 }
 

@@ -118,20 +118,6 @@
           "summary": "Fix drift detection",
           "leafUuid": "leaf-1"
         }
-      },
-      "system": {
-        "status": "ignored",
-        "path": "type",
-        "record_types": ["system"],
-        "description": "Provider system record for local commands, compaction boundaries, and timing metadata.",
-        "future_use": "Could preserve provider-native system events in hidden transcript views.",
-        "first_seen": "2026-02-09",
-        "example": {
-          "type": "system",
-          "subtype": "turn_duration",
-          "durationMs": 1234,
-          "timestamp": "2026-02-18T10:11:50.506Z"
-        }
       }
     },
     "envelope_field": {
@@ -169,21 +155,6 @@
         "example": {
           "type": "assistant",
           "apiError": "max_output_tokens"
-        }
-      },
-      "compactMetadata": {
-        "status": "ignored",
-        "path": "compactMetadata",
-        "record_types": ["system"],
-        "description": "Structured metadata describing a Claude context compaction event.",
-        "future_use": "Could show why compaction happened and how large the context was beforehand.",
-        "first_seen": "2026-03-08",
-        "example": {
-          "type": "system",
-          "compactMetadata": {
-            "trigger": "manual",
-            "preTokens": 183892
-          }
         }
       },
       "content": {
@@ -225,18 +196,6 @@
           }
         }
       },
-      "durationMs": {
-        "status": "ignored",
-        "path": "durationMs",
-        "record_types": ["system"],
-        "description": "Turn-duration measurement attached to Claude system timing records.",
-        "future_use": "Could improve per-turn latency analytics and transcript timing chips.",
-        "first_seen": "2026-02-09",
-        "example": {
-          "type": "system",
-          "durationMs": 1234
-        }
-      },
       "entrypoint": {
         "status": "ignored",
         "path": "entrypoint",
@@ -247,20 +206,6 @@
         "example": {
           "type": "assistant",
           "entrypoint": "cli"
-        }
-      },
-      "error": {
-        "status": "ignored",
-        "path": "error",
-        "record_types": ["assistant", "system"],
-        "description": "Structured or scalar error payload attached to Claude transport or system records.",
-        "future_use": "Could surface provider retry behavior and failure details in diagnostics.",
-        "first_seen": "2026-02-23",
-        "example": {
-          "type": "system",
-          "error": {
-            "status": 529
-          }
         }
       },
       "imagePasteIds": {
@@ -371,18 +316,6 @@
           "logicalParentUuid": "uuid-logical"
         }
       },
-      "maxRetries": {
-        "status": "ignored",
-        "path": "maxRetries",
-        "record_types": ["system"],
-        "description": "Maximum retry count tracked on Claude API error system records.",
-        "future_use": "Could explain retry policies and degraded upstream conditions.",
-        "first_seen": "2026-02-23",
-        "example": {
-          "type": "system",
-          "maxRetries": 10
-        }
-      },
       "messageId": {
         "status": "ignored",
         "path": "messageId",
@@ -393,21 +326,6 @@
         "example": {
           "type": "file-history-snapshot",
           "messageId": "msg-1"
-        }
-      },
-      "microcompactMetadata": {
-        "status": "ignored",
-        "path": "microcompactMetadata",
-        "record_types": ["system"],
-        "description": "Structured metadata for Claude microcompaction events.",
-        "future_use": "Could show token savings and affected tool calls for microcompactions.",
-        "first_seen": "2026-01-30",
-        "example": {
-          "type": "system",
-          "microcompactMetadata": {
-            "trigger": "auto",
-            "preTokens": 54410
-          }
         }
       },
       "operation": {
@@ -530,30 +448,6 @@
           "requestId": "req_1"
         }
       },
-      "retryAttempt": {
-        "status": "ignored",
-        "path": "retryAttempt",
-        "record_types": ["system"],
-        "description": "Retry attempt count recorded for Claude API error system events.",
-        "future_use": "Could explain repeated upstream failures or degraded sessions.",
-        "first_seen": "2026-02-23",
-        "example": {
-          "type": "system",
-          "retryAttempt": 1
-        }
-      },
-      "retryInMs": {
-        "status": "ignored",
-        "path": "retryInMs",
-        "record_types": ["system"],
-        "description": "Backoff delay in milliseconds recorded on Claude API error system events.",
-        "future_use": "Could expose provider retry timing for diagnostics.",
-        "first_seen": "2026-02-23",
-        "example": {
-          "type": "system",
-          "retryInMs": 617.8
-        }
-      },
       "snapshot": {
         "status": "ignored",
         "path": "snapshot",
@@ -593,18 +487,6 @@
           "sourceToolUseID": "toolu-1"
         }
       },
-      "subtype": {
-        "status": "ignored",
-        "path": "subtype",
-        "record_types": ["system"],
-        "description": "Subtype label attached to Claude system records.",
-        "future_use": "Could distinguish timing events, compaction boundaries, local commands, and API errors.",
-        "first_seen": "2026-02-09",
-        "example": {
-          "type": "system",
-          "subtype": "turn_duration"
-        }
-      },
       "summary": {
         "status": "ignored",
         "path": "summary",
@@ -615,20 +497,6 @@
         "example": {
           "type": "summary",
           "summary": "Fix drift detection"
-        }
-      },
-      "thinkingMetadata": {
-        "status": "ignored",
-        "path": "thinkingMetadata",
-        "record_types": ["user"],
-        "description": "Thinking-related configuration attached to a Claude user record.",
-        "future_use": "Could explain why a turn produced extended thinking or token-heavy reasoning.",
-        "first_seen": "2026-02-19",
-        "example": {
-          "type": "user",
-          "thinkingMetadata": {
-            "maxThinkingTokens": 32000
-          }
         }
       },
       "todos": {
@@ -723,20 +591,6 @@
           }
         }
       },
-      "stop_reason": {
-        "status": "ignored",
-        "path": "message.stop_reason",
-        "record_types": ["assistant"],
-        "description": "Claude stop reason describing why generation ended.",
-        "future_use": "Could explain end-turn behavior, truncation, or tool-use transitions.",
-        "first_seen": "2026-02-04",
-        "example": {
-          "type": "assistant",
-          "message": {
-            "stop_reason": "end_turn"
-          }
-        }
-      },
       "stop_sequence": {
         "status": "ignored",
         "path": "message.stop_sequence",
@@ -800,56 +654,6 @@
           "message": {
             "usage": {
               "iterations": []
-            }
-          }
-        }
-      },
-      "server_tool_use": {
-        "status": "ignored",
-        "path": "message.usage.server_tool_use",
-        "record_types": ["assistant"],
-        "description": "Server-side tool usage counters nested in Claude usage metadata.",
-        "future_use": "Could distinguish provider-side tool calls from local transcript tool calls.",
-        "first_seen": "2026-03-16",
-        "example": {
-          "type": "assistant",
-          "message": {
-            "usage": {
-              "server_tool_use": {
-                "web_search_requests": 0
-              }
-            }
-          }
-        }
-      },
-      "service_tier": {
-        "status": "ignored",
-        "path": "message.usage.service_tier",
-        "record_types": ["assistant"],
-        "description": "Claude service-tier value nested in usage metadata.",
-        "future_use": "Could support cost or latency analysis by provider tier.",
-        "first_seen": "2026-02-04",
-        "example": {
-          "type": "assistant",
-          "message": {
-            "usage": {
-              "service_tier": "standard"
-            }
-          }
-        }
-      },
-      "speed": {
-        "status": "ignored",
-        "path": "message.usage.speed",
-        "record_types": ["assistant"],
-        "description": "Claude speed profile nested in usage metadata.",
-        "future_use": "Could explain latency differences across otherwise similar turns.",
-        "first_seen": "2026-03-16",
-        "example": {
-          "type": "assistant",
-          "message": {
-            "usage": {
-              "speed": "standard"
             }
           }
         }

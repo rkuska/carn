@@ -123,6 +123,7 @@ func addUsage(total *tokenUsage, usage tokenUsage) {
 	total.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	total.CacheReadInputTokens += usage.CacheReadInputTokens
 	total.OutputTokens += usage.OutputTokens
+	total.ReasoningOutputTokens += usage.ReasoningOutputTokens
 }
 
 func parseConversationPathsProjectedParallel(

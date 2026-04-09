@@ -206,6 +206,11 @@ func TestExtractType(t *testing.T) {
 			want: "assistant",
 		},
 		{
+			name: "system record",
+			line: `{"type":"system","content":"turn finished"}`,
+			want: "system",
+		},
+		{
 			name: "other record",
 			line: `{"type":"summary","message":{"role":"assistant","content":"hi"}}`,
 			want: "",

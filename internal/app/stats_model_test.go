@@ -502,9 +502,11 @@ func TestStatsSessionsTabIgnoresStaleClaudeTurnMetricResults(t *testing.T) {
 }
 
 func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
-	t.Parallel()
-
 	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
 	store := &fakeBrowserStore{}
 
 	m := newStatsModel(

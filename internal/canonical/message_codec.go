@@ -16,6 +16,7 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	for _, call := range msg.ToolCalls {
 		bw.writeString(call.Name)
 		bw.writeString(call.Summary)
+		bw.writeNormalizedAction(call.Action)
 	}
 	bw.writeUint(uint64(len(msg.ToolResults)))
 	for _, result := range msg.ToolResults {
@@ -29,6 +30,7 @@ func writeMessage(w *bufio.Writer, msg message) error {
 	bw.writeBool(msg.IsSidechain)
 	bw.writeBool(msg.IsAgentDivider)
 	bw.writeTokenUsage(msg.Usage)
+	bw.writeMessagePerformanceMeta(msg.Performance)
 	bw.writeUint(uint64(len(msg.Plans)))
 	for _, plan := range msg.Plans {
 		if bw.err != nil {
@@ -69,6 +71,9 @@ func writeToolResult(w *bufio.Writer, result toolResult) error {
 			return fmt.Errorf("writeDiffHunk: %w", err)
 		}
 	}
+	if err := writeNormalizedAction(w, result.Action); err != nil {
+		return fmt.Errorf("writeNormalizedAction: %w", err)
+	}
 	return nil
 }
 
@@ -95,6 +100,7 @@ func writeTokenUsage(w *bufio.Writer, usage tokenUsage) error {
 		usage.CacheCreationInputTokens,
 		usage.CacheReadInputTokens,
 		usage.OutputTokens,
+		usage.ReasoningOutputTokens,
 	} {
 		if err := writeUint(w, uint64(value)); err != nil {
 			return fmt.Errorf("writeUint: %w", err)
@@ -104,7 +110,7 @@ func writeTokenUsage(w *bufio.Writer, usage tokenUsage) error {
 }
 
 func readTokenUsage(r *bufio.Reader) (tokenUsage, error) {
-	var values [4]uint64
+	var values [5]uint64
 	for i := range values {
 		value, err := readUint(r)
 		if err != nil {
@@ -117,5 +123,6 @@ func readTokenUsage(r *bufio.Reader) (tokenUsage, error) {
 		CacheCreationInputTokens: int(values[1]),
 		CacheReadInputTokens:     int(values[2]),
 		OutputTokens:             int(values[3]),
+		ReasoningOutputTokens:    int(values[4]),
 	}, nil
 }

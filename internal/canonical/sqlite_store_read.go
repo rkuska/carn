@@ -74,7 +74,10 @@ func loadSQLiteSessions(
 		        cwd, git_branch, version, model, first_message, message_count, main_message_count,
 		        user_message_count, assistant_message_count,
 		        file_path, input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-		        output_tokens, tool_counts_json, tool_error_counts_json, tool_reject_counts_json, is_subagent
+		        output_tokens, reasoning_output_tokens,
+		        tool_counts_json, tool_error_counts_json, tool_reject_counts_json,
+		        action_counts_json, action_error_counts_json, action_reject_counts_json,
+		        performance_meta_json, is_subagent
 		   FROM conversation_sessions
 		  ORDER BY conversation_id, ordinal`,
 	)
@@ -95,6 +98,10 @@ func loadSQLiteSessions(
 		var toolCountsJSON string
 		var toolErrorCountsJSON string
 		var toolRejectCountsJSON string
+		var actionCountsJSON string
+		var actionErrorCountsJSON string
+		var actionRejectCountsJSON string
+		var performanceMetaJSON string
 		var isSubagent int
 		if err := sessionRows.Scan(
 			&rowID,
@@ -116,9 +123,14 @@ func loadSQLiteSessions(
 			&meta.TotalUsage.CacheCreationInputTokens,
 			&meta.TotalUsage.CacheReadInputTokens,
 			&meta.TotalUsage.OutputTokens,
+			&meta.TotalUsage.ReasoningOutputTokens,
 			&toolCountsJSON,
 			&toolErrorCountsJSON,
 			&toolRejectCountsJSON,
+			&actionCountsJSON,
+			&actionErrorCountsJSON,
+			&actionRejectCountsJSON,
+			&performanceMetaJSON,
 			&isSubagent,
 		); err != nil {
 			return fmt.Errorf("sessionRows.Scan: %w", err)
@@ -135,6 +147,10 @@ func loadSQLiteSessions(
 			toolCountsJSON,
 			toolErrorCountsJSON,
 			toolRejectCountsJSON,
+			actionCountsJSON,
+			actionErrorCountsJSON,
+			actionRejectCountsJSON,
+			performanceMetaJSON,
 			isSubagent,
 		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)
@@ -154,6 +170,10 @@ func finalizeSessionMeta(
 	toolCountsJSON string,
 	toolErrorCountsJSON string,
 	toolRejectCountsJSON string,
+	actionCountsJSON string,
+	actionErrorCountsJSON string,
+	actionRejectCountsJSON string,
+	performanceMetaJSON string,
 	isSubagent int,
 ) error {
 	if timestampNS != 0 {
@@ -175,6 +195,22 @@ func finalizeSessionMeta(
 	meta.ToolRejectCounts, err = unmarshalToolCounts(toolRejectCountsJSON)
 	if err != nil {
 		return fmt.Errorf("unmarshalToolCounts_toolRejectCounts: %w", err)
+	}
+	meta.ActionCounts, err = unmarshalToolCounts(actionCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts_actionCounts: %w", err)
+	}
+	meta.ActionErrorCounts, err = unmarshalToolCounts(actionErrorCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts_actionErrorCounts: %w", err)
+	}
+	meta.ActionRejectCounts, err = unmarshalToolCounts(actionRejectCountsJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalToolCounts_actionRejectCounts: %w", err)
+	}
+	meta.Performance, err = unmarshalSessionPerformanceMeta(performanceMetaJSON)
+	if err != nil {
+		return fmt.Errorf("unmarshalSessionPerformanceMeta: %w", err)
 	}
 	return nil
 }

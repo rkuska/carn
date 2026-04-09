@@ -2,6 +2,7 @@ package codex
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,14 +12,26 @@ import (
 var hunkHeaderPattern = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
 type patchParser struct {
-	hunks   []conv.DiffHunk
-	current conv.DiffHunk
-	inHunk  bool
+	metadata patchMetadata
+	current  conv.DiffHunk
+	inHunk   bool
+}
+
+type patchMetadata struct {
+	Files            []string
+	Hunks            []conv.DiffHunk
+	changedLineCount int
+	contextLineCount int
+	addedFileCount   int
 }
 
 func parseStructuredPatch(input string) []conv.DiffHunk {
+	return parsePatchMetadata(input).Hunks
+}
+
+func parsePatchMetadata(input string) patchMetadata {
 	if !strings.Contains(input, "*** Begin Patch") {
-		return nil
+		return patchMetadata{}
 	}
 
 	parser := patchParser{current: conv.DiffHunk{OldStart: 1, NewStart: 1}}
@@ -26,7 +39,7 @@ func parseStructuredPatch(input string) []conv.DiffHunk {
 		parser.consume(line)
 	}
 	parser.flush()
-	return parser.hunks
+	return parser.metadata
 }
 
 func normalizedPatchLines(input string) []string {
@@ -34,6 +47,25 @@ func normalizedPatchLines(input string) []string {
 }
 
 func (p *patchParser) consume(line string) {
+	switch {
+	case strings.HasPrefix(line, "*** Add File: "):
+		p.flush()
+		p.appendFile(strings.TrimSpace(strings.TrimPrefix(line, "*** Add File: ")))
+		p.metadata.addedFileCount++
+		return
+	case strings.HasPrefix(line, "*** Update File: "):
+		p.flush()
+		p.appendFile(strings.TrimSpace(strings.TrimPrefix(line, "*** Update File: ")))
+		return
+	case strings.HasPrefix(line, "*** Delete File: "):
+		p.flush()
+		p.appendFile(strings.TrimSpace(strings.TrimPrefix(line, "*** Delete File: ")))
+		return
+	case strings.HasPrefix(line, "*** Move to: "):
+		p.appendFile(strings.TrimSpace(strings.TrimPrefix(line, "*** Move to: ")))
+		return
+	}
+
 	if strings.HasPrefix(line, "@@") {
 		p.startHunk(line)
 		return
@@ -54,11 +86,31 @@ func (p *patchParser) startHunk(line string) {
 
 func (p *patchParser) flush() {
 	if !p.inHunk || len(p.current.Lines) == 0 {
+		p.inHunk = false
 		return
 	}
 
 	ensureHunkLineCounts(&p.current)
-	p.hunks = append(p.hunks, p.current)
+	for _, line := range p.current.Lines {
+		switch {
+		case strings.HasPrefix(line, "-"), strings.HasPrefix(line, "+"):
+			p.metadata.changedLineCount++
+		case strings.HasPrefix(line, " "):
+			p.metadata.contextLineCount++
+		}
+	}
+	p.metadata.Hunks = append(p.metadata.Hunks, p.current)
+	p.inHunk = false
+}
+
+func (p *patchParser) appendFile(path string) {
+	if path == "" {
+		return
+	}
+	if slices.Contains(p.metadata.Files, path) {
+		return
+	}
+	p.metadata.Files = append(p.metadata.Files, path)
 }
 
 func isPatchBodyLine(line string) bool {

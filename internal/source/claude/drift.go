@@ -10,25 +10,35 @@ import (
 )
 
 var knownEnvelopeFields = map[string]struct{}{
-	"type":          {},
-	"sessionId":     {},
-	"slug":          {},
-	"cwd":           {},
-	"gitBranch":     {},
-	"version":       {},
-	"timestamp":     {},
-	"isSidechain":   {},
-	"isMeta":        {},
-	"toolUseResult": {},
-	"message":       {},
+	"type":                 {},
+	"sessionId":            {},
+	"slug":                 {},
+	"cwd":                  {},
+	"gitBranch":            {},
+	"version":              {},
+	"timestamp":            {},
+	"isSidechain":          {},
+	"isMeta":               {},
+	"toolUseResult":        {},
+	"thinkingMetadata":     {},
+	"subtype":              {},
+	"durationMs":           {},
+	"retryAttempt":         {},
+	"retryInMs":            {},
+	"maxRetries":           {},
+	"error":                {},
+	"compactMetadata":      {},
+	"microcompactMetadata": {},
+	"message":              {},
 }
 
 var knownMessageFields = map[string]struct{}{
-	"role":    {},
-	"type":    {},
-	"content": {},
-	"model":   {},
-	"usage":   {},
+	"role":        {},
+	"type":        {},
+	"content":     {},
+	"model":       {},
+	"stop_reason": {},
+	"usage":       {},
 }
 
 var knownUsageFields = map[string]struct{}{
@@ -36,11 +46,15 @@ var knownUsageFields = map[string]struct{}{
 	"output_tokens":               {},
 	"cache_creation_input_tokens": {},
 	"cache_read_input_tokens":     {},
+	"server_tool_use":             {},
+	"service_tier":                {},
+	"speed":                       {},
 }
 
 var knownRecordTypes = map[string]struct{}{
 	"user":      {},
 	"assistant": {},
+	"system":    {},
 }
 
 var knownContentBlockTypes = map[string]struct{}{
@@ -49,6 +63,14 @@ var knownContentBlockTypes = map[string]struct{}{
 	"tool_result": {},
 	"thinking":    {},
 }
+
+var (
+	knownEnvelopeFieldsRaw    = rawJSONStringSet(knownEnvelopeFields)
+	knownMessageFieldsRaw     = rawJSONStringSet(knownMessageFields)
+	knownUsageFieldsRaw       = rawJSONStringSet(knownUsageFields)
+	knownRecordTypesRaw       = rawJSONStringSet(knownRecordTypes)
+	knownContentBlockTypesRaw = rawJSONStringSet(knownContentBlockTypes)
+)
 
 var (
 	envelopeTypeFieldKey    = []byte(`"type"`)
@@ -208,7 +230,7 @@ func recordUnknownField(report *src.DriftReport, category string, rawField []byt
 	report.Record(category, field)
 }
 
-func extractObjectStringFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
+func extractObjectFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '{' {
 		return nil, false
@@ -222,7 +244,7 @@ func extractObjectStringFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
 		if !ok {
 			return nil, false
 		}
-		if bytes.Equal(field, fieldKey) && raw[valueStart] == '"' {
+		if bytes.Equal(field, fieldKey) {
 			return raw[valueStart:valueEnd], true
 		}
 		pos = skipJSONObjectPadding(raw, valueEnd)
@@ -230,36 +252,39 @@ func extractObjectStringFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
 	return nil, false
 }
 
+func extractObjectStringFieldRaw(raw, fieldKey []byte) ([]byte, bool) {
+	value, ok := extractObjectFieldRaw(raw, fieldKey)
+	if !ok || len(value) == 0 || value[0] != '"' {
+		return nil, false
+	}
+	return value, true
+}
+
 func isKnownContentBlockTypeRaw(raw []byte) bool {
-	return hasKnownJSONStringRaw(raw, knownContentBlockTypes) ||
+	return hasKnownJSONStringRaw(raw, knownContentBlockTypesRaw) ||
 		claudeKnownSchemaExtras.HasRaw("content_block_type", raw)
 }
 
 func isKnownEnvelopeFieldRaw(raw []byte) bool {
-	return hasKnownJSONStringRaw(raw, knownEnvelopeFields) ||
+	return hasKnownJSONStringRaw(raw, knownEnvelopeFieldsRaw) ||
 		claudeKnownSchemaExtras.HasRaw("envelope_field", raw)
 }
 
 func isKnownMessageFieldRaw(raw []byte) bool {
-	return hasKnownJSONStringRaw(raw, knownMessageFields) ||
+	return hasKnownJSONStringRaw(raw, knownMessageFieldsRaw) ||
 		claudeKnownSchemaExtras.HasRaw("message_field", raw)
 }
 
 func isKnownUsageFieldRaw(raw []byte) bool {
-	return hasKnownJSONStringRaw(raw, knownUsageFields) ||
+	return hasKnownJSONStringRaw(raw, knownUsageFieldsRaw) ||
 		claudeKnownSchemaExtras.HasRaw("usage_field", raw)
 }
 
 func isKnownRecordTypeRaw(raw []byte) bool {
-	return hasKnownJSONStringRaw(raw, knownRecordTypes) ||
+	return hasKnownJSONStringRaw(raw, knownRecordTypesRaw) ||
 		claudeKnownSchemaExtras.HasRaw("record_type", raw)
 }
 
-func hasKnownJSONStringRaw(raw []byte, known map[string]struct{}) bool {
-	value, ok := decodeJSONStringFast(raw)
-	if !ok {
-		return false
-	}
-	_, exists := known[value]
-	return exists
+func hasKnownJSONStringRaw(raw []byte, knownRaw map[string]struct{}) bool {
+	return hasRawJSONString(raw, knownRaw)
 }

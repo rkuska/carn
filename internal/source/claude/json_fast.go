@@ -111,6 +111,17 @@ func decodeJSONStringFast(raw []byte) (string, bool) {
 	return value, true
 }
 
+func rawJSONStringInnerValue(raw []byte) []byte {
+	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
+		return nil
+	}
+	body := raw[1 : len(raw)-1]
+	if bytes.IndexByte(body, '\\') != -1 {
+		return nil
+	}
+	return body
+}
+
 func skipJSONObjectPadding(raw []byte, start int) int {
 	for start < len(raw) {
 		switch raw[start] {

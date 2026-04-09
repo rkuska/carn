@@ -88,7 +88,8 @@ func TestScanRolloutLineTracksToolCountsAndTokenUsage(t *testing.T) {
 	assert.Equal(t, 1, state.meta.ToolCounts["exec_command"])
 	assert.Equal(t, 100, state.meta.TotalUsage.InputTokens)
 	assert.Equal(t, 10, state.meta.TotalUsage.CacheReadInputTokens)
-	assert.Equal(t, 55, state.meta.TotalUsage.OutputTokens)
+	assert.Equal(t, 50, state.meta.TotalUsage.OutputTokens)
+	assert.Equal(t, 5, state.meta.TotalUsage.ReasoningOutputTokens)
 }
 
 func TestScanRolloutLineTracksToolErrorCounts(t *testing.T) {

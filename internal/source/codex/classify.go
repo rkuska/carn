@@ -12,6 +12,7 @@ type visibleMessage struct {
 	text           string
 	visibility     conv.MessageVisibility
 	isAgentDivider bool
+	phase          string
 }
 
 func classifyResponseMessage(role string, raw []byte) (visibleMessage, bool) {

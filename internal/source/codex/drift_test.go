@@ -282,7 +282,7 @@ func TestKnownCodexSchemaSets(t *testing.T) {
 	assert.ElementsMatch(t, []string{"branch", "commit_hash"}, setKeys(knownGitFields))
 	assert.ElementsMatch(
 		t,
-		[]string{"cwd", "model", "approval_policy", "sandbox_policy"},
+		[]string{"cwd", "model", "effort", "approval_policy", "sandbox_policy"},
 		setKeys(knownTurnContextFields),
 	)
 	assert.ElementsMatch(
@@ -303,7 +303,7 @@ func TestKnownCodexSchemaSets(t *testing.T) {
 		[]string{responseRoleUser, responseRoleAssistant, responseRoleDeveloper},
 		setKeys(knownRoles),
 	)
-	assert.ElementsMatch(t, []string{"type", "role", "content"}, setKeys(knownResponseMessageFields))
+	assert.ElementsMatch(t, []string{"type", "role", "phase", "content"}, setKeys(knownResponseMessageFields))
 	assert.ElementsMatch(t, []string{"input_text", "output_text"}, setKeys(knownContentBlockTypes))
 	assert.ElementsMatch(
 		t,
@@ -323,7 +323,10 @@ func TestKnownCodexSchemaSets(t *testing.T) {
 			eventTypeAgentMessage,
 			eventTypeAgentReasoning,
 			eventTypeItemCompleted,
+			eventTypeTaskStarted,
 			eventTypeTaskComplete,
+			eventTypeTurnAborted,
+			eventTypeContextCompacted,
 		},
 		setKeys(knownEventTypes),
 	)
@@ -333,9 +336,16 @@ func TestKnownCodexSchemaSets(t *testing.T) {
 	assert.ElementsMatch(t, []string{"type", "item"}, setKeys(knownItemCompletedFields))
 	assert.ElementsMatch(t, []string{"type", "id", "text"}, setKeys(knownCompletedItemFields))
 	assert.ElementsMatch(t, []string{eventItemTypePlan}, setKeys(knownCompletedItemTypes))
+	assert.ElementsMatch(t, []string{"type", "turn_id", "model_context_window"}, setKeys(knownTaskStartedFields))
 	assert.ElementsMatch(t, []string{"type", "last_agent_message"}, setKeys(knownTaskCompleteFields))
-	assert.ElementsMatch(t, []string{"type", "info"}, setKeys(knownTokenCountFields))
-	assert.ElementsMatch(t, []string{"total_token_usage", "last_token_usage"}, setKeys(knownTokenCountInfoFields))
+	assert.ElementsMatch(t, []string{"type", "turn_id"}, setKeys(knownTurnAbortedFields))
+	assert.ElementsMatch(t, []string{"type"}, setKeys(knownContextCompactedFields))
+	assert.ElementsMatch(t, []string{"type", "rate_limits", "info"}, setKeys(knownTokenCountFields))
+	assert.ElementsMatch(
+		t,
+		[]string{"total_token_usage", "last_token_usage", "model_context_window"},
+		setKeys(knownTokenCountInfoFields),
+	)
 	assert.ElementsMatch(
 		t,
 		[]string{

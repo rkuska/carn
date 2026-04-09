@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,7 +27,8 @@ type knownSchemaExtrasDocument struct {
 }
 
 type knownSchemaExtrasCatalog struct {
-	categories map[string]map[string]knownSchemaExtraEntry
+	categories    map[string]map[string]knownSchemaExtraEntry
+	rawCategories map[string]map[string]struct{}
 }
 
 type knownSchemaExtraPathSegment struct {
@@ -55,7 +57,24 @@ func mustLoadKnownSchemaExtras() knownSchemaExtrasCatalog {
 	if err := validateKnownSchemaExtrasDocument(doc); err != nil {
 		panic(fmt.Errorf("mustLoadKnownSchemaExtras_validateKnownSchemaExtrasDocument: %w", err))
 	}
-	return knownSchemaExtrasCatalog{categories: doc.Categories}
+	return knownSchemaExtrasCatalog{
+		categories:    doc.Categories,
+		rawCategories: buildKnownSchemaExtraRawCategories(doc.Categories),
+	}
+}
+
+func buildKnownSchemaExtraRawCategories(
+	categories map[string]map[string]knownSchemaExtraEntry,
+) map[string]map[string]struct{} {
+	rawCategories := make(map[string]map[string]struct{}, len(categories))
+	for category, values := range categories {
+		rawValues := make(map[string]struct{}, len(values))
+		for value := range values {
+			rawValues[strconv.Quote(value)] = struct{}{}
+		}
+		rawCategories[category] = rawValues
+	}
+	return rawCategories
 }
 
 func validateKnownSchemaExtrasDocument(doc knownSchemaExtrasDocument) error {
@@ -159,11 +178,11 @@ func (c knownSchemaExtrasCatalog) Has(category, value string) bool {
 }
 
 func (c knownSchemaExtrasCatalog) HasRaw(category string, raw []byte) bool {
-	value, ok := decodeJSONStringFast(raw)
-	if !ok || value == "" {
+	values := c.rawCategories[category]
+	if len(values) == 0 {
 		return false
 	}
-	return c.Has(category, value)
+	return hasRawJSONString(raw, values)
 }
 
 func (c knownSchemaExtrasCatalog) Categories() map[string]map[string]knownSchemaExtraEntry {

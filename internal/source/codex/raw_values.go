@@ -20,12 +20,15 @@ var (
 	responseRoleAssistantRaw = []byte(`"assistant"`)
 	responseRoleDeveloperRaw = []byte(`"developer"`)
 
-	eventTypeTokenCountRaw     = []byte(`"token_count"`)
-	eventTypeUserMessageRaw    = []byte(`"user_message"`)
-	eventTypeAgentMessageRaw   = []byte(`"agent_message"`)
-	eventTypeAgentReasoningRaw = []byte(`"agent_reasoning"`)
-	eventTypeItemCompletedRaw  = []byte(`"item_completed"`)
-	eventTypeTaskCompleteRaw   = []byte(`"task_complete"`)
+	eventTypeTokenCountRaw       = []byte(`"token_count"`)
+	eventTypeUserMessageRaw      = []byte(`"user_message"`)
+	eventTypeAgentMessageRaw     = []byte(`"agent_message"`)
+	eventTypeAgentReasoningRaw   = []byte(`"agent_reasoning"`)
+	eventTypeItemCompletedRaw    = []byte(`"item_completed"`)
+	eventTypeTaskStartedRaw      = []byte(`"task_started"`)
+	eventTypeTaskCompleteRaw     = []byte(`"task_complete"`)
+	eventTypeTurnAbortedRaw      = []byte(`"turn_aborted"`)
+	eventTypeContextCompactedRaw = []byte(`"context_compacted"`)
 
 	contentTypeInputTextRaw  = []byte(`"input_text"`)
 	contentTypeOutputTextRaw = []byte(`"output_text"`)
@@ -65,7 +68,10 @@ func isKnownEventTypeRaw(raw []byte) bool {
 		bytes.Equal(raw, eventTypeAgentMessageRaw) ||
 		bytes.Equal(raw, eventTypeAgentReasoningRaw) ||
 		bytes.Equal(raw, eventTypeItemCompletedRaw) ||
+		bytes.Equal(raw, eventTypeTaskStartedRaw) ||
 		bytes.Equal(raw, eventTypeTaskCompleteRaw) ||
+		bytes.Equal(raw, eventTypeTurnAbortedRaw) ||
+		bytes.Equal(raw, eventTypeContextCompactedRaw) ||
 		codexKnownSchemaExtras.HasRaw("event_type", raw)
 }
 

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type blobEncoderState struct {
@@ -91,6 +93,28 @@ func unmarshalToolCounts(raw string) (map[string]int, error) {
 		return nil, nil
 	}
 	return counts, nil
+}
+
+func marshalSessionPerformanceMeta(meta conv.SessionPerformanceMeta) (string, error) {
+	if isZeroSessionPerformanceMeta(meta) {
+		return "", nil
+	}
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		return "", fmt.Errorf("json.Marshal: %w", err)
+	}
+	return string(raw), nil
+}
+
+func unmarshalSessionPerformanceMeta(raw string) (conv.SessionPerformanceMeta, error) {
+	if isEmptyJSONObject(raw) {
+		return conv.SessionPerformanceMeta{}, nil
+	}
+	var meta conv.SessionPerformanceMeta
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return conv.SessionPerformanceMeta{}, fmt.Errorf("json.Unmarshal: %w", err)
+	}
+	return meta, nil
 }
 
 func isEmptyJSONObject(raw string) bool {

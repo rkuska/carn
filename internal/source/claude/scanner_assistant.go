@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -44,6 +45,18 @@ var toolConstant = map[string]string{
 	"TaskList":      "list tasks",
 }
 
+var (
+	assistantBlockTypeTextRaw     = []byte(`"text"`)
+	assistantBlockTypeThinkingRaw = []byte(`"thinking"`)
+	assistantBlockTypeToolUseRaw  = []byte(`"tool_use"`)
+	assistantFieldTextKey         = []byte(`"text"`)
+	assistantFieldThinkingKey     = []byte(`"thinking"`)
+	assistantFieldSignatureKey    = []byte(`"signature"`)
+	assistantFieldNameKey         = []byte(`"name"`)
+	assistantFieldIDKey           = []byte(`"id"`)
+	assistantFieldInputKey        = []byte(`"input"`)
+)
+
 // blockJoiner concatenates multiple block strings with newline separators.
 // For the common single-block case it returns the string directly (zero alloc).
 type blockJoiner struct {
@@ -75,13 +88,35 @@ func (j *blockJoiner) result() string {
 func extractAssistantContent(
 	raw json.RawMessage,
 ) (text, thinking string, hasHiddenThinking bool, toolCalls []toolCall, toolCallIDs []string, ok bool) {
+	extracted, ok := extractAssistantContentDetails(raw)
+	if !ok {
+		return "", "", false, nil, nil, false
+	}
+	return extracted.text,
+		extracted.thinking,
+		extracted.hasHiddenThinking,
+		extracted.toolCalls,
+		extracted.toolCallIDs,
+		true
+}
+
+type assistantContentExtraction struct {
+	text              string
+	thinking          string
+	hasHiddenThinking bool
+	toolCalls         []toolCall
+	toolCallIDs       []string
+	performance       messagePerformanceMeta
+}
+
+func extractAssistantContentDetails(raw json.RawMessage) (assistantContentExtraction, bool) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '[' {
-		return "", "", false, nil, nil, false
+		return assistantContentExtraction{}, false
 	}
 
 	var textJ, thinkJ blockJoiner
-	hiddenThinking := false
+	extracted := assistantContentExtraction{}
 	parseOK := true
 	_, err := jsonparser.ArrayEach(raw, func(value []byte, dataType jsonparser.ValueType, _ int, err error) {
 		if !parseOK {
@@ -95,17 +130,21 @@ func extractAssistantContent(
 			value,
 			&textJ,
 			&thinkJ,
-			&hiddenThinking,
-			&toolCalls,
-			&toolCallIDs,
+			&extracted.hasHiddenThinking,
+			&extracted.toolCalls,
+			&extracted.toolCallIDs,
+			&extracted.performance,
 		); err != nil {
 			parseOK = false
 		}
 	})
 	if err != nil || !parseOK {
-		return "", "", false, nil, nil, false
+		return assistantContentExtraction{}, false
 	}
-	return textJ.result(), thinkJ.result(), hiddenThinking, toolCalls, toolCallIDs, true
+	extracted.text = textJ.result()
+	extracted.thinking = thinkJ.result()
+	extracted.hasHiddenThinking = extracted.hasHiddenThinking && extracted.thinking == ""
+	return extracted, true
 }
 
 func appendAssistantContentBlock(
@@ -115,25 +154,28 @@ func appendAssistantContentBlock(
 	hiddenThinking *bool,
 	toolCalls *[]toolCall,
 	toolCallIDs *[]string,
+	performance *messagePerformanceMeta,
 ) error {
-	blockType, _, err := jsonStringField(value, "type")
-	if err != nil {
-		return fmt.Errorf("appendAssistantContentBlock_type: %w", err)
+	blockTypeRaw, ok := extractObjectStringFieldRaw(value, envelopeTypeFieldKey)
+	if !ok {
+		return fmt.Errorf("appendAssistantContentBlock_type: %w", errMissingJSONField)
 	}
 
-	switch blockType {
-	case blockTypeText:
+	switch {
+	case bytes.Equal(blockTypeRaw, assistantBlockTypeTextRaw):
 		return appendAssistantTextBlock(value, textJ)
-	case blockTypeThinking:
+	case bytes.Equal(blockTypeRaw, assistantBlockTypeThinkingRaw):
+		performance.ReasoningBlockCount++
 		hidden, err := appendAssistantThinkingBlock(value, thinkJ)
 		if err != nil {
 			return err
 		}
 		if hidden {
 			*hiddenThinking = true
+			performance.ReasoningRedactionCount++
 		}
 		return nil
-	case blockTypeToolUse:
+	case bytes.Equal(blockTypeRaw, assistantBlockTypeToolUseRaw):
 		return appendAssistantToolUseBlock(value, toolCalls, toolCallIDs)
 	default:
 		return nil
@@ -141,18 +183,18 @@ func appendAssistantContentBlock(
 }
 
 func appendAssistantTextBlock(value []byte, textJ *blockJoiner) error {
-	blockText, _, err := jsonStringField(value, "text")
-	if err != nil {
-		return fmt.Errorf("appendAssistantTextBlock_text: %w", err)
+	blockText, ok := decodeObjectStringField(value, assistantFieldTextKey)
+	if !ok {
+		return fmt.Errorf("appendAssistantTextBlock_text: %w", errMissingJSONField)
 	}
 	textJ.add(blockText)
 	return nil
 }
 
 func appendAssistantThinkingBlock(value []byte, thinkJ *blockJoiner) (bool, error) {
-	blockThinking, _, err := jsonStringField(value, "thinking")
-	if err != nil {
-		return false, fmt.Errorf("appendAssistantThinkingBlock_thinking: %w", err)
+	blockThinking, ok := decodeObjectStringField(value, assistantFieldThinkingKey)
+	if !ok {
+		return false, fmt.Errorf("appendAssistantThinkingBlock_thinking: %w", errMissingJSONField)
 	}
 	if blockThinking != "" {
 		thinkJ.add(blockThinking)
@@ -160,11 +202,8 @@ func appendAssistantThinkingBlock(value []byte, thinkJ *blockJoiner) (bool, erro
 	}
 	// Empty thinking text with a signature indicates signed/encrypted thinking
 	// where the content is not available for display.
-	_, hasSignature, err := jsonStringField(value, "signature")
-	if err != nil {
-		return false, fmt.Errorf("appendAssistantThinkingBlock_signature: %w", err)
-	}
-	return hasSignature, nil
+	_, ok = extractObjectStringFieldRaw(value, assistantFieldSignatureKey)
+	return ok, nil
 }
 
 func appendAssistantToolUseBlock(
@@ -172,35 +211,56 @@ func appendAssistantToolUseBlock(
 	toolCalls *[]toolCall,
 	toolCallIDs *[]string,
 ) error {
-	name, _, err := jsonStringField(value, "name")
-	if err != nil {
-		return fmt.Errorf("appendAssistantToolUseBlock_name: %w", err)
+	nameRaw, ok := extractObjectStringFieldRaw(value, assistantFieldNameKey)
+	if !ok {
+		return fmt.Errorf("appendAssistantToolUseBlock_name: %w", errMissingJSONField)
 	}
-	name = internClaudeToolName([]byte(name))
-	id, _, err := jsonStringField(value, "id")
-	if err != nil {
-		return fmt.Errorf("appendAssistantToolUseBlock_id: %w", err)
+	name := internClaudeToolNameRaw(nameRaw)
+	if name == "" {
+		return fmt.Errorf("appendAssistantToolUseBlock_name: %w", errMissingJSONField)
 	}
-	input, _, err := jsonRawField(value, "input")
-	if err != nil {
-		return fmt.Errorf("appendAssistantToolUseBlock_input: %w", err)
+	idRaw, ok := extractObjectStringFieldRaw(value, assistantFieldIDKey)
+	if !ok {
+		return fmt.Errorf("appendAssistantToolUseBlock_id: %w", errMissingJSONField)
+	}
+	id, ok := decodeJSONStringFast(idRaw)
+	if !ok {
+		return fmt.Errorf("appendAssistantToolUseBlock_id: %w", errMissingJSONField)
+	}
+	input, ok := extractObjectFieldRaw(value, assistantFieldInputKey)
+	if !ok {
+		return fmt.Errorf("appendAssistantToolUseBlock_input: %w", errMissingJSONField)
 	}
 
 	*toolCalls = append(*toolCalls, toolCall{
 		Name:    name,
 		Summary: summarizeToolCallFast(name, input),
+		Action:  classifyClaudeToolAction(name, input),
 	})
 	*toolCallIDs = append(*toolCallIDs, id)
 	return nil
 }
 
+var errMissingJSONField = errors.New("missing json field")
+
+func decodeObjectStringField(raw, fieldKey []byte) (string, bool) {
+	value, ok := extractObjectStringFieldRaw(raw, fieldKey)
+	if !ok {
+		return "", false
+	}
+	return decodeJSONStringFast(value)
+}
+
 func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedMessage, []string, bool) {
-	text, thinking, hiddenThinking, toolCalls, toolCallIDs, ok := extractAssistantContent(pc.rec.Message.Content)
+	extracted, ok := extractAssistantContentDetails(pc.rec.Message.Content)
 	if !ok {
 		zerolog.Ctx(ctx).Debug().Msg("failed to parse assistant content blocks")
 		return parsedMessage{}, nil, false
 	}
-	if text == "" && thinking == "" && !hiddenThinking && len(toolCalls) == 0 {
+	if extracted.text == "" &&
+		extracted.thinking == "" &&
+		!extracted.hasHiddenThinking &&
+		len(extracted.toolCalls) == 0 {
 		return parsedMessage{}, nil, false
 	}
 
@@ -214,21 +274,21 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 		}
 	}
 
-	// Hidden thinking is only relevant when no visible thinking text exists.
-	hasHiddenThinking := hiddenThinking && thinking == ""
-
+	performance := extracted.performance
+	performance.StopReason = pc.rec.Message.StopReason
 	return parsedMessage{
 		message: message{
 			Role:              roleAssistant,
-			Text:              text,
-			Thinking:          thinking,
-			HasHiddenThinking: hasHiddenThinking,
-			ToolCalls:         toolCalls,
+			Text:              extracted.text,
+			Thinking:          extracted.thinking,
+			HasHiddenThinking: extracted.hasHiddenThinking,
+			ToolCalls:         extracted.toolCalls,
 			IsSidechain:       pc.rec.IsSidechain,
+			Performance:       performance,
 		},
 		timestamp: parseRecordTimestamp(pc.rec.Timestamp),
 		usage:     usage,
-	}, toolCallIDs, true
+	}, extracted.toolCallIDs, true
 }
 
 func parseRecordTimestamp(value string) time.Time {
