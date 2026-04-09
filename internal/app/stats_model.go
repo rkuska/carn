@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +24,7 @@ const (
 	statsTabActivity
 	statsTabSessions
 	statsTabTools
+	statsTabPerformance
 )
 
 type activityMetric int
@@ -36,29 +36,32 @@ const (
 )
 
 type statsModel struct {
-	conversations               []conv.Conversation
-	store                       browserStore
-	ctx                         context.Context
-	archiveDir                  string
-	tab                         statsTab
-	timeRange                   stats.TimeRange
-	snapshot                    stats.Snapshot
-	claudeTurnMetricSessions    []stats.SessionTurnMetrics
-	claudeTurnMetricsSourceKey  string
-	claudeTurnMetrics           []stats.PositionTokenMetrics
-	claudeTurnMetricsLoadingKey string
-	filter                      browserFilterState
-	viewer                      viewerModel
-	viewerOpen                  bool
-	notification                notification
-	helpOpen                    bool
-	viewport                    viewport.Model
-	spinner                     spinner.Model
-	width, height               int
-	activityMetric              activityMetric
-	glamourStyle                string
-	timestampFormat             string
-	launcher                    sessionLauncher
+	conversations                 []conv.Conversation
+	store                         browserStore
+	ctx                           context.Context
+	archiveDir                    string
+	tab                           statsTab
+	timeRange                     stats.TimeRange
+	snapshot                      stats.Snapshot
+	claudeTurnMetricSessions      []stats.SessionTurnMetrics
+	claudeTurnMetricsSourceKey    string
+	claudeTurnMetrics             []stats.PositionTokenMetrics
+	claudeTurnMetricsLoadingKey   string
+	performanceSequenceSessions   []stats.PerformanceSequenceSession
+	performanceSequenceSourceKey  string
+	performanceSequenceLoadingKey string
+	filter                        browserFilterState
+	viewer                        viewerModel
+	viewerOpen                    bool
+	notification                  notification
+	helpOpen                      bool
+	viewport                      viewport.Model
+	spinner                       spinner.Model
+	width, height                 int
+	activityMetric                activityMetric
+	glamourStyle                  string
+	timestampFormat               string
+	launcher                      sessionLauncher
 }
 
 const (
@@ -155,6 +158,8 @@ func (m statsModel) handleStatsMessage(msg tea.Msg) (statsModel, tea.Cmd, bool) 
 		return m, nil, true
 	case claudeTurnMetricsLoadedMsg:
 		return m.applyClaudeTurnMetricsLoaded(msg), nil, true
+	case performanceSequenceLoadedMsg:
+		return m.applyPerformanceSequenceLoaded(msg), nil, true
 	case statsSessionLoadedMsg:
 		return m.openLoadedViewer(msg), nil, true
 	case spinner.TickMsg:
@@ -188,11 +193,14 @@ func (m statsModel) setSize(width, height int) statsModel {
 }
 
 func (m statsModel) applyFilterChange() statsModel {
-	m.snapshot = stats.ComputeSnapshot(m.filteredSessions(), m.timeRange)
+	m = m.recomputeSnapshot()
 	m.claudeTurnMetricSessions = nil
 	m.claudeTurnMetricsSourceKey = ""
 	m.claudeTurnMetrics = nil
 	m.claudeTurnMetricsLoadingKey = ""
+	m.performanceSequenceSessions = nil
+	m.performanceSequenceSourceKey = ""
+	m.performanceSequenceLoadingKey = ""
 	return m.renderViewportContent(true)
 }
 
@@ -227,9 +235,24 @@ func (m statsModel) renderActiveTab() string {
 		return m.renderSessionsTab(m.contentWidth())
 	case statsTabTools:
 		return m.renderToolsTab(m.contentWidth())
+	case statsTabPerformance:
+		return m.renderPerformanceTab(m.contentWidth())
 	default:
 		return m.renderOverviewTab(m.contentWidth())
 	}
+}
+
+func (m statsModel) recomputeSnapshot() statsModel {
+	conversations := m.filteredConversations()
+	m.snapshot = stats.ComputeSnapshot(conversations, m.timeRange)
+	if m.performanceSequenceSourceKey == m.performanceSequenceSourceCacheKey() {
+		m.snapshot.Performance = stats.ComputePerformance(
+			conversations,
+			m.timeRange,
+			m.performanceSequenceSessions,
+		)
+	}
+	return m
 }
 
 func (m statsModel) contentWidth() int {
@@ -242,15 +265,6 @@ func (m statsModel) contentHeight() int {
 
 func (m statsModel) filteredConversations() []conv.Conversation {
 	return applyStructuredFilters(m.conversations, m.filter.dimensions)
-}
-
-func (m statsModel) filteredSessions() []conv.SessionMeta {
-	conversations := m.filteredConversations()
-	sessions := make([]conv.SessionMeta, 0, len(conversations))
-	for _, conversation := range conversations {
-		sessions = append(sessions, conversation.Sessions...)
-	}
-	return sessions
 }
 
 func (m statsModel) footerStatusParts() []string {
@@ -268,158 +282,4 @@ func (m statsModel) scrollStatus() string {
 	}
 
 	return fmt.Sprintf("%d%%", int(math.Round(m.viewport.ScrollPercent()*100)))
-}
-
-type claudeTurnMetricSessionTarget struct {
-	conversation conv.Conversation
-	session      conv.SessionMeta
-}
-
-func (m statsModel) claudeTurnMetricSessionTargets() []claudeTurnMetricSessionTarget {
-	conversations := m.filteredConversations()
-	targets := make([]claudeTurnMetricSessionTarget, 0, len(conversations))
-	for _, conversation := range conversations {
-		for _, session := range conversation.Sessions {
-			targets = append(targets, claudeTurnMetricSessionTarget{
-				conversation: conversation,
-				session:      session,
-			})
-		}
-	}
-	return targets
-}
-
-func (m statsModel) claudeTurnMetricsSourceCacheKey() string {
-	parts := []string{"turn-metrics"}
-	parts = append(parts, filterBadges(m.filter.dimensions)...)
-	return strings.Join(parts, "|")
-}
-
-func (m statsModel) renderViewportContentAndMaybeLoad(resetScroll bool) (statsModel, tea.Cmd) {
-	m = m.renderViewportContent(resetScroll)
-	return m.maybeStartStatsBackgroundLoad()
-}
-
-func (m statsModel) applyFilterChangeAndMaybeLoad() (statsModel, tea.Cmd) {
-	m = m.applyFilterChange()
-	return m.maybeStartStatsBackgroundLoad()
-}
-
-func (m statsModel) maybeStartClaudeTurnMetricsLoad() (statsModel, tea.Cmd) {
-	if m.tab != statsTabSessions || m.snapshot.Overview.SessionCount == 0 {
-		return m, nil
-	}
-
-	key := m.claudeTurnMetricsSourceCacheKey()
-	switch key {
-	case m.claudeTurnMetricsSourceKey:
-		return m, nil
-	case m.claudeTurnMetricsLoadingKey:
-		return m, m.spinner.Tick
-	default:
-		m.claudeTurnMetricsLoadingKey = key
-		return m, tea.Batch(
-			loadClaudeTurnMetricsCmd(m.ctx, m.store, m.claudeTurnMetricSessionTargets(), key),
-			m.spinner.Tick,
-		)
-	}
-}
-
-func (m statsModel) claudeTurnMetricsLoading() bool {
-	if m.tab != statsTabSessions || m.snapshot.Overview.SessionCount == 0 {
-		return false
-	}
-	key := m.claudeTurnMetricsSourceCacheKey()
-	return key != "" && key == m.claudeTurnMetricsLoadingKey && key != m.claudeTurnMetricsSourceKey
-}
-
-func (m statsModel) applyClaudeTurnMetricsLoaded(msg claudeTurnMetricsLoadedMsg) statsModel {
-	if msg.key != m.claudeTurnMetricsLoadingKey || msg.key != m.claudeTurnMetricsSourceCacheKey() {
-		return m
-	}
-
-	m.claudeTurnMetricSessions = msg.sessions
-	m.claudeTurnMetricsSourceKey = msg.key
-	m.claudeTurnMetrics = stats.ComputeTurnTokenMetricsForRange(msg.sessions, m.timeRange)
-	m.claudeTurnMetricsLoadingKey = ""
-	m.snapshot.Sessions.ClaudeTurnMetrics = m.claudeTurnMetrics
-	if m.tab == statsTabSessions {
-		m.viewport.SetContent(m.renderSessionsTab(m.contentWidth()))
-	}
-	return m
-}
-
-func (m statsModel) handleSpinnerTick(msg spinner.TickMsg) (statsModel, tea.Cmd) {
-	if !m.statsBackgroundLoading() {
-		return m, nil
-	}
-
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	m.viewport.SetContent(m.renderActiveTab())
-	return m, cmd
-}
-
-func statsRange30d() stats.TimeRange {
-	return statsRangeDays(30)
-}
-
-func statsRange90d() stats.TimeRange {
-	return statsRangeDays(90)
-}
-
-func statsRange7d() stats.TimeRange {
-	return statsRangeDays(7)
-}
-
-func statsRangeDays(days int) stats.TimeRange {
-	now := statsNow()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).
-		AddDate(0, 0, -(days - 1))
-	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, int(time.Second-time.Nanosecond), now.Location())
-	return stats.TimeRange{Start: start, End: end}
-}
-
-func nextStatsTab(tab statsTab) statsTab {
-	return statsTab((int(tab) + 1) % 4)
-}
-
-func prevStatsTab(tab statsTab) statsTab {
-	return statsTab((int(tab) + 3) % 4)
-}
-
-func nextActivityMetric(metric activityMetric) activityMetric {
-	return activityMetric((int(metric) + 1) % 3)
-}
-
-func nextStatsTimeRange(current stats.TimeRange) stats.TimeRange {
-	switch statsTimeRangeLabel(current) {
-	case statsRangeLabel7d:
-		return statsRange30d()
-	case statsRangeLabel30d:
-		return statsRange90d()
-	case statsRangeLabel90d:
-		return stats.TimeRange{}
-	default:
-		return statsRange7d()
-	}
-}
-
-func statsTimeRangeLabel(current stats.TimeRange) string {
-	switch {
-	case current.Start.IsZero() && current.End.IsZero():
-		return statsRangeLabelAll
-	default:
-		days := int(current.End.Sub(current.Start).Hours()/24) + 1
-		switch days {
-		case 7:
-			return statsRangeLabel7d
-		case 30:
-			return statsRangeLabel30d
-		case 90:
-			return statsRangeLabel90d
-		default:
-			return statsRangeLabelAll
-		}
-	}
 }

@@ -8,10 +8,11 @@ type TimeRange struct {
 }
 
 type Snapshot struct {
-	Overview Overview
-	Activity Activity
-	Sessions Sessions
-	Tools    Tools
+	Overview    Overview
+	Activity    Activity
+	Sessions    Sessions
+	Tools       Tools
+	Performance Performance
 }
 
 type Overview struct {
@@ -153,4 +154,93 @@ const (
 type TokenTrend struct {
 	Direction     TrendDirection
 	PercentChange int
+}
+
+type Performance struct {
+	Scope       PerformanceScope
+	Overall     PerformanceScore
+	Outcome     PerformanceLane
+	Discipline  PerformanceLane
+	Efficiency  PerformanceLane
+	Robustness  PerformanceLane
+	Diagnostics []PerformanceDiagnostic
+}
+
+type PerformanceScope struct {
+	SessionCount         int
+	Providers            []string
+	Models               []string
+	SequenceLoaded       bool
+	SequenceSampleCount  int
+	BaselineSessionCount int
+}
+
+type PerformanceScore struct {
+	Score    int
+	HasScore bool
+	Trend    TrendDirection
+}
+
+type PerformanceLane struct {
+	Label    string
+	Detail   string
+	Score    int
+	HasScore bool
+	Trend    TrendDirection
+	Metrics  []PerformanceMetric
+}
+
+type PerformanceMetric struct {
+	ID               string
+	Label            string
+	Value            string
+	Detail           string
+	Current          float64
+	Baseline         float64
+	HasBaseline      bool
+	Score            int
+	HasScore         bool
+	Trend            TrendDirection
+	SampleCount      int
+	ProviderSpecific bool
+	Series           []PerformancePoint
+}
+
+type PerformancePoint struct {
+	Timestamp   time.Time
+	Value       float64
+	SampleCount int
+}
+
+type PerformanceDiagnostic struct {
+	Label       string
+	Value       string
+	Detail      string
+	Current     float64
+	Baseline    float64
+	HasBaseline bool
+	Trend       TrendDirection
+	Series      []PerformancePoint
+}
+
+type PerformanceSequenceSession struct {
+	Timestamp                    time.Time
+	Mutated                      bool
+	MutationCount                int
+	RewriteCount                 int
+	TargetedMutationCount        int
+	BlindMutationCount           int
+	DistinctMutationTargets      int
+	PatchHunkCount               int
+	VerificationPassed           bool
+	FirstPassResolved            bool
+	CorrectionFollowups          int
+	ReasoningLoopCount           int
+	ActionCount                  int
+	ActionsBeforeFirstMutation   int
+	TokensBeforeFirstMutation    int
+	UserTurnsBeforeFirstMutation int
+	AssistantTurns               int
+	VisibleReasoningChars        int
+	HiddenThinkingTurns          int
 }

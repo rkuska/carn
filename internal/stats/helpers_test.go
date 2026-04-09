@@ -9,6 +9,7 @@ import (
 type sessionMeta = conv.SessionMeta
 type session = conv.Session
 type message = conv.Message
+type conversation = conv.Conversation
 
 func testMeta(
 	id string,
@@ -29,6 +30,19 @@ func testMeta(
 		option(&meta)
 	}
 	return meta
+}
+
+func testConversation(provider conv.Provider, id string, sessions ...conv.SessionMeta) conv.Conversation {
+	project := conv.Project{DisplayName: "proj"}
+	if len(sessions) > 0 && sessions[0].Project.DisplayName != "" {
+		project = sessions[0].Project
+	}
+	return conv.Conversation{
+		Ref:      conv.Ref{Provider: provider, ID: id},
+		Name:     id,
+		Project:  project,
+		Sessions: sessions,
+	}
 }
 
 func withLastTimestamp(ts time.Time) func(*conv.SessionMeta) {

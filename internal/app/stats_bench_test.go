@@ -40,6 +40,16 @@ func BenchmarkStatsHistogramRender(b *testing.B) {
 	}
 }
 
+func BenchmarkStatsPerformanceRender(b *testing.B) {
+	model := newBenchStatsModel()
+	model.tab = statsTabPerformance
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = model.renderPerformanceTab(120)
+	}
+}
+
 func newBenchStatsModel() statsModel {
 	return newStatsModel(
 		makeBenchStatsConversations(300),

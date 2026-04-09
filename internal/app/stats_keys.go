@@ -100,7 +100,7 @@ func (m statsModel) handleStatsActionKey(msg tea.KeyPressMsg) (statsModel, tea.C
 
 func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 	m.timeRange = nextStatsTimeRange(m.timeRange)
-	m.snapshot = stats.ComputeSnapshot(m.filteredSessions(), m.timeRange)
+	m = m.recomputeSnapshot()
 	claudeTurnMetricsCached := m.claudeTurnMetricsSourceKey == m.claudeTurnMetricsSourceCacheKey()
 
 	if claudeTurnMetricsCached {
@@ -110,6 +110,9 @@ func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 		m.claudeTurnMetrics = nil
 	}
 	if m.tab == statsTabSessions && !claudeTurnMetricsCached {
+		return m.renderViewportContentAndMaybeLoad(true)
+	}
+	if m.tab == statsTabPerformance && m.performanceSequenceSourceKey != m.performanceSequenceSourceCacheKey() {
 		return m.renderViewportContentAndMaybeLoad(true)
 	}
 	return m.renderViewportContent(true), nil

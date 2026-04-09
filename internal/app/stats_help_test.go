@@ -54,6 +54,11 @@ func TestStatsHelpShowsTabSpecificChartDescriptions(t *testing.T) {
 			tab:  statsTabTools,
 			want: []string{"Top Tools", "Tool Calls/Session", "Tool Error Rate", "Rejected Suggestions"},
 		},
+		{
+			name: "performance",
+			tab:  statsTabPerformance,
+			want: []string{"Lane Cards", "Detailed Trends", "Diagnostics"},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -95,6 +100,11 @@ func TestStatsHelpNavigationSectionIsConsistentAcrossTabs(t *testing.T) {
 		{
 			name: "tools",
 			tab:  statsTabTools,
+			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
+		},
+		{
+			name: "performance",
+			tab:  statsTabPerformance,
 			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
 		},
 	}

@@ -14,6 +14,11 @@ type claudeTurnMetricsLoadedMsg struct {
 	sessions []stats.SessionTurnMetrics
 }
 
+type performanceSequenceLoadedMsg struct {
+	key      string
+	sessions []stats.PerformanceSequenceSession
+}
+
 func loadClaudeTurnMetricsCmd(
 	ctx context.Context,
 	store browserStore,
@@ -32,6 +37,28 @@ func loadClaudeTurnMetricsCmd(
 		return claudeTurnMetricsLoadedMsg{
 			key:      key,
 			sessions: sessionMetrics,
+		}
+	}
+}
+
+func loadPerformanceSequenceCmd(
+	ctx context.Context,
+	store browserStore,
+	targets []claudeTurnMetricSessionTarget,
+	key string,
+) tea.Cmd {
+	return func() tea.Msg {
+		loaded := loadStatsSessions(
+			ctx,
+			store,
+			targets,
+			func(target claudeTurnMetricSessionTarget) (conv.Conversation, conv.SessionMeta) {
+				return target.conversation, target.session
+			},
+		)
+		return performanceSequenceLoadedMsg{
+			key:      key,
+			sessions: stats.CollectPerformanceSequenceSessions(loaded),
 		}
 	}
 }

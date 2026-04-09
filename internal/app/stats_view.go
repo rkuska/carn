@@ -50,6 +50,7 @@ func (m statsModel) renderTabBar() string {
 		m.renderTab(statsTabActivity, "Activity"),
 		m.renderTab(statsTabSessions, "Sessions"),
 		m.renderTab(statsTabTools, "Tools"),
+		m.renderTab(statsTabPerformance, "Performance"),
 	}
 	left := strings.Join(tabs, " ")
 

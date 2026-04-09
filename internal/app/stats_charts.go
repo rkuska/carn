@@ -215,6 +215,41 @@ func formatFloat(value float64) string {
 	return fmt.Sprintf("%.1f", value)
 }
 
+func renderSparkline(points []statspkg.PerformancePoint, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if len(points) == 0 {
+		return strings.Repeat("·", width)
+	}
+
+	const blocks = "▁▂▃▄▅▆▇█"
+	values := make([]float64, 0, len(points))
+	minValue := points[0].Value
+	maxValue := points[0].Value
+	for _, point := range points {
+		values = append(values, point.Value)
+		if point.Value < minValue {
+			minValue = point.Value
+		}
+		if point.Value > maxValue {
+			maxValue = point.Value
+		}
+	}
+
+	scaled := make([]rune, 0, width)
+	for i := range width {
+		index := i * len(values) / width
+		value := values[index]
+		level := 0
+		if maxValue > minValue {
+			level = int(((value - minValue) / (maxValue - minValue)) * 7)
+		}
+		scaled = append(scaled, []rune(blocks)[level])
+	}
+	return string(scaled)
+}
+
 func rankedTableColumnWidths(rows []tableRow, colCount, width int) []int {
 	colWidths := make([]int, colCount)
 	for _, row := range rows {

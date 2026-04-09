@@ -23,46 +23,53 @@ go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStorePar
 go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem ./internal/source/codex
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
-go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation)$' -benchmem ./internal/stats
+go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
 go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
-go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsPerformanceRender)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
 
 | Category | Package | Benchmark | ns/op | B/op | allocs/op |
 | --- | --- | --- | ---: | ---: | ---: |
-| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsCold | 2,055,755 | 1,216,132 | 25,565 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsWarm | 35,921 | 4,978 | 85 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserOpenConversationWarm | 205,901 | 611,513 | 638 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserDeepSearchWarm | 1,523,341 | 9,499 | 235 |
-| `User-Facing` | `internal/app` | BenchmarkViewerRenderContent | 1,876 | 0 | 0 |
-| `User-Facing` | `internal/app` | BenchmarkViewerSearch | 523.8 | 0 | 0 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 12,212 | 12,624 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 175,591 | 115,024 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 2,242,519 | 1,122,681 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeActivity/1000 | 132,456 | 66,368 | 61 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/100 | 79,093 | 56,745 | 507 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 785,666 | 547,434 | 5,007 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 11,862 | 2,304 | 1 |
-| `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 118,729 | 384 | 5 |
-| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 39,791 | 11,239 | 361 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 252,110 | 55,980 | 1,134 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 69,665 | 13,864 | 326 |
-| `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,132,163 | 3,349,337 | 29,967 |
-| `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,916,322 | 1,061,515 | 16,824 |
-| `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 6,522,255 | 6,961,408 | 88,371 |
-| `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkLoadConversation | 221,911 | 122,572 | 1,187 |
-| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 43,851,719 | 18,151,807 | 360,244 |
-| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 13,242,973 | 3,726,054 | 64,630 |
-| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 5,566,207 | 7,344,457 | 100,640 |
-| `App-Triggered Maintenance` | `internal/archive` | BenchmarkCollectFilesToSync | 4,868,017 | 602,838 | 4,451 |
-| `App-Triggered Maintenance` | `internal/archive` | BenchmarkStreamImportAnalysis | 4,676,353 | 570,056 | 4,214 |
-| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreListCold | 1,653,687 | 1,210,444 | 25,484 |
-| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreListWarm | 256.1 | 240 | 2 |
-| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreSearchChunkCountQuery | 5,138 | 384 | 13 |
-| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreDeepSearch | 1,406,115 | 6,904 | 190 |
-| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreLoadTranscript | 202,381 | 610,776 | 636 |
+| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsCold | 1,294,315 | 1,216,225 | 25,565 |
+| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsWarm | 33,610 | 4,977 | 85 |
+| `User-Facing` | `internal/app` | BenchmarkBrowserOpenConversationWarm | 193,744 | 611,512 | 638 |
+| `User-Facing` | `internal/app` | BenchmarkBrowserDeepSearchWarm | 1,477,817 | 9,499 | 235 |
+| `User-Facing` | `internal/app` | BenchmarkViewerRenderContent | 1,872 | 0 | 0 |
+| `User-Facing` | `internal/app` | BenchmarkViewerSearch | 515.1 | 0 | 0 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 11,053 | 12,624 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 161,867 | 115,024 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 2,015,019 | 1,122,668 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeActivity/1000 | 121,042 | 66,368 | 61 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/100 | 56,606 | 56,744 | 507 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 558,745 | 547,432 | 5,007 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 8,540 | 2,304 | 1 |
+| `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 88,677 | 384 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 57,656 | 31,942 | 141 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 520,689 | 53,857 | 141 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 63,949 | 44,815 | 174 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 556,523 | 66,730 | 174 |
+| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 29,235 | 41,296 | 433 |
+| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 294,165 | 414,353 | 4,333 |
+| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 42,517 | 11,239 | 361 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 236,597 | 55,981 | 1,134 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 59,725 | 13,864 | 326 |
+| `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 118,323 | 37,690 | 478 |
+| `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,104,437 | 3,373,698 | 29,960 |
+| `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,907,520 | 1,056,389 | 16,825 |
+| `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 6,343,932 | 6,859,248 | 88,373 |
+| `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkLoadConversation | 209,029 | 121,030 | 1,187 |
+| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreFullRebuild | 41,747,826 | 18,329,474 | 360,268 |
+| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreIncrementalRebuild | 12,355,712 | 3,681,873 | 64,624 |
+| `App-Triggered Maintenance` | `internal/canonical` | BenchmarkCanonicalStoreParseConversations | 5,389,383 | 7,344,468 | 100,604 |
+| `App-Triggered Maintenance` | `internal/archive` | BenchmarkCollectFilesToSync | 4,223,890 | 602,384 | 4,451 |
+| `App-Triggered Maintenance` | `internal/archive` | BenchmarkStreamImportAnalysis | 4,006,614 | 570,766 | 4,214 |
+| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreListCold | 1,492,560 | 1,210,622 | 25,484 |
+| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreListWarm | 224.5 | 240 | 2 |
+| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreSearchChunkCountQuery | 4,963 | 384 | 13 |
+| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreDeepSearch | 1,322,900 | 6,904 | 190 |
+| `Diagnostic Internal` | `internal/canonical` | BenchmarkCanonicalStoreLoadTranscript | 194,444 | 610,776 | 636 |
 
 Notes:
 - Benchmarks live with the package that owns the runtime path.
@@ -81,12 +88,16 @@ Notes:
 - `BenchmarkBrowserDeepSearchWarm` measures the actual browser deep-search
   command path after the browser list has loaded.
 - `BenchmarkComputeOverview`, `BenchmarkComputeActivity`,
-  `BenchmarkComputeTokenGrowth`, `BenchmarkComputeStreaks`, and
-  `BenchmarkToolAggregation` cover the backend aggregation work behind the
-  fullscreen stats view.
-- `BenchmarkStatsOverviewRender`, `BenchmarkStatsHeatmapRender`, and
-  `BenchmarkStatsHistogramRender` isolate the stats-view render paths that
-  shape the TUI output once the snapshot is ready.
+  `BenchmarkComputeTokenGrowth`, `BenchmarkComputeStreaks`,
+  `BenchmarkToolAggregation`, `BenchmarkComputePerformance`,
+  `BenchmarkComputePerformanceWithSequence`, and
+  `BenchmarkCollectPerformanceSequenceSessions` cover the backend aggregation
+  and transcript-sequence work behind the fullscreen stats view, including the
+  new performance scorecard.
+- `BenchmarkStatsOverviewRender`, `BenchmarkStatsHeatmapRender`,
+  `BenchmarkStatsHistogramRender`, and `BenchmarkStatsPerformanceRender`
+  isolate the stats-view render paths that shape the TUI output once the
+  snapshot is ready.
 - `BenchmarkCanonicalStoreListCold`, `BenchmarkCanonicalStoreListWarm`, and
   `BenchmarkCanonicalStoreSearchChunkCountQuery` are diagnostic internal probes,
   not end-user latency metrics.
@@ -104,8 +115,7 @@ Notes:
   `BenchmarkCanonicalStoreFullRebuild`,
   `BenchmarkCanonicalStoreParseConversations`,
   `BenchmarkScanRollouts`,
-  `BenchmarkCanonicalStoreIncrementalRebuild`, and
-  `BenchmarkCanonicalStoreScanSessions`.
+  `BenchmarkBrowserLoadSessionsCold`, and `BenchmarkComputeOverview/10000`.
 - Use `go test -memprofile -memprofilerate=1` followed by
   `go tool pprof -top -sample_index=alloc_space` when a focused allocation
   profile is needed for `BenchmarkCanonicalStoreFullRebuild`.
