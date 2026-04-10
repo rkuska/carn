@@ -55,7 +55,7 @@ None.
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
 | internal/app/stats_help.go | source | 340 | 9 | 346 |
 | internal/app/stats_model_test.go | test | 650 | 8 | 751 |
-| internal/app/stats_tab_performance_test.go | test | 632 | 5 | 688 |
+| internal/app/stats_tab_performance_test.go | test | 710 | 5 | 775 |
 
 ## Notes
 

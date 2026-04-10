@@ -56,14 +56,16 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 **Stats**
 
 - Fullscreen analytics dashboard (`S` from the browser)
-- Four tabs: Overview, Activity, Sessions, Tools — switch with `ctrl+f` /
-  `ctrl+b`
+- Five tabs: Overview, Activity, Sessions, Tools, Performance — switch with
+  `ctrl+f` / `ctrl+b`
 - Time range selector (`r`): 7d, 30d, 90d, all
 - Provider and project filters (`f`)
 - Token-by-model and token-by-project charts, heaviest session table
 - Daily activity line chart and weekday × hour heatmap
 - Session duration and message-count histograms, token growth chart
 - Tool call shares, error and rejection rates
+- Performance scorecard with outcome, discipline, efficiency, and robustness
+  lanes
 
 **First launch**
 

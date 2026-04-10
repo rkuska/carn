@@ -81,6 +81,7 @@ func renderPerformanceCards(m statsModel, width int) string {
 	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 36)
 	cards := m.performanceLanes()
 	selectedLane := m.performanceLaneCursor
+	bodyHeight := performanceLaneCardsBodyHeight(cards)
 
 	top := renderColumns(
 		renderPerformanceLaneCard(
@@ -88,12 +89,14 @@ func renderPerformanceCards(m statsModel, width int) string {
 			selectedLane == 0,
 			metricCursorForLane(selectedLane, 0, m.performanceMetricCursor),
 			leftWidth,
+			bodyHeight,
 		),
 		renderPerformanceLaneCard(
 			cards[1],
 			selectedLane == 1,
 			metricCursorForLane(selectedLane, 1, m.performanceMetricCursor),
 			rightWidth,
+			bodyHeight,
 		),
 		leftWidth,
 		rightWidth,
@@ -105,12 +108,14 @@ func renderPerformanceCards(m statsModel, width int) string {
 			selectedLane == 2,
 			metricCursorForLane(selectedLane, 2, m.performanceMetricCursor),
 			leftWidth,
+			bodyHeight,
 		),
 		renderPerformanceLaneCard(
 			cards[3],
 			selectedLane == 3,
 			metricCursorForLane(selectedLane, 3, m.performanceMetricCursor),
 			rightWidth,
+			bodyHeight,
 		),
 		leftWidth,
 		rightWidth,
@@ -131,6 +136,7 @@ func renderPerformanceLaneCard(
 	selected bool,
 	selectedMetricIndex int,
 	width int,
+	bodyHeight int,
 ) string {
 	if width <= 0 {
 		return ""
@@ -157,7 +163,19 @@ func renderPerformanceLaneCard(
 	for _, metric := range performanceVisibleMetrics(lane, selectedMetricIndex) {
 		lines = append(lines, renderPerformanceMetricRow(metric, metric.ID == selectedMetricID, width-4))
 	}
-	return renderFramedBox(title, width, laneBorderColor(selected), strings.Join(lines, "\n"))
+	return renderFramedPane(title, width, bodyHeight, laneBorderColor(selected), strings.Join(lines, "\n"))
+}
+
+func performanceLaneCardsBodyHeight(lanes []statspkg.PerformanceLane) int {
+	height := 0
+	for _, lane := range lanes {
+		height = max(height, performanceLaneCardBodyHeight(lane))
+	}
+	return height
+}
+
+func performanceLaneCardBodyHeight(lane statspkg.PerformanceLane) int {
+	return 2 + len(performanceVisibleMetrics(lane, 0))
 }
 
 func laneBorderColor(selected bool) color.Color {

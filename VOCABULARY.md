@@ -20,7 +20,7 @@ Use these terms when referring to different parts of the project in prompts.
 | **Tool Call** | An assistant's invocation of a tool — `name` + optional `summary`. |
 | **Tool Result** | The output returned to the user message — `toolName`, `content`, `isError`, and optionally a `structuredPatch` (for Edit diffs). |
 | **Token Usage** | Input/output/cache token counts per message, aggregated per session as `totalUsage`. |
-| **Normalized Action** | A provider-neutral classification of model work such as `read`, `search`, `mutate`, `rewrite`, `test`, `build`, `web`, `plan`, or `delegate`. Derived from provider-specific tool calls and command payloads. |
+| **Normalized Action** | A provider-neutral classification of model work such as `read`, `search`, `mutate`, `rewrite`, `execute`, `test`, `build`, `web`, `plan`, `delegate`, or `other`. Derived from provider-specific tool calls and command payloads. |
 | **Tool Counts** | A map of tool name → invocation count per session. Tracks call volume only; see **Tool Outcome** for success/error/rejection breakdown. |
 | **Tool Outcome** | Per-tool success, error, and rejection counts derived from transcript tool results. Distinct from Tool Counts which only tracks invocations. Persisted in the canonical store during rebuild. |
 | **Outcome Proxy** | A transcript-derived approximation of task success, such as first-pass resolution or correction burden, used when no external correctness label exists. |
@@ -85,7 +85,7 @@ Use these terms when referring to different parts of the project in prompts.
 |---|---|
 | **Stats View** | A fullscreen analytics screen opened from the browser. Shows aggregate usage data across sessions instead of a single transcript. |
 | **Time Range** | The active date window applied across all stats tabs. Predefined ranges: 7d, 30d, 90d, and All. |
-| **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, and tools. |
+| **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, tools, and performance. |
 | **Summary Chip** | A compact stats metric rendered as `label value` at the top of a tab, for example `sessions 42` or `error rate 3.2%`. |
 | **Heatmap** | A weekday × hour grid (7 rows × 24 columns) showing session density. Darker cells mean more sessions in that slot. Empty hours are compressed. |
 | **Histogram** | A bucketed bar chart for distributions: session duration, message count, or tool calls per session. |

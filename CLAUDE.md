@@ -26,8 +26,9 @@ Code is split by ownership under `internal/`.
   and FTS deep search.
 - `internal/archive/` owns sync, import analysis, and pipeline orchestration.
 - `internal/stats/` owns stats computation: overview aggregates, activity
-  heatmaps, session histograms, tool breakdowns, token trends, and streak
-  tracking.
+  heatmaps, session histograms, tool breakdowns, token trends, streak
+  tracking, performance scorecard computation, performance lanes, performance
+  trends, and transcript-sequence metrics.
 
 Defaults: sources `~/.claude/projects/`, `~/.codex/sessions/`, archive:
 `~/.local/share/carn/`. Runtime paths come from the user config file resolved
@@ -99,11 +100,23 @@ by `internal/config`.
 - `Session` — `Meta` plus ordered `Messages`
 - `Message` — role, text, thinking, hidden thinking flag, visibility,
   tool calls, tool results, plans, sidechain flag, agent divider flag
-- `ToolCall` — name and summary
-- `ToolResult` — tool name, summary, content, error flag, structured patch
+- `ToolCall` — name, summary, and normalized action
+- `ToolResult` — tool name, summary, content, error flag, structured patch,
+  and normalized action
 - `Conversation` — ref, name, project, chronological sessions, plan count,
   search preview
-- `TokenUsage`, `DiffHunk`, `Plan`
+- `TokenUsage` — input, cache creation, cache read, output, and reasoning
+  output token counts
+- `DiffHunk`, `Plan`
+- `NormalizedActionType` — provider-neutral action classification enum
+- `ActionTargetType` — action target classification enum
+- `ActionTarget` — target type and value pair
+- `NormalizedAction` — action type with targets
+- `MessagePerformanceMeta` — per-message reasoning, stop reason, phase, effort
+- `SessionPerformanceMeta` — per-session reasoning, thinking, model context,
+  duration, retries, compaction, task lifecycle, error, and provider counters
+- `ToolOutcomeCounts` — per-tool success, error, and rejection counts
+- `ActionOutcomeCounts` — per-action success, error, and rejection counts
 
 ## How to write code
 
@@ -280,9 +293,9 @@ go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStorePar
 go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem ./internal/source/codex
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
-go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation)$' -benchmem ./internal/stats
+go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
 go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
-go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsPerformanceRender)$' -benchmem ./internal/app
 ```
 
 Run these benchmark commands one at a time. Do not execute multiple

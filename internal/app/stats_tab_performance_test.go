@@ -149,6 +149,80 @@ func TestStatsPerformanceTabSupportsLaneAndMetricSelection(t *testing.T) {
 	assert.Contains(t, body, "How often does the model edit a target without reading it first?")
 }
 
+func TestRenderPerformanceLaneCardShowsAllLaneMetrics(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	lane := testPerformanceLane(
+		"Outcome",
+		84,
+		statspkg.TrendDirectionUp,
+		testLaneMetric("metric one", "verification_pass_rate", now),
+		testLaneMetric("metric two", "first_pass_resolution_rate", now),
+		testLaneMetric("metric three", "correction_burden", now),
+		testLaneMetric("metric four", "patch_churn", now),
+	)
+
+	body := ansi.Strip(renderPerformanceLaneCard(
+		lane,
+		true,
+		0,
+		56,
+		performanceLaneCardBodyHeight(lane),
+	))
+
+	assert.Contains(t, body, "metric one")
+	assert.Contains(t, body, "metric two")
+	assert.Contains(t, body, "metric three")
+	assert.Contains(t, body, "metric four")
+}
+
+func TestPerformanceLaneCardsBodyHeightUsesTallestLaneMetricCount(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	lanes := []statspkg.PerformanceLane{
+		testPerformanceLane(
+			"Outcome",
+			84,
+			statspkg.TrendDirectionUp,
+			testLaneMetric("metric one", "verification_pass_rate", now),
+			testLaneMetric("metric two", "first_pass_resolution_rate", now),
+			testLaneMetric("metric three", "correction_burden", now),
+			testLaneMetric("metric four", "patch_churn", now),
+		),
+		testPerformanceLane(
+			"Discipline",
+			79,
+			statspkg.TrendDirectionFlat,
+			testLaneMetric("metric five", "read_before_write_ratio", now),
+			testLaneMetric("metric six", "blind_edit_rate", now),
+		),
+		testPerformanceLane(
+			"Efficiency",
+			73,
+			statspkg.TrendDirectionDown,
+			testLaneMetric("metric seven", "tokens_per_user_turn", now),
+		),
+		testPerformanceLane(
+			"Robustness",
+			77,
+			statspkg.TrendDirectionUp,
+			testLaneMetric("metric eight", "tool_error_rate", now),
+			testLaneMetric("metric nine", "retry_burden", now),
+			testLaneMetric("metric ten", "context_pressure", now),
+		),
+	}
+
+	bodyHeight := performanceLaneCardsBodyHeight(lanes)
+
+	assert.Equal(t, 6, bodyHeight)
+	assert.Equal(t,
+		lipgloss.Height(renderPerformanceLaneCard(lanes[0], true, 0, 56, bodyHeight)),
+		lipgloss.Height(renderPerformanceLaneCard(lanes[2], false, 0, 56, bodyHeight)),
+	)
+}
+
 func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
@@ -556,6 +630,19 @@ func testMetricWithInspector(metric statspkg.PerformanceMetric, ts time.Time) st
 		SampleCount: 6,
 	}}
 	return metric
+}
+
+func testLaneMetric(label, id string, ts time.Time) statspkg.PerformanceMetric {
+	return testMetricWithInspector(statspkg.PerformanceMetric{
+		ID:               id,
+		Label:            label,
+		Value:            "1.0",
+		Trend:            statspkg.TrendDirectionFlat,
+		DeltaText:        "+0.0",
+		Status:           statspkg.PerformanceMetricStatusFlat,
+		HasScore:         true,
+		VisibleByDefault: true,
+	}, ts)
 }
 
 func testPerformanceSessionMeta(

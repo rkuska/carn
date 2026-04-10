@@ -100,33 +100,7 @@ func performanceVisibleMetrics(lane statspkg.PerformanceLane, selectedMetricInde
 	if len(lane.Metrics) == 0 {
 		return nil
 	}
-
-	selectedMetricIndex = max(selectedMetricIndex, 0)
-	selectedMetricIndex = min(selectedMetricIndex, len(lane.Metrics)-1)
-
-	visible := make([]statspkg.PerformanceMetric, 0, 3)
-	selectedIncluded := false
-	for i, metric := range lane.Metrics {
-		if !metric.VisibleByDefault {
-			continue
-		}
-		visible = append(visible, metric)
-		if i == selectedMetricIndex {
-			selectedIncluded = true
-		}
-		if len(visible) == 3 {
-			break
-		}
-	}
-
-	if selectedIncluded {
-		return visible
-	}
-
-	selectedMetric := lane.Metrics[selectedMetricIndex]
-	if len(visible) < 3 {
-		return append(visible, selectedMetric)
-	}
-	visible[len(visible)-1] = selectedMetric
+	visible := make([]statspkg.PerformanceMetric, len(lane.Metrics))
+	copy(visible, lane.Metrics)
 	return visible
 }
