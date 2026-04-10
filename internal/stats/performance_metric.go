@@ -62,7 +62,7 @@ func performanceMetricFromRatio(
 	return PerformanceMetric{
 		ID:          id,
 		Label:       label,
-		Value:       formatPerformanceValue(id, currentValue),
+		Value:       FormatValue(id, currentValue),
 		Detail:      detail,
 		Current:     currentValue,
 		Baseline:    baselineValue,
@@ -201,10 +201,13 @@ func fallbackCountFloor(fallback int) int {
 	return min(fallback, 1)
 }
 
-func formatPerformanceValue(id string, value float64) string {
+// FormatValue renders a performance metric value using the metric's display convention.
+func FormatValue(id string, value float64) string {
 	switch id {
 	case perfMetricVerificationPass,
+		perfMetricFirstPassResolution,
 		perfMetricRewriteRate,
+		perfMetricBlindEditRate,
 		perfMetricReasoningShare,
 		perfMetricErrorRate,
 		perfMetricRejectionRate,

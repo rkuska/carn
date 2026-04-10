@@ -221,7 +221,7 @@ func performanceSequenceAverageMetric(
 	return PerformanceMetric{
 		ID:          id,
 		Label:       label,
-		Value:       formatPerformanceValue(id, currentValue),
+		Value:       FormatValue(id, currentValue),
 		Detail:      detail,
 		Current:     currentValue,
 		Baseline:    baselineValue,

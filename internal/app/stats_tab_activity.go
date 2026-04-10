@@ -13,7 +13,6 @@ import (
 )
 
 func (m statsModel) renderActivityTab(width, height int) string {
-	m = m.normalizeStatsSelection()
 	activity := m.snapshot.Activity
 	chips := renderSummaryChips([]chip{
 		{Label: "active days", Value: fmt.Sprintf("%d/%d", activity.ActiveDays, activity.TotalDays)},

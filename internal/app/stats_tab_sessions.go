@@ -16,21 +16,21 @@ import (
 )
 
 const (
-	statsLoadingText               = "Loading..."
-	statsClaudeContextGrowthTitle  = "Context Growth"
-	statsClaudeTurnCostTitle       = "Turn Cost"
-	statsNoClaudeTurnMetricsData   = "No message usage data"
-	statsClaudeMetricsNoDataLabel  = "turn metrics"
-	statsClaudeContextEarlyLabel   = "context 1-5 avg"
-	statsClaudeContextLateLabel    = "context 20+ avg"
-	statsClaudeContextFactorLabel  = "context multiplier"
-	statsClaudeTurnCostEarlyLabel  = "turn cost 1-5 avg"
-	statsClaudeTurnCostLateLabel   = "turn cost 20+ avg"
-	statsClaudeTurnCostFactorLabel = "turn cost multiplier"
+	statsLoadingText                  = "Loading..."
+	statsClaudeContextGrowthTitle     = "Context Growth"
+	statsClaudeTurnCostTitle          = "Turn Cost"
+	statsNoClaudeTurnMetricsData      = "No message usage data"
+	statsClaudeMetricsNoDataLabel     = "turn metrics"
+	statsClaudeContextEarlyLabel      = "context 1-5 avg"
+	statsClaudeContextLateLabel       = "context 20+ avg"
+	statsClaudeContextFactorLabel     = "context multiplier"
+	statsClaudeTurnCostEarlyLabel     = "turn cost 1-5 avg"
+	statsClaudeTurnCostLateLabel      = "turn cost 20+ avg"
+	statsClaudeTurnCostFactorLabel    = "turn cost multiplier"
+	statsClaudeTurnChartsLoadingLabel = "Computing turn charts..."
 )
 
 func (m statsModel) renderSessionsTab(width int) string {
-	m = m.normalizeStatsSelection()
 	sessionStats := m.snapshot.Sessions
 	loadingClaudeTurnMetrics := m.claudeTurnMetricsLoading()
 	chips := renderSummaryChips([]chip{
@@ -237,7 +237,7 @@ func (m statsModel) renderClaudeTurnMetricLaneBody(
 ) string {
 	switch {
 	case loading:
-		return fmt.Sprintf("%s Computing turn charts...", m.spinner.View())
+		return m.claudeTurnMetricsLoadingLine()
 	case m.claudeTurnMetrics == nil:
 		return statsNoClaudeTurnMetricsData
 	default:

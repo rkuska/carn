@@ -80,7 +80,7 @@ func performanceBaselineValue(metric statspkg.PerformanceMetric) string {
 	if metric.ID == "" {
 		return fmt.Sprintf("%.1f", metric.Baseline)
 	}
-	return formatPerformanceMetricValue(metric.ID, metric.Baseline)
+	return statspkg.FormatValue(metric.ID, metric.Baseline)
 }
 
 func performanceDelta(metric statspkg.PerformanceMetric) string {
@@ -113,24 +113,4 @@ func formatPerformanceTimeRange(timeRange statspkg.TimeRange) string {
 
 func formatPerformanceDate(ts time.Time) string {
 	return ts.Format("2006-01-02")
-}
-
-func formatPerformanceMetricValue(id string, value float64) string {
-	switch id {
-	case "verification_pass_rate",
-		"first_pass_resolution_rate",
-		"full_rewrite_rate",
-		"blind_edit_rate",
-		"reasoning_token_share",
-		"tool_error_rate",
-		"tool_rejection_rate",
-		"abort_rate",
-		"context_pressure_rate",
-		"retry_burden":
-		return fmt.Sprintf("%.1f%%", value*100)
-	case "tokens_per_user_turn", "actions_per_user_turn":
-		return fmt.Sprintf("%.1f", value)
-	default:
-		return fmt.Sprintf("%.2f", value)
-	}
 }

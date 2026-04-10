@@ -55,6 +55,7 @@ type statsModel struct {
 	viewerOpen                    bool
 	notification                  notification
 	helpOpen                      bool
+	renderedTabContent            string
 	viewport                      viewport.Model
 	spinner                       spinner.Model
 	width, height                 int
@@ -215,10 +216,16 @@ func (m statsModel) renderViewportContent(resetScroll bool) statsModel {
 	content := m.renderActiveTab()
 	m.viewport.SetWidth(m.contentWidth())
 	m.viewport.SetHeight(m.contentHeight())
-	m.viewport.SetContent(content)
+	m = m.setViewportContent(content)
 	if resetScroll {
 		m.viewport.GotoTop()
 	}
+	return m
+}
+
+func (m statsModel) setViewportContent(content string) statsModel {
+	m.renderedTabContent = content
+	m.viewport.SetContent(content)
 	return m
 }
 

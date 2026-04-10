@@ -2,41 +2,36 @@ package app
 
 import statspkg "github.com/rkuska/carn/internal/stats"
 
+const performanceLaneCount = 4
+
 func (m statsModel) normalizePerformanceSelection() statsModel {
-	laneCount := len(m.performanceLanes())
-	if laneCount == 0 {
+	m.performanceLaneCursor = clampCursor(m.performanceLaneCursor, performanceLaneCount)
+	lane, ok := m.performanceLaneAt(m.performanceLaneCursor)
+	if !ok {
 		m.performanceLaneCursor = 0
 		m.performanceMetricCursor = 0
 		return m
 	}
-
-	if m.performanceLaneCursor < 0 {
-		m.performanceLaneCursor = 0
-	}
-	if m.performanceLaneCursor >= laneCount {
-		m.performanceLaneCursor = laneCount - 1
-	}
-
-	lane := m.performanceLanes()[m.performanceLaneCursor]
 	if len(lane.Metrics) == 0 {
 		m.performanceMetricCursor = 0
 		return m
 	}
-	if m.performanceMetricCursor < 0 {
-		m.performanceMetricCursor = 0
-	}
-	if m.performanceMetricCursor >= len(lane.Metrics) {
-		m.performanceMetricCursor = len(lane.Metrics) - 1
-	}
+	m.performanceMetricCursor = clampCursor(m.performanceMetricCursor, len(lane.Metrics))
 	return m
 }
 
-func (m statsModel) performanceLanes() []statspkg.PerformanceLane {
-	return []statspkg.PerformanceLane{
-		m.snapshot.Performance.Outcome,
-		m.snapshot.Performance.Discipline,
-		m.snapshot.Performance.Efficiency,
-		m.snapshot.Performance.Robustness,
+func (m statsModel) performanceLaneAt(cursor int) (statspkg.PerformanceLane, bool) {
+	switch cursor {
+	case 0:
+		return m.snapshot.Performance.Outcome, true
+	case 1:
+		return m.snapshot.Performance.Discipline, true
+	case 2:
+		return m.snapshot.Performance.Efficiency, true
+	case 3:
+		return m.snapshot.Performance.Robustness, true
+	default:
+		return statspkg.PerformanceLane{}, false
 	}
 }
 
@@ -60,20 +55,20 @@ func (m statsModel) performanceScopeFilterDimension() filterDimension {
 }
 
 func (m statsModel) selectedPerformanceLane() (statspkg.PerformanceLane, int, bool) {
-	laneCount := len(m.performanceLanes())
-	if laneCount == 0 {
+	m = m.normalizePerformanceSelection()
+	lane, ok := m.performanceLaneAt(m.performanceLaneCursor)
+	if !ok {
 		return statspkg.PerformanceLane{}, 0, false
 	}
-	m = m.normalizePerformanceSelection()
-	return m.performanceLanes()[m.performanceLaneCursor], m.performanceLaneCursor, true
+	return lane, m.performanceLaneCursor, true
 }
 
 func (m statsModel) selectedPerformanceMetric() (statspkg.PerformanceMetric, statspkg.PerformanceLane, int, bool) {
-	lane, _, ok := m.selectedPerformanceLane()
+	m = m.normalizePerformanceSelection()
+	lane, ok := m.performanceLaneAt(m.performanceLaneCursor)
 	if !ok || len(lane.Metrics) == 0 {
 		return statspkg.PerformanceMetric{}, statspkg.PerformanceLane{}, 0, false
 	}
-	m = m.normalizePerformanceSelection()
 	return lane.Metrics[m.performanceMetricCursor], lane, m.performanceMetricCursor, true
 }
 
@@ -84,13 +79,4 @@ func (m statsModel) nextPerformanceMetric() statsModel {
 	}
 	m.performanceMetricCursor = (m.performanceMetricCursor + 1) % len(lane.Metrics)
 	return m.normalizePerformanceSelection()
-}
-
-func performanceVisibleMetrics(lane statspkg.PerformanceLane, selectedMetricIndex int) []statspkg.PerformanceMetric {
-	if len(lane.Metrics) == 0 {
-		return nil
-	}
-	visible := make([]statspkg.PerformanceMetric, len(lane.Metrics))
-	copy(visible, lane.Metrics)
-	return visible
 }

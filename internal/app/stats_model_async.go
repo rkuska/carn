@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
@@ -9,6 +10,8 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/internal/stats"
 )
+
+const statsPerformanceSequenceLoadingLabel = "Loading transcript sequence metrics..."
 
 type claudeTurnMetricSessionTarget struct {
 	conversation conv.Conversation
@@ -64,7 +67,7 @@ func (m statsModel) maybeStartClaudeTurnMetricsLoad() (statsModel, tea.Cmd) {
 		return m, m.spinner.Tick
 	default:
 		m.claudeTurnMetricsLoadingKey = key
-		m.viewport.SetContent(m.renderSessionsTab(m.contentWidth()))
+		m = m.setViewportContent(m.renderSessionsTab(m.contentWidth()))
 		return m, tea.Batch(
 			loadClaudeTurnMetricsCmd(m.ctx, m.store, m.claudeTurnMetricSessionTargets(), key),
 			m.spinner.Tick,
@@ -85,7 +88,7 @@ func (m statsModel) maybeStartPerformanceSequenceLoad() (statsModel, tea.Cmd) {
 		return m, m.spinner.Tick
 	default:
 		m.performanceSequenceLoadingKey = key
-		m.viewport.SetContent(m.renderPerformanceTab(m.contentWidth()))
+		m = m.setViewportContent(m.renderPerformanceTab(m.contentWidth()))
 		return m, tea.Batch(
 			loadPerformanceSequenceCmd(m.ctx, m.store, m.claudeTurnMetricSessionTargets(), key),
 			m.spinner.Tick,
@@ -120,7 +123,7 @@ func (m statsModel) applyClaudeTurnMetricsLoaded(msg claudeTurnMetricsLoadedMsg)
 	m.claudeTurnMetricsLoadingKey = ""
 	m.snapshot.Sessions.ClaudeTurnMetrics = m.claudeTurnMetrics
 	if m.tab == statsTabSessions {
-		m.viewport.SetContent(m.renderSessionsTab(m.contentWidth()))
+		m = m.setViewportContent(m.renderSessionsTab(m.contentWidth()))
 	}
 	return m
 }
@@ -140,7 +143,7 @@ func (m statsModel) applyPerformanceSequenceLoaded(msg performanceSequenceLoaded
 	)
 	m = m.normalizePerformanceSelection()
 	if m.tab == statsTabPerformance {
-		m.viewport.SetContent(m.renderPerformanceTab(m.contentWidth()))
+		m = m.setViewportContent(m.renderPerformanceTab(m.contentWidth()))
 	}
 	return m
 }
@@ -150,8 +153,41 @@ func (m statsModel) handleSpinnerTick(msg spinner.TickMsg) (statsModel, tea.Cmd)
 		return m, nil
 	}
 
+	previousContent := m.renderedTabContent
+	previousClaudeLine := m.claudeTurnMetricsLoadingLine()
+	previousPerformanceLine := m.performanceSequenceLoadingLine()
+
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
-	m.viewport.SetContent(m.renderActiveTab())
+
+	switch {
+	case m.tab == statsTabSessions && m.claudeTurnMetricsLoading():
+		m = m.setViewportContent(replaceStatsLoadingLine(
+			previousContent,
+			previousClaudeLine,
+			m.claudeTurnMetricsLoadingLine(),
+		))
+	case m.tab == statsTabPerformance && m.performanceSequenceLoading():
+		m = m.setViewportContent(replaceStatsLoadingLine(
+			previousContent,
+			previousPerformanceLine,
+			m.performanceSequenceLoadingLine(),
+		))
+	}
 	return m, cmd
+}
+
+func (m statsModel) claudeTurnMetricsLoadingLine() string {
+	return fmt.Sprintf("%s %s", m.spinner.View(), statsClaudeTurnChartsLoadingLabel)
+}
+
+func (m statsModel) performanceSequenceLoadingLine() string {
+	return fmt.Sprintf("%s %s", m.spinner.View(), statsPerformanceSequenceLoadingLabel)
+}
+
+func replaceStatsLoadingLine(content, previousLine, nextLine string) string {
+	if content == "" || previousLine == nextLine {
+		return content
+	}
+	return strings.ReplaceAll(content, previousLine, nextLine)
 }

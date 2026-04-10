@@ -239,10 +239,12 @@ func TestComputePerformanceMergesSequenceMetrics(t *testing.T) {
 
 	firstPass := findPerformanceMetric(t, got.Outcome.Metrics, perfMetricFirstPassResolution)
 	assert.InDelta(t, 0.5, firstPass.Current, 0.0001)
+	assert.Equal(t, "50.0%", firstPass.Value)
 	assert.Equal(t, TrendDirectionDown, firstPass.Trend)
 
 	blindEdit := findPerformanceMetric(t, got.Discipline.Metrics, perfMetricBlindEditRate)
 	assert.Greater(t, blindEdit.Current, 0.0)
+	assert.Equal(t, "50.0%", blindEdit.Value)
 
 	assert.True(t, got.Scope.SequenceLoaded)
 	assert.Equal(t, 12, got.Scope.SequenceSampleCount)

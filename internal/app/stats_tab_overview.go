@@ -10,7 +10,6 @@ import (
 )
 
 func (m statsModel) renderOverviewTab(width int) string {
-	m = m.normalizeStatsSelection()
 	overview := m.snapshot.Overview
 	chips := renderSummaryChips([]chip{
 		{Label: "sessions", Value: statspkg.FormatNumber(overview.SessionCount)},

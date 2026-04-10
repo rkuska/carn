@@ -15,7 +15,6 @@ import (
 const statsRejectedSuggestionsTitle = "Rejected Suggestions"
 
 func (m statsModel) renderToolsTab(width int) string {
-	m = m.normalizeStatsSelection()
 	tools := m.snapshot.Tools
 	chips := renderSummaryChips([]chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},

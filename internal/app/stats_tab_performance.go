@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 func (m statsModel) renderPerformanceTab(width int) string {
-	m = m.normalizeStatsSelection()
 	performance := m.snapshot.Performance
 	if !m.performanceScopeAllowsScorecard() {
 		return strings.Join([]string{
@@ -29,7 +28,7 @@ func (m statsModel) renderPerformanceTab(width int) string {
 	)
 
 	if loadingSequence {
-		sections = append(sections, m.spinner.View()+" Loading transcript sequence metrics...")
+		sections = append(sections, m.performanceSequenceLoadingLine())
 	}
 
 	sections = append(sections, renderPerformanceCards(m, width))
@@ -78,9 +77,14 @@ func renderPerformanceHeadline(performance statspkg.Performance, width int) stri
 
 func renderPerformanceCards(m statsModel, width int) string {
 	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 36)
-	cards := m.performanceLanes()
+	cards := [...]statspkg.PerformanceLane{
+		m.snapshot.Performance.Outcome,
+		m.snapshot.Performance.Discipline,
+		m.snapshot.Performance.Efficiency,
+		m.snapshot.Performance.Robustness,
+	}
 	selectedLane := m.performanceLaneCursor
-	bodyHeight := performanceLaneCardsBodyHeight(cards)
+	bodyHeight := performanceLaneCardsBodyHeight(cards[:])
 
 	top := renderColumns(
 		renderPerformanceLaneCard(
@@ -156,7 +160,7 @@ func renderPerformanceLaneCard(
 	if selectedMetricIndex >= 0 && selectedMetricIndex < len(lane.Metrics) {
 		selectedMetricID = lane.Metrics[selectedMetricIndex].ID
 	}
-	for _, metric := range performanceVisibleMetrics(lane, selectedMetricIndex) {
+	for _, metric := range lane.Metrics {
 		lines = append(lines, renderPerformanceMetricRow(metric, metric.ID == selectedMetricID, width-4))
 	}
 	return renderStatsLanePane(title, selected, width, bodyHeight, strings.Join(lines, "\n"))
@@ -171,7 +175,7 @@ func performanceLaneCardsBodyHeight(lanes []statspkg.PerformanceLane) int {
 }
 
 func performanceLaneCardBodyHeight(lane statspkg.PerformanceLane) int {
-	return 2 + len(performanceVisibleMetrics(lane, 0))
+	return 2 + len(lane.Metrics)
 }
 
 func renderPerformanceMetricRow(metric statspkg.PerformanceMetric, selected bool, width int) string {
