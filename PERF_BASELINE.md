@@ -53,7 +53,7 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 29,235 | 41,296 | 433 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 294,165 | 414,353 | 4,333 |
 | `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 42,517 | 11,239 | 361 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 216,544 | 27,513 | 626 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 72,662 | 20,184 | 385 |
 | `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 59,725 | 13,864 | 326 |
 | `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 118,323 | 37,690 | 478 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,104,437 | 3,373,698 | 29,960 |

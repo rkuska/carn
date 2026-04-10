@@ -119,10 +119,10 @@ func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	t.Parallel()
 
 	var cells [7][24]int
-	cells[1][1] = 1
-	cells[2][2] = 2
-	cells[3][3] = 4
-	cells[4][4] = 8
+	cells[0][0] = 1
+	cells[1][4] = 2
+	cells[2][8] = 4
+	cells[3][12] = 8
 
 	got := renderActivityHeatmap("Heatmap", cells, 56)
 	stripped := ansi.Strip(got)
@@ -130,40 +130,48 @@ func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	assert.Contains(t, stripped, "Heatmap")
 	assert.Contains(t, stripped, "Mon")
 	assert.Contains(t, stripped, "Sun")
-	assert.Contains(t, stripped, "···")
-	assert.Contains(t, stripped, "01")
-	assert.Contains(t, stripped, "04")
+	assert.Contains(t, stripped, "00-03")
+	assert.Contains(t, stripped, "12-15")
+	assert.Contains(t, stripped, "20-23")
 	assert.Contains(t, stripped, "░")
 	assert.Contains(t, stripped, "▒")
 	assert.Contains(t, stripped, "▓")
 	assert.Contains(t, stripped, "█")
+	assert.NotContains(t, stripped, "\n01 ")
+	assert.NotContains(t, stripped, "\n13 ")
 }
 
-func TestHeatmapDisplayRowsCompressEmptyHourRanges(t *testing.T) {
+func TestHeatmapIntervalCellsAggregateHourlyCounts(t *testing.T) {
 	t.Parallel()
 
 	var cells [7][24]int
-	cells[0][8] = 1
-	cells[4][9] = 1
-	cells[2][16] = 1
+	cells[0][0] = 1
+	cells[0][1] = 2
+	cells[0][4] = 3
+	cells[3][23] = 5
 
-	assert.Equal(t, []int{-1, 8, 9, -1, 16, -1}, heatmapDisplayRows(cells))
+	intervals := heatmapIntervalCells(cells)
+
+	assert.Equal(t, 3, intervals[0][0])
+	assert.Equal(t, 3, intervals[0][1])
+	assert.Equal(t, 5, intervals[3][5])
 }
 
-func TestRenderActivityHeatmapOmitsFullyEmptyHours(t *testing.T) {
-	t.Parallel()
+func TestRenderActivityHeatmapUsesCurrentPalette(t *testing.T) {
+	initPaletteForTest(true)
+	t.Cleanup(func() {
+		initPaletteForTest(true)
+	})
 
 	var cells [7][24]int
-	cells[0][8] = 1
-	cells[2][16] = 2
+	cells[0][12] = 8
 
-	got := ansi.Strip(renderActivityHeatmap("Heatmap", cells, 56))
+	got := renderActivityHeatmapBody(cells, 56)
+	expected := lipgloss.NewStyle().
+		Foreground(colorHeatmap4).
+		Render(strings.Repeat("█", heatmapCellWidth(56)))
 
-	assert.Contains(t, got, "08")
-	assert.Contains(t, got, "16")
-	assert.Contains(t, got, "···")
-	assert.NotContains(t, got, "07")
-	assert.NotContains(t, got, "17")
+	assert.Contains(t, got, expected)
 }
 
 func TestRenderSideBySideSplitsAtNormalWidthAndStacksWhenNarrow(t *testing.T) {
