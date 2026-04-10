@@ -135,6 +135,30 @@ func TestComputeActivityUsesTimeRangeTimezoneForDailySeries(t *testing.T) {
 	assert.Equal(t, 1, got.Heatmap[6][11])
 }
 
+func TestComputeActivityUsesTotalMessageCountForSubagentSessions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"subagent",
+			time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC),
+			func(meta *sessionMeta) {
+				meta.IsSubagent = true
+				meta.MessageCount = 12
+				meta.MainMessageCount = 0
+			},
+		),
+	}
+
+	got := ComputeActivity(sessions, TimeRange{
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 3, 22, 23, 59, 59, 0, time.UTC),
+	})
+
+	require.Len(t, got.DailyMessages, 1)
+	assert.Equal(t, 12, got.DailyMessages[0].Count)
+}
+
 func dailyCounts(items []DailyCount) []int {
 	counts := make([]int, 0, len(items))
 	for _, item := range items {

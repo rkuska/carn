@@ -222,6 +222,7 @@ func TestComputeOverviewUsesTotalMessageCountForSubagentTopSessions(t *testing.T
 
 	got := ComputeOverview(sessions)
 
+	assert.Equal(t, 191, got.MessageCount)
 	require.Len(t, got.TopSessions, 1)
 	assert.Equal(t, 191, got.TopSessions[0].MessageCount)
 }

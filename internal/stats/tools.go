@@ -31,7 +31,11 @@ func ComputeTools(sessions []conv.SessionMeta) Tools {
 	readCalls, writeCalls, bashCalls := 0, 0, 0
 	totalErrors, totalRejects := 0, 0
 	for _, session := range sessions {
-		sessionCalls, categories := accumulateToolCounts(toolTotals, session.ToolCounts)
+		sessionCalls, categories := accumulateToolCounts(
+			toolTotals,
+			session.ToolCounts,
+			session.ActionCounts,
+		)
 		readCalls += categories.read
 		writeCalls += categories.write
 		bashCalls += categories.bash
@@ -62,12 +66,14 @@ func CollectSessionToolMetrics(sessions []conv.Session) []SessionToolMetrics {
 
 	metrics := make([]SessionToolMetrics, 0, len(sessions))
 	for _, session := range sessions {
-		outcomes := conv.DeriveToolOutcomeCounts(session.Messages)
+		toolOutcomes := conv.DeriveToolOutcomeCounts(session.Messages)
+		actionOutcomes := conv.DeriveActionOutcomeCounts(session.Messages)
 		metrics = append(metrics, SessionToolMetrics{
 			Timestamp:        session.Meta.Timestamp,
-			ToolCounts:       outcomes.Calls,
-			ToolErrorCounts:  outcomes.Errors,
-			ToolRejectCounts: outcomes.Rejections,
+			ToolCounts:       toolOutcomes.Calls,
+			ActionCounts:     actionOutcomes.Calls,
+			ToolErrorCounts:  toolOutcomes.Errors,
+			ToolRejectCounts: toolOutcomes.Rejections,
 		})
 	}
 	return metrics
@@ -93,7 +99,11 @@ func ComputeToolsFromSessionMetrics(sessions []SessionToolMetrics, timeRange Tim
 			continue
 		}
 		filteredSessions++
-		sessionCalls, categories := accumulateToolCounts(toolTotals, session.ToolCounts)
+		sessionCalls, categories := accumulateToolCounts(
+			toolTotals,
+			session.ToolCounts,
+			session.ActionCounts,
+		)
 		readCalls += categories.read
 		writeCalls += categories.write
 		bashCalls += categories.bash
@@ -135,22 +145,41 @@ func ComputeToolRejectRates(sessions []SessionToolMetrics, timeRange TimeRange) 
 func accumulateToolCounts(
 	toolTotals map[string]int,
 	sessionCounts map[string]int,
+	actionCounts map[string]int,
 ) (int, toolCategoryCounts) {
 	sessionCalls := 0
-	categories := toolCategoryCounts{}
+	categories := toolCategoryCountsFromActions(actionCounts)
 	for name, count := range sessionCounts {
 		toolTotals[name] += count
 		sessionCalls += count
+		if len(actionCounts) > 0 {
+			continue
+		}
 		switch name {
-		case "Read", "Grep", "Glob":
+		case "Read", "Grep", "Glob", "ToolSearch":
 			categories.read += count
-		case "Edit", "Write":
+		case "Edit", "Write", "NotebookEdit", "apply_patch":
 			categories.write += count
-		case "Bash":
+		case "Bash", "exec_command", "shell_command", "write_stdin":
 			categories.bash += count
 		}
 	}
 	return sessionCalls, categories
+}
+
+func toolCategoryCountsFromActions(actionCounts map[string]int) toolCategoryCounts {
+	if len(actionCounts) == 0 {
+		return toolCategoryCounts{}
+	}
+	return toolCategoryCounts{
+		read: actionCount(actionCounts, conv.NormalizedActionRead) +
+			actionCount(actionCounts, conv.NormalizedActionSearch),
+		write: actionCount(actionCounts, conv.NormalizedActionMutate) +
+			actionCount(actionCounts, conv.NormalizedActionRewrite),
+		bash: actionCount(actionCounts, conv.NormalizedActionExecute) +
+			actionCount(actionCounts, conv.NormalizedActionTest) +
+			actionCount(actionCounts, conv.NormalizedActionBuild),
+	}
 }
 
 func accumulateNamedCounts(totals map[string]int, counts map[string]int) int {

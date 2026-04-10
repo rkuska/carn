@@ -137,6 +137,30 @@ func TestComputeSessionsDoesNotMarkExactAbandonThresholdsAsAbandoned(t *testing.
 	assert.InDelta(t, 66.6667, got.AbandonedRate, 0.0001)
 }
 
+func TestComputeSessionsUsesTotalMessageCountForSubagentSessions(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"subagent",
+			time.Date(2026, 3, 22, 9, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 3, 22, 9, 10, 0, 0, time.UTC)),
+			withRoleCounts(3, 5),
+			func(meta *sessionMeta) {
+				meta.IsSubagent = true
+				meta.MessageCount = 8
+				meta.MainMessageCount = 0
+			},
+		),
+	}
+
+	got := ComputeSessions(sessions)
+
+	assert.InDelta(t, 8.0, got.AverageMessages, 0.0001)
+	assert.Zero(t, got.AbandonedCount)
+	assert.Equal(t, HistogramBucket{Label: "5-15", Count: 1}, got.MessageHistogram[1])
+}
+
 func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T) {
 	t.Parallel()
 

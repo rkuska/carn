@@ -94,6 +94,12 @@ func withToolCounts(counts map[string]int) func(*conv.SessionMeta) {
 	}
 }
 
+func withActionCounts(counts map[string]int) func(*conv.SessionMeta) {
+	return func(meta *conv.SessionMeta) {
+		meta.ActionCounts = counts
+	}
+}
+
 func withToolErrorCounts(counts map[string]int) func(*conv.SessionMeta) {
 	return func(meta *conv.SessionMeta) {
 		meta.ToolErrorCounts = counts

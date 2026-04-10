@@ -54,7 +54,7 @@ func accumulateOverviewSession(
 ) (SessionSummary, bool) {
 	totalTokens := session.TotalUsage.TotalTokens()
 	overview.SessionCount++
-	overview.MessageCount += session.MainMessageCount
+	overview.MessageCount += sessionMessageCount(session)
 	overview.Tokens.Total += totalTokens
 	overview.Tokens.Input += session.TotalUsage.InputTokens
 	overview.Tokens.Output += session.TotalUsage.OutputTokens
@@ -68,7 +68,7 @@ func accumulateOverviewSession(
 		SessionID:    session.ID,
 		FilePath:     session.FilePath,
 		Timestamp:    session.Timestamp,
-		MessageCount: overviewSessionMessageCount(session),
+		MessageCount: sessionMessageCount(session),
 		Duration:     session.Duration(),
 		Tokens:       totalTokens,
 	}, totalTokens > 0
@@ -81,7 +81,7 @@ func addTokenGroupTotal(totals map[string]int, name string, tokens int) {
 	totals[name] += tokens
 }
 
-func overviewSessionMessageCount(session conv.SessionMeta) int {
+func sessionMessageCount(session conv.SessionMeta) int {
 	if session.IsSubagent && session.MessageCount > 0 {
 		return session.MessageCount
 	}

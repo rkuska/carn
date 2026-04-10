@@ -21,15 +21,16 @@ func ComputeSessions(sessions []conv.SessionMeta) Sessions {
 	var totalMessages int
 	for _, session := range sessions {
 		duration := session.Duration()
+		messageCount := sessionMessageCount(session)
 		totalDuration += int64(duration)
-		totalMessages += session.MainMessageCount
+		totalMessages += messageCount
 		stats.UserMessageCount += session.UserMessageCount
 		stats.AssistantMessageCount += session.AssistantMessageCount
-		if session.MainMessageCount < 3 || duration < time.Minute {
+		if messageCount < 3 || duration < time.Minute {
 			stats.AbandonedCount++
 		}
 		stats.DurationHistogram[durationBucket(duration)].Count++
-		stats.MessageHistogram[messageBucket(session.MainMessageCount)].Count++
+		stats.MessageHistogram[messageBucket(messageCount)].Count++
 	}
 
 	stats.AverageDuration = time.Duration(totalDuration / int64(len(sessions)))

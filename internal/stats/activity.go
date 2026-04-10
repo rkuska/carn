@@ -28,7 +28,7 @@ func ComputeActivity(sessions []conv.SessionMeta, timeRange TimeRange) Activity 
 		sessionTime := normalizeActivityTime(session.Timestamp, location)
 		day := startOfDayInLocation(sessionTime, location)
 		sessionsByDay[day]++
-		messagesByDay[day] += session.MainMessageCount
+		messagesByDay[day] += sessionMessageCount(session)
 		tokensByDay[day] += session.TotalUsage.TotalTokens()
 		activeDates[day] = struct{}{}
 

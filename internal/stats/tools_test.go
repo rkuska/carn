@@ -70,6 +70,53 @@ func TestComputeToolsKeepsOtherToolsInTotalsButOutOfRatio(t *testing.T) {
 	assert.Equal(t, ToolStat{Name: "WebSearch", Count: 7}, got.TopTools[0])
 }
 
+func TestComputeToolsUsesNormalizedActionsForCodexToolShares(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"codex",
+			time.Date(2026, 3, 22, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{"exec_command": 6, "apply_patch": 2}),
+			withActionCounts(map[string]int{
+				"search":  4,
+				"rewrite": 2,
+				"execute": 2,
+			}),
+		),
+	}
+
+	got := ComputeTools(sessions)
+
+	assert.Equal(t, 8, got.TotalCalls)
+	assert.InDelta(t, 50.0, got.ReadWriteBashShare.Read, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Write, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Bash, 0.0001)
+}
+
+func TestComputeToolsFallsBackToProviderToolAliasesWhenActionsAreMissing(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"legacy",
+			time.Date(2026, 3, 22, 9, 0, 0, 0, time.UTC),
+			withToolCounts(map[string]int{
+				"ToolSearch":    4,
+				"NotebookEdit":  2,
+				"shell_command": 2,
+			}),
+		),
+	}
+
+	got := ComputeTools(sessions)
+
+	assert.Equal(t, 8, got.TotalCalls)
+	assert.InDelta(t, 50.0, got.ReadWriteBashShare.Read, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Write, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Bash, 0.0001)
+}
+
 func TestComputeToolErrorRatesSortsByRateDescending(t *testing.T) {
 	t.Parallel()
 
@@ -225,6 +272,30 @@ func TestComputeToolsSeparatesRejectedSuggestionsFromErrors(t *testing.T) {
 	assert.Empty(t, got.ToolErrorRates)
 	require.Len(t, got.ToolRejectRates, 1)
 	assert.Equal(t, ToolRateStat{Name: "Bash", Count: 3, Total: 10, Rate: 30}, got.ToolRejectRates[0])
+}
+
+func TestComputeToolsFromSessionMetricsUsesNormalizedActionsForCodexToolShares(t *testing.T) {
+	t.Parallel()
+
+	sessions := []conv.Session{
+		testSession("codex", []conv.Message{
+			{
+				ToolCalls: []conv.ToolCall{
+					{Name: "exec_command", Action: conv.NormalizedAction{Type: conv.NormalizedActionSearch}},
+					{Name: "exec_command", Action: conv.NormalizedAction{Type: conv.NormalizedActionSearch}},
+					{Name: "exec_command", Action: conv.NormalizedAction{Type: conv.NormalizedActionExecute}},
+					{Name: "apply_patch", Action: conv.NormalizedAction{Type: conv.NormalizedActionRewrite}},
+				},
+			},
+		}),
+	}
+
+	got := ComputeToolsFromSessionMetrics(CollectSessionToolMetrics(sessions), TimeRange{})
+
+	assert.Equal(t, 4, got.TotalCalls)
+	assert.InDelta(t, 50.0, got.ReadWriteBashShare.Read, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Write, 0.0001)
+	assert.InDelta(t, 25.0, got.ReadWriteBashShare.Bash, 0.0001)
 }
 
 func repeatedToolCalls(name string, count int) []conv.ToolCall {

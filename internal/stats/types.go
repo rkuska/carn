@@ -121,6 +121,7 @@ type SessionTurnMetrics struct {
 type SessionToolMetrics struct {
 	Timestamp        time.Time
 	ToolCounts       map[string]int
+	ActionCounts     map[string]int
 	ToolErrorCounts  map[string]int
 	ToolRejectCounts map[string]int
 }
