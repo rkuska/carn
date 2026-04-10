@@ -258,14 +258,11 @@ func (m statsModel) renderActiveTab() string {
 
 func (m statsModel) recomputeSnapshot() statsModel {
 	conversations := m.filteredConversations()
-	m.snapshot = stats.ComputeSnapshot(conversations, m.timeRange)
+	var sequence []stats.PerformanceSequenceSession
 	if m.performanceSequenceSourceKey == m.performanceSequenceSourceCacheKey() {
-		m.snapshot.Performance = stats.ComputePerformance(
-			conversations,
-			m.timeRange,
-			m.performanceSequenceSessions,
-		)
+		sequence = m.performanceSequenceSessions
 	}
+	m.snapshot = stats.ComputeSnapshot(conversations, m.timeRange, sequence)
 	m = m.normalizeStatsSelection()
 	return m
 }

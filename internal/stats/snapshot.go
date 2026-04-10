@@ -2,7 +2,11 @@ package stats
 
 import conv "github.com/rkuska/carn/internal/conversation"
 
-func ComputeSnapshot(conversations []conv.Conversation, timeRange TimeRange) Snapshot {
+func ComputeSnapshot(
+	conversations []conv.Conversation,
+	timeRange TimeRange,
+	sequence []PerformanceSequenceSession,
+) Snapshot {
 	sessions := flattenConversationSessions(conversations)
 	filtered := FilterByTimeRange(sessions, timeRange)
 	overview := ComputeOverview(filtered)
@@ -12,7 +16,7 @@ func ComputeSnapshot(conversations []conv.Conversation, timeRange TimeRange) Sna
 		Activity:    ComputeActivity(filtered, timeRange),
 		Sessions:    ComputeSessions(filtered),
 		Tools:       ComputeTools(filtered),
-		Performance: ComputePerformance(conversations, timeRange, nil),
+		Performance: ComputePerformance(conversations, timeRange, sequence),
 	}
 }
 

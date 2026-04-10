@@ -67,30 +67,9 @@ func renderPerformanceScopeGateHint(width int) string {
 
 func renderPerformanceScopePreview(width, selectedLane int) string {
 	cards := performanceScopePreviewCards()
-	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 28)
-	if stacked {
-		parts := make([]string, 0, len(cards))
-		for index, card := range cards {
-			parts = append(parts, renderPerformanceScopePreviewCard(card, width, index == selectedLane))
-		}
-		return strings.Join(parts, "\n\n")
-	}
-
-	top := renderColumns(
-		renderPerformanceScopePreviewCard(cards[0], leftWidth, selectedLane == 0),
-		renderPerformanceScopePreviewCard(cards[1], rightWidth, selectedLane == 1),
-		leftWidth,
-		rightWidth,
-		false,
-	)
-	bottom := renderColumns(
-		renderPerformanceScopePreviewCard(cards[2], leftWidth, selectedLane == 2),
-		renderPerformanceScopePreviewCard(cards[3], rightWidth, selectedLane == 3),
-		leftWidth,
-		rightWidth,
-		false,
-	)
-	return top + "\n\n" + bottom
+	return renderStatsLaneGrid(width, 28, selectedLane, func(index, width int, selected bool) string {
+		return renderPerformanceScopePreviewCard(cards[index], width, selected)
+	})
 }
 
 func renderPerformanceScopePreviewCard(card performanceScopePreviewCard, width int, selected bool) string {

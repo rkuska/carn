@@ -31,6 +31,7 @@ None.
 | internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/source/claude/known_schema_extras.go | source | 241 | 68 | 269 |
+| internal/stats/performance_session.go | source | 323 | 67 | 346 |
 | internal/canonical/sqlite_db.go | source | 283 | 67 | 307 |
 | internal/source/claude/scanner_parse.go | source | 276 | 67 | 317 |
 | internal/canonical/store.go | source | 261 | 66 | 309 |
@@ -38,7 +39,6 @@ None.
 | internal/stats/performance_messages_collect.go | source | 216 | 66 | 239 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
-| internal/stats/performance_session.go | source | 346 | 63 | 371 |
 | internal/source/claude/scanner.go | source | 271 | 62 | 308 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
@@ -52,9 +52,9 @@ None.
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
-| internal/stats/performance_lane.go | source | 334 | 10 | 341 |
+| internal/stats/performance_lane.go | source | 340 | 10 | 347 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats_tab_performance_test.go | test | 713 | 5 | 779 |
+| internal/app/stats_tab_performance_test.go | test | 716 | 5 | 786 |
 
 ## Notes
 

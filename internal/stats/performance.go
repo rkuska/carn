@@ -26,7 +26,11 @@ func ComputePerformance(
 	window := performanceTimeWindow(timeRange, sessions)
 	current := aggregatePerformanceSessionsInRange(sessions, window.current)
 	baseline := aggregatePerformanceSessionsInRange(sessions, window.baseline)
-	context := newPerformanceMetricContext(window.current, current.sessionCount, baseline.sessionCount, sessions)
+	context := newPerformanceMetricContext(
+		current.sessionCount,
+		baseline.sessionCount,
+		buildPerformanceBucketAggregates(sessions, window.current),
+	)
 	scope := buildPerformanceScope(sessions, window.current, window.baseline, baseline.sessionCount, len(sequence))
 	provider := singleProviderInRange(sessions, window.current)
 

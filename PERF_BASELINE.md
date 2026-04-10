@@ -46,14 +46,14 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 558,745 | 547,432 | 5,007 |
 | `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 8,540 | 2,304 | 1 |
 | `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 88,677 | 384 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 57,656 | 31,942 | 141 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 520,689 | 53,857 | 141 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 63,949 | 44,815 | 174 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 556,523 | 66,730 | 174 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 64,535 | 33,511 | 139 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 552,754 | 55,432 | 139 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 73,103 | 51,541 | 175 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 594,263 | 73,457 | 175 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 29,235 | 41,296 | 433 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 294,165 | 414,353 | 4,333 |
 | `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 42,517 | 11,239 | 361 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 236,597 | 55,981 | 1,134 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 216,544 | 27,513 | 626 |
 | `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 59,725 | 13,864 | 326 |
 | `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 118,323 | 37,690 | 478 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,104,437 | 3,373,698 | 29,960 |

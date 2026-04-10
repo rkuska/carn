@@ -2,10 +2,8 @@ package app
 
 import statspkg "github.com/rkuska/carn/internal/stats"
 
-const performanceLaneCount = 4
-
 func (m statsModel) normalizePerformanceSelection() statsModel {
-	m.performanceLaneCursor = clampCursor(m.performanceLaneCursor, performanceLaneCount)
+	m.performanceLaneCursor = clampCursor(m.performanceLaneCursor, len(m.performanceLanes()))
 	lane, ok := m.performanceLaneAt(m.performanceLaneCursor)
 	if !ok {
 		m.performanceLaneCursor = 0
@@ -20,19 +18,21 @@ func (m statsModel) normalizePerformanceSelection() statsModel {
 	return m
 }
 
+func (m statsModel) performanceLanes() [4]statspkg.PerformanceLane {
+	return [4]statspkg.PerformanceLane{
+		m.snapshot.Performance.Outcome,
+		m.snapshot.Performance.Discipline,
+		m.snapshot.Performance.Efficiency,
+		m.snapshot.Performance.Robustness,
+	}
+}
+
 func (m statsModel) performanceLaneAt(cursor int) (statspkg.PerformanceLane, bool) {
-	switch cursor {
-	case 0:
-		return m.snapshot.Performance.Outcome, true
-	case 1:
-		return m.snapshot.Performance.Discipline, true
-	case 2:
-		return m.snapshot.Performance.Efficiency, true
-	case 3:
-		return m.snapshot.Performance.Robustness, true
-	default:
+	lanes := m.performanceLanes()
+	if cursor < 0 || cursor >= len(lanes) {
 		return statspkg.PerformanceLane{}, false
 	}
+	return lanes[cursor], true
 }
 
 func (m statsModel) performanceScopeAllowsScorecard() bool {

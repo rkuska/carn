@@ -8,16 +8,15 @@ func applyPerformanceSequence(
 	window := performanceTimeWindow(timeRange, sequence)
 	current := aggregatePerformanceSequenceInRange(sequence, window.current)
 	baseline := aggregatePerformanceSequenceInRange(sequence, window.baseline)
-	context := newPerformanceSequenceMetricContext(
-		window.current,
+	context := newPerformanceMetricContext(
 		current.sessionCount,
 		baseline.sessionCount,
-		sequence,
+		buildPerformanceSequenceBucketAggregates(sequence, window.current),
 	)
 
 	outcomeMetrics := append([]PerformanceMetric(nil), performance.Outcome.Metrics...)
 	outcomeMetrics = append(outcomeMetrics,
-		performanceSequenceRateMetric(
+		performanceMetricFromCounts(
 			perfMetricFirstPassResolution,
 			"first-pass resolution",
 			current.resolvedSessions,
@@ -29,11 +28,11 @@ func applyPerformanceSequence(
 			0.05,
 			"Mutated sessions without follow-up correction signals or post-mutation tool failures.",
 			context,
-			func(agg performanceSequenceAggregate) (float64, float64) {
-				return float64(agg.resolvedSessions), float64(agg.mutatedSessions)
+			func(agg performanceSequenceAggregate) (int, int) {
+				return agg.resolvedSessions, agg.mutatedSessions
 			},
 		),
-		performanceSequenceAverageMetric(
+		performanceMetricFromRatio(
 			perfMetricCorrectionBurden,
 			"correction burden",
 			float64(current.correctionFollowups),
@@ -49,7 +48,7 @@ func applyPerformanceSequence(
 				return float64(agg.correctionFollowups), float64(agg.mutatedSessions)
 			},
 		),
-		performanceSequenceAverageMetric(
+		performanceMetricFromRatio(
 			perfMetricPatchChurn,
 			"patch churn",
 			float64(current.patchChurn),
@@ -70,7 +69,7 @@ func applyPerformanceSequence(
 
 	disciplineMetrics := append([]PerformanceMetric(nil), performance.Discipline.Metrics...)
 	disciplineMetrics = append(disciplineMetrics,
-		performanceSequenceRateMetric(
+		performanceMetricFromCounts(
 			perfMetricBlindEditRate,
 			"blind edit rate",
 			current.blindMutations,
@@ -82,11 +81,11 @@ func applyPerformanceSequence(
 			0.05,
 			"Targeted mutations without a prior read of the same file or a recent search.",
 			context,
-			func(agg performanceSequenceAggregate) (float64, float64) {
-				return float64(agg.blindMutations), float64(agg.targetedMutations)
+			func(agg performanceSequenceAggregate) (int, int) {
+				return agg.blindMutations, agg.targetedMutations
 			},
 		),
-		performanceSequenceAverageMetric(
+		performanceMetricFromRatio(
 			perfMetricReasoningLoopRate,
 			"reasoning loop rate",
 			float64(current.loopCount),
@@ -111,7 +110,7 @@ func applyPerformanceSequence(
 
 	efficiencyMetrics := append([]PerformanceMetric(nil), performance.Efficiency.Metrics...)
 	efficiencyMetrics = append(efficiencyMetrics,
-		performanceSequenceAverageMetric(
+		performanceMetricFromRatio(
 			perfMetricTimeToMutation,
 			"actions to mutation",
 			float64(current.actionsBeforeMutation),
@@ -127,7 +126,7 @@ func applyPerformanceSequence(
 				return float64(agg.actionsBeforeMutation), float64(agg.mutatedSessions)
 			},
 		),
-		performanceSequenceAverageMetric(
+		performanceMetricFromRatio(
 			perfMetricVisibleThinking,
 			"visible thinking",
 			float64(current.visibleReasoning),
@@ -150,12 +149,14 @@ func applyPerformanceSequence(
 		efficiencyMetrics,
 	)
 
-	performance.Diagnostics = append(performance.Diagnostics, performanceSequenceDiagnostic(
+	performance.Diagnostics = append(performance.Diagnostics, performanceDiagnosticFromRatio(
 		"hidden thinking turns",
 		float64(current.hiddenThinking),
 		float64(current.assistantTurns),
 		float64(baseline.hiddenThinking),
 		float64(baseline.assistantTurns),
+		false,
+		performanceMinSequenceSamples,
 		"Assistant turns with hidden reasoning and no visible reasoning text.",
 		context,
 		func(agg performanceSequenceAggregate) (float64, float64) {
@@ -165,124 +166,4 @@ func applyPerformanceSequence(
 	performance.Scope.SequenceLoaded = true
 	performance.Scope.SequenceSampleCount = current.sessionCount
 	return performance
-}
-
-func performanceSequenceRateMetric(
-	id, label string,
-	currentNumerator, currentDenominator int,
-	baselineNumerator, baselineDenominator int,
-	higherIsBetter bool,
-	minSamples int,
-	floor float64,
-	detail string,
-	context performanceSequenceMetricContext,
-	extract func(performanceSequenceAggregate) (float64, float64),
-) PerformanceMetric {
-	return performanceSequenceAverageMetric(
-		id,
-		label,
-		float64(currentNumerator),
-		float64(currentDenominator),
-		float64(baselineNumerator),
-		float64(baselineDenominator),
-		higherIsBetter,
-		minSamples,
-		floor,
-		detail,
-		context,
-		extract,
-	)
-}
-
-func performanceSequenceAverageMetric(
-	id, label string,
-	currentNumerator, currentDenominator float64,
-	baselineNumerator, baselineDenominator float64,
-	higherIsBetter bool,
-	minSamples int,
-	floor float64,
-	detail string,
-	context performanceSequenceMetricContext,
-	extract func(performanceSequenceAggregate) (float64, float64),
-) PerformanceMetric {
-	currentValue := safeRatio(currentNumerator, currentDenominator)
-	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
-	currentSamples := performanceRelevantSampleCount(currentDenominator, context.currentSampleCount)
-	baselineSamples := performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount)
-	score := scorePerformanceMetric(
-		currentValue,
-		baselineValue,
-		higherIsBetter,
-		currentSamples,
-		baselineSamples,
-		minSamples,
-		floor,
-	)
-	return PerformanceMetric{
-		ID:          id,
-		Label:       label,
-		Value:       FormatValue(id, currentValue),
-		Detail:      detail,
-		Current:     currentValue,
-		Baseline:    baselineValue,
-		HasBaseline: score.hasBaseline,
-		Score:       score.score,
-		ScoreWeight: 1,
-		HasScore:    score.hasScore,
-		Trend:       score.trend,
-		SampleCount: currentSamples,
-		Series:      performanceSequenceSeries(context, extract),
-	}
-}
-
-func performanceSequenceDiagnostic(
-	label string,
-	currentNumerator, currentDenominator float64,
-	baselineNumerator, baselineDenominator float64,
-	detail string,
-	context performanceSequenceMetricContext,
-	extract func(performanceSequenceAggregate) (float64, float64),
-) PerformanceDiagnostic {
-	currentValue := safeRatio(currentNumerator, currentDenominator)
-	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
-	score := scorePerformanceMetric(
-		currentValue,
-		baselineValue,
-		false,
-		performanceRelevantSampleCount(currentDenominator, context.currentSampleCount),
-		performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount),
-		performanceMinSequenceSamples,
-		0.05,
-	)
-	return PerformanceDiagnostic{
-		Group:       "provider_signals",
-		Label:       label,
-		Value:       formatPerformanceRatio(currentValue),
-		Detail:      detail,
-		Current:     currentValue,
-		Baseline:    baselineValue,
-		HasBaseline: score.hasBaseline,
-		Trend:       score.trend,
-		Series:      performanceSequenceSeries(context, extract),
-	}
-}
-
-func performanceSequenceSeries(
-	context performanceSequenceMetricContext,
-	extract func(performanceSequenceAggregate) (float64, float64),
-) []PerformancePoint {
-	if len(context.bucketAggregates) == 0 {
-		return nil
-	}
-
-	points := make([]PerformancePoint, 0, len(context.bucketAggregates))
-	for _, bucket := range context.bucketAggregates {
-		numerator, denominator := extract(bucket.aggregate)
-		points = append(points, PerformancePoint{
-			Timestamp:   bucket.bucket.start,
-			Value:       safeRatio(numerator, denominator),
-			SampleCount: performanceRelevantSampleCount(denominator, bucket.aggregate.sessionCount),
-		})
-	}
-	return points
 }

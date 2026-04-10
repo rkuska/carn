@@ -16,29 +16,6 @@ type performanceSequenceAggregate struct {
 	hiddenThinking        int
 }
 
-type performanceSequenceBucketAggregate struct {
-	bucket    performanceBucket
-	aggregate performanceSequenceAggregate
-}
-
-type performanceSequenceMetricContext struct {
-	currentSampleCount  int
-	baselineSampleCount int
-	bucketAggregates    []performanceSequenceBucketAggregate
-}
-
-func newPerformanceSequenceMetricContext(
-	timeRange TimeRange,
-	currentSampleCount, baselineSampleCount int,
-	sessions []PerformanceSequenceSession,
-) performanceSequenceMetricContext {
-	return performanceSequenceMetricContext{
-		currentSampleCount:  currentSampleCount,
-		baselineSampleCount: baselineSampleCount,
-		bucketAggregates:    buildPerformanceSequenceBucketAggregates(sessions, timeRange),
-	}
-}
-
 func aggregatePerformanceSequenceInRange(
 	sessions []PerformanceSequenceSession,
 	timeRange TimeRange,
@@ -78,16 +55,20 @@ func addPerformanceSequenceSession(
 	agg.hiddenThinking += session.HiddenThinkingTurns
 }
 
+func (agg performanceSequenceAggregate) performanceSampleCount() int {
+	return agg.sessionCount
+}
+
 func buildPerformanceSequenceBucketAggregates(
 	sessions []PerformanceSequenceSession,
 	timeRange TimeRange,
-) []performanceSequenceBucketAggregate {
+) []performanceBucketAggregate[performanceSequenceAggregate] {
 	buckets := performanceBuckets(timeRange)
 	if len(buckets) == 0 {
 		return nil
 	}
 
-	aggregates := make([]performanceSequenceBucketAggregate, len(buckets))
+	aggregates := make([]performanceBucketAggregate[performanceSequenceAggregate], len(buckets))
 	for i, bucket := range buckets {
 		aggregates[i].bucket = bucket
 	}

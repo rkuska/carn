@@ -256,7 +256,7 @@ func TestPerformanceMetricDeltaUsesCurrentMinusBaseline(t *testing.T) {
 		performanceMinSessionSamples,
 		0.05,
 		"Errored action results / action calls.",
-		performanceMetricContext{
+		performanceMetricContext[performanceAggregate]{
 			currentSampleCount:  10,
 			baselineSampleCount: 10,
 		},

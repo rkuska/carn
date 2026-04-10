@@ -4,7 +4,7 @@ import conv "github.com/rkuska/carn/internal/conversation"
 
 func buildOutcomeLane(
 	current, baseline performanceAggregate,
-	context performanceMetricContext,
+	context performanceMetricContext[performanceAggregate],
 ) PerformanceLane {
 	metric := performanceMetricFromCounts(
 		perfMetricVerificationPass,
@@ -29,7 +29,7 @@ func buildOutcomeLane(
 
 func buildDisciplineLane(
 	current, baseline performanceAggregate,
-	context performanceMetricContext,
+	context performanceMetricContext[performanceAggregate],
 ) PerformanceLane {
 	metrics := []PerformanceMetric{
 		performanceMetricFromRatio(
@@ -91,7 +91,7 @@ func buildDisciplineLane(
 
 func buildEfficiencyLane(
 	current, baseline performanceAggregate,
-	context performanceMetricContext,
+	context performanceMetricContext[performanceAggregate],
 	provider conv.Provider,
 ) PerformanceLane {
 	metrics := []PerformanceMetric{
@@ -155,7 +155,7 @@ func buildEfficiencyLane(
 
 func buildRobustnessLane(
 	current, baseline performanceAggregate,
-	context performanceMetricContext,
+	context performanceMetricContext[performanceAggregate],
 	provider conv.Provider,
 ) PerformanceLane {
 	metrics := []PerformanceMetric{
@@ -251,7 +251,7 @@ func buildRobustnessLane(
 
 func buildPerformanceDiagnostics(
 	current, baseline performanceAggregate,
-	context performanceMetricContext,
+	context performanceMetricContext[performanceAggregate],
 	provider conv.Provider,
 ) []PerformanceDiagnostic {
 	diagnostics := []PerformanceDiagnostic{
@@ -261,6 +261,8 @@ func buildPerformanceDiagnostics(
 			float64(current.reasoningBlockCount),
 			float64(baseline.hiddenThinkingCount),
 			float64(baseline.reasoningBlockCount),
+			true,
+			performanceMinSessionSamples,
 			"Redacted reasoning blocks / reasoning blocks.",
 			context,
 			func(agg performanceAggregate) (float64, float64) {
@@ -273,6 +275,8 @@ func buildPerformanceDiagnostics(
 			float64(current.cachePromptTokens),
 			float64(baseline.cacheReadTokens),
 			float64(baseline.cachePromptTokens),
+			true,
+			performanceMinSessionSamples,
 			"Cache-read tokens / prompt-side tokens.",
 			context,
 			func(agg performanceAggregate) (float64, float64) {
@@ -285,6 +289,8 @@ func buildPerformanceDiagnostics(
 			float64(current.inputTokens),
 			float64(baseline.outputTokens),
 			float64(baseline.inputTokens),
+			true,
+			performanceMinSessionSamples,
 			"Output tokens / input tokens.",
 			context,
 			func(agg performanceAggregate) (float64, float64) {

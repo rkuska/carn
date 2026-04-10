@@ -5,7 +5,11 @@ import (
 	"math"
 )
 
-func performanceMetricFromCounts(
+type performanceSeriesAggregate interface {
+	performanceSampleCount() int
+}
+
+func performanceMetricFromCounts[T performanceSeriesAggregate](
 	id, label string,
 	currentNumerator, currentDenominator int,
 	baselineNumerator, baselineDenominator int,
@@ -13,8 +17,8 @@ func performanceMetricFromCounts(
 	minSamples int,
 	floor float64,
 	detail string,
-	context performanceMetricContext,
-	extract func(performanceAggregate) (int, int),
+	context performanceMetricContext[T],
+	extract func(T) (int, int),
 ) PerformanceMetric {
 	return performanceMetricFromRatio(
 		id,
@@ -28,14 +32,14 @@ func performanceMetricFromCounts(
 		floor,
 		detail,
 		context,
-		func(agg performanceAggregate) (float64, float64) {
+		func(agg T) (float64, float64) {
 			numerator, denominator := extract(agg)
 			return float64(numerator), float64(denominator)
 		},
 	)
 }
 
-func performanceMetricFromRatio(
+func performanceMetricFromRatio[T performanceSeriesAggregate](
 	id, label string,
 	currentNumerator, currentDenominator float64,
 	baselineNumerator, baselineDenominator float64,
@@ -43,8 +47,8 @@ func performanceMetricFromRatio(
 	minSamples int,
 	floor float64,
 	detail string,
-	context performanceMetricContext,
-	extract func(performanceAggregate) (float64, float64),
+	context performanceMetricContext[T],
+	extract func(T) (float64, float64),
 ) PerformanceMetric {
 	currentValue := safeRatio(currentNumerator, currentDenominator)
 	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
@@ -76,13 +80,15 @@ func performanceMetricFromRatio(
 	}
 }
 
-func performanceDiagnosticFromRatio(
+func performanceDiagnosticFromRatio[T performanceSeriesAggregate](
 	label string,
 	currentNumerator, currentDenominator float64,
 	baselineNumerator, baselineDenominator float64,
+	higherIsBetter bool,
+	minSamples int,
 	detail string,
-	context performanceMetricContext,
-	extract func(performanceAggregate) (float64, float64),
+	context performanceMetricContext[T],
+	extract func(T) (float64, float64),
 ) PerformanceDiagnostic {
 	currentValue := safeRatio(currentNumerator, currentDenominator)
 	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
@@ -91,10 +97,10 @@ func performanceDiagnosticFromRatio(
 	score := scorePerformanceMetric(
 		currentValue,
 		baselineValue,
-		true,
+		higherIsBetter,
 		currentSamples,
 		baselineSamples,
-		performanceMinSessionSamples,
+		minSamples,
 		0.05,
 	)
 	return PerformanceDiagnostic{
@@ -149,7 +155,7 @@ func performanceTopCountDiagnostic(
 	trend := TrendDirectionNone
 	hasBaseline := baselineName != ""
 	if hasBaseline && currentName == baselineName {
-		trend = performanceTrendDirection(float64(currentValue-baselineValue) / maxFloat(float64(baselineValue), 1))
+		trend = performanceTrendDirection(float64(currentValue-baselineValue) / max(float64(baselineValue), 1.0))
 	}
 	value := "n/a"
 	if currentName != "" {
@@ -167,9 +173,9 @@ func performanceTopCountDiagnostic(
 	}
 }
 
-func performanceSeries(
-	context performanceMetricContext,
-	extract func(performanceAggregate) (float64, float64),
+func performanceSeries[T performanceSeriesAggregate](
+	context performanceMetricContext[T],
+	extract func(T) (float64, float64),
 ) []PerformancePoint {
 	if len(context.bucketAggregates) == 0 {
 		return nil
@@ -181,7 +187,7 @@ func performanceSeries(
 		points = append(points, PerformancePoint{
 			Timestamp:   bucket.bucket.start,
 			Value:       safeRatio(numerator, denominator),
-			SampleCount: performanceRelevantSampleCount(denominator, bucket.aggregate.sessionCount),
+			SampleCount: performanceRelevantSampleCount(denominator, bucket.aggregate.performanceSampleCount()),
 		})
 	}
 	return points
@@ -203,18 +209,10 @@ func fallbackCountFloor(fallback int) int {
 
 // FormatValue renders a performance metric value using the metric's display convention.
 func FormatValue(id string, value float64) string {
-	switch id {
-	case perfMetricVerificationPass,
-		perfMetricFirstPassResolution,
-		perfMetricRewriteRate,
-		perfMetricBlindEditRate,
-		perfMetricReasoningShare,
-		perfMetricErrorRate,
-		perfMetricRejectionRate,
-		perfMetricAbortRate,
-		perfMetricContextPressure,
-		perfMetricRetryBurden:
+	if performanceMetricIsRatio(id) {
 		return formatPerformanceRatio(value)
+	}
+	switch id {
 	case perfMetricTokensPerTurn, perfMetricActionsPerTurn:
 		return fmt.Sprintf("%.1f", value)
 	default:
@@ -231,14 +229,4 @@ func safeRatio(numerator, denominator float64) float64 {
 		return 0
 	}
 	return numerator / denominator
-}
-
-func maxFloat(values ...float64) float64 {
-	result := 0.0
-	for _, value := range values {
-		if value > result {
-			result = value
-		}
-	}
-	return result
 }

@@ -79,7 +79,6 @@ func TestComputePerformanceBuildsSessionLevelLaneScores(t *testing.T) {
 	assert.NotEmpty(t, verification.Formula)
 	assert.Equal(t, PerformanceMetricStatusBetter, verification.Status)
 	assert.NotEmpty(t, verification.DeltaText)
-	assert.True(t, verification.VisibleByDefault)
 
 	readBeforeWrite := findPerformanceMetric(t, got.Discipline.Metrics, perfMetricReadBeforeWrite)
 	assert.InDelta(t, 4.0, readBeforeWrite.Current, 0.0001)

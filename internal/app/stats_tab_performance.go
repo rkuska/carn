@@ -76,55 +76,18 @@ func renderPerformanceHeadline(performance statspkg.Performance, width int) stri
 }
 
 func renderPerformanceCards(m statsModel, width int) string {
-	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 36)
-	cards := [...]statspkg.PerformanceLane{
-		m.snapshot.Performance.Outcome,
-		m.snapshot.Performance.Discipline,
-		m.snapshot.Performance.Efficiency,
-		m.snapshot.Performance.Robustness,
-	}
+	cards := m.performanceLanes()
 	selectedLane := m.performanceLaneCursor
 	bodyHeight := performanceLaneCardsBodyHeight(cards[:])
-
-	top := renderColumns(
-		renderPerformanceLaneCard(
-			cards[0],
-			selectedLane == 0,
-			metricCursorForLane(selectedLane, 0, m.performanceMetricCursor),
-			leftWidth,
+	return renderStatsLaneGrid(width, 36, selectedLane, func(index, width int, selected bool) string {
+		return renderPerformanceLaneCard(
+			cards[index],
+			selected,
+			metricCursorForLane(selectedLane, index, m.performanceMetricCursor),
+			width,
 			bodyHeight,
-		),
-		renderPerformanceLaneCard(
-			cards[1],
-			selectedLane == 1,
-			metricCursorForLane(selectedLane, 1, m.performanceMetricCursor),
-			rightWidth,
-			bodyHeight,
-		),
-		leftWidth,
-		rightWidth,
-		stacked,
-	)
-	bottom := renderColumns(
-		renderPerformanceLaneCard(
-			cards[2],
-			selectedLane == 2,
-			metricCursorForLane(selectedLane, 2, m.performanceMetricCursor),
-			leftWidth,
-			bodyHeight,
-		),
-		renderPerformanceLaneCard(
-			cards[3],
-			selectedLane == 3,
-			metricCursorForLane(selectedLane, 3, m.performanceMetricCursor),
-			rightWidth,
-			bodyHeight,
-		),
-		leftWidth,
-		rightWidth,
-		stacked,
-	)
-	return top + "\n\n" + bottom
+		)
+	})
 }
 
 func metricCursorForLane(selectedLane, laneIndex, metricCursor int) int {

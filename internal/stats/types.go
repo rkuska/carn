@@ -208,26 +208,24 @@ const (
 )
 
 type PerformanceMetric struct {
-	ID               string
-	Label            string
-	Value            string
-	Detail           string
-	Question         string
-	Formula          string
-	Current          float64
-	Baseline         float64
-	DeltaText        string
-	HasBaseline      bool
-	Score            int
-	ScoreWeight      float64
-	HasScore         bool
-	Trend            TrendDirection
-	Status           PerformanceMetricStatus
-	SampleCount      int
-	HigherIsBetter   bool
-	ProviderSpecific bool
-	VisibleByDefault bool
-	Series           []PerformancePoint
+	ID             string
+	Label          string
+	Value          string
+	Detail         string
+	Question       string
+	Formula        string
+	Current        float64
+	Baseline       float64
+	DeltaText      string
+	HasBaseline    bool
+	Score          int
+	ScoreWeight    float64
+	HasScore       bool
+	Trend          TrendDirection
+	Status         PerformanceMetricStatus
+	SampleCount    int
+	HigherIsBetter bool
+	Series         []PerformancePoint
 }
 
 type PerformancePoint struct {

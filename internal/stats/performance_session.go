@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"slices"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -57,17 +56,6 @@ type performanceAggregate struct {
 	effortCounts          map[string]int
 }
 
-type performanceBucketAggregate struct {
-	bucket    performanceBucket
-	aggregate performanceAggregate
-}
-
-type performanceMetricContext struct {
-	currentSampleCount  int
-	baselineSampleCount int
-	bucketAggregates    []performanceBucketAggregate
-}
-
 func flattenPerformanceSessions(conversations []conv.Conversation) []performanceSession {
 	if len(conversations) == 0 {
 		return nil
@@ -86,18 +74,6 @@ func flattenPerformanceSessions(conversations []conv.Conversation) []performance
 		}
 	}
 	return sessions
-}
-
-func newPerformanceMetricContext(
-	timeRange TimeRange,
-	currentSampleCount, baselineSampleCount int,
-	sessions []performanceSession,
-) performanceMetricContext {
-	return performanceMetricContext{
-		currentSampleCount:  currentSampleCount,
-		baselineSampleCount: baselineSampleCount,
-		bucketAggregates:    buildPerformanceBucketAggregates(sessions, timeRange),
-	}
 }
 
 func buildPerformanceScope(
@@ -222,16 +198,20 @@ func addPerformanceSession(agg *performanceAggregate, session performanceSession
 	addCountMap(&agg.effortCounts, session.meta.Performance.EffortCounts)
 }
 
+func (agg performanceAggregate) performanceSampleCount() int {
+	return agg.sessionCount
+}
+
 func buildPerformanceBucketAggregates(
 	sessions []performanceSession,
 	timeRange TimeRange,
-) []performanceBucketAggregate {
+) []performanceBucketAggregate[performanceAggregate] {
 	buckets := performanceBuckets(timeRange)
 	if len(buckets) == 0 {
 		return nil
 	}
 
-	aggregates := make([]performanceBucketAggregate, len(buckets))
+	aggregates := make([]performanceBucketAggregate[performanceAggregate], len(buckets))
 	for i, bucket := range buckets {
 		aggregates[i].bucket = bucket
 	}
@@ -323,17 +303,12 @@ func topCountEntry(counts map[string]int) (string, int) {
 	if len(counts) == 0 {
 		return "", 0
 	}
-	names := make([]string, 0, len(counts))
-	for name := range counts {
-		names = append(names, name)
-	}
-	slices.Sort(names)
 	bestName := ""
 	bestValue := 0
-	for _, name := range names {
-		if counts[name] > bestValue {
+	for name, value := range counts {
+		if value > bestValue || (value == bestValue && (bestName == "" || name < bestName)) {
 			bestName = name
-			bestValue = counts[name]
+			bestValue = value
 		}
 	}
 	return bestName, bestValue

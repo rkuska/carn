@@ -2,10 +2,20 @@ package app
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+)
+
+var (
+	heatmapGapStyle = lipgloss.NewStyle().Foreground(colorSecondary)
+	heatmapStyles   = [...]lipgloss.Style{
+		lipgloss.NewStyle().Foreground(colorHeatmap0),
+		lipgloss.NewStyle().Foreground(colorHeatmap1),
+		lipgloss.NewStyle().Foreground(colorHeatmap2),
+		lipgloss.NewStyle().Foreground(colorHeatmap3),
+		lipgloss.NewStyle().Foreground(colorHeatmap4),
+	}
 )
 
 func renderActivityHeatmap(title string, cells [7][24]int, width int) string {
@@ -43,7 +53,7 @@ func renderActivityHeatmapBody(cells [7][24]int, width int) string {
 
 	for _, hour := range heatmapDisplayRows(cells) {
 		if hour < 0 {
-			lines = append(lines, lipgloss.NewStyle().Foreground(colorSecondary).Render("···"))
+			lines = append(lines, heatmapGapStyle.Render("···"))
 			continue
 		}
 
@@ -51,9 +61,9 @@ func renderActivityHeatmapBody(cells [7][24]int, width int) string {
 		_, _ = fmt.Fprintf(&row, "%02d ", hour)
 		for day := range 7 {
 			level := heatmapLevel(cells[day][hour], maxValue)
-			char, color := heatmapCellStyle(level)
+			char, style := heatmapCellStyle(level)
 			cell := strings.Repeat(char, cellWidth)
-			row.WriteString(lipgloss.NewStyle().Foreground(color).Render(cell))
+			row.WriteString(style.Render(cell))
 		}
 		lines = append(lines, row.String())
 	}
@@ -79,18 +89,18 @@ func heatmapLevel(value, maxValue int) int {
 	}
 }
 
-func heatmapCellStyle(level int) (string, color.Color) {
+func heatmapCellStyle(level int) (string, lipgloss.Style) {
 	switch level {
 	case 1:
-		return "░", colorHeatmap1
+		return "░", heatmapStyles[1]
 	case 2:
-		return "▒", colorHeatmap2
+		return "▒", heatmapStyles[2]
 	case 3:
-		return "▓", colorHeatmap3
+		return "▓", heatmapStyles[3]
 	case 4:
-		return "█", colorHeatmap4
+		return "█", heatmapStyles[4]
 	default:
-		return " ", colorHeatmap0
+		return " ", heatmapStyles[0]
 	}
 }
 

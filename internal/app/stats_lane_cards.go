@@ -8,6 +8,7 @@ import (
 )
 
 type statsLaneContentBuilder func(bodyWidth int) string
+type statsLaneRenderer func(index, width int, selected bool) string
 
 func renderStatsLaneBox(title string, selected bool, width int, content string) string {
 	if width <= 0 {
@@ -63,6 +64,39 @@ func renderStatsLanePair(
 		rightWidth,
 		false,
 	)
+}
+
+func renderStatsLaneGrid(
+	width, minColumnWidth int,
+	selectedIndex int,
+	render statsLaneRenderer,
+) string {
+	const laneCount = 4
+
+	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, minColumnWidth)
+	if stacked {
+		parts := make([]string, 0, laneCount)
+		for index := range laneCount {
+			parts = append(parts, render(index, width, index == selectedIndex))
+		}
+		return strings.Join(parts, "\n\n")
+	}
+
+	top := renderColumns(
+		render(0, leftWidth, selectedIndex == 0),
+		render(1, rightWidth, selectedIndex == 1),
+		leftWidth,
+		rightWidth,
+		false,
+	)
+	bottom := renderColumns(
+		render(2, leftWidth, selectedIndex == 2),
+		render(3, rightWidth, selectedIndex == 3),
+		leftWidth,
+		rightWidth,
+		false,
+	)
+	return top + "\n\n" + bottom
 }
 
 func statsLaneBodyWidth(width int) int {
