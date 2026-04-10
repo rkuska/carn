@@ -7,57 +7,84 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-func TestStatsHelpOverviewShowsOverviewCharts(t *testing.T) {
+func TestStatsHelpSectionsShowNavigationOnly(t *testing.T) {
 	t.Parallel()
 
 	m := newStatsHelpModel()
 
-	charts := findHelpSectionByTitle(t, m.helpSections(), "Charts")
+	sections := m.helpSections()
 
-	assert.Equal(t, []string{
-		"Tokens by Model",
-		"Tokens by Project",
-		"Most Token-Heavy Sessions",
-	}, helpItemKeys(charts.items))
-	assert.Contains(t, helpItemDetail(t, charts, "Tokens by Model"), "driving token use")
+	assert.Len(t, sections, 1)
+	assert.Equal(t, "Navigation", sections[0].title)
 }
 
-func TestStatsHelpActivityNavigationIncludesMetricShortcut(t *testing.T) {
-	t.Parallel()
-
-	m := newStatsHelpModel()
-	m.tab = statsTabActivity
-
-	navigation := findHelpSectionByTitle(t, m.helpSections(), "Navigation")
-
-	assert.Contains(t, helpItemKeys(navigation.items), "m")
-	assert.Contains(t, helpItemDetail(t, navigation, "m"), "cycle the daily chart")
-}
-
-func TestStatsHelpShowsTabSpecificChartDescriptions(t *testing.T) {
+func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name string
-		tab  statsTab
+		mut  func(statsModel) statsModel
 		want []string
 	}{
 		{
+			name: "overview default lane",
+			mut: func(m statsModel) statsModel {
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+		},
+		{
+			name: "overview top sessions lane",
+			mut: func(m statsModel) statsModel {
+				m.overviewLaneCursor = 2
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "enter", "?", "q/esc"},
+		},
+		{
+			name: "activity daily lane",
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabActivity
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "?", "q/esc"},
+		},
+		{
+			name: "activity heatmap lane",
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabActivity
+				m.activityLaneCursor = 1
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+		},
+		{
 			name: "sessions",
-			tab:  statsTabSessions,
-			want: []string{"Session Duration", "Messages per Session", "Context Growth", "Turn Cost"},
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabSessions
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
 		},
 		{
 			name: "tools",
-			tab:  statsTabTools,
-			want: []string{"Top Tools", "Tool Calls/Session", "Tool Error Rate", "Rejected Suggestions"},
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabTools
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
 		},
 		{
 			name: "performance",
-			tab:  statsTabPerformance,
-			want: []string{"Lane Cards", "Metric Detail", "Diagnostics"},
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabPerformance
+				m.snapshot.Performance = testRenderedPerformance(time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC))
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "?", "q/esc"},
 		},
 	}
 
@@ -65,61 +92,47 @@ func TestStatsHelpShowsTabSpecificChartDescriptions(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := newStatsHelpModel()
-			m.tab = testCase.tab
-
-			charts := findHelpSectionByTitle(t, m.helpSections(), "Charts")
-			assert.Equal(t, testCase.want, helpItemKeys(charts.items))
-		})
-	}
-}
-
-func TestStatsHelpNavigationSectionIsConsistentAcrossTabs(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name string
-		tab  statsTab
-		want []string
-	}{
-		{
-			name: "overview",
-			tab:  statsTabOverview,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc", "1-5"},
-		},
-		{
-			name: "activity",
-			tab:  statsTabActivity,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc", "m"},
-		},
-		{
-			name: "sessions",
-			tab:  statsTabSessions,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
-		},
-		{
-			name: "tools",
-			tab:  statsTabTools,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
-		},
-		{
-			name: "performance",
-			tab:  statsTabPerformance,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc", "h/l", "m"},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			m := newStatsHelpModel()
-			m.tab = testCase.tab
+			m := testCase.mut(newStatsHelpModel())
 
 			navigation := findHelpSectionByTitle(t, m.helpSections(), "Navigation")
 			assert.Equal(t, testCase.want, helpItemKeys(navigation.items))
 		})
 	}
+}
+
+func TestStatsHelpNavigationShowsScrollShortcutsOnlyWhenScrollable(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsHelpModel()
+
+	navigation := findHelpSectionByTitle(t, m.helpSections(), "Navigation")
+	assert.NotContains(t, helpItemKeys(navigation.items), "j/k")
+	assert.NotContains(t, helpItemKeys(navigation.items), "g/G")
+
+	m.viewport.SetContent("line\nline\nline\nline\nline\nline\nline\nline\nline\nline")
+	m.viewport.SetHeight(3)
+
+	navigation = findHelpSectionByTitle(t, m.helpSections(), "Navigation")
+	assert.Contains(t, helpItemKeys(navigation.items), "j/k")
+	assert.Contains(t, helpItemKeys(navigation.items), "g/G")
+}
+
+func TestStatsHelpNavigationShowsFixScopeForPerformanceGate(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsHelpModel()
+	m.tab = statsTabPerformance
+	m.snapshot.Performance.Scope = statspkg.PerformanceScope{
+		Providers:    []string{"Claude", "Codex"},
+		Models:       []string{"claude-opus-4-1", "gpt-5.4"},
+		SingleFamily: false,
+	}
+
+	navigation := findHelpSectionByTitle(t, m.helpSections(), "Navigation")
+
+	assert.Contains(t, helpItemKeys(navigation.items), "h/l")
+	assert.NotContains(t, helpItemKeys(navigation.items), "m")
+	assert.Equal(t, "fix scope", navigation.items[2].desc)
 }
 
 func newStatsHelpModel() statsModel {

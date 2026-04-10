@@ -77,16 +77,6 @@ func (m statsModel) selectedPerformanceMetric() (statspkg.PerformanceMetric, sta
 	return lane.Metrics[m.performanceMetricCursor], lane, m.performanceMetricCursor, true
 }
 
-func (m statsModel) movePerformanceLane(delta int) statsModel {
-	laneCount := len(m.performanceLanes())
-	if laneCount == 0 {
-		return m
-	}
-	m.performanceLaneCursor = (m.performanceLaneCursor + delta + laneCount) % laneCount
-	m.performanceMetricCursor = 0
-	return m.normalizePerformanceSelection()
-}
-
 func (m statsModel) nextPerformanceMetric() statsModel {
 	lane, _, ok := m.selectedPerformanceLane()
 	if !ok || len(lane.Metrics) == 0 {

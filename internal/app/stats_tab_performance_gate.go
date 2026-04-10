@@ -16,7 +16,8 @@ type performanceScopePreviewCard struct {
 
 const performanceScopeGateHint = "Select 1 Provider and 1 Model to unlock the scorecard. Press f."
 
-func renderPerformanceScopeGate(scope statspkg.PerformanceScope, width int) string {
+func renderPerformanceScopeGate(m statsModel, width int) string {
+	scope := m.snapshot.Performance.Scope
 	innerWidth := max(width-4, 1)
 	lines := []string{
 		renderSummaryChips([]chip{
@@ -34,7 +35,7 @@ func renderPerformanceScopeGate(scope statspkg.PerformanceScope, width int) stri
 		"",
 		renderPerformanceScopeGateHint(innerWidth),
 		"",
-		renderPerformanceScopePreview(innerWidth),
+		renderPerformanceScopePreview(innerWidth, m.performanceLaneCursor),
 	}
 	return renderFramedBox("Performance preview", width, colorAccent, strings.Join(lines, "\n"))
 }
@@ -64,27 +65,27 @@ func renderPerformanceScopeGateHint(width int) string {
 		Render(renderStatsTitle(performanceScopeGateHint))
 }
 
-func renderPerformanceScopePreview(width int) string {
+func renderPerformanceScopePreview(width, selectedLane int) string {
 	cards := performanceScopePreviewCards()
 	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 28)
 	if stacked {
 		parts := make([]string, 0, len(cards))
-		for _, card := range cards {
-			parts = append(parts, renderPerformanceScopePreviewCard(card, width))
+		for index, card := range cards {
+			parts = append(parts, renderPerformanceScopePreviewCard(card, width, index == selectedLane))
 		}
 		return strings.Join(parts, "\n\n")
 	}
 
 	top := renderColumns(
-		renderPerformanceScopePreviewCard(cards[0], leftWidth),
-		renderPerformanceScopePreviewCard(cards[1], rightWidth),
+		renderPerformanceScopePreviewCard(cards[0], leftWidth, selectedLane == 0),
+		renderPerformanceScopePreviewCard(cards[1], rightWidth, selectedLane == 1),
 		leftWidth,
 		rightWidth,
 		false,
 	)
 	bottom := renderColumns(
-		renderPerformanceScopePreviewCard(cards[2], leftWidth),
-		renderPerformanceScopePreviewCard(cards[3], rightWidth),
+		renderPerformanceScopePreviewCard(cards[2], leftWidth, selectedLane == 2),
+		renderPerformanceScopePreviewCard(cards[3], rightWidth, selectedLane == 3),
 		leftWidth,
 		rightWidth,
 		false,
@@ -92,7 +93,7 @@ func renderPerformanceScopePreview(width int) string {
 	return top + "\n\n" + bottom
 }
 
-func renderPerformanceScopePreviewCard(card performanceScopePreviewCard, width int) string {
+func renderPerformanceScopePreviewCard(card performanceScopePreviewCard, width int, selected bool) string {
 	if width <= 0 {
 		return ""
 	}
@@ -102,7 +103,7 @@ func renderPerformanceScopePreviewCard(card performanceScopePreviewCard, width i
 	for _, metric := range card.Metrics {
 		lines = append(lines, muted.Render(metric))
 	}
-	return renderFramedBox(card.Title, width, colorSecondary, strings.Join(lines, "\n"))
+	return renderStatsLaneBox(card.Title, selected, width, strings.Join(lines, "\n"))
 }
 
 func performanceScopePreviewCards() []performanceScopePreviewCard {

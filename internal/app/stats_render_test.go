@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 	statspkg "github.com/rkuska/carn/internal/stats"
@@ -236,18 +237,22 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 	usageRow := findRenderedLine(t, body, "Tool Calls/Session")
 	qualityRow := findRenderedLine(t, body, "Tool Error Rate")
 
-	assert.Equal(t, 0, strings.Index(usageRow, "Tool Calls/Session"))
+	assert.GreaterOrEqual(t, strings.Index(usageRow, "Tool Calls/Session"), 0)
 	assert.Contains(t, usageRow, "Top Tools")
 	assert.Contains(t, usageRow, "│")
-	assert.GreaterOrEqual(t, strings.Index(usageRow, "│"), 55)
-	assert.LessOrEqual(t, strings.Index(usageRow, "│"), 65)
+	usageSeparator := strings.Index(usageRow, "│")
+	require.NotEqual(t, -1, usageSeparator)
+	assert.GreaterOrEqual(t, lipgloss.Width(usageRow[:usageSeparator]), 55)
+	assert.LessOrEqual(t, lipgloss.Width(usageRow[:usageSeparator]), 65)
 	assert.Greater(t, strings.Index(usageRow, "Top Tools"), strings.Index(usageRow, "│"))
 
-	assert.Equal(t, 0, strings.Index(qualityRow, "Tool Error Rate"))
+	assert.GreaterOrEqual(t, strings.Index(qualityRow, "Tool Error Rate"), 0)
 	assert.Contains(t, qualityRow, "Rejected Suggestions")
 	assert.Contains(t, qualityRow, "│")
-	assert.GreaterOrEqual(t, strings.Index(qualityRow, "│"), 55)
-	assert.LessOrEqual(t, strings.Index(qualityRow, "│"), 65)
+	qualitySeparator := strings.Index(qualityRow, "│")
+	require.NotEqual(t, -1, qualitySeparator)
+	assert.GreaterOrEqual(t, lipgloss.Width(qualityRow[:qualitySeparator]), 55)
+	assert.LessOrEqual(t, lipgloss.Width(qualityRow[:qualitySeparator]), 65)
 }
 
 func TestRenderToolsHistogramKeepsVisibleBarsWhenErrorRatesAreSparse(t *testing.T) {
@@ -383,15 +388,28 @@ func TestStatsFooterStatusRowHidesScrollPercentWhenContentFits(t *testing.T) {
 	assert.NotContains(t, row, "%")
 }
 
-func TestStatsFooterHelpRowShowsMetricOnlyOnActivityTab(t *testing.T) {
+func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	t.Parallel()
 
 	m := newStatsRenderModel(80, 20)
 
-	assert.NotContains(t, ansi.Strip(m.footerHelpRow()), "metric")
+	row := ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "h/l lane")
+	assert.NotContains(t, row, "m metric")
+	assert.NotContains(t, row, "enter open")
+
+	m.overviewLaneCursor = 2
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "m session")
+	assert.Contains(t, row, "enter open")
 
 	m.tab = statsTabActivity
-	assert.Contains(t, ansi.Strip(m.footerHelpRow()), "metric")
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "m metric")
+
+	m.activityLaneCursor = 1
+	row = ansi.Strip(m.footerHelpRow())
+	assert.NotContains(t, row, "m metric")
 }
 
 func TestStatsFooterHelpRowPromptsToFixPerformanceScopeWhenGateIsActive(t *testing.T) {
@@ -409,7 +427,8 @@ func TestStatsFooterHelpRowPromptsToFixPerformanceScopeWhenGateIsActive(t *testi
 
 	assert.Contains(t, row, "f fix scope")
 	assert.Contains(t, row, "need 1 provider + 1 model")
-	assert.NotContains(t, row, "h/l lane")
+	assert.Contains(t, row, "h/l lane")
+	assert.NotContains(t, row, "m metric")
 }
 
 func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {
@@ -436,6 +455,110 @@ func TestRenderStatsTitleUsesPrimaryStyle(t *testing.T) {
 
 	assert.Equal(t, "Tokens by Model", ansi.Strip(title))
 	assert.NotEqual(t, "Tokens by Model", title)
+}
+
+func TestRenderStatsLanePairUsesBorderedCardsAndAlignedHeights(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderStatsLanePair(
+		80,
+		30,
+		"Left Lane",
+		true,
+		func(width int) string {
+			return fitToWidth("short", width)
+		},
+		"Right Lane",
+		false,
+		func(width int) string {
+			return strings.Join([]string{
+				fitToWidth("first", width),
+				fitToWidth("second", width),
+				fitToWidth("third", width),
+			}, "\n")
+		},
+	)
+	stripped := ansi.Strip(rendered)
+	titleLine := findRenderedLine(t, stripped, "Left Lane")
+
+	assert.Contains(t, titleLine, "▸ Left Lane")
+	assert.Contains(t, titleLine, "Right Lane")
+	assert.Contains(t, titleLine, "│")
+
+	lines := strings.Split(stripped, "\n")
+	require.Len(t, lines, 5)
+	for _, line := range lines {
+		assert.Equal(t, 80, lipgloss.Width(line))
+	}
+}
+
+func TestStatsRenderOverviewUsesBorderedLaneCards(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+
+	body := ansi.Strip(m.renderOverviewTab(120))
+	titleLine := findRenderedLine(t, body, "Tokens by Model")
+	tableLine := findRenderedLine(t, body, "Most Token-Heavy Sessions")
+
+	assert.Contains(t, titleLine, "▸ Tokens by Model")
+	assert.Contains(t, titleLine, "Tokens by Project")
+	assert.Contains(t, titleLine, "╭")
+	assert.Contains(t, titleLine, "│")
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(tableLine), "╭"))
+}
+
+func TestStatsRenderActivityUsesBorderedLaneCards(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabActivity
+
+	body := ansi.Strip(m.renderActivityTab(120, 25))
+	dailyLine := findRenderedLine(t, body, "Daily Sessions")
+	heatmapLine := findRenderedLine(t, body, "Activity Heatmap")
+
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(dailyLine), "╭"))
+	assert.Contains(t, dailyLine, "▸ Daily Sessions")
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(heatmapLine), "╭"))
+}
+
+func TestStatsRenderSessionsShowsBorderedTurnMetricCardsWhileLoading(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabSessions
+	m.sessionsLaneCursor = 2
+	m.claudeTurnMetricsLoadingKey = m.claudeTurnMetricsSourceCacheKey()
+
+	body := ansi.Strip(m.renderSessionsTab(120))
+	histogramLine := findRenderedLine(t, body, "Session Duration")
+	turnMetricLine := findRenderedLine(t, body, statsClaudeContextGrowthTitle)
+
+	assert.Contains(t, histogramLine, "╭")
+	assert.Contains(t, histogramLine, "Messages per Session")
+	assert.Contains(t, turnMetricLine, "▸ "+statsClaudeContextGrowthTitle)
+	assert.Contains(t, turnMetricLine, statsClaudeTurnCostTitle)
+	assert.Contains(t, body, "Computing turn charts...")
+}
+
+func TestStatsRenderToolsUsesBorderedLaneCards(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabTools
+	m.toolsLaneCursor = 1
+
+	body := ansi.Strip(m.renderToolsTab(120))
+	usageLine := findRenderedLine(t, body, "Top Tools")
+	qualityLine := findRenderedLine(t, body, "Tool Error Rate")
+
+	assert.Contains(t, usageLine, "Tool Calls/Session")
+	assert.Contains(t, usageLine, "▸ Top Tools")
+	assert.Contains(t, usageLine, "╭")
+	assert.Contains(t, usageLine, "│")
+	assert.Contains(t, qualityLine, statsRejectedSuggestionsTitle)
+	assert.Contains(t, qualityLine, "╭")
 }
 
 func newStatsRenderModel(width, height int) statsModel {

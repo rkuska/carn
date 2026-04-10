@@ -15,6 +15,7 @@ import (
 const statsRejectedSuggestionsTitle = "Rejected Suggestions"
 
 func (m statsModel) renderToolsTab(width int) string {
+	m = m.normalizeStatsSelection()
 	tools := m.snapshot.Tools
 	chips := renderSummaryChips([]chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},
@@ -36,40 +37,41 @@ func (m statsModel) renderToolsTab(width int) string {
 		callBuckets = append(callBuckets, histBucket{Label: bucket.Label, Count: bucket.Count})
 	}
 
-	errorChartWidth, rejectedChartWidth, qualityStacked := statsColumnWidths(width, 1, 1, 30)
-	if qualityStacked {
-		errorChartWidth = width
-		rejectedChartWidth = width
-	}
-	callChartWidth := rejectedChartWidth
-	topToolsWidth := errorChartWidth
-	usageCharts := renderColumns(
-		renderVerticalHistogram(
-			"Tool Calls/Session",
-			callBuckets,
-			callChartWidth,
-			toolCallsChartHeight(len(tools.ToolErrorRates)),
-		),
-		renderHorizontalBars("Top Tools", topTools, topToolsWidth, colorChartBar),
-		callChartWidth,
-		topToolsWidth,
-		qualityStacked,
+	usageCharts := renderStatsLanePair(
+		width,
+		30,
+		"Tool Calls/Session",
+		m.toolsLaneCursor == 0,
+		func(bodyWidth int) string {
+			return renderVerticalHistogramBody(
+				callBuckets,
+				bodyWidth,
+				toolCallsChartHeight(len(tools.ToolErrorRates)),
+				colorChartBar,
+			)
+		},
+		"Top Tools",
+		m.toolsLaneCursor == 1,
+		func(bodyWidth int) string {
+			return renderHorizontalBarsBody(topTools, bodyWidth, colorChartBar)
+		},
 	)
 
-	qualityCharts := renderColumns(
-		renderToolRateChart("Tool Error Rate", tools.ToolErrorRates, errorChartWidth, colorChartError, true),
-		renderToolRateChart(
-			statsRejectedSuggestionsTitle,
-			tools.ToolRejectRates,
-			rejectedChartWidth,
-			colorPrimary,
-			false,
-		),
-		errorChartWidth,
-		rejectedChartWidth,
-		qualityStacked,
+	qualityCharts := renderStatsLanePair(
+		width,
+		30,
+		"Tool Error Rate",
+		m.toolsLaneCursor == 2,
+		func(bodyWidth int) string {
+			return renderToolRateChartBody(tools.ToolErrorRates, bodyWidth, colorChartError, true)
+		},
+		statsRejectedSuggestionsTitle,
+		m.toolsLaneCursor == 3,
+		func(bodyWidth int) string {
+			return renderToolRateChartBody(tools.ToolRejectRates, bodyWidth, colorPrimary, false)
+		},
 	)
-	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, usageCharts, qualityCharts)
+	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, usageCharts, qualityCharts, m.renderActiveMetricDetail(width))
 }
 
 func toolCallsChartHeight(errorRateCount int) int {
@@ -88,11 +90,24 @@ func renderToolRateChart(
 	barColor color.Color,
 	showCount bool,
 ) string {
+	body := renderToolRateChartBody(rates, width, barColor, showCount)
+	if body == "" {
+		return ""
+	}
+	return renderStatsTitle(title) + "\n" + body
+}
+
+func renderToolRateChartBody(
+	rates []statspkg.ToolRateStat,
+	width int,
+	barColor color.Color,
+	showCount bool,
+) string {
 	if width <= 0 {
 		return ""
 	}
 
-	lines := []string{renderStatsTitle(title)}
+	lines := make([]string, 0, len(rates)+1)
 	if len(rates) == 0 {
 		lines = append(lines, "No data")
 		return strings.Join(lines, "\n")

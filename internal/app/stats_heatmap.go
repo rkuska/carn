@@ -9,6 +9,14 @@ import (
 )
 
 func renderActivityHeatmap(title string, cells [7][24]int, width int) string {
+	body := renderActivityHeatmapBody(cells, width)
+	if body == "" {
+		return ""
+	}
+	return renderStatsTitle(title) + "\n" + body
+}
+
+func renderActivityHeatmapBody(cells [7][24]int, width int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -16,7 +24,7 @@ func renderActivityHeatmap(title string, cells [7][24]int, width int) string {
 	const prefixWidth = 3
 
 	cellWidth := max((width-prefixWidth)/7, 3)
-	lines := []string{renderStatsTitle(title)}
+	lines := make([]string, 0, 26)
 
 	headers := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	var headerRow strings.Builder

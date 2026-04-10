@@ -10,6 +10,7 @@ import (
 )
 
 func (m statsModel) renderOverviewTab(width int) string {
+	m = m.normalizeStatsSelection()
 	overview := m.snapshot.Overview
 	chips := renderSummaryChips([]chip{
 		{Label: "sessions", Value: statspkg.FormatNumber(overview.SessionCount)},
@@ -34,8 +35,12 @@ func (m statsModel) renderOverviewTab(width int) string {
 		{Columns: []string{"#", "Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
 	}
 	for i, session := range overview.TopSessions {
+		rank := fmt.Sprintf("%d", i+1)
+		if i == m.overviewSessionCursor && m.overviewLaneCursor == 2 {
+			rank = ">" + rank
+		}
 		rows = append(rows, tableRow{Columns: []string{
-			fmt.Sprintf("%d", i+1),
+			rank,
 			session.Project,
 			session.Slug,
 			session.Timestamp.Format("2006-01-02"),
@@ -45,13 +50,27 @@ func (m statsModel) renderOverviewTab(width int) string {
 		}})
 	}
 
-	table := renderRankedTable("Most Token-Heavy Sessions", rows, width)
-	sideBySide := renderSideBySide(
-		renderHorizontalBars("Tokens by Model", modelBars, max((width-3)/2, 30), colorChartToken),
-		renderHorizontalBars("Tokens by Project", projectBars, max((width-3)/2, 30), colorChartToken),
+	table := renderStatsLaneBox(
+		"Most Token-Heavy Sessions",
+		m.overviewLaneCursor == 2,
 		width,
+		renderRankedTableBody(rows, statsLaneBodyWidth(width)),
 	)
-	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, sideBySide, table)
+	sideBySide := renderStatsLanePair(
+		width,
+		30,
+		"Tokens by Model",
+		m.overviewLaneCursor == 0,
+		func(bodyWidth int) string {
+			return renderHorizontalBarsBody(modelBars, bodyWidth, colorChartToken)
+		},
+		"Tokens by Project",
+		m.overviewLaneCursor == 1,
+		func(bodyWidth int) string {
+			return renderHorizontalBarsBody(projectBars, bodyWidth, colorChartToken)
+		},
+	)
+	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, sideBySide, table, m.renderActiveMetricDetail(width))
 }
 
 func renderOverviewTokenValue(overview statspkg.Overview) string {

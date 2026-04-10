@@ -140,39 +140,16 @@ func (m statsModel) footerHelpRow() string {
 	if m.filter.active {
 		return composeFooterRow(m.width, renderHelpItems(filterFooterItems(m.filter)), "")
 	}
-	if m.performanceScopeGateActive() {
-		items := []helpItem{
-			{key: "f", desc: "fix scope", glow: true},
-			{key: "?", desc: "help", priority: helpPriorityEssential},
-			{key: "q/esc", desc: "close", priority: helpPriorityHigh},
-		}
-		return composeFooterRow(m.width, renderHelpItems(items), "need 1 provider + 1 model")
-	}
 
-	items := []helpItem{
-		{key: "ctrl+f/b", desc: "tabs"},
-		{key: "r", desc: "range"},
-		{key: "f", desc: "filter", glow: m.filter.hasActiveFilters()},
-		{key: "j/k", desc: "scroll"},
-		{key: "g/G", desc: "jump"},
+	right := ""
+	if m.performanceScopeGateActive() {
+		right = "need 1 provider + 1 model"
 	}
-	if m.tab == statsTabActivity {
-		items = append(items, helpItem{key: "m", desc: "metric"})
+	leftWidth := m.contentWidth()
+	if right != "" {
+		leftWidth = max(m.contentWidth()-lipgloss.Width(right)-1, 0)
 	}
-	if m.tab == statsTabPerformance && m.performanceScopeAllowsScorecard() {
-		items = append(items,
-			helpItem{key: "h/l", desc: "lane"},
-			helpItem{key: "m", desc: "metric"},
-		)
-	}
-	if m.tab == statsTabOverview && len(m.snapshot.Overview.TopSessions) > 0 {
-		items = append(items, helpItem{key: "1-5", desc: "open"})
-	}
-	items = append(items,
-		helpItem{key: "?", desc: "help", priority: helpPriorityEssential},
-		helpItem{key: "q/esc", desc: "close", priority: helpPriorityHigh},
-	)
-	return composeFooterRow(m.width, renderHelpItems(items), "")
+	return composeFooterRow(m.width, renderFittedHelpItems(m.statsNavigationHelpItems(), leftWidth), right)
 }
 
 func (m statsModel) footerStatusRow() string {

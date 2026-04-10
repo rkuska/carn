@@ -25,7 +25,7 @@ None.
 
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
-| internal/app/stats_keys.go | source | 355 | 78 | 390 |
+| internal/app/stats_keys.go | source | 349 | 80 | 383 |
 | internal/config/config.go | source | 310 | 71 | 367 |
 | internal/conversation/conversation_display.go | source | 259 | 71 | 287 |
 | internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
@@ -43,6 +43,7 @@ None.
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
+| internal/app/stats_metric_detail.go | source | 367 | 55 | 402 |
 | internal/canonical/blob_decoder.go | source | 347 | 54 | 387 |
 | internal/source/claude/scanner_metadata.go | source | 365 | 48 | 393 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
@@ -53,9 +54,7 @@ None.
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/stats/performance_lane.go | source | 334 | 10 | 341 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats_help.go | source | 340 | 9 | 346 |
-| internal/app/stats_model_test.go | test | 650 | 8 | 751 |
-| internal/app/stats_tab_performance_test.go | test | 710 | 5 | 775 |
+| internal/app/stats_tab_performance_test.go | test | 713 | 5 | 779 |
 
 ## Notes
 

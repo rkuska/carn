@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -12,10 +11,13 @@ import (
 )
 
 func (m statsModel) renderPerformanceTab(width int) string {
-	m = m.normalizePerformanceSelection()
+	m = m.normalizeStatsSelection()
 	performance := m.snapshot.Performance
 	if !m.performanceScopeAllowsScorecard() {
-		return renderPerformanceScopeGate(performance.Scope, width)
+		return strings.Join([]string{
+			renderPerformanceScopeGate(m, width),
+			m.renderActiveMetricDetail(width),
+		}, "\n\n")
 	}
 
 	loadingSequence := m.performanceSequenceLoading()
@@ -31,10 +33,7 @@ func (m statsModel) renderPerformanceTab(width int) string {
 	}
 
 	sections = append(sections, renderPerformanceCards(m, width))
-
-	if metric, lane, _, ok := m.selectedPerformanceMetric(); ok {
-		sections = append(sections, renderPerformanceMetricInspector(metric, lane, width))
-	}
+	sections = append(sections, m.renderActiveMetricDetail(width))
 	sections = append(sections, renderPerformanceDiagnostics(performance, width))
 
 	return strings.Join(sections, "\n\n")
@@ -143,9 +142,6 @@ func renderPerformanceLaneCard(
 	}
 
 	title := lane.Label + " " + formatPerformanceLaneScore(lane)
-	if selected {
-		title = "▸ " + title
-	}
 
 	lines := []string{
 		lane.Detail,
@@ -163,7 +159,7 @@ func renderPerformanceLaneCard(
 	for _, metric := range performanceVisibleMetrics(lane, selectedMetricIndex) {
 		lines = append(lines, renderPerformanceMetricRow(metric, metric.ID == selectedMetricID, width-4))
 	}
-	return renderFramedPane(title, width, bodyHeight, laneBorderColor(selected), strings.Join(lines, "\n"))
+	return renderStatsLanePane(title, selected, width, bodyHeight, strings.Join(lines, "\n"))
 }
 
 func performanceLaneCardsBodyHeight(lanes []statspkg.PerformanceLane) int {
@@ -176,13 +172,6 @@ func performanceLaneCardsBodyHeight(lanes []statspkg.PerformanceLane) int {
 
 func performanceLaneCardBodyHeight(lane statspkg.PerformanceLane) int {
 	return 2 + len(performanceVisibleMetrics(lane, 0))
-}
-
-func laneBorderColor(selected bool) color.Color {
-	if selected {
-		return colorAccent
-	}
-	return colorPrimary
 }
 
 func renderPerformanceMetricRow(metric statspkg.PerformanceMetric, selected bool, width int) string {

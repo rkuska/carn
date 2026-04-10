@@ -98,7 +98,7 @@ func TestStatsRenderPerformanceTabShowsScopePreviewForMixedFamily(t *testing.T) 
 	assert.Contains(t, body, "verification pass")
 	assert.Contains(t, body, "blind edit rate")
 	assert.NotContains(t, body, "1. Press f")
-	assert.NotContains(t, body, "Metric detail")
+	assert.Contains(t, body, "Metric detail")
 }
 
 func TestRenderPerformanceScopeGateCentersHintAbovePreviewCards(t *testing.T) {
@@ -120,7 +120,11 @@ func TestRenderPerformanceScopeGateCentersHintAbovePreviewCards(t *testing.T) {
 		},
 	}
 
-	body := ansi.Strip(renderPerformanceScopeGate(scope, 120))
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance.Scope = scope
+
+	body := ansi.Strip(renderPerformanceScopeGate(m, 120))
 	hint := "Select 1 Provider and 1 Model to unlock the scorecard. Press f."
 	hintLine := findRenderedLine(t, body, hint)
 

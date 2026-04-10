@@ -58,7 +58,12 @@ type statsModel struct {
 	viewport                      viewport.Model
 	spinner                       spinner.Model
 	width, height                 int
+	overviewLaneCursor            int
+	overviewSessionCursor         int
 	activityMetric                activityMetric
+	activityLaneCursor            int
+	sessionsLaneCursor            int
+	toolsLaneCursor               int
 	performanceLaneCursor         int
 	performanceMetricCursor       int
 	glamourStyle                  string
@@ -191,7 +196,7 @@ func (m statsModel) setSize(width, height int) statsModel {
 	m.height = height
 	m.viewport.SetWidth(m.contentWidth())
 	m.viewport.SetHeight(m.contentHeight())
-	return m.renderViewportContent(false)
+	return m.normalizeStatsSelection().renderViewportContent(false)
 }
 
 func (m statsModel) applyFilterChange() statsModel {
@@ -254,7 +259,7 @@ func (m statsModel) recomputeSnapshot() statsModel {
 			m.performanceSequenceSessions,
 		)
 	}
-	m = m.normalizePerformanceSelection()
+	m = m.normalizeStatsSelection()
 	return m
 }
 

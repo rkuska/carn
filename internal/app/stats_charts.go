@@ -32,11 +32,19 @@ type chip struct {
 }
 
 func renderHorizontalBars(title string, items []barItem, width int, barColor color.Color) string {
+	body := renderHorizontalBarsBody(items, width, barColor)
+	if body == "" {
+		return ""
+	}
+	return renderStatsTitle(title) + "\n" + body
+}
+
+func renderHorizontalBarsBody(items []barItem, width int, barColor color.Color) string {
 	if width <= 0 {
 		return ""
 	}
 
-	lines := []string{renderStatsTitle(title)}
+	lines := make([]string, 0, len(items)+1)
 	if len(items) == 0 {
 		lines = append(lines, "No data")
 		return strings.Join(lines, "\n")
@@ -76,7 +84,21 @@ func renderRankedTable(title string, rows []tableRow, maxWidth int) string {
 	if maxWidth > width {
 		titleLine = lipgloss.PlaceHorizontal(maxWidth, lipgloss.Center, titleLine)
 	}
-	lines := []string{titleLine}
+
+	body := renderRankedTableBody(rows, maxWidth)
+	if body == "" {
+		return titleLine
+	}
+	return titleLine + "\n" + body
+}
+
+func renderRankedTableBody(rows []tableRow, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+
+	width := min(maxWidth, 72)
+	lines := make([]string, 0, len(rows))
 	if len(rows) == 0 {
 		lines = append(lines, "No data")
 		return strings.Join(lines, "\n")

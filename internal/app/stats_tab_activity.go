@@ -13,6 +13,7 @@ import (
 )
 
 func (m statsModel) renderActivityTab(width, height int) string {
+	m = m.normalizeStatsSelection()
 	activity := m.snapshot.Activity
 	chips := renderSummaryChips([]chip{
 		{Label: "active days", Value: fmt.Sprintf("%d/%d", activity.ActiveDays, activity.TotalDays)},
@@ -26,9 +27,24 @@ func (m statsModel) renderActivityTab(width, height int) string {
 		chartHeight = max(height-6, 6)
 	}
 
-	lineChart := renderDailyActivityChart(chartTitle, counts, max(width-2, 10), chartHeight, colorChartTime)
-	heatmap := renderActivityHeatmap("Activity Heatmap", activity.Heatmap, width)
-	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, lineChart, heatmap)
+	lineChart := renderStatsLaneBox(
+		chartTitle,
+		m.activityLaneCursor == 0,
+		width,
+		renderDailyActivityChartBody(
+			counts,
+			max(statsLaneBodyWidth(width), 10),
+			chartHeight,
+			colorChartTime,
+		),
+	)
+	heatmap := renderStatsLaneBox(
+		"Activity Heatmap",
+		m.activityLaneCursor == 1,
+		width,
+		renderActivityHeatmapBody(activity.Heatmap, statsLaneBodyWidth(width)),
+	)
+	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, lineChart, heatmap, m.renderActiveMetricDetail(width))
 }
 
 func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {
@@ -44,13 +60,12 @@ func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {
 	}
 }
 
-func renderDailyActivityChart(
-	title string,
+func renderDailyActivityChartBody(
 	counts []statspkg.DailyCount,
 	width, height int,
 	lineColor color.Color,
 ) string {
-	lines := []string{renderStatsTitle(title)}
+	lines := make([]string, 0, 2)
 	if len(counts) == 0 {
 		lines = append(lines, "No data")
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)

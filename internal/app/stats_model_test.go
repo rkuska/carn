@@ -119,239 +119,6 @@ func TestStatsHelpToggleAndQClosesHelpBeforeView(t *testing.T) {
 	assert.False(t, m.helpOpen)
 }
 
-func TestStatsOverviewHelpExplainsTokenHeavyTableUsesSessions(t *testing.T) {
-	t.Parallel()
-
-	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
-		&fakeBrowserStore{},
-		120,
-		32,
-		newBrowserFilterState(),
-	)
-
-	section := m.chartHelpSection()
-	require.Len(t, section.items, 3)
-	assert.Equal(t, "Most Token-Heavy Sessions", section.items[2].key)
-	assert.Contains(t, section.items[2].detail, "heaviest individual sessions")
-	assert.Contains(t, section.items[2].detail, "not grouped conversations")
-}
-
-func TestStatsHelpSectionsListSummaryBeforeCharts(t *testing.T) {
-	t.Parallel()
-
-	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
-		&fakeBrowserStore{},
-		120,
-		32,
-		newBrowserFilterState(),
-	)
-
-	sections := m.helpSections()
-	require.Len(t, sections, 3)
-	assert.Equal(t, "Summary Chips", sections[0].title)
-	assert.Equal(t, "Charts", sections[1].title)
-	assert.Equal(t, "Navigation", sections[2].title)
-}
-
-func TestStatsSessionsHelpListsAllChipGroupsBeforeCharts(t *testing.T) {
-	t.Parallel()
-
-	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
-		&fakeBrowserStore{},
-		120,
-		32,
-		newBrowserFilterState(),
-	)
-
-	m, _ = m.Update(ctrlKey("f"))
-	m, _ = m.Update(ctrlKey("f"))
-
-	sections := m.helpSections()
-	require.Len(t, sections, 3)
-	require.Len(t, sections[0].items, 10)
-	assert.Equal(t, []string{
-		"avg duration",
-		"avg messages",
-		"user:assistant",
-		"abandoned",
-		"context 1-5 avg",
-		"context 20+ avg",
-		"context multiplier",
-		"turn cost 1-5 avg",
-		"turn cost 20+ avg",
-		"turn cost multiplier",
-	}, []string{
-		sections[0].items[0].key,
-		sections[0].items[1].key,
-		sections[0].items[2].key,
-		sections[0].items[3].key,
-		sections[0].items[4].key,
-		sections[0].items[5].key,
-		sections[0].items[6].key,
-		sections[0].items[7].key,
-		sections[0].items[8].key,
-		sections[0].items[9].key,
-	})
-	assert.Equal(t, []string{
-		"Session Duration",
-		"Messages per Session",
-		"Context Growth",
-		"Turn Cost",
-	}, []string{
-		sections[1].items[0].key,
-		sections[1].items[1].key,
-		sections[1].items[2].key,
-		sections[1].items[3].key,
-	})
-}
-
-func TestStatsChartHelpExplainsStoryAndReadingOrder(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		advance  int
-		expected []struct {
-			key        string
-			substrings []string
-		}
-	}{
-		{
-			name:    "overview",
-			advance: 0,
-			expected: []struct {
-				key        string
-				substrings []string
-			}{
-				{
-					key:        "Tokens by Model",
-					substrings: []string{"driving token use", "Y-axis lists models", "X-axis shows total tokens"},
-				},
-				{
-					key:        "Most Token-Heavy Sessions",
-					substrings: []string{"heaviest individual sessions", "not grouped conversations", "Columns read left to right"},
-				},
-			},
-		},
-		{
-			name:    "activity",
-			advance: 1,
-			expected: []struct {
-				key        string
-				substrings []string
-			}{
-				{
-					key:        "Daily Activity",
-					substrings: []string{"steady, spiky, or fading", "X-axis is calendar day", "Y-axis is the selected metric"},
-				},
-				{
-					key:        "Activity Heatmap",
-					substrings: []string{"Rows are weekdays", "columns are hours", "darker cells mean more sessions"},
-				},
-			},
-		},
-		{
-			name:    "sessions",
-			advance: 2,
-			expected: []struct {
-				key        string
-				substrings []string
-			}{
-				{
-					key:        "Session Duration",
-					substrings: []string{"quick checks or long runs", "X-axis is duration bucket", "Y-axis is session count"},
-				},
-				{
-					key: "Context Growth",
-					substrings: []string{
-						"context tends to accumulate",
-						"user turn number",
-						"maximum input tokens",
-					},
-				},
-				{
-					key: "Turn Cost",
-					substrings: []string{
-						"prompt and response are counted together",
-						"user turn number",
-						"assistant steps",
-					},
-				},
-			},
-		},
-		{
-			name:    "tools",
-			advance: 3,
-			expected: []struct {
-				key        string
-				substrings []string
-			}{
-				{
-					key:        "Top Tools",
-					substrings: []string{"dominate the workflow", "Y-axis lists tools", "X-axis shows total calls"},
-				},
-				{
-					key:        "Tool Error Rate",
-					substrings: []string{"fail often enough to inspect", "Y-axis lists tools", "X-axis shows error rate percent"},
-				},
-				{
-					key: "Rejected Suggestions",
-					substrings: []string{
-						"which suggested tools users push back on",
-						"Y-axis lists tools",
-						"X-axis shows rejected-share percent",
-					},
-				},
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			m := newStatsModel(
-				[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
-				&fakeBrowserStore{},
-				120,
-				32,
-				newBrowserFilterState(),
-			)
-
-			for range testCase.advance {
-				m, _ = m.Update(ctrlKey("f"))
-			}
-
-			section := m.chartHelpSection()
-			for _, item := range testCase.expected {
-				detail := helpItemDetail(t, section, item.key)
-				for _, part := range item.substrings {
-					assert.Contains(t, detail, part)
-				}
-			}
-		})
-	}
-}
-
-func TestStatsSummaryHelpUsesInterpretiveDescriptions(t *testing.T) {
-	t.Parallel()
-
-	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
-		&fakeBrowserStore{},
-		120,
-		32,
-		newBrowserFilterState(),
-	)
-
-	section := m.summaryHelpSection()
-	assert.Contains(t, helpItemDetail(t, section, "sessions"), "Sets the size of the slice")
-	assert.Contains(t, helpItemDetail(t, section, "tokens"), "Shows overall token burn")
-}
-
 func TestStatsViewRendersEmptyStateWhenNoSessionsMatch(t *testing.T) {
 	t.Parallel()
 
@@ -560,7 +327,7 @@ func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
 	assert.Zero(t, store.loadSessionCalls)
 }
 
-func TestStatsOverviewDigitShortcutOpensHeavySessionAndBackReturnsToStats(t *testing.T) {
+func TestStatsOverviewSelectedSessionOpensHeavySessionAndBackReturnsToStats(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
@@ -600,8 +367,9 @@ func TestStatsOverviewDigitShortcutOpensHeavySessionAndBackReturnsToStats(t *tes
 	)
 	m.glamourStyle = "dark"
 	m.timestampFormat = "2006-01-02 15:04"
+	m.overviewLaneCursor = 2
 
-	next, cmd := m.Update(tea.KeyPressMsg{Text: "1"})
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	loaded, ok := cmd().(statsSessionLoadedMsg)
@@ -617,6 +385,42 @@ func TestStatsOverviewDigitShortcutOpensHeavySessionAndBackReturnsToStats(t *tes
 
 	assert.False(t, next.viewerOpen)
 	assert.Equal(t, statsTabOverview, next.tab)
+}
+
+func TestStatsOverviewMetricKeyCyclesSelectedSessionRow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("heavy", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 4000
+					meta.TotalUsage.OutputTokens = 500
+				}),
+				testStatsSessionMeta("heavier", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.TotalUsage.InputTokens = 4500
+					meta.TotalUsage.OutputTokens = 600
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.overviewLaneCursor = 2
+
+	assert.Equal(t, 0, m.overviewSessionCursor)
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "m"})
+	assert.Equal(t, 1, m.overviewSessionCursor)
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "m"})
+	assert.Equal(t, 0, m.overviewSessionCursor)
 }
 
 func TestStatsCloseReturnsCloseMessage(t *testing.T) {
@@ -696,19 +500,6 @@ func testStatsSessionMeta(
 		option(&meta)
 	}
 	return meta
-}
-
-func helpItemDetail(t *testing.T, section helpSection, key string) string {
-	t.Helper()
-
-	for _, item := range section.items {
-		if item.key == key {
-			return item.detail
-		}
-	}
-
-	t.Fatalf("help item %q not found", key)
-	return ""
 }
 
 func testStatsLoadedSession(id string) conv.Session {

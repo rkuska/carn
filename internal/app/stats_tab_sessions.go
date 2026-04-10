@@ -30,6 +30,7 @@ const (
 )
 
 func (m statsModel) renderSessionsTab(width int) string {
+	m = m.normalizeStatsSelection()
 	sessionStats := m.snapshot.Sessions
 	loadingClaudeTurnMetrics := m.claudeTurnMetricsLoading()
 	chips := renderSummaryChips([]chip{
@@ -48,47 +49,58 @@ func (m statsModel) renderSessionsTab(width int) string {
 		messageBuckets = append(messageBuckets, histBucket{Label: bucket.Label, Count: bucket.Count})
 	}
 
-	histograms := renderSideBySide(
-		renderVerticalHistogramWithColor("Session Duration", durationBuckets, max((width-3)/2, 30), 8, colorChartTime),
-		renderVerticalHistogram("Messages per Session", messageBuckets, max((width-3)/2, 30), 8),
+	histograms := renderStatsLanePair(
 		width,
+		30,
+		"Session Duration",
+		m.sessionsLaneCursor == 0,
+		func(bodyWidth int) string {
+			return renderVerticalHistogramBody(durationBuckets, bodyWidth, 8, colorChartTime)
+		},
+		"Messages per Session",
+		m.sessionsLaneCursor == 1,
+		func(bodyWidth int) string {
+			return renderVerticalHistogramBody(messageBuckets, bodyWidth, 8, colorChartBar)
+		},
 	)
 
 	growthChips := renderSummaryChips(claudeTurnMetricChips(m.claudeTurnMetrics, loadingClaudeTurnMetrics), width)
-	growthCharts := statsLoadingText
-	switch {
-	case loadingClaudeTurnMetrics:
-		growthCharts = fmt.Sprintf("%s Computing turn charts...", m.spinner.View())
-	case m.claudeTurnMetrics != nil:
-		growthChartWidth := max(width-2, 12)
-		if (width-3)/2 >= 30 {
-			growthChartWidth = max((width-3)/2, 30)
-		}
-		growthCharts = renderSideBySide(
-			renderClaudeTurnChart(
-				statsClaudeContextGrowthTitle,
-				m.claudeTurnMetrics,
-				growthChartWidth,
+	growthCharts := renderStatsLanePair(
+		width,
+		30,
+		statsClaudeContextGrowthTitle,
+		m.sessionsLaneCursor == 2,
+		func(bodyWidth int) string {
+			return m.renderClaudeTurnMetricLaneBody(
+				bodyWidth,
 				10,
-				colorChartToken,
+				loadingClaudeTurnMetrics,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageInputTokens
 				},
-			),
-			renderClaudeTurnChart(
-				statsClaudeTurnCostTitle,
-				m.claudeTurnMetrics,
-				growthChartWidth,
+			)
+		},
+		statsClaudeTurnCostTitle,
+		m.sessionsLaneCursor == 3,
+		func(bodyWidth int) string {
+			return m.renderClaudeTurnMetricLaneBody(
+				bodyWidth,
 				10,
-				colorChartToken,
+				loadingClaudeTurnMetrics,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageTurnTokens
 				},
-			),
-			width,
-		)
-	}
-	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, histograms, growthChips, growthCharts)
+			)
+		},
+	)
+	return fmt.Sprintf(
+		"%s\n\n%s\n\n%s\n\n%s\n\n%s",
+		chips,
+		histograms,
+		growthChips,
+		growthCharts,
+		m.renderActiveMetricDetail(width),
+	)
 }
 
 func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics, loading bool) []chip {
@@ -155,7 +167,20 @@ func renderClaudeTurnChart(
 	lineColor color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
-	lines := []string{renderStatsTitle(title)}
+	body := renderClaudeTurnChartBody(metrics, width, height, lineColor, value)
+	if body == "" {
+		return ""
+	}
+	return renderStatsTitle(title) + "\n" + body
+}
+
+func renderClaudeTurnChartBody(
+	metrics []statspkg.PositionTokenMetrics,
+	width, height int,
+	lineColor color.Color,
+	value func(statspkg.PositionTokenMetrics) float64,
+) string {
+	lines := make([]string, 0, 2)
 	if len(metrics) == 0 {
 		lines = append(lines, statsNoClaudeTurnMetricsData)
 		return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -203,6 +228,27 @@ func renderClaudeTurnChart(
 	chart.Draw()
 	lines = append(lines, strings.Join(splitAndFitLines(chart.View(), width), "\n"))
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m statsModel) renderClaudeTurnMetricLaneBody(
+	width, height int,
+	loading bool,
+	value func(statspkg.PositionTokenMetrics) float64,
+) string {
+	switch {
+	case loading:
+		return fmt.Sprintf("%s Computing turn charts...", m.spinner.View())
+	case m.claudeTurnMetrics == nil:
+		return statsNoClaudeTurnMetricsData
+	default:
+		return renderClaudeTurnChartBody(
+			m.claudeTurnMetrics,
+			width,
+			height,
+			colorChartToken,
+			value,
+		)
+	}
 }
 
 func claudeTurnChartPoints(

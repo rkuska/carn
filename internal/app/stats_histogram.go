@@ -28,11 +28,23 @@ func renderVerticalHistogramWithColor(
 	width, maxHeight int,
 	barColor color.Color,
 ) string {
+	body := renderVerticalHistogramBody(buckets, width, maxHeight, barColor)
+	if body == "" {
+		return ""
+	}
+	return renderStatsTitle(title) + "\n" + body
+}
+
+func renderVerticalHistogramBody(
+	buckets []histBucket,
+	width, maxHeight int,
+	barColor color.Color,
+) string {
 	if width <= 0 {
 		return ""
 	}
 
-	lines := []string{renderStatsTitle(title)}
+	lines := make([]string, 0, maxHeight+3)
 	if len(buckets) == 0 {
 		lines = append(lines, "No data")
 		return strings.Join(lines, "\n")
