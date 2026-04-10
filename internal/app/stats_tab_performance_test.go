@@ -1,10 +1,12 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,56 +21,132 @@ func TestStatsRenderPerformanceTabShowsScopeAndDiagnostics(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsRenderModel(120, 32)
 	m.tab = statsTabPerformance
+	m.snapshot.Performance = testRenderedPerformance(now)
+
+	body := ansi.Strip(m.renderPerformanceTab(120))
+
+	assert.Contains(t, body, "Improving")
+	assert.Contains(t, body, "Claude / claude-opus-4-1")
+	assert.Contains(t, body, "overall 81 ↑")
+	assert.Contains(t, body, "Metric detail")
+	assert.Contains(t, body, "Are mutated sessions getting verified after changes?")
+	assert.Contains(t, body, "Likely causes")
+	assert.Contains(t, body, "Provider signals")
+	assert.Contains(t, body, "correction burden")
+	assert.Contains(t, body, "stop reason")
+}
+
+func TestRenderPerformanceProviderSignalsAlignsTrendColumn(t *testing.T) {
+	t.Parallel()
+
+	body := ansi.Strip(renderPerformanceProviderSignals([]statspkg.PerformanceDiagnostic{
+		{Group: "provider_signals", Label: "hidden thinking", Value: "0.0%", Trend: statspkg.TrendDirectionFlat},
+		{Group: "provider_signals", Label: "cache efficiency", Value: "97.0%", Trend: statspkg.TrendDirectionUp},
+		{Group: "provider_signals", Label: "output / input", Value: "0.5%", Trend: statspkg.TrendDirectionFlat},
+		{Group: "provider_signals", Label: "effort mode", Value: "xhigh (70)", Trend: statspkg.TrendDirectionDown},
+		{Group: "provider_signals", Label: "hidden thinking turns", Value: "96.3%", Trend: statspkg.TrendDirectionFlat},
+	}, 40))
+
+	lines := strings.Split(body, "\n")
+	require.Len(t, lines, 6)
+
+	arrowColumn := -1
+	for _, line := range lines[1:] {
+		assert.Equal(t, 40, lipgloss.Width(line))
+		column := strings.IndexAny(line, "↑↓→·")
+		require.NotEqual(t, -1, column)
+		if arrowColumn == -1 {
+			arrowColumn = column
+			continue
+		}
+		assert.Equal(t, arrowColumn, column)
+	}
+}
+
+func TestStatsRenderPerformanceTabShowsScopePreviewForMixedFamily(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabPerformance
 	m.snapshot.Performance = statspkg.Performance{
 		Scope: statspkg.PerformanceScope{
 			SessionCount:         12,
 			BaselineSessionCount: 10,
-			Providers:            []string{"Claude"},
-			Models:               []string{"claude-opus-4-1"},
-			SequenceLoaded:       true,
-			SequenceSampleCount:  8,
-		},
-		Overall: statspkg.PerformanceScore{Score: 81, HasScore: true, Trend: statspkg.TrendDirectionUp},
-		Outcome: testPerformanceLane(
-			"Outcome",
-			84,
-			statspkg.TrendDirectionUp,
-			testPerformanceMetric("verification pass", "82.0%", statspkg.TrendDirectionUp, now),
-		),
-		Discipline: testPerformanceLane(
-			"Discipline",
-			79,
-			statspkg.TrendDirectionFlat,
-			testPerformanceMetric("read before write", "2.40", statspkg.TrendDirectionFlat, now),
-		),
-		Efficiency: testPerformanceLane(
-			"Efficiency",
-			73,
-			statspkg.TrendDirectionDown,
-			testPerformanceMetric("tokens / user turn", "140.0", statspkg.TrendDirectionDown, now),
-		),
-		Robustness: testPerformanceLane(
-			"Robustness",
-			77,
-			statspkg.TrendDirectionUp,
-			testPerformanceMetric("tool error rate", "3.0%", statspkg.TrendDirectionUp, now),
-		),
-		Diagnostics: []statspkg.PerformanceDiagnostic{
-			{Label: "hidden thinking", Value: "12.0%", Trend: statspkg.TrendDirectionDown},
-			{Label: "stop reason", Value: "end_turn (8)", Trend: statspkg.TrendDirectionFlat},
+			Providers:            []string{"Claude", "Codex"},
+			Models:               []string{"claude-opus-4-1", "gpt-5.4"},
+			CurrentRange: statspkg.TimeRange{
+				Start: now.AddDate(0, 0, -6),
+				End:   now,
+			},
+			BaselineRange: statspkg.TimeRange{
+				Start: now.AddDate(0, 0, -13),
+				End:   now.AddDate(0, 0, -7),
+			},
 		},
 	}
 
 	body := ansi.Strip(m.renderPerformanceTab(120))
 
-	assert.Contains(t, body, "overall 81 ↑")
-	assert.Contains(t, body, "providers Claude")
-	assert.Contains(t, body, "models claude-opus-4-1")
-	assert.Contains(t, body, "sequence 8")
-	assert.Contains(t, body, "Outcome 84 ↑")
-	assert.Contains(t, body, "Diagnostics")
-	assert.Contains(t, body, "hidden thinking")
-	assert.Contains(t, body, "stop reason")
+	assert.Contains(t, body, "Select 1 Provider and 1 Model to unlock the scorecard. Press f.")
+	assert.Contains(t, body, "need 1 provider + 1 model")
+	assert.Contains(t, body, "scope 2 providers / 2 models")
+	assert.Contains(t, body, "providers Claude, Codex")
+	assert.Contains(t, body, "models claude-opus-4-1, gpt-5.4")
+	assert.Contains(t, body, "Outcome")
+	assert.Contains(t, body, "filtered view")
+	assert.Contains(t, body, "verification pass")
+	assert.Contains(t, body, "blind edit rate")
+	assert.NotContains(t, body, "1. Press f")
+	assert.NotContains(t, body, "Metric detail")
+}
+
+func TestRenderPerformanceScopeGateCentersHintAbovePreviewCards(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	scope := statspkg.PerformanceScope{
+		SessionCount:         12,
+		BaselineSessionCount: 10,
+		Providers:            []string{"Claude", "Codex"},
+		Models:               []string{"claude-opus-4-1", "gpt-5.4"},
+		CurrentRange: statspkg.TimeRange{
+			Start: now.AddDate(0, 0, -6),
+			End:   now,
+		},
+		BaselineRange: statspkg.TimeRange{
+			Start: now.AddDate(0, 0, -13),
+			End:   now.AddDate(0, 0, -7),
+		},
+	}
+
+	body := ansi.Strip(renderPerformanceScopeGate(scope, 120))
+	hint := "Select 1 Provider and 1 Model to unlock the scorecard. Press f."
+	hintLine := findRenderedLine(t, body, hint)
+
+	assert.Greater(t, strings.Index(hintLine, hint), 0)
+	assert.Greater(t, strings.Index(body, hint), strings.Index(body, "models claude-opus-4-1, gpt-5.4"))
+	assert.Greater(t, strings.Index(body, "Outcome"), strings.Index(body, hint))
+}
+
+func TestStatsPerformanceTabSupportsLaneAndMetricSelection(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance = testRenderedPerformance(now)
+
+	body := ansi.Strip(m.renderPerformanceTab(120))
+	assert.Contains(t, body, "Are mutated sessions getting verified after changes?")
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "l"})
+	body = ansi.Strip(m.renderPerformanceTab(120))
+	assert.Contains(t, body, "Does the model inspect context before it edits?")
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "m"})
+	body = ansi.Strip(m.renderPerformanceTab(120))
+	assert.Contains(t, body, "How often does the model edit a target without reading it first?")
 }
 
 func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
@@ -200,6 +278,90 @@ func TestStatsPerformanceTabIgnoresStaleSequenceResults(t *testing.T) {
 	assert.Equal(t, 3, store.loadSessionCalls)
 }
 
+func TestStatsPerformanceTabDoesNotLoadSequenceMetricsForMixedScope(t *testing.T) {
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
+
+	store := &fakeBrowserStore{}
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"perf-1",
+				"alpha",
+				testPerformanceSessionMeta("perf-1", "alpha", now),
+			),
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderCodex,
+				"perf-2",
+				"beta",
+				testPerformanceSessionMeta("perf-2", "beta", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Model = "gpt-5.4"
+				}),
+			),
+		},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+
+	m, _ = m.Update(ctrlKey("f"))
+	m, _ = m.Update(ctrlKey("f"))
+	m, _ = m.Update(ctrlKey("f"))
+	m, cmd := m.Update(ctrlKey("f"))
+
+	assert.Nil(t, cmd)
+	assert.Zero(t, store.loadSessionCalls)
+	assert.Contains(t, ansi.Strip(m.View()), "Select 1 Provider and 1 Model to unlock the scorecard. Press f.")
+}
+
+func TestStatsPerformanceScopeGateOpensFilterOnProviderFirst(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance = statspkg.Performance{
+		Scope: statspkg.PerformanceScope{
+			Providers:    []string{"Claude", "Codex"},
+			Models:       []string{"claude-opus-4-1", "gpt-5.4"},
+			SingleFamily: false,
+		},
+	}
+
+	m = m.openFilterOverlay()
+
+	assert.True(t, m.filter.active)
+	assert.Equal(t, int(filterDimProvider), m.filter.cursor)
+	assert.Equal(t, int(filterDimProvider), m.filter.expanded)
+}
+
+func TestStatsPerformanceScopeGateOpensFilterOnModelWhenProviderIsFixed(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance = statspkg.Performance{
+		Scope: statspkg.PerformanceScope{
+			Providers:       []string{"Claude"},
+			Models:          []string{"claude-opus-4-1", "claude-sonnet-4"},
+			PrimaryProvider: "Claude",
+			SingleProvider:  true,
+			SingleModel:     false,
+			SingleFamily:    false,
+		},
+	}
+
+	m = m.openFilterOverlay()
+
+	assert.True(t, m.filter.active)
+	assert.Equal(t, int(filterDimModel), m.filter.cursor)
+	assert.Equal(t, int(filterDimModel), m.filter.expanded)
+}
+
 func testPerformanceLane(
 	label string,
 	score int,
@@ -216,25 +378,192 @@ func testPerformanceLane(
 	}
 }
 
-func testPerformanceMetric(
-	label, value string,
-	trend statspkg.TrendDirection,
-	ts time.Time,
-) statspkg.PerformanceMetric {
-	return statspkg.PerformanceMetric{
-		Label: label,
-		Value: value,
-		Trend: trend,
-		Series: []statspkg.PerformancePoint{{
-			Timestamp:   ts,
-			Value:       1,
-			SampleCount: 6,
-		}},
+func testRenderedPerformance(now time.Time) statspkg.Performance {
+	return statspkg.Performance{
+		Scope: statspkg.PerformanceScope{
+			SessionCount:         12,
+			BaselineSessionCount: 10,
+			Providers:            []string{"Claude"},
+			Models:               []string{"claude-opus-4-1"},
+			PrimaryProvider:      "Claude",
+			PrimaryModel:         "claude-opus-4-1",
+			SingleProvider:       true,
+			SingleModel:          true,
+			SingleFamily:         true,
+			SequenceLoaded:       true,
+			SequenceSampleCount:  8,
+			CurrentRange: statspkg.TimeRange{
+				Start: now.AddDate(0, 0, -6),
+				End:   now,
+			},
+			BaselineRange: statspkg.TimeRange{
+				Start: now.AddDate(0, 0, -13),
+				End:   now.AddDate(0, 0, -7),
+			},
+		},
+		Overall: statspkg.PerformanceScore{Score: 81, HasScore: true, Trend: statspkg.TrendDirectionUp},
+		Outcome: testPerformanceLane(
+			"Outcome",
+			84,
+			statspkg.TrendDirectionUp,
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "verification_pass_rate",
+					Label:            "verification pass",
+					Value:            "82.0%",
+					Trend:            statspkg.TrendDirectionUp,
+					Question:         "Are mutated sessions getting verified after changes?",
+					Formula:          "verified sessions / mutated sessions",
+					DeltaText:        "+10.0 pts",
+					Status:           statspkg.PerformanceMetricStatusBetter,
+					HigherIsBetter:   true,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "first_pass_resolution_rate",
+					Label:            "first-pass resolution",
+					Value:            "68.0%",
+					Trend:            statspkg.TrendDirectionFlat,
+					Question:         "Are tasks getting resolved without correction follow-ups?",
+					Formula:          "resolved mutated sessions / mutated sessions",
+					DeltaText:        "+1.0 pts",
+					Status:           statspkg.PerformanceMetricStatusFlat,
+					HigherIsBetter:   true,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "correction_burden",
+					Label:            "correction burden",
+					Value:            "3.2",
+					Trend:            statspkg.TrendDirectionDown,
+					Question:         "How much follow-up steering is needed after the first change attempt?",
+					Formula:          "corrective follow-ups / mutated sessions",
+					DeltaText:        "+1.4",
+					Status:           statspkg.PerformanceMetricStatusWorse,
+					HigherIsBetter:   false,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+		),
+		Discipline: testPerformanceLane(
+			"Discipline",
+			79,
+			statspkg.TrendDirectionFlat,
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "read_before_write_ratio",
+					Label:            "read before write",
+					Value:            "2.40",
+					Trend:            statspkg.TrendDirectionFlat,
+					Question:         "Does the model inspect context before it edits?",
+					Formula:          "(read + search) / (mutate + rewrite)",
+					DeltaText:        "+0.1",
+					Status:           statspkg.PerformanceMetricStatusFlat,
+					HigherIsBetter:   true,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "blind_edit_rate",
+					Label:            "blind edit rate",
+					Value:            "14.0%",
+					Trend:            statspkg.TrendDirectionDown,
+					Question:         "How often does the model edit a target without reading it first?",
+					Formula:          "blind targeted mutations / targeted mutations",
+					DeltaText:        "+5.0 pts",
+					Status:           statspkg.PerformanceMetricStatusWorse,
+					HigherIsBetter:   false,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "reasoning_loop_rate",
+					Label:            "reasoning loop rate",
+					Value:            "0.07",
+					Trend:            statspkg.TrendDirectionDown,
+					Question:         "Is the model getting stuck in repeated same-target retries?",
+					Formula:          "same-action same-target loops / actions",
+					DeltaText:        "+0.03",
+					Status:           statspkg.PerformanceMetricStatusWorse,
+					HigherIsBetter:   false,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+		),
+		Efficiency: testPerformanceLane(
+			"Efficiency",
+			73,
+			statspkg.TrendDirectionDown,
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "tokens_per_user_turn",
+					Label:            "tokens / user turn",
+					Value:            "140.0",
+					Trend:            statspkg.TrendDirectionDown,
+					Question:         "How much token spend is needed per user turn?",
+					Formula:          "total tokens / user turns",
+					DeltaText:        "+40.0",
+					Status:           statspkg.PerformanceMetricStatusWorse,
+					HigherIsBetter:   false,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+		),
+		Robustness: testPerformanceLane(
+			"Robustness",
+			77,
+			statspkg.TrendDirectionUp,
+			testMetricWithInspector(
+				statspkg.PerformanceMetric{
+					ID:               "tool_error_rate",
+					Label:            "tool error rate",
+					Value:            "3.0%",
+					Trend:            statspkg.TrendDirectionUp,
+					Question:         "Are tool calls failing less often than before?",
+					Formula:          "errored action results / action calls",
+					DeltaText:        "-2.0 pts",
+					Status:           statspkg.PerformanceMetricStatusBetter,
+					HigherIsBetter:   false,
+					VisibleByDefault: true,
+				},
+				now,
+			),
+		),
+		Diagnostics: []statspkg.PerformanceDiagnostic{
+			{Group: "provider_signals", Label: "cache efficiency", Value: "70.6%", Trend: statspkg.TrendDirectionFlat},
+			{Group: "provider_signals", Label: "stop reason", Value: "end_turn (8)", Trend: statspkg.TrendDirectionFlat},
+		},
 	}
 }
 
-func testPerformanceSessionMeta(id, project string, ts time.Time) conv.SessionMeta {
-	return testStatsSessionMeta(id, project, ts, func(meta *conv.SessionMeta) {
+func testMetricWithInspector(metric statspkg.PerformanceMetric, ts time.Time) statspkg.PerformanceMetric {
+	metric.Series = []statspkg.PerformancePoint{{
+		Timestamp:   ts,
+		Value:       1,
+		SampleCount: 6,
+	}}
+	return metric
+}
+
+func testPerformanceSessionMeta(
+	id, project string,
+	ts time.Time,
+	options ...func(*conv.SessionMeta),
+) conv.SessionMeta {
+	meta := testStatsSessionMeta(id, project, ts, func(meta *conv.SessionMeta) {
 		meta.Model = "claude-opus-4-1"
 		meta.UserMessageCount = 2
 		meta.ActionCounts = map[string]int{
@@ -244,6 +573,10 @@ func testPerformanceSessionMeta(id, project string, ts time.Time) conv.SessionMe
 		}
 		meta.Performance.StopReasonCounts = map[string]int{"end_turn": 1}
 	})
+	for _, option := range options {
+		option(&meta)
+	}
+	return meta
 }
 
 func testPerformanceLoadedSession(id string, ts time.Time, resolved bool) conv.Session {

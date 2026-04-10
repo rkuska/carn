@@ -73,10 +73,12 @@ func (m statsModel) renderToolsTab(width int) string {
 }
 
 func toolCallsChartHeight(errorRateCount int) int {
+	height := 1
 	if errorRateCount <= 2 {
-		return 1
+		return max(height, 3)
 	}
-	return errorRateCount - 2
+	height = errorRateCount - 2
+	return max(height, 3)
 }
 
 func renderToolRateChart(

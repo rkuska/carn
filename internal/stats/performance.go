@@ -27,7 +27,7 @@ func ComputePerformance(
 	current := aggregatePerformanceSessionsInRange(sessions, window.current)
 	baseline := aggregatePerformanceSessionsInRange(sessions, window.baseline)
 	context := newPerformanceMetricContext(window.current, current.sessionCount, baseline.sessionCount, sessions)
-	scope := buildPerformanceScope(sessions, window.current, baseline.sessionCount, len(sequence))
+	scope := buildPerformanceScope(sessions, window.current, window.baseline, baseline.sessionCount, len(sequence))
 	provider := singleProviderInRange(sessions, window.current)
 
 	performance := Performance{
@@ -35,7 +35,7 @@ func ComputePerformance(
 		Outcome:    buildOutcomeLane(current, baseline, context),
 		Discipline: buildDisciplineLane(current, baseline, context),
 		Efficiency: buildEfficiencyLane(current, baseline, context, provider),
-		Robustness: buildRobustnessLane(current, baseline, context),
+		Robustness: buildRobustnessLane(current, baseline, context, provider),
 		Diagnostics: buildPerformanceDiagnostics(
 			current,
 			baseline,

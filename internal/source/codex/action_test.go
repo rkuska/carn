@@ -214,3 +214,47 @@ func TestScanAndLoadCapturePerformanceMetadataAndActions(t *testing.T) {
 	assert.Equal(t, 1, session.Messages[1].Performance.ReasoningBlockCount)
 	assert.Equal(t, 1, session.Messages[1].Usage.ReasoningOutputTokens)
 }
+
+func TestScanCapturesHiddenReasoningRedactionsInSessionMetadata(t *testing.T) {
+	t.Parallel()
+
+	rawDir := t.TempDir()
+	writeCodexRolloutFixture(t, rawDir, "2026/03/16/rollout-2026-03-16T10-00-00-hidden-reasoning.jsonl", []map[string]any{
+		codexSessionMetaLine("thread-hidden-reasoning"),
+		codexUserMessageLine("2026-03-16T10:00:01Z", "Explain hidden reasoning."),
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type":              responseTypeReasoning,
+				"summary":           []map[string]any{},
+				"encrypted_content": "opaque-hidden-reasoning",
+			},
+		},
+		{
+			"timestamp": "2026-03-16T10:00:03Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type":    responseTypeMessage,
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "output_text", "text": "First answer without visible thinking."}},
+			},
+		},
+	})
+
+	source := New()
+	scanResult, err := source.Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, scanResult.Conversations, 1)
+
+	meta := scanResult.Conversations[0].Sessions[0]
+	assert.Equal(t, 1, meta.Performance.ReasoningBlockCount)
+	assert.Equal(t, 1, meta.Performance.ReasoningRedactionCount)
+
+	session, err := source.Load(context.Background(), scanResult.Conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.True(t, session.Messages[1].HasHiddenThinking)
+	assert.Equal(t, 1, session.Messages[1].Performance.ReasoningBlockCount)
+	assert.Equal(t, 1, session.Messages[1].Performance.ReasoningRedactionCount)
+}

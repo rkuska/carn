@@ -59,6 +59,8 @@ type statsModel struct {
 	spinner                       spinner.Model
 	width, height                 int
 	activityMetric                activityMetric
+	performanceLaneCursor         int
+	performanceMetricCursor       int
 	glamourStyle                  string
 	timestampFormat               string
 	launcher                      sessionLauncher
@@ -252,6 +254,7 @@ func (m statsModel) recomputeSnapshot() statsModel {
 			m.performanceSequenceSessions,
 		)
 	}
+	m = m.normalizePerformanceSelection()
 	return m
 }
 

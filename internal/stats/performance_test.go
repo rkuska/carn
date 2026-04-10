@@ -66,11 +66,20 @@ func TestComputePerformanceBuildsSessionLevelLaneScores(t *testing.T) {
 
 	assert.Equal(t, 12, got.Scope.SessionCount)
 	assert.Equal(t, []string{"Claude"}, got.Scope.Providers)
+	assert.Equal(t, []string{"claude-sonnet-4"}, got.Scope.Models)
+	assert.True(t, got.Scope.SingleFamily)
+	assert.Equal(t, "Claude", got.Scope.PrimaryProvider)
+	assert.Equal(t, "claude-sonnet-4", got.Scope.PrimaryModel)
 	assert.True(t, got.Overall.HasScore)
 
 	verification := findPerformanceMetric(t, got.Outcome.Metrics, perfMetricVerificationPass)
 	assert.InDelta(t, 1.0, verification.Current, 0.0001)
 	assert.Equal(t, TrendDirectionUp, verification.Trend)
+	assert.NotEmpty(t, verification.Question)
+	assert.NotEmpty(t, verification.Formula)
+	assert.Equal(t, PerformanceMetricStatusBetter, verification.Status)
+	assert.NotEmpty(t, verification.DeltaText)
+	assert.True(t, verification.VisibleByDefault)
 
 	readBeforeWrite := findPerformanceMetric(t, got.Discipline.Metrics, perfMetricReadBeforeWrite)
 	assert.InDelta(t, 4.0, readBeforeWrite.Current, 0.0001)
@@ -86,6 +95,53 @@ func TestComputePerformanceBuildsSessionLevelLaneScores(t *testing.T) {
 
 	require.NotEmpty(t, got.Diagnostics)
 	assert.Equal(t, "stop reason", findPerformanceDiagnostic(t, got.Diagnostics, "stop reason").Label)
+}
+
+func TestComputePerformanceMarksMixedProviderAndModelScopeAsNonComparable(t *testing.T) {
+	t.Parallel()
+
+	timeRange := TimeRange{
+		Start: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 2, 28, 23, 59, 59, 0, time.UTC),
+	}
+	conversations := []conv.Conversation{
+		testPerformanceConversation(
+			conv.ProviderClaude,
+			"claude-current",
+			"alpha",
+			testPerformanceSessionMeta(
+				"claude-current",
+				"alpha",
+				time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC),
+				func(meta *conv.SessionMeta) {
+					meta.Model = "claude-opus-4-1"
+				},
+			),
+		),
+		testPerformanceConversation(
+			conv.ProviderCodex,
+			"codex-current",
+			"beta",
+			testPerformanceSessionMeta(
+				"codex-current",
+				"beta",
+				time.Date(2026, 2, 11, 12, 0, 0, 0, time.UTC),
+				func(meta *conv.SessionMeta) {
+					meta.Model = "gpt-5.4"
+				},
+			),
+		),
+	}
+
+	got := ComputePerformance(conversations, timeRange, nil)
+
+	assert.False(t, got.Scope.SingleProvider)
+	assert.False(t, got.Scope.SingleModel)
+	assert.False(t, got.Scope.SingleFamily)
+	assert.Empty(t, got.Scope.PrimaryProvider)
+	assert.Empty(t, got.Scope.PrimaryModel)
+	assert.Equal(t, []string{"Claude", "Codex"}, got.Scope.Providers)
+	assert.Equal(t, []string{"claude-opus-4-1", "gpt-5.4"}, got.Scope.Models)
 }
 
 func TestComputePerformanceAddsCodexReasoningShareOnlyForSingleProviderScope(t *testing.T) {
@@ -190,6 +246,12 @@ func TestComputePerformanceMergesSequenceMetrics(t *testing.T) {
 
 	assert.True(t, got.Scope.SequenceLoaded)
 	assert.Equal(t, 12, got.Scope.SequenceSampleCount)
+
+	labels := make(map[string]bool, len(got.Diagnostics))
+	for _, diagnostic := range got.Diagnostics {
+		assert.False(t, labels[diagnostic.Label], "duplicate diagnostic label %q", diagnostic.Label)
+		labels[diagnostic.Label] = true
+	}
 }
 
 func TestComputePerformanceBuildsMetricSeriesByDay(t *testing.T) {
@@ -330,6 +392,28 @@ func makeSequenceSessions(start time.Time, count int, resolved bool) []Performan
 		sessions = append(sessions, session)
 	}
 	return sessions
+}
+
+func testPerformanceConversation(
+	provider conv.Provider,
+	id, project string,
+	session conv.SessionMeta,
+) conv.Conversation {
+	return testConversation(provider, id, session)
+}
+
+func testPerformanceSessionMeta(
+	id, project string,
+	timestamp time.Time,
+	update func(*conv.SessionMeta),
+) conv.SessionMeta {
+	meta := testMeta(id, timestamp, withProject(project))
+	meta.Model = "claude-opus-4-1"
+	meta.UserMessageCount = 2
+	if update != nil {
+		update(&meta)
+	}
+	return meta
 }
 
 func findPerformanceMetric(t *testing.T, metrics []PerformanceMetric, id string) PerformanceMetric {

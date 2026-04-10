@@ -103,9 +103,13 @@ func scorePerformanceMetric(
 	current, baseline float64,
 	higherIsBetter bool,
 	sampleCount, baselineSampleCount int,
+	minSamples int,
 	floor float64,
 ) performanceMetricScore {
-	if sampleCount < performanceMinSessionSamples || baselineSampleCount < performanceMinSessionSamples {
+	if minSamples <= 0 {
+		minSamples = performanceMinSessionSamples
+	}
+	if sampleCount < minSamples || baselineSampleCount < minSamples {
 		return performanceMetricScore{}
 	}
 	if floor <= 0 {
@@ -139,28 +143,31 @@ func performanceTrendDirection(delta float64) TrendDirection {
 }
 
 func combinePerformanceScores(metrics []PerformanceMetric) PerformanceScore {
-	totalScore := 0
-	scoredCount := 0
-	trendSum := 0
+	totalScore := 0.0
+	totalWeight := 0.0
+	trendSum := 0.0
 	for _, metric := range metrics {
 		if !metric.HasScore {
 			continue
 		}
-		totalScore += metric.Score
-		scoredCount++
-		trendSum += trendScore(metric.Trend)
+		if metric.ScoreWeight <= 0 {
+			continue
+		}
+		totalScore += float64(metric.Score) * metric.ScoreWeight
+		totalWeight += metric.ScoreWeight
+		trendSum += float64(trendScore(metric.Trend)) * metric.ScoreWeight
 	}
-	if scoredCount == 0 {
+	if totalWeight == 0 {
 		return PerformanceScore{}
 	}
 	return PerformanceScore{
-		Score:    totalScore / scoredCount,
+		Score:    int(math.Round(totalScore / totalWeight)),
 		HasScore: true,
-		Trend:    aggregateTrend(trendSum),
+		Trend:    aggregateWeightedTrend(trendSum),
 	}
 }
 
-func aggregateTrend(sum int) TrendDirection {
+func aggregateWeightedTrend(sum float64) TrendDirection {
 	switch {
 	case sum > 0:
 		return TrendDirectionUp

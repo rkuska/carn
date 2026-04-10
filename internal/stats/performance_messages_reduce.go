@@ -66,7 +66,7 @@ func addPerformanceSequenceSession(
 		agg.correctionFollowups += session.CorrectionFollowups
 		agg.patchChurn += session.MutationCount +
 			session.DistinctMutationTargets +
-			session.PatchHunkCount/4
+			session.PatchHunkCount
 		agg.actionsBeforeMutation += session.ActionsBeforeFirstMutation
 	}
 	agg.blindMutations += session.BlindMutationCount

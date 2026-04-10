@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bytes"
+	"strings"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -16,6 +17,7 @@ type scannedResponseItemPayload struct {
 	outputRaw    []byte
 	statusRaw    []byte
 	contentRaw   []byte
+	encryptedRaw []byte
 	actionRaw    []byte
 	phaseRaw     []byte
 }
@@ -65,6 +67,8 @@ func applySecondaryResponseItemField(field, value []byte, item *scannedResponseI
 		item.statusRaw = value
 	case bytes.Equal(field, contentFieldMarker):
 		item.contentRaw = value
+	case bytes.Equal(field, encryptedContentFieldMarker):
+		item.encryptedRaw = value
 	case bytes.Equal(field, actionFieldMarker):
 		item.actionRaw = value
 	case bytes.Equal(field, phaseFieldMarker):
@@ -78,11 +82,19 @@ func applyResponseItemPayload(item scannedResponseItemPayload, state *scanState)
 		applyResponseMessageItem(item, state)
 	case bytes.Equal(item.itemTypeRaw, responseTypeReasoningRaw):
 		state.meta.Performance.ReasoningBlockCount++
+		if hasScannedEncryptedReasoning(item.encryptedRaw) {
+			state.meta.Performance.ReasoningRedactionCount++
+		}
 	case isResponseToolCallItemType(item.itemTypeRaw):
 		recordScannedToolCall(item, state)
 	case isResponseToolResultItemType(item.itemTypeRaw):
 		applyResponseToolResultItem(item, state)
 	}
+}
+
+func hasScannedEncryptedReasoning(raw []byte) bool {
+	encrypted, ok := readRawJSONString(raw)
+	return ok && strings.TrimSpace(encrypted) != ""
 }
 
 func applyResponseMessageItem(item scannedResponseItemPayload, state *scanState) {

@@ -1,12 +1,16 @@
 package stats
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 func performanceMetricFromCounts(
 	id, label string,
 	currentNumerator, currentDenominator int,
 	baselineNumerator, baselineDenominator int,
 	higherIsBetter bool,
+	minSamples int,
 	floor float64,
 	detail string,
 	context performanceMetricContext,
@@ -20,6 +24,7 @@ func performanceMetricFromCounts(
 		float64(baselineNumerator),
 		float64(baselineDenominator),
 		higherIsBetter,
+		minSamples,
 		floor,
 		detail,
 		context,
@@ -35,6 +40,7 @@ func performanceMetricFromRatio(
 	currentNumerator, currentDenominator float64,
 	baselineNumerator, baselineDenominator float64,
 	higherIsBetter bool,
+	minSamples int,
 	floor float64,
 	detail string,
 	context performanceMetricContext,
@@ -42,12 +48,15 @@ func performanceMetricFromRatio(
 ) PerformanceMetric {
 	currentValue := safeRatio(currentNumerator, currentDenominator)
 	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
+	currentSamples := performanceRelevantSampleCount(currentDenominator, context.currentSampleCount)
+	baselineSamples := performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount)
 	score := scorePerformanceMetric(
 		currentValue,
 		baselineValue,
 		higherIsBetter,
-		context.currentSampleCount,
-		context.baselineSampleCount,
+		currentSamples,
+		baselineSamples,
+		minSamples,
 		floor,
 	)
 	return PerformanceMetric{
@@ -59,9 +68,10 @@ func performanceMetricFromRatio(
 		Baseline:    baselineValue,
 		HasBaseline: score.hasBaseline,
 		Score:       score.score,
+		ScoreWeight: 1,
 		HasScore:    score.hasScore,
 		Trend:       score.trend,
-		SampleCount: context.currentSampleCount,
+		SampleCount: currentSamples,
 		Series:      performanceSeries(context, extract),
 	}
 }
@@ -76,15 +86,19 @@ func performanceDiagnosticFromRatio(
 ) PerformanceDiagnostic {
 	currentValue := safeRatio(currentNumerator, currentDenominator)
 	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
+	currentSamples := performanceRelevantSampleCount(currentDenominator, context.currentSampleCount)
+	baselineSamples := performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount)
 	score := scorePerformanceMetric(
 		currentValue,
 		baselineValue,
 		true,
-		context.currentSampleCount,
-		context.baselineSampleCount,
+		currentSamples,
+		baselineSamples,
+		performanceMinSessionSamples,
 		0.05,
 	)
 	return PerformanceDiagnostic{
+		Group:       "provider_signals",
 		Label:       label,
 		Value:       formatPerformanceRatio(currentValue),
 		Detail:      detail,
@@ -110,9 +124,11 @@ func performanceAverageDiagnostic(
 		true,
 		currentSamples,
 		baselineSamples,
+		performanceMinSessionSamples,
 		1,
 	)
 	return PerformanceDiagnostic{
+		Group:       "provider_signals",
 		Label:       label,
 		Value:       FormatNumber(int(currentValue)),
 		Detail:      detail,
@@ -140,6 +156,7 @@ func performanceTopCountDiagnostic(
 		value = fmt.Sprintf("%s (%s)", currentName, FormatNumber(currentValue))
 	}
 	return PerformanceDiagnostic{
+		Group:       "provider_signals",
 		Label:       label,
 		Value:       value,
 		Detail:      detail,
@@ -164,10 +181,24 @@ func performanceSeries(
 		points = append(points, PerformancePoint{
 			Timestamp:   bucket.bucket.start,
 			Value:       safeRatio(numerator, denominator),
-			SampleCount: bucket.aggregate.sessionCount,
+			SampleCount: performanceRelevantSampleCount(denominator, bucket.aggregate.sessionCount),
 		})
 	}
 	return points
+}
+
+func performanceRelevantSampleCount(denominator float64, fallback int) int {
+	if denominator <= 0 {
+		return 0
+	}
+	return max(int(math.Round(denominator)), fallbackCountFloor(fallback))
+}
+
+func fallbackCountFloor(fallback int) int {
+	if fallback <= 0 {
+		return 0
+	}
+	return min(fallback, 1)
 }
 
 func formatPerformanceValue(id string, value float64) string {

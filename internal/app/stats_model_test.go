@@ -391,7 +391,11 @@ func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 }
 
 func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
-	t.Parallel()
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		loadSessionResults: map[string]conv.Session{
@@ -401,7 +405,6 @@ func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemA
 			"stats-3":  testStatsLoadedSession("stats-3"),
 		},
 	}
-	now := time.Now()
 
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -713,7 +716,7 @@ func testStatsLoadedSession(id string) conv.Session {
 		Meta: conv.SessionMeta{
 			ID:        id,
 			Project:   conv.Project{DisplayName: "alpha"},
-			Timestamp: time.Now(),
+			Timestamp: statsNow(),
 		},
 		Messages: []conv.Message{
 			{Role: conv.RoleUser, Text: "q1", Usage: conv.TokenUsage{InputTokens: 10, OutputTokens: 1}},

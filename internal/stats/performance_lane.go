@@ -14,6 +14,7 @@ func buildOutcomeLane(
 		baseline.verifiedSessions,
 		baseline.mutatedSessions,
 		true,
+		performanceMinSessionSamples,
 		0.05,
 		"Mutated sessions followed by successful test or build steps.",
 		context,
@@ -39,6 +40,7 @@ func buildDisciplineLane(
 			float64(baseline.readCount+baseline.searchCount),
 			float64(baseline.mutateCount+baseline.rewriteCount),
 			true,
+			performanceMinSessionSamples,
 			0.25,
 			"(read + search) / (mutate + rewrite)",
 			context,
@@ -54,6 +56,7 @@ func buildDisciplineLane(
 			float64(baseline.readCount+baseline.searchCount+baseline.webCount),
 			float64(baseline.mutateCount+baseline.rewriteCount+baseline.executeCount),
 			true,
+			performanceMinSessionSamples,
 			0.25,
 			"(read + search + web) / (mutate + rewrite + execute)",
 			context,
@@ -70,6 +73,7 @@ func buildDisciplineLane(
 			float64(baseline.rewriteCount),
 			float64(baseline.rewriteCount+baseline.mutateCount),
 			false,
+			performanceMinSessionSamples,
 			0.05,
 			"rewrite / (rewrite + mutate)",
 			context,
@@ -99,6 +103,7 @@ func buildEfficiencyLane(
 			float64(baseline.totalTokens),
 			float64(baseline.userTurns),
 			false,
+			performanceMinSessionSamples,
 			50,
 			"Total tokens per user message.",
 			context,
@@ -114,6 +119,7 @@ func buildEfficiencyLane(
 			float64(baseline.totalActions),
 			float64(baseline.userTurns),
 			false,
+			performanceMinSessionSamples,
 			0.25,
 			"Normalized actions per user message.",
 			context,
@@ -131,6 +137,7 @@ func buildEfficiencyLane(
 			float64(baseline.reasoningOutputTokens),
 			float64(baseline.totalTokens),
 			false,
+			performanceMinSessionSamples,
 			0.05,
 			"Reasoning output tokens / total tokens.",
 			context,
@@ -149,6 +156,7 @@ func buildEfficiencyLane(
 func buildRobustnessLane(
 	current, baseline performanceAggregate,
 	context performanceMetricContext,
+	provider conv.Provider,
 ) PerformanceLane {
 	metrics := []PerformanceMetric{
 		performanceMetricFromRatio(
@@ -159,6 +167,7 @@ func buildRobustnessLane(
 			float64(baseline.actionErrorCount),
 			float64(baseline.totalActions),
 			false,
+			performanceMinSessionSamples,
 			0.05,
 			"Errored action results / action calls.",
 			context,
@@ -174,26 +183,12 @@ func buildRobustnessLane(
 			float64(baseline.actionRejectCount),
 			float64(baseline.totalActions),
 			false,
+			performanceMinSessionSamples,
 			0.05,
 			"Rejected action results / action calls.",
 			context,
 			func(agg performanceAggregate) (float64, float64) {
 				return float64(agg.actionRejectCount), float64(agg.totalActions)
-			},
-		),
-		performanceMetricFromRatio(
-			perfMetricAbortRate,
-			"abort rate",
-			float64(current.abortCount),
-			float64(current.startedTurnCount),
-			float64(baseline.abortCount),
-			float64(baseline.startedTurnCount),
-			false,
-			0.05,
-			"Aborted turns / started turns.",
-			context,
-			func(agg performanceAggregate) (float64, float64) {
-				return float64(agg.abortCount), float64(agg.startedTurnCount)
 			},
 		),
 		performanceMetricFromCounts(
@@ -204,12 +199,33 @@ func buildRobustnessLane(
 			baseline.contextPressureCount,
 			baseline.sessionCount,
 			false,
+			performanceMinSessionSamples,
 			0.05,
 			"Sessions with compaction or context pressure signals.",
 			context,
 			func(agg performanceAggregate) (int, int) { return agg.contextPressureCount, agg.sessionCount },
 		),
-		performanceMetricFromRatio(
+	}
+	if provider == conv.ProviderCodex {
+		metrics = append(metrics, performanceMetricFromRatio(
+			perfMetricAbortRate,
+			"abort rate",
+			float64(current.abortCount),
+			float64(current.startedTurnCount),
+			float64(baseline.abortCount),
+			float64(baseline.startedTurnCount),
+			false,
+			performanceMinSessionSamples,
+			0.05,
+			"Aborted turns / started turns.",
+			context,
+			func(agg performanceAggregate) (float64, float64) {
+				return float64(agg.abortCount), float64(agg.startedTurnCount)
+			},
+		))
+	}
+	if provider == conv.ProviderClaude {
+		metrics = append(metrics, performanceMetricFromRatio(
 			perfMetricRetryBurden,
 			"retry burden",
 			float64(current.retryAttemptCount+current.apiErrorCount),
@@ -217,13 +233,14 @@ func buildRobustnessLane(
 			float64(baseline.retryAttemptCount+baseline.apiErrorCount),
 			float64(baseline.sessionCount),
 			false,
+			performanceMinSessionSamples,
 			0.25,
 			"Retries and API errors per session.",
 			context,
 			func(agg performanceAggregate) (float64, float64) {
 				return float64(agg.retryAttemptCount + agg.apiErrorCount), float64(agg.sessionCount)
 			},
-		),
+		))
 	}
 	return buildPerformanceLane(
 		"Robustness",
@@ -311,6 +328,7 @@ func buildPerformanceDiagnostics(
 }
 
 func buildPerformanceLane(label, detail string, metrics []PerformanceMetric) PerformanceLane {
+	metrics = enrichPerformanceMetrics(metrics)
 	score := combinePerformanceScores(metrics)
 	return PerformanceLane{
 		Label:    label,

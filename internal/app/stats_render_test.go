@@ -250,13 +250,110 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 	assert.LessOrEqual(t, strings.Index(qualityRow, "│"), 65)
 }
 
+func TestRenderToolsHistogramKeepsVisibleBarsWhenErrorRatesAreSparse(t *testing.T) {
+	t.Parallel()
+
+	buckets := []histBucket{
+		{Label: "0-20", Count: 21},
+		{Label: "21-50", Count: 41},
+		{Label: "51-100", Count: 36},
+		{Label: "101-200", Count: 36},
+		{Label: "201+", Count: 48},
+	}
+
+	got := ansi.Strip(renderVerticalHistogram(
+		"Tool Calls/Session",
+		buckets,
+		56,
+		toolCallsChartHeight(0),
+	))
+
+	assert.Contains(t, got, "Tool Calls/Session")
+	assert.Contains(t, got, "█")
+}
+
 func TestToolCallsChartHeightTracksToolErrorRateRows(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 1, toolCallsChartHeight(0))
-	assert.Equal(t, 1, toolCallsChartHeight(2))
-	assert.Equal(t, 1, toolCallsChartHeight(3))
+	assert.Equal(t, 3, toolCallsChartHeight(0))
+	assert.Equal(t, 3, toolCallsChartHeight(2))
+	assert.Equal(t, 3, toolCallsChartHeight(3))
 	assert.Equal(t, 4, toolCallsChartHeight(6))
+}
+
+func TestStatsRenderToolsFilterKeepsHistogramBarsForCodexAndGPT54Slices(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	conversations := []conv.Conversation{
+		testStatsConversationWithProviderAndSessions(
+			conv.ProviderCodex,
+			"codex-1",
+			"alpha",
+			testStatsSessionMeta("codex-1", "alpha", now, func(meta *conv.SessionMeta) {
+				meta.Model = "gpt-5.4"
+				meta.ToolCounts = map[string]int{"exec_command": 24}
+				meta.ToolErrorCounts = nil
+			}),
+		),
+		testStatsConversationWithProviderAndSessions(
+			conv.ProviderClaude,
+			"claude-1",
+			"beta",
+			testStatsSessionMeta("claude-1", "beta", now, func(meta *conv.SessionMeta) {
+				meta.Model = "claude-opus-4-1"
+				meta.ToolCounts = map[string]int{"Read": 8}
+				meta.ToolErrorCounts = map[string]int{"Read": 3}
+			}),
+		),
+	}
+
+	tests := []struct {
+		name   string
+		filter browserFilterState
+	}{
+		{
+			name: "provider codex",
+			filter: func() browserFilterState {
+				filter := newBrowserFilterState()
+				filter.dimensions[filterDimProvider] = dimensionFilter{
+					selected: map[string]bool{"Codex": true},
+				}
+				return filter
+			}(),
+		},
+		{
+			name: "model gpt-5.4",
+			filter: func() browserFilterState {
+				filter := newBrowserFilterState()
+				filter.dimensions[filterDimModel] = dimensionFilter{
+					selected: map[string]bool{"gpt-5.4": true},
+				}
+				return filter
+			}(),
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := newStatsModel(
+				conversations,
+				&fakeBrowserStore{},
+				120,
+				32,
+				testCase.filter,
+			)
+			m.tab = statsTabTools
+
+			body := ansi.Strip(m.renderToolsTab(120))
+			usageLeft := renderedToolsUsageLeftColumn(t, body, 120)
+
+			assert.Contains(t, usageLeft, "Tool Calls/Session")
+			assert.Contains(t, usageLeft, "█")
+		})
+	}
 }
 
 func TestStatsFooterStatusRowShowsSessionCountAndScrollPercentWhenScrollable(t *testing.T) {
@@ -295,6 +392,24 @@ func TestStatsFooterHelpRowShowsMetricOnlyOnActivityTab(t *testing.T) {
 
 	m.tab = statsTabActivity
 	assert.Contains(t, ansi.Strip(m.footerHelpRow()), "metric")
+}
+
+func TestStatsFooterHelpRowPromptsToFixPerformanceScopeWhenGateIsActive(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(80, 20)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance.Scope = statspkg.PerformanceScope{
+		Providers:    []string{"Claude", "Codex"},
+		Models:       []string{"claude-opus-4-1", "gpt-5.4"},
+		SingleFamily: false,
+	}
+
+	row := ansi.Strip(m.footerHelpRow())
+
+	assert.Contains(t, row, "f fix scope")
+	assert.Contains(t, row, "need 1 provider + 1 model")
+	assert.NotContains(t, row, "h/l lane")
 }
 
 func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {
@@ -346,4 +461,31 @@ func findRenderedLine(tb testing.TB, content, needle string) string {
 
 	tb.Fatalf("line containing %q not found", needle)
 	return ""
+}
+
+func renderedToolsUsageLeftColumn(tb testing.TB, content string, width int) string {
+	tb.Helper()
+
+	sections := strings.Split(content, "\n\n")
+	if len(sections) < 2 {
+		tb.Fatalf("usage section not found")
+	}
+
+	_, leftWidth, stacked := statsColumnWidths(width, 1, 1, 30)
+	if stacked {
+		tb.Fatalf("usage section stacked unexpectedly")
+	}
+
+	lines := strings.Split(sections[1], "\n")
+	leftLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		runes := []rune(line)
+		if len(runes) > leftWidth {
+			leftLines = append(leftLines, strings.TrimRight(string(runes[:leftWidth]), " "))
+			continue
+		}
+		leftLines = append(leftLines, strings.TrimRight(line, " "))
+	}
+
+	return strings.Join(leftLines, "\n")
 }

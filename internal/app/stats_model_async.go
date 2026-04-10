@@ -73,7 +73,7 @@ func (m statsModel) maybeStartClaudeTurnMetricsLoad() (statsModel, tea.Cmd) {
 }
 
 func (m statsModel) maybeStartPerformanceSequenceLoad() (statsModel, tea.Cmd) {
-	if m.tab != statsTabPerformance || m.snapshot.Overview.SessionCount == 0 {
+	if m.tab != statsTabPerformance || m.snapshot.Overview.SessionCount == 0 || !m.performanceScopeAllowsScorecard() {
 		return m, nil
 	}
 
@@ -102,7 +102,7 @@ func (m statsModel) claudeTurnMetricsLoading() bool {
 }
 
 func (m statsModel) performanceSequenceLoading() bool {
-	if m.tab != statsTabPerformance || m.snapshot.Overview.SessionCount == 0 {
+	if m.tab != statsTabPerformance || m.snapshot.Overview.SessionCount == 0 || !m.performanceScopeAllowsScorecard() {
 		return false
 	}
 	key := m.performanceSequenceSourceCacheKey()
@@ -138,6 +138,7 @@ func (m statsModel) applyPerformanceSequenceLoaded(msg performanceSequenceLoaded
 		m.timeRange,
 		m.performanceSequenceSessions,
 	)
+	m = m.normalizePerformanceSelection()
 	if m.tab == statsTabPerformance {
 		m.viewport.SetContent(m.renderPerformanceTab(m.contentWidth()))
 	}

@@ -3,6 +3,7 @@ package stats
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -31,6 +32,7 @@ type performanceSequenceCollector struct {
 	actionIndex           int
 	firstMutationIndex    int
 	anchorSet             bool
+	postMutationFailure   bool
 	userTurns             int
 	tokensBeforeMutation  int
 	actionsBeforeMutation int
@@ -66,7 +68,7 @@ func (c *performanceSequenceCollector) consumeMessage(message conv.Message) {
 func (c *performanceSequenceCollector) consumeMessageMeta(message conv.Message) {
 	if message.Role == conv.RoleUser && strings.TrimSpace(message.Text) != "" {
 		c.userTurns++
-		if c.anchorSet {
+		if c.anchorSet && !c.summary.VerificationPassed {
 			c.summary.CorrectionFollowups++
 		}
 	}
@@ -84,7 +86,7 @@ func (c *performanceSequenceCollector) consumeMessageMeta(message conv.Message) 
 
 func visibleReasoningChars(thinking string) int {
 	trimmed := strings.TrimSpace(thinking)
-	return len(trimmed)
+	return utf8.RuneCountInString(trimmed)
 }
 
 func (c *performanceSequenceCollector) consumeToolCall(call conv.ToolCall) {
@@ -164,8 +166,12 @@ func (c *performanceSequenceCollector) consumeToolResult(result conv.ToolResult)
 	if !c.summary.Mutated {
 		return
 	}
+	if result.IsError {
+		c.postMutationFailure = true
+	}
 	if resultPassedVerification(result) {
 		c.summary.VerificationPassed = true
+		c.anchorSet = false
 	}
 }
 
@@ -185,7 +191,8 @@ func (c performanceSequenceCollector) finish() PerformanceSequenceSession {
 		c.summary.FirstPassResolved = c.summary.CorrectionFollowups == 0 &&
 			c.summary.ReasoningLoopCount == 0 &&
 			c.summary.MutationCount <= 2 &&
-			c.summary.BlindMutationCount == 0
+			c.summary.BlindMutationCount == 0 &&
+			!c.postMutationFailure
 	}
 	return c.summary
 }

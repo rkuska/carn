@@ -55,6 +55,9 @@ func (m statsModel) handleStatsKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
 	if next, cmd, handled := m.handleStatsActionKey(msg); handled {
 		return next, cmd
 	}
+	if next, handled := m.handlePerformanceSelectionKey(msg); handled {
+		return next.renderViewportContent(true), nil
+	}
 	if next, cmd, handled := m.handleStatsOpenSessionKey(msg); handled {
 		return next, cmd
 	}
@@ -68,6 +71,10 @@ func (m statsModel) handleStatsKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
 }
 
 func (m statsModel) handleStatsActionKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd, bool) {
+	if key.Matches(msg, statsKeys.Metric) {
+		return m.handleStatsMetricAction()
+	}
+
 	switch {
 	case key.Matches(msg, statsKeys.NextTab):
 		m.tab = nextStatsTab(m.tab)
@@ -82,12 +89,6 @@ func (m statsModel) handleStatsActionKey(msg tea.KeyPressMsg) (statsModel, tea.C
 		return next, cmd, true
 	case key.Matches(msg, statsKeys.Filter):
 		return m.openFilterOverlay(), nil, true
-	case key.Matches(msg, statsKeys.Metric):
-		if m.tab != statsTabActivity {
-			return m, nil, true
-		}
-		m.activityMetric = nextActivityMetric(m.activityMetric)
-		return m.renderViewportContent(true), nil, true
 	case key.Matches(msg, statsKeys.Help):
 		m.helpOpen = true
 		return m, nil, true
@@ -151,9 +152,17 @@ func heavySessionRankFromKey(text string) (int, bool) {
 
 func (m statsModel) openFilterOverlay() statsModel {
 	m.filter.active = true
-	m.filter.expanded = -1
 	m.filter.regexEditing = false
 	m.filter.regexInput.Blur()
+	if m.performanceScopeGateActive() {
+		target := m.performanceScopeFilterDimension()
+		m.filter.cursor = int(target)
+		m.filter.expanded = int(target)
+		m.filter.expandedCursor = 0
+		m.filter.expandedScroll = 0
+		return m
+	}
+	m.filter.expanded = -1
 	return m
 }
 

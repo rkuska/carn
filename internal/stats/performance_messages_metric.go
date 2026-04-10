@@ -25,8 +25,9 @@ func applyPerformanceSequence(
 			baseline.resolvedSessions,
 			baseline.mutatedSessions,
 			true,
+			performanceMinSequenceSamples,
 			0.05,
-			"Mutated sessions without follow-up correction signals.",
+			"Mutated sessions without follow-up correction signals or post-mutation tool failures.",
 			context,
 			func(agg performanceSequenceAggregate) (float64, float64) {
 				return float64(agg.resolvedSessions), float64(agg.mutatedSessions)
@@ -40,8 +41,9 @@ func applyPerformanceSequence(
 			float64(baseline.correctionFollowups),
 			float64(baseline.mutatedSessions),
 			false,
+			performanceMinSequenceSamples,
 			0.25,
-			"Corrective user follow-ups after the first mutation or failure.",
+			"User follow-up turns after the first mutation or failure, until successful verification.",
 			context,
 			func(agg performanceSequenceAggregate) (float64, float64) {
 				return float64(agg.correctionFollowups), float64(agg.mutatedSessions)
@@ -55,6 +57,7 @@ func applyPerformanceSequence(
 			float64(baseline.patchChurn),
 			float64(baseline.mutatedSessions),
 			false,
+			performanceMinSequenceSamples,
 			0.5,
 			"Mutation attempts, targets, and hunks per mutated session.",
 			context,
@@ -75,6 +78,7 @@ func applyPerformanceSequence(
 			baseline.blindMutations,
 			baseline.targetedMutations,
 			false,
+			performanceMinSequenceSamples,
 			0.05,
 			"Targeted mutations without a prior read of the same file or a recent search.",
 			context,
@@ -90,6 +94,7 @@ func applyPerformanceSequence(
 			float64(baseline.loopCount),
 			float64(baseline.actionCount),
 			false,
+			performanceMinSequenceSamples,
 			0.1,
 			"Repeated same-action same-target patterns per action.",
 			context,
@@ -114,6 +119,7 @@ func applyPerformanceSequence(
 			float64(baseline.actionsBeforeMutation),
 			float64(baseline.mutatedSessions),
 			false,
+			performanceMinSequenceSamples,
 			0.5,
 			"Average normalized actions before the first mutation.",
 			context,
@@ -129,6 +135,7 @@ func applyPerformanceSequence(
 			float64(baseline.visibleReasoning),
 			float64(baseline.assistantTurns),
 			true,
+			performanceMinSequenceSamples,
 			25,
 			"Visible reasoning characters per assistant turn.",
 			context,
@@ -144,7 +151,7 @@ func applyPerformanceSequence(
 	)
 
 	performance.Diagnostics = append(performance.Diagnostics, performanceSequenceDiagnostic(
-		"hidden thinking",
+		"hidden thinking turns",
 		float64(current.hiddenThinking),
 		float64(current.assistantTurns),
 		float64(baseline.hiddenThinking),
@@ -165,6 +172,7 @@ func performanceSequenceRateMetric(
 	currentNumerator, currentDenominator int,
 	baselineNumerator, baselineDenominator int,
 	higherIsBetter bool,
+	minSamples int,
 	floor float64,
 	detail string,
 	context performanceSequenceMetricContext,
@@ -178,6 +186,7 @@ func performanceSequenceRateMetric(
 		float64(baselineNumerator),
 		float64(baselineDenominator),
 		higherIsBetter,
+		minSamples,
 		floor,
 		detail,
 		context,
@@ -190,6 +199,7 @@ func performanceSequenceAverageMetric(
 	currentNumerator, currentDenominator float64,
 	baselineNumerator, baselineDenominator float64,
 	higherIsBetter bool,
+	minSamples int,
 	floor float64,
 	detail string,
 	context performanceSequenceMetricContext,
@@ -197,12 +207,15 @@ func performanceSequenceAverageMetric(
 ) PerformanceMetric {
 	currentValue := safeRatio(currentNumerator, currentDenominator)
 	baselineValue := safeRatio(baselineNumerator, baselineDenominator)
+	currentSamples := performanceRelevantSampleCount(currentDenominator, context.currentSampleCount)
+	baselineSamples := performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount)
 	score := scorePerformanceMetric(
 		currentValue,
 		baselineValue,
 		higherIsBetter,
-		max(context.currentSampleCount, performanceMinSequenceSamples),
-		max(context.baselineSampleCount, performanceMinSequenceSamples),
+		currentSamples,
+		baselineSamples,
+		minSamples,
 		floor,
 	)
 	return PerformanceMetric{
@@ -214,9 +227,10 @@ func performanceSequenceAverageMetric(
 		Baseline:    baselineValue,
 		HasBaseline: score.hasBaseline,
 		Score:       score.score,
+		ScoreWeight: 1,
 		HasScore:    score.hasScore,
 		Trend:       score.trend,
-		SampleCount: context.currentSampleCount,
+		SampleCount: currentSamples,
 		Series:      performanceSequenceSeries(context, extract),
 	}
 }
@@ -235,11 +249,13 @@ func performanceSequenceDiagnostic(
 		currentValue,
 		baselineValue,
 		false,
-		max(context.currentSampleCount, performanceMinSequenceSamples),
-		max(context.baselineSampleCount, performanceMinSequenceSamples),
+		performanceRelevantSampleCount(currentDenominator, context.currentSampleCount),
+		performanceRelevantSampleCount(baselineDenominator, context.baselineSampleCount),
+		performanceMinSequenceSamples,
 		0.05,
 	)
 	return PerformanceDiagnostic{
+		Group:       "provider_signals",
 		Label:       label,
 		Value:       formatPerformanceRatio(currentValue),
 		Detail:      detail,
@@ -265,7 +281,7 @@ func performanceSequenceSeries(
 		points = append(points, PerformancePoint{
 			Timestamp:   bucket.bucket.start,
 			Value:       safeRatio(numerator, denominator),
-			SampleCount: bucket.aggregate.sessionCount,
+			SampleCount: performanceRelevantSampleCount(denominator, bucket.aggregate.sessionCount),
 		})
 	}
 	return points

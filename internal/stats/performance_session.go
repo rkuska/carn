@@ -103,6 +103,7 @@ func newPerformanceMetricContext(
 func buildPerformanceScope(
 	sessions []performanceSession,
 	timeRange TimeRange,
+	baselineRange TimeRange,
 	baselineSessionCount int,
 	sequenceSampleCount int,
 ) PerformanceScope {
@@ -127,10 +128,29 @@ func buildPerformanceScope(
 			models[model] = struct{}{}
 		}
 	}
+	providerLabels := sortedStringKeys(providers)
+	modelLabels := sortedStringKeys(models)
+	singleProvider := len(providerLabels) == 1
+	singleModel := len(modelLabels) == 1
+	primaryProvider := ""
+	if singleProvider {
+		primaryProvider = providerLabels[0]
+	}
+	primaryModel := ""
+	if singleModel {
+		primaryModel = modelLabels[0]
+	}
 	return PerformanceScope{
 		SessionCount:         sessionCount,
-		Providers:            sortedStringKeys(providers),
-		Models:               sortedStringKeys(models),
+		Providers:            providerLabels,
+		Models:               modelLabels,
+		PrimaryProvider:      primaryProvider,
+		PrimaryModel:         primaryModel,
+		SingleProvider:       singleProvider,
+		SingleModel:          singleModel,
+		SingleFamily:         singleProvider && singleModel,
+		CurrentRange:         timeRange,
+		BaselineRange:        baselineRange,
 		SequenceLoaded:       sequenceSampleCount > 0,
 		SequenceSampleCount:  sequenceSampleCount,
 		BaselineSessionCount: baselineSessionCount,
@@ -157,7 +177,7 @@ func addPerformanceSession(agg *performanceAggregate, session performanceSession
 	}
 	agg.sessionCount++
 	agg.userTurns += session.meta.UserMessageCount
-	agg.totalTokens += session.meta.TotalUsage.TotalTokens()
+	agg.totalTokens += performanceSessionTotalTokens(session)
 	agg.totalActions += sumCountMap(session.meta.ActionCounts)
 	agg.readCount += actionCount(session.meta.ActionCounts, conv.NormalizedActionRead)
 	agg.searchCount += actionCount(session.meta.ActionCounts, conv.NormalizedActionSearch)
@@ -179,9 +199,7 @@ func addPerformanceSession(agg *performanceAggregate, session performanceSession
 	agg.reasoningBlockCount += session.meta.Performance.ReasoningBlockCount
 	agg.inputTokens += session.meta.TotalUsage.InputTokens
 	agg.outputTokens += session.meta.TotalUsage.OutputTokens
-	agg.cachePromptTokens += session.meta.TotalUsage.InputTokens +
-		session.meta.TotalUsage.CacheCreationInputTokens +
-		session.meta.TotalUsage.CacheReadInputTokens
+	agg.cachePromptTokens += performanceSessionPromptTokens(session)
 	agg.cacheReadTokens += session.meta.TotalUsage.CacheReadInputTokens
 	if session.meta.Performance.MaxThinkingTokens > 0 {
 		agg.maxThinkingTokens += session.meta.Performance.MaxThinkingTokens

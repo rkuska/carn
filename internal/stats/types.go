@@ -170,6 +170,13 @@ type PerformanceScope struct {
 	SessionCount         int
 	Providers            []string
 	Models               []string
+	PrimaryProvider      string
+	PrimaryModel         string
+	SingleProvider       bool
+	SingleModel          bool
+	SingleFamily         bool
+	CurrentRange         TimeRange
+	BaselineRange        TimeRange
 	SequenceLoaded       bool
 	SequenceSampleCount  int
 	BaselineSessionCount int
@@ -190,19 +197,36 @@ type PerformanceLane struct {
 	Metrics  []PerformanceMetric
 }
 
+type PerformanceMetricStatus int
+
+const (
+	PerformanceMetricStatusNone PerformanceMetricStatus = iota
+	PerformanceMetricStatusBetter
+	PerformanceMetricStatusWorse
+	PerformanceMetricStatusFlat
+	PerformanceMetricStatusLowSample
+)
+
 type PerformanceMetric struct {
 	ID               string
 	Label            string
 	Value            string
 	Detail           string
+	Question         string
+	Formula          string
 	Current          float64
 	Baseline         float64
+	DeltaText        string
 	HasBaseline      bool
 	Score            int
+	ScoreWeight      float64
 	HasScore         bool
 	Trend            TrendDirection
+	Status           PerformanceMetricStatus
 	SampleCount      int
+	HigherIsBetter   bool
 	ProviderSpecific bool
+	VisibleByDefault bool
 	Series           []PerformancePoint
 }
 
@@ -213,6 +237,7 @@ type PerformancePoint struct {
 }
 
 type PerformanceDiagnostic struct {
+	Group       string
 	Label       string
 	Value       string
 	Detail      string

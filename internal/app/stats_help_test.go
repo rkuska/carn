@@ -57,7 +57,7 @@ func TestStatsHelpShowsTabSpecificChartDescriptions(t *testing.T) {
 		{
 			name: "performance",
 			tab:  statsTabPerformance,
-			want: []string{"Lane Cards", "Detailed Trends", "Diagnostics"},
+			want: []string{"Lane Cards", "Metric Detail", "Diagnostics"},
 		},
 	}
 
@@ -105,7 +105,7 @@ func TestStatsHelpNavigationSectionIsConsistentAcrossTabs(t *testing.T) {
 		{
 			name: "performance",
 			tab:  statsTabPerformance,
-			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "j/k", "g/G", "?", "q/esc", "h/l", "m"},
 		},
 	}
 
