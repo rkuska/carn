@@ -291,7 +291,6 @@ type CacheSegment struct {
 	CacheWrite   int
 	Prompt       int
 	HitRate      float64
-	MissTokens   int
 }
 
 type CacheDurationBucket struct {

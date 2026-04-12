@@ -47,7 +47,7 @@ None.
 | internal/canonical/blob_decoder.go | source | 347 | 54 | 387 |
 | internal/source/claude/scanner_metadata.go | source | 365 | 48 | 393 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
-| internal/source/codex/json_field.go | source | 373 | 46 | 395 |
+| internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |

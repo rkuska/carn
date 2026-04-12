@@ -108,6 +108,8 @@ func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 			usage.InputTokens, _ = readRawJSONInt(value, 0)
 		case bytes.Equal(field, cachedInputTokensFieldMarker):
 			usage.CacheReadInputTokens, _ = readRawJSONInt(value, 0)
+		case bytes.Equal(field, cacheCreationInputTokensFieldMarker):
+			usage.CacheCreationInputTokens, _ = readRawJSONInt(value, 0)
 		case bytes.Equal(field, outputTokensFieldMarker):
 			usage.OutputTokens, _ = readRawJSONInt(value, 0)
 		case bytes.Equal(field, reasoningTokensFieldMarker):
@@ -118,7 +120,7 @@ func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 	// OpenAI reports input_tokens as total (cached + uncached) and
 	// output_tokens as total (reasoning + non-reasoning). Normalize to
 	// Anthropic semantics where each bucket is exclusive.
-	usage.InputTokens -= usage.CacheReadInputTokens
+	usage.InputTokens -= usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 	usage.OutputTokens -= usage.ReasoningOutputTokens
 	return usage
 }

@@ -25,7 +25,7 @@ func (m appModel) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		stats := newStatsModel(
-			m.browser.mainConversations,
+			m.browser.allConversations,
 			m.store,
 			m.width,
 			m.height,

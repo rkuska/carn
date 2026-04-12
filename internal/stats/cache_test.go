@@ -150,14 +150,12 @@ func TestComputeCacheMainSubagentSplit(t *testing.T) {
 	assert.Equal(t, 150, got.Main.CacheWrite)
 	assert.Equal(t, 1500, got.Main.Prompt)
 	assert.InDelta(t, 0.7, got.Main.HitRate, 0.001)
-	assert.Equal(t, 300, got.Main.MissTokens)
 
 	assert.Equal(t, 1, got.Subagent.SessionCount)
 	assert.Equal(t, 150, got.Subagent.CacheRead)
 	assert.Equal(t, 50, got.Subagent.CacheWrite)
 	assert.Equal(t, 500, got.Subagent.Prompt)
 	assert.InDelta(t, 0.3, got.Subagent.HitRate, 0.001)
-	assert.Equal(t, 300, got.Subagent.MissTokens)
 }
 
 func TestComputeCacheSubagentOnlySessions(t *testing.T) {

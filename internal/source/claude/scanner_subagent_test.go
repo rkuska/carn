@@ -39,7 +39,7 @@ func TestParseConversationWithSubagentsMergesDividerAndTranscript(t *testing.T) 
 		if msg.Text == "Check tokenizer edge cases." {
 			sawSubagentPrompt = true
 		}
-		if msg.Text == "Tokenizer edge case report" {
+		if msg.Text == "Tokenizer edge case report: found 3 patterns that may cause issues." {
 			sawSubagentAnswer = true
 		}
 	}

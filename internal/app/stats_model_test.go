@@ -529,9 +529,10 @@ func TestStatsOpenAndCloseMessagesSwitchViewState(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 32
-	m.browser.mainConversations = []conv.Conversation{
+	m.browser.allConversations = []conv.Conversation{
 		testStatsConversation("stats-1", "alpha", time.Now()),
 	}
+	m.browser.mainConversations = m.browser.allConversations
 	m.browser.filter = newBrowserFilterState()
 
 	next, _ := m.Update(openStatsMsg{})

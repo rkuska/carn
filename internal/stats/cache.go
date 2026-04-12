@@ -93,7 +93,6 @@ func accumulateCacheSession(cache *Cache, session conv.SessionMeta) {
 	seg.CacheRead += usage.CacheReadInputTokens
 	seg.CacheWrite += usage.CacheCreationInputTokens
 	seg.Prompt += prompt
-	seg.MissTokens += usage.InputTokens
 }
 
 func finalizeCacheRates(cache *Cache) {

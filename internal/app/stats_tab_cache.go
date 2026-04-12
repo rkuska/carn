@@ -85,8 +85,8 @@ func cacheSegmentBars(cache statspkg.Cache) []barItem {
 			barItem{Label: "Sub  cache-rd", Value: cache.Subagent.CacheRead},
 			barItem{Label: "Main cache-wr", Value: cache.Main.CacheWrite},
 			barItem{Label: "Sub  cache-wr", Value: cache.Subagent.CacheWrite},
-			barItem{Label: "Main miss", Value: cache.Main.MissTokens},
-			barItem{Label: "Sub  miss", Value: cache.Subagent.MissTokens},
+			barItem{Label: "Main hit%", Value: int(cache.Main.HitRate * 100)},
+			barItem{Label: "Sub  hit%", Value: int(cache.Subagent.HitRate * 100)},
 		)
 	}
 	return bars
