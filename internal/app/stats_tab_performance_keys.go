@@ -19,25 +19,24 @@ func (m statsModel) handleStatsMetricAction() (statsModel, tea.Cmd, bool) {
 		return m, nil, false
 	}
 
-	if lane.id == statsLaneOverviewTop {
+	switch lane.id { //nolint:exhaustive // only metric-enabled lanes handled
+	case statsLaneOverviewTop:
 		return m.nextOverviewSessionSelection().renderViewportContent(true), nil, true
-	}
-	if lane.id == statsLaneActivityDaily {
+	case statsLaneActivityDaily:
 		m.activityMetric = nextActivityMetric(m.activityMetric)
 		return m.renderViewportContent(true), nil, true
-	}
-	if lane.id == statsLaneCacheDaily {
+	case statsLaneCacheDaily:
 		m.cacheMetric = nextCacheMetric(m.cacheMetric)
 		return m.renderViewportContent(true), nil, true
-	}
-	if lane.id == statsLanePerformanceOutcome ||
-		lane.id == statsLanePerformanceDiscipline ||
-		lane.id == statsLanePerformanceEfficiency ||
-		lane.id == statsLanePerformanceRobustness {
+	case statsLanePerformanceOutcome,
+		statsLanePerformanceDiscipline,
+		statsLanePerformanceEfficiency,
+		statsLanePerformanceRobustness:
 		if !m.performanceScopeAllowsScorecard() {
 			return m, nil, false
 		}
 		return m.nextPerformanceMetric().renderViewportContent(true), nil, true
+	default:
+		return m, nil, false
 	}
-	return m, nil, false
 }

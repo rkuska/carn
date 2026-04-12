@@ -115,6 +115,11 @@ func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 		}
 		return true
 	})
+	// OpenAI reports input_tokens as total (cached + uncached) and
+	// output_tokens as total (reasoning + non-reasoning). Normalize to
+	// Anthropic semantics where each bucket is exclusive.
+	usage.InputTokens -= usage.CacheReadInputTokens
+	usage.OutputTokens -= usage.ReasoningOutputTokens
 	return usage
 }
 

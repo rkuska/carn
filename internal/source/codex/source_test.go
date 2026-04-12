@@ -47,7 +47,7 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	assert.Equal(t, "019cexample-main", main.ResumeID())
 	assert.Equal(t, 4, main.TotalMessageCount())
 	assert.Equal(t, 2, main.MainMessageCount())
-	assert.Equal(t, 20, main.TotalTokenUsage().TotalTokens())
+	assert.Equal(t, 130460, main.TotalTokenUsage().TotalTokens())
 	assert.Equal(t, 1, main.TotalToolCounts()["exec_command"])
 	assert.NotContains(t, main.FirstMessage(), "AGENTS.md instructions")
 	assert.NotContains(t, main.FirstMessage(), "<environment_context>")

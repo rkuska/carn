@@ -33,7 +33,7 @@ func TestAddPerformanceSessionUsesProviderTokenAccounting(t *testing.T) {
 			wantPromptTokens: 197,
 		},
 		{
-			name:     "codex uses provider total and raw input tokens",
+			name:     "codex uses unified token accounting after normalization",
 			provider: conv.ProviderCodex,
 			usage: conv.TokenUsage{
 				InputTokens:              100,
@@ -42,8 +42,8 @@ func TestAddPerformanceSessionUsesProviderTokenAccounting(t *testing.T) {
 				OutputTokens:             20,
 				ReasoningOutputTokens:    10,
 			},
-			wantTotalTokens:  120,
-			wantPromptTokens: 100,
+			wantTotalTokens:  227,
+			wantPromptTokens: 197,
 		},
 	}
 
@@ -75,6 +75,8 @@ func TestComputePerformanceUsesCodexProviderTokenTotals(t *testing.T) {
 		Start: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 4, 30, 23, 59, 59, 0, time.UTC),
 	}
+	// Post-normalization values: api input_tokens=100, cached=90,
+	// api output_tokens=20, reasoning=10.
 	conversations := makePerformanceConversations(
 		conv.ProviderCodex,
 		"current",
@@ -84,9 +86,9 @@ func TestComputePerformanceUsesCodexProviderTokenTotals(t *testing.T) {
 			meta.Model = "gpt-5.4"
 			meta.UserMessageCount = 2
 			meta.TotalUsage = conv.TokenUsage{
-				InputTokens:           100,
+				InputTokens:           10,
 				CacheReadInputTokens:  90,
-				OutputTokens:          20,
+				OutputTokens:          10,
 				ReasoningOutputTokens: 10,
 			}
 		},
@@ -94,6 +96,7 @@ func TestComputePerformanceUsesCodexProviderTokenTotals(t *testing.T) {
 
 	got := ComputePerformance(conversations, timeRange, nil)
 
+	// TotalTokens = 10+90+10+10 = 120, tokensPerTurn = 120/2 = 60
 	tokensPerTurn := findPerformanceMetric(t, got.Efficiency.Metrics, perfMetricTokensPerTurn)
 	assert.InDelta(t, 60.0, tokensPerTurn.Current, 0.0001)
 

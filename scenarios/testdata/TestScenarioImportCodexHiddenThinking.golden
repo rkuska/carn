@@ -1,8 +1,8 @@
 ╭─  Conversations  ───────────────────────────────────────╮ ╭─  project / 019cexample-  2026-03-13 11:15  ─────────────╮
 │  3 items                                                │ │ ╭──────────────────────────────────────────────────────╮ │
 │                                                         │ │ │ provider Codex  model gpt-5.4  version 0.114.0       │ │
-││ project / 019cexample-  2026-03-13 11:15 (10d ago)  ...│ │ │ branch main  duration 8s  msgs 4  tokens 10          │ │
-││ Codex  0.114.0  gpt-5.4  4 msgs  0k tokens  8s         │ │ │ started 2026-03-13 11:15  last 2026-03-13 11:15      │ │
+││ project / 019cexample-  2026-03-13 11:15 (10d ago)  ...│ │ │ branch main  duration 8s  msgs 4  tokens 63k         │ │
+││ Codex  0.114.0  gpt-5.4  4 msgs  63k tokens  8s        │ │ │ started 2026-03-13 11:15  last 2026-03-13 11:15      │ │
 ││ Explain hidden reasoning.                              │ │ │ cwd workspace/project                                │ │
 │                                                         │ │ ╰──────────────────────────────────────────────────────╯ │
 │  project / 019cexample-  2026-03-13 11:05 (10d ago)     │ │                                                          │
@@ -10,7 +10,7 @@
 │  Apply a patch.                                         │ │                                                          │
 │                                                         │ │                                                          │
 │  project / 019cexample-  2026-03-13 11:00 (10d ago)  ...│ │   Explain hidden reasoning.                              │
-│  Codex  0.114.0  gpt-5.4  4 msgs (2 main)  0k tokens ...│ │  Assistant ───────────────────────────────────────────── │
+│  Codex  0.114.0  gpt-5.4  4 msgs (2 main)  130k token...│ │  Assistant ───────────────────────────────────────────── │
 │  # Import Codex sessions                                │ │                                                          │
 │                                                         │ │ Thinking unavailable                                     │
 │                                                         │ │ ▎ Codex recorded reasoning for this reply, but no readab │

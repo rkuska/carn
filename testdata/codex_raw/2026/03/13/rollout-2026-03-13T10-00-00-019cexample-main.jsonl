@@ -14,5 +14,5 @@
 {"timestamp":"2026-03-13T10:00:06.000Z","type":"event_msg","payload":{"type":"agent_message","phase":"commentary","message":"Implemented support for codex sessions."}}
 {"timestamp":"2026-03-13T10:00:06.100Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Implemented support for codex sessions."}]}}
 {"timestamp":"2026-03-13T10:00:06.200Z","type":"event_msg","payload":{"type":"task_complete","last_agent_message":"Implemented support for codex sessions."}}
-{"timestamp":"2026-03-13T10:00:06.500Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":2,"cached_input_tokens":1,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":4}}}}
-{"timestamp":"2026-03-13T10:00:07.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":5,"output_tokens":3,"reasoning_output_tokens":2,"total_tokens":20}}}}
+{"timestamp":"2026-03-13T10:00:06.500Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":42800,"cached_input_tokens":31200,"output_tokens":5400,"reasoning_output_tokens":2100}}}}
+{"timestamp":"2026-03-13T10:00:07.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":85420,"cached_input_tokens":62150,"output_tokens":12340,"reasoning_output_tokens":4870}}}}

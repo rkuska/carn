@@ -9,4 +9,4 @@
 {"timestamp":"2026-03-13T10:15:06.100Z","type":"response_item","payload":{"type":"reasoning","summary":[],"content":null,"encrypted_content":"opaque-visible-reasoning"}}
 {"timestamp":"2026-03-13T10:15:07.000Z","type":"event_msg","payload":{"type":"agent_message","phase":"final_answer","message":"Second answer with visible reasoning."}}
 {"timestamp":"2026-03-13T10:15:07.100Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Second answer with visible reasoning."}]}}
-{"timestamp":"2026-03-13T10:15:08.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":5,"cached_input_tokens":0,"output_tokens":3,"reasoning_output_tokens":2,"total_tokens":10}}}}
+{"timestamp":"2026-03-13T10:15:08.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":54200,"cached_input_tokens":38400,"output_tokens":8950,"reasoning_output_tokens":5200}}}}

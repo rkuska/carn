@@ -71,9 +71,10 @@ func (m statsModel) cacheDailySeries() (string, []statspkg.DailyCount, color.Col
 	switch m.cacheMetric {
 	case cacheMetricWrite:
 		return "Daily Cache Write", m.snapshot.Cache.DailyCacheWrite, colorChartBar
-	default:
+	case cacheMetricRead:
 		return "Daily Cache Read", m.snapshot.Cache.DailyCacheRead, colorChartToken
 	}
+	return "Daily Cache Read", m.snapshot.Cache.DailyCacheRead, colorChartToken
 }
 
 func cacheSegmentBars(cache statspkg.Cache) []barItem {
@@ -117,7 +118,7 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 	}
 
 	cache := m.snapshot.Cache
-	switch lane.id {
+	switch lane.id { //nolint:exhaustive // only cache lanes handled here
 	case statsLaneCacheDaily:
 		return m.renderCacheDailyMetricDetail(cache, lane.title, width)
 	case statsLaneCacheSegment:
@@ -161,10 +162,12 @@ func renderCacheSegmentMetricDetail(cache statspkg.Cache, width int) string {
 }
 
 func renderCacheMissMetricDetail(cache statspkg.Cache, width int) string {
-	worst := worstCacheDurationBucket(cache.DurationBuckets, func(b statspkg.CacheDurationBucket) int { return b.MissTokens })
+	missMetric := func(b statspkg.CacheDurationBucket) int { return b.MissTokens }
+	worst := worstCacheDurationBucket(cache.DurationBuckets, missMetric)
+	totalMiss := cache.TotalPrompt - cache.TotalCacheRead - cache.TotalCacheWrite
 	return renderStatsMetricDetail("Cache Miss Cost by Duration", width, []chip{
 		{Label: "highest miss bucket", Value: worst},
-		{Label: "total miss tokens", Value: statspkg.FormatNumber(cache.TotalPrompt - cache.TotalCacheRead - cache.TotalCacheWrite)},
+		{Label: "total miss tokens", Value: statspkg.FormatNumber(totalMiss)},
 	},
 		metricDetailLine("Question", "Which session durations have the highest cache miss cost?"),
 		metricDetailLine(
@@ -188,7 +191,10 @@ func renderCacheHitDurMetricDetail(cache statspkg.Cache, width int) string {
 	)
 }
 
-func worstCacheDurationBucket(buckets []statspkg.CacheDurationBucket, metric func(statspkg.CacheDurationBucket) int) string {
+func worstCacheDurationBucket(
+	buckets []statspkg.CacheDurationBucket,
+	metric func(statspkg.CacheDurationBucket) int,
+) string {
 	if len(buckets) == 0 {
 		return noDataLabel
 	}
