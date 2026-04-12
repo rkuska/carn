@@ -86,7 +86,8 @@ func TestScanRolloutLineTracksToolCountsAndTokenUsage(t *testing.T) {
 
 	require.NotNil(t, state.meta.ToolCounts)
 	assert.Equal(t, 1, state.meta.ToolCounts["exec_command"])
-	assert.Equal(t, 90, state.meta.TotalUsage.InputTokens)
+	assert.Equal(t, 0, state.meta.TotalUsage.InputTokens)
+	assert.Equal(t, 90, state.meta.TotalUsage.CacheCreationInputTokens)
 	assert.Equal(t, 10, state.meta.TotalUsage.CacheReadInputTokens)
 	assert.Equal(t, 45, state.meta.TotalUsage.OutputTokens)
 	assert.Equal(t, 5, state.meta.TotalUsage.ReasoningOutputTokens)

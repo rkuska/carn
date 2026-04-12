@@ -102,6 +102,7 @@ func scanTokenUsageInfoField(raw []byte, fieldMarker []byte) (conv.TokenUsage, b
 
 func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 	var usage conv.TokenUsage
+	hasCacheCreation := false
 	walkTopLevelFields(raw, func(field, value []byte) bool {
 		switch {
 		case bytes.Equal(field, inputTokensFieldMarker):
@@ -110,6 +111,7 @@ func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 			usage.CacheReadInputTokens, _ = readRawJSONInt(value, 0)
 		case bytes.Equal(field, cacheCreationInputTokensFieldMarker):
 			usage.CacheCreationInputTokens, _ = readRawJSONInt(value, 0)
+			hasCacheCreation = true
 		case bytes.Equal(field, outputTokensFieldMarker):
 			usage.OutputTokens, _ = readRawJSONInt(value, 0)
 		case bytes.Equal(field, reasoningTokensFieldMarker):
@@ -117,6 +119,13 @@ func scanTokenUsageRaw(raw []byte) conv.TokenUsage {
 		}
 		return true
 	})
+	// OpenAI does not report cache_creation_input_tokens. Since OpenAI
+	// auto-caches all prompts, the non-cached portion of input_tokens is
+	// effectively new tokens written to cache. Derive it before
+	// normalization so that the subtraction below zeroes out InputTokens.
+	if !hasCacheCreation {
+		usage.CacheCreationInputTokens = usage.InputTokens - usage.CacheReadInputTokens
+	}
 	// OpenAI reports input_tokens as total (cached + uncached) and
 	// output_tokens as total (reasoning + non-reasoning). Normalize to
 	// Anthropic semantics where each bucket is exclusive.

@@ -428,16 +428,16 @@ func TestStoreCodexLoadPreservesReconstructedTurnUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 2)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:           105,
-		CacheReadInputTokens:  15,
-		OutputTokens:          25,
-		ReasoningOutputTokens: 5,
+		CacheCreationInputTokens: 105,
+		CacheReadInputTokens:     15,
+		OutputTokens:             25,
+		ReasoningOutputTokens:    5,
 	}, session.Messages[1].Usage)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:           450,
-		CacheReadInputTokens:  50,
-		OutputTokens:          130,
-		ReasoningOutputTokens: 10,
+		CacheCreationInputTokens: 450,
+		CacheReadInputTokens:     50,
+		OutputTokens:             130,
+		ReasoningOutputTokens:    10,
 	}, session.Meta.TotalUsage)
 }
 

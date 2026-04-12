@@ -48,16 +48,16 @@ func TestLoadAttachesLastTokenUsageToVisibleAssistantTurn(t *testing.T) {
 	require.Len(t, session.Messages, 3)
 	assert.Equal(t, "Parser updated.", session.Messages[1].Text)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:           105,
-		CacheReadInputTokens:  15,
-		OutputTokens:          25,
-		ReasoningOutputTokens: 5,
+		CacheCreationInputTokens: 105,
+		CacheReadInputTokens:     15,
+		OutputTokens:             25,
+		ReasoningOutputTokens:    5,
 	}, session.Messages[1].Usage)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:           450,
-		CacheReadInputTokens:  50,
-		OutputTokens:          130,
-		ReasoningOutputTokens: 10,
+		CacheCreationInputTokens: 450,
+		CacheReadInputTokens:     50,
+		OutputTokens:             130,
+		ReasoningOutputTokens:    10,
 	}, session.Meta.TotalUsage)
 }
 
@@ -110,10 +110,10 @@ func TestLoadAttachesLastTokenUsageToToolOnlyAssistantTurn(t *testing.T) {
 	require.Len(t, session.Messages[1].ToolResults, 1)
 	assert.Empty(t, session.Messages[1].Text)
 	assert.Equal(t, conv.TokenUsage{
-		InputTokens:           80,
-		CacheReadInputTokens:  10,
-		OutputTokens:          15,
-		ReasoningOutputTokens: 5,
+		CacheCreationInputTokens: 80,
+		CacheReadInputTokens:     10,
+		OutputTokens:             15,
+		ReasoningOutputTokens:    5,
 	}, session.Messages[1].Usage)
 }
 
@@ -146,6 +146,100 @@ func TestLoadIgnoresTokenCountWithoutLastTokenUsage(t *testing.T) {
 
 	require.Len(t, session.Messages, 2)
 	assert.Equal(t, conv.TokenUsage{}, session.Messages[1].Usage)
+}
+
+func TestLoadDerivesCacheCreationWhenFieldAbsent(t *testing.T) {
+	t.Parallel()
+
+	session := loadSingleCodexTestSession(t, []map[string]any{
+		codexSessionMetaLine("thread-derive-cache"),
+		codexUserMessageLine("2026-03-16T10:00:01Z", "Hello."),
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type": responseTypeMessage,
+				"role": responseRoleAssistant,
+				"content": []map[string]any{
+					{"type": "output_text", "text": "Hi."},
+				},
+			},
+		},
+		codexTokenCountLine(
+			"2026-03-16T10:00:03Z",
+			map[string]any{
+				"input_tokens":        200,
+				"cached_input_tokens": 60,
+				"output_tokens":       40,
+			},
+			map[string]any{
+				"input_tokens":        200,
+				"cached_input_tokens": 60,
+				"output_tokens":       40,
+			},
+		),
+	})
+
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 140,
+		CacheReadInputTokens:     60,
+		OutputTokens:             40,
+	}, session.Messages[1].Usage, "non-cached tokens should be derived as cache writes")
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 140,
+		CacheReadInputTokens:     60,
+		OutputTokens:             40,
+	}, session.Meta.TotalUsage)
+}
+
+func TestLoadUsesExplicitCacheCreationWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	session := loadSingleCodexTestSession(t, []map[string]any{
+		codexSessionMetaLine("thread-explicit-cache"),
+		codexUserMessageLine("2026-03-16T10:00:01Z", "Hello."),
+		{
+			"timestamp": "2026-03-16T10:00:02Z",
+			"type":      recordTypeResponseItem,
+			"payload": map[string]any{
+				"type": responseTypeMessage,
+				"role": responseRoleAssistant,
+				"content": []map[string]any{
+					{"type": "output_text", "text": "Hi."},
+				},
+			},
+		},
+		codexTokenCountLine(
+			"2026-03-16T10:00:03Z",
+			map[string]any{
+				"input_tokens":                200,
+				"cached_input_tokens":         60,
+				"cache_creation_input_tokens": 100,
+				"output_tokens":               40,
+			},
+			map[string]any{
+				"input_tokens":                200,
+				"cached_input_tokens":         60,
+				"cache_creation_input_tokens": 100,
+				"output_tokens":               40,
+			},
+		),
+	})
+
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, conv.TokenUsage{
+		InputTokens:              40,
+		CacheCreationInputTokens: 100,
+		CacheReadInputTokens:     60,
+		OutputTokens:             40,
+	}, session.Messages[1].Usage, "explicit cache_creation should be used as-is")
+	assert.Equal(t, conv.TokenUsage{
+		InputTokens:              40,
+		CacheCreationInputTokens: 100,
+		CacheReadInputTokens:     60,
+		OutputTokens:             40,
+	}, session.Meta.TotalUsage)
 }
 
 func loadSingleCodexTestSession(tb testing.TB, lines []map[string]any) conv.Session {

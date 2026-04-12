@@ -85,11 +85,12 @@ var knownTokenCountInfoFields = map[string]struct{}{
 }
 
 var knownTokenUsageFields = map[string]struct{}{
-	"input_tokens":            {},
-	"cached_input_tokens":     {},
-	"output_tokens":           {},
-	"reasoning_output_tokens": {},
-	"total_tokens":            {},
+	"input_tokens":                {},
+	"cached_input_tokens":         {},
+	"cache_creation_input_tokens": {},
+	"output_tokens":               {},
+	"reasoning_output_tokens":     {},
+	"total_tokens":                {},
 }
 
 var phaseFieldMarker = []byte(`"phase"`)
@@ -248,6 +249,7 @@ func isKnownTokenCountInfoField(field []byte) bool {
 func isKnownTokenUsageField(field []byte) bool {
 	return bytes.Equal(field, inputTokensFieldMarker) ||
 		bytes.Equal(field, cachedInputTokensFieldMarker) ||
+		bytes.Equal(field, cacheCreationInputTokensFieldMarker) ||
 		bytes.Equal(field, outputTokensFieldMarker) ||
 		bytes.Equal(field, reasoningTokensFieldMarker) ||
 		bytes.Equal(field, totalTokensFieldMarker)
