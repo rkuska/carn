@@ -26,6 +26,10 @@ func (m statsModel) handleStatsMetricAction() (statsModel, tea.Cmd, bool) {
 		m.activityMetric = nextActivityMetric(m.activityMetric)
 		return m.renderViewportContent(true), nil, true
 	}
+	if lane.id == statsLaneCacheDaily {
+		m.cacheMetric = nextCacheMetric(m.cacheMetric)
+		return m.renderViewportContent(true), nil, true
+	}
 	if lane.id == statsLanePerformanceOutcome ||
 		lane.id == statsLanePerformanceDiscipline ||
 		lane.id == statsLanePerformanceEfficiency ||

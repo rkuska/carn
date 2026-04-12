@@ -37,6 +37,9 @@ func TestStatsTabNavigationWrapsAcrossTabs(t *testing.T) {
 	assert.Equal(t, statsTabTools, m.tab)
 
 	m, _ = m.Update(ctrlKey("f"))
+	assert.Equal(t, statsTabCache, m.tab)
+
+	m, _ = m.Update(ctrlKey("f"))
 	assert.Equal(t, statsTabPerformance, m.tab)
 
 	m, _ = m.Update(ctrlKey("f"))

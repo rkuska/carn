@@ -23,7 +23,7 @@ func (m statsModel) statsNavigationHelpItems() []helpItem {
 		{
 			key:      "ctrl+f/b",
 			desc:     "tabs",
-			detail:   "switch between overview, activity, sessions, tools, and performance",
+			detail:   "switch between overview, activity, sessions, tools, cache, and performance",
 			priority: helpPriorityLow,
 		},
 		{
@@ -100,6 +100,9 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 	}
 	if lane.id == statsLaneActivityDaily {
 		return "cycle the daily chart between sessions, messages, and tokens"
+	}
+	if lane.id == statsLaneCacheDaily {
+		return "cycle between daily cache read and cache write tokens"
 	}
 	if lane.id == statsLanePerformanceOutcome ||
 		lane.id == statsLanePerformanceDiscipline ||

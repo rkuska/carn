@@ -16,6 +16,7 @@ func ComputeSnapshot(
 		Activity:    ComputeActivity(filtered, timeRange),
 		Sessions:    ComputeSessions(filtered),
 		Tools:       ComputeTools(filtered),
+		Cache:       ComputeCache(filtered, timeRange),
 		Performance: ComputePerformance(conversations, timeRange, sequence),
 	}
 }

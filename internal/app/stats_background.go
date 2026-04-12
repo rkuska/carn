@@ -4,7 +4,7 @@ import tea "charm.land/bubbletea/v2"
 
 func (m statsModel) maybeStartStatsBackgroundLoad() (statsModel, tea.Cmd) {
 	switch m.tab {
-	case statsTabOverview, statsTabActivity, statsTabTools:
+	case statsTabOverview, statsTabActivity, statsTabTools, statsTabCache:
 		return m, nil
 	case statsTabSessions:
 		return m.maybeStartClaudeTurnMetricsLoad()

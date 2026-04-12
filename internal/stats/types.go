@@ -12,6 +12,7 @@ type Snapshot struct {
 	Activity    Activity
 	Sessions    Sessions
 	Tools       Tools
+	Cache       Cache
 	Performance Performance
 }
 
@@ -267,4 +268,35 @@ type PerformanceSequenceSession struct {
 	AssistantTurns               int
 	VisibleReasoningChars        int
 	HiddenThinkingTurns          int
+}
+
+type Cache struct {
+	TotalCacheRead  int
+	TotalCacheWrite int
+	TotalPrompt     int
+	HitRate         float64
+	WriteRate       float64
+	MissRate        float64
+	ReuseRatio      float64
+	Main            CacheSegment
+	Subagent        CacheSegment
+	DailyCacheRead  []DailyCount
+	DailyCacheWrite []DailyCount
+	DurationBuckets []CacheDurationBucket
+}
+
+type CacheSegment struct {
+	SessionCount int
+	CacheRead    int
+	CacheWrite   int
+	Prompt       int
+	HitRate      float64
+	MissTokens   int
+}
+
+type CacheDurationBucket struct {
+	Label      string
+	HitRate    float64
+	MissTokens int
+	Sessions   int
 }

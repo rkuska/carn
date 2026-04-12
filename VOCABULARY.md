@@ -85,7 +85,7 @@ Use these terms when referring to different parts of the project in prompts.
 |---|---|
 | **Stats View** | A fullscreen analytics screen opened from the browser. Shows aggregate usage data across sessions instead of a single transcript. |
 | **Time Range** | The active date window applied across all stats tabs. Predefined ranges: 7d, 30d, 90d, and All. |
-| **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, tools, and performance. |
+| **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, tools, cache, and performance. |
 | **Summary Chip** | A compact stats metric rendered as `label value` at the top of a tab, for example `sessions 42` or `error rate 3.2%`. |
 | **Heatmap** | A weekday × hour grid (7 rows × 24 columns) showing session density. Darker cells mean more sessions in that slot. Empty hours are compressed. |
 | **Histogram** | A bucketed bar chart for distributions: session duration, message count, or tool calls per session. |
@@ -98,6 +98,11 @@ Use these terms when referring to different parts of the project in prompts.
 | **Performance Scorecard** | A stats view that summarizes model behavior and quality trends across multiple lanes instead of a single raw metric. |
 | **Performance Lane** | One dimension of the performance scorecard such as outcome, discipline, efficiency, or robustness. |
 | **Context Pressure** | Signals that a conversation is near model-context limits, such as compaction events, high prompt growth, or large context-window utilization. |
+| **Cache Hit Rate** | Share of prompt tokens served from cache (`CacheRead / PromptTokens`). Higher means less redundant computation. |
+| **Cache Miss Rate** | Share of prompt tokens not cached (`Input / PromptTokens`). The expensive part — miss cost scales with context window size. |
+| **Cache Reuse Ratio** | How many times each written cache token is read back (`CacheRead / CacheWrite`). Measures cache ROI. |
+| **Cache Segment** | Cache metrics split by session type: main thread (1 h cache TTL) vs. subagent (5 min cache TTL). |
+| **Cache Duration Bucket** | Average cache hit rate and miss cost grouped by session duration. Shows whether longer sessions maintain or lose cache efficiency. |
 
 ## Search
 

@@ -30,6 +30,11 @@ const (
 	statsLaneToolsErrors   statsLaneID = "tools_errors"
 	statsLaneToolsRejected statsLaneID = "tools_rejected"
 
+	statsLaneCacheDaily   statsLaneID = "cache_daily"
+	statsLaneCacheSegment statsLaneID = "cache_segment"
+	statsLaneCacheMiss    statsLaneID = "cache_miss"
+	statsLaneCacheHitDur  statsLaneID = "cache_hit_dur"
+
 	statsLanePerformanceOutcome    statsLaneID = "performance_outcome"
 	statsLanePerformanceDiscipline statsLaneID = "performance_discipline"
 	statsLanePerformanceEfficiency statsLaneID = "performance_efficiency"
@@ -75,6 +80,15 @@ func toolsStatsLanes() []statsLane {
 	}
 }
 
+func cacheStatsLanes() []statsLane {
+	return []statsLane{
+		{id: statsLaneCacheDaily, title: "Daily Cache Tokens", metricHelpDesc: "metric", supportsMetric: true},
+		{id: statsLaneCacheSegment, title: "Main vs Subagent"},
+		{id: statsLaneCacheMiss, title: "Cache Miss Cost by Duration"},
+		{id: statsLaneCacheHitDur, title: "Cache Hit Rate by Duration"},
+	}
+}
+
 func performanceStatsLanes(scorecard bool) []statsLane {
 	return []statsLane{
 		{id: statsLanePerformanceOutcome, title: "Outcome", metricHelpDesc: "metric", supportsMetric: scorecard},
@@ -89,6 +103,7 @@ func (m statsModel) normalizeStatsSelection() statsModel {
 	m.activityLaneCursor = clampCursor(m.activityLaneCursor, len(activityStatsLanes()))
 	m.sessionsLaneCursor = clampCursor(m.sessionsLaneCursor, len(sessionsStatsLanes()))
 	m.toolsLaneCursor = clampCursor(m.toolsLaneCursor, len(toolsStatsLanes()))
+	m.cacheLaneCursor = clampCursor(m.cacheLaneCursor, len(cacheStatsLanes()))
 	m = m.normalizePerformanceSelection()
 
 	if m.tab != statsTabOverview || m.overviewLaneCursor != 2 {
@@ -110,6 +125,8 @@ func (m statsModel) activeStatsLanes() []statsLane {
 		return sessionsStatsLanes()
 	case statsTabTools:
 		return toolsStatsLanes()
+	case statsTabCache:
+		return cacheStatsLanes()
 	case statsTabPerformance:
 		return performanceStatsLanes(m.performanceScopeAllowsScorecard())
 	default:
@@ -137,6 +154,8 @@ func (m statsModel) activeStatsLaneCursor() int {
 		return m.sessionsLaneCursor
 	case statsTabTools:
 		return m.toolsLaneCursor
+	case statsTabCache:
+		return m.cacheLaneCursor
 	case statsTabPerformance:
 		return m.performanceLaneCursor
 	default:
@@ -154,6 +173,8 @@ func (m statsModel) setActiveStatsLaneCursor(cursor int) statsModel {
 		m.sessionsLaneCursor = cursor
 	case statsTabTools:
 		m.toolsLaneCursor = cursor
+	case statsTabCache:
+		m.cacheLaneCursor = cursor
 	case statsTabPerformance:
 		m.performanceLaneCursor = cursor
 	}

@@ -24,6 +24,7 @@ const (
 	statsTabActivity
 	statsTabSessions
 	statsTabTools
+	statsTabCache
 	statsTabPerformance
 )
 
@@ -33,6 +34,13 @@ const (
 	metricSessions activityMetric = iota
 	metricMessages
 	metricTokens
+)
+
+type cacheMetric int
+
+const (
+	cacheMetricRead cacheMetric = iota
+	cacheMetricWrite
 )
 
 type statsModel struct {
@@ -65,6 +73,8 @@ type statsModel struct {
 	activityLaneCursor            int
 	sessionsLaneCursor            int
 	toolsLaneCursor               int
+	cacheLaneCursor               int
+	cacheMetric                   cacheMetric
 	performanceLaneCursor         int
 	performanceMetricCursor       int
 	glamourStyle                  string
@@ -249,6 +259,8 @@ func (m statsModel) renderActiveTab() string {
 		return m.renderSessionsTab(m.contentWidth())
 	case statsTabTools:
 		return m.renderToolsTab(m.contentWidth())
+	case statsTabCache:
+		return m.renderCacheTab(m.contentWidth(), m.contentHeight())
 	case statsTabPerformance:
 		return m.renderPerformanceTab(m.contentWidth())
 	default:

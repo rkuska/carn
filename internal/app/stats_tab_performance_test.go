@@ -289,6 +289,7 @@ func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReus
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
+	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
 
 	require.NotNil(t, cmd)
@@ -349,6 +350,7 @@ func TestStatsPerformanceTabIgnoresStaleSequenceResults(t *testing.T) {
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
+	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
 	require.NotNil(t, cmd)
 	firstLoad := requireBatchMsgType[performanceSequenceLoadedMsg](t, cmd())
@@ -403,6 +405,7 @@ func TestStatsPerformanceTabDoesNotLoadSequenceMetricsForMixedScope(t *testing.T
 		newBrowserFilterState(),
 	)
 
+	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))

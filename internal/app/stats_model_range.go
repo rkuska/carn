@@ -27,11 +27,15 @@ func statsRangeDays(days int) stats.TimeRange {
 }
 
 func nextStatsTab(tab statsTab) statsTab {
-	return statsTab((int(tab) + 1) % 5)
+	return statsTab((int(tab) + 1) % 6)
 }
 
 func prevStatsTab(tab statsTab) statsTab {
-	return statsTab((int(tab) + 4) % 5)
+	return statsTab((int(tab) + 5) % 6)
+}
+
+func nextCacheMetric(metric cacheMetric) cacheMetric {
+	return cacheMetric((int(metric) + 1) % 2)
 }
 
 func nextActivityMetric(metric activityMetric) activityMetric {

@@ -19,6 +19,8 @@ func (m statsModel) renderActiveMetricDetail(width int) string {
 		return m.renderSessionsMetricDetail(width)
 	case statsTabTools:
 		return m.renderToolsMetricDetail(width)
+	case statsTabCache:
+		return m.renderCacheMetricDetail(width)
 	case statsTabPerformance:
 		return m.renderPerformanceMetricDetail(width)
 	default:
