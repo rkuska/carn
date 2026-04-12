@@ -69,6 +69,19 @@ func BenchmarkToolAggregation(b *testing.B) {
 	})
 }
 
+func BenchmarkComputeCache(b *testing.B) {
+	for _, size := range []int{100, 1000, 10000} {
+		sessions := makeBenchCacheSessionMetas(size)
+		timeRange := benchTimeRange(sessions)
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = ComputeCache(sessions, timeRange)
+			}
+		})
+	}
+}
+
 func makeBenchSessionMetas(n int) []sessionMeta {
 	specs := helpers.GenerateSessionSpecs(n)
 	models := []string{"claude-opus-4-1", "claude-sonnet-4", "gpt-5"}
@@ -161,6 +174,16 @@ func benchTimeRange(sessions []sessionMeta) TimeRange {
 		Start: sessions[0].Timestamp,
 		End:   sessions[len(sessions)-1].Timestamp,
 	}
+}
+
+func makeBenchCacheSessionMetas(n int) []sessionMeta {
+	sessions := makeBenchSessionMetas(n)
+	for i := range sessions {
+		if i%5 == 0 {
+			sessions[i].IsSubagent = true
+		}
+	}
+	return sessions
 }
 
 func benchActiveDates(sessions []sessionMeta) (map[time.Time]struct{}, time.Time) {

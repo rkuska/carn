@@ -50,6 +50,16 @@ func BenchmarkStatsPerformanceRender(b *testing.B) {
 	}
 }
 
+func BenchmarkStatsCacheRender(b *testing.B) {
+	model := newBenchStatsModel()
+	model.tab = statsTabCache
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = model.renderCacheTab(120, 40)
+	}
+}
+
 func newBenchStatsModel() statsModel {
 	return newStatsModel(
 		makeBenchStatsConversations(300),

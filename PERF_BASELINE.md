@@ -23,9 +23,9 @@ go test -run '^$' -bench 'Benchmark(CanonicalStoreScanSessions|CanonicalStorePar
 go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem ./internal/source/codex
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
-go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
+go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputeCache|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
 go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
-go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsPerformanceRender)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app
 ```
 
 Results (Apple M4 Pro, darwin/arm64):
@@ -46,6 +46,9 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 558,745 | 547,432 | 5,007 |
 | `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 8,540 | 2,304 | 1 |
 | `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 88,677 | 384 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/100 | — | 36,928 | 35 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/1000 | — | 36,928 | 35 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/10000 | — | 36,928 | 35 |
 | `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 64,535 | 33,511 | 139 |
 | `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 552,754 | 55,432 | 139 |
 | `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 73,103 | 51,541 | 175 |
@@ -55,6 +58,7 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 42,517 | 11,239 | 361 |
 | `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 72,662 | 20,184 | 385 |
 | `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 59,725 | 13,864 | 326 |
+| `User-Facing` | `internal/app` | BenchmarkStatsCacheRender | — | 59,061 | 1,711 |
 | `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 118,323 | 37,690 | 478 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,104,437 | 3,373,698 | 29,960 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,907,520 | 1,056,389 | 16,825 |
@@ -89,15 +93,15 @@ Notes:
   command path after the browser list has loaded.
 - `BenchmarkComputeOverview`, `BenchmarkComputeActivity`,
   `BenchmarkComputeTokenGrowth`, `BenchmarkComputeStreaks`,
-  `BenchmarkToolAggregation`, `BenchmarkComputePerformance`,
-  `BenchmarkComputePerformanceWithSequence`, and
-  `BenchmarkCollectPerformanceSequenceSessions` cover the backend aggregation
-  and transcript-sequence work behind the fullscreen stats view, including the
-  new performance scorecard.
+  `BenchmarkToolAggregation`, `BenchmarkComputeCache`,
+  `BenchmarkComputePerformance`, `BenchmarkComputePerformanceWithSequence`,
+  and `BenchmarkCollectPerformanceSequenceSessions` cover the backend
+  aggregation and transcript-sequence work behind the fullscreen stats view,
+  including the performance scorecard and cache metrics tab.
 - `BenchmarkStatsOverviewRender`, `BenchmarkStatsHeatmapRender`,
-  `BenchmarkStatsHistogramRender`, and `BenchmarkStatsPerformanceRender`
-  isolate the stats-view render paths that shape the TUI output once the
-  snapshot is ready.
+  `BenchmarkStatsHistogramRender`, `BenchmarkStatsCacheRender`, and
+  `BenchmarkStatsPerformanceRender` isolate the stats-view render paths that
+  shape the TUI output once the snapshot is ready.
 - `BenchmarkCanonicalStoreListCold`, `BenchmarkCanonicalStoreListWarm`, and
   `BenchmarkCanonicalStoreSearchChunkCountQuery` are diagnostic internal probes,
   not end-user latency metrics.
@@ -123,4 +127,8 @@ Notes:
   functions such as `benchSessionJSONLLongConversation`,
   `makeBenchRawArchive`, `benchRolloutJSONL`, `makeBenchRawCodexCorpus`, and
   `newViewerModel` can appear in profiles alongside product hot paths.
+- Cache benchmark entries (`BenchmarkComputeCache`, `BenchmarkStatsCacheRender`)
+  show `—` for ns/op because they were captured on a different platform than the
+  original baseline. Refresh all rows on the reference machine to fill in
+  comparable timing numbers.
 - Refresh this file whenever benchmark commands or meaningful results change.
