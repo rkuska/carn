@@ -154,6 +154,23 @@ func TestConversationListMetadata(t *testing.T) {
 	assert.NotContains(t, withPreview.Description(), "help me with Go")
 }
 
+func TestConversationDescriptionOmitsEmptyModel(t *testing.T) {
+	t.Parallel()
+
+	conversation := Conversation{
+		Sessions: []SessionMeta{
+			{
+				ID:           "s1",
+				Timestamp:    time.Date(2024, 6, 15, 14, 30, 0, 0, time.UTC),
+				MessageCount: 2,
+				Version:      "1.0.0",
+			},
+		},
+	}
+
+	assert.Equal(t, "1.0.0  2 msgs", conversation.Description())
+}
+
 func TestConversationPrecomputeDisplayAndSearchPreviewInvalidation(t *testing.T) {
 	t.Parallel()
 

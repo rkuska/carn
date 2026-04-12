@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -34,11 +36,12 @@ type scanStats struct {
 }
 
 type metadataScanState struct {
-	result         *scannedSession
-	drift          *src.DriftReport
-	foundUser      bool
-	foundAssistant bool
-	stats          scanStats
+	result              *scannedSession
+	drift               *src.DriftReport
+	foundUser           bool
+	foundAssistantModel bool
+	isSubagentFile      bool
+	stats               scanStats
 }
 
 var (
@@ -140,8 +143,9 @@ func (s *metadataScanState) scanAssistantLine(ctx context.Context, line []byte, 
 	hasContent, err := parseAssistantRecord(
 		line,
 		&s.result.meta,
-		&s.foundAssistant,
+		&s.foundAssistantModel,
 		s.result.hasConversationContent,
+		s.isSubagentFile,
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("parseAssistantRecord failed in %s", s.result.meta.FilePath)
@@ -220,10 +224,17 @@ func newMetadataScanState(result *scannedSession) metadataScanState {
 	drift := src.NewDriftReport()
 	result.drift = drift
 	return metadataScanState{
-		result: result,
-		drift:  &drift,
-		stats:  scanStats{},
+		result:         result,
+		drift:          &drift,
+		isSubagentFile: isMetadataSubagentPath(result.meta.FilePath),
+		stats:          scanStats{},
 	}
+}
+
+func isMetadataSubagentPath(filePath string) bool {
+	slashPath := filepath.ToSlash(filePath)
+	return strings.Contains(slashPath, "/subagents/") &&
+		strings.HasPrefix(filepath.Base(filePath), "agent-")
 }
 
 func applyMetadataScanStats(meta *sessionMeta, stats scanStats) {

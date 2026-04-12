@@ -23,7 +23,6 @@ type scannedSessionMetaPayload struct {
 	timestampRaw []byte
 	cwdRaw       []byte
 	versionRaw   []byte
-	modelRaw     []byte
 	sourceRaw    []byte
 	gitRaw       []byte
 }
@@ -44,8 +43,6 @@ func collectSessionMetaPayload(payload []byte) scannedSessionMetaPayload {
 			scanned.cwdRaw = value
 		case bytes.Equal(field, cliVersionFieldMarker):
 			scanned.versionRaw = value
-		case bytes.Equal(field, modelProviderFieldMarker):
-			scanned.modelRaw = value
 		case bytes.Equal(field, sourceFieldMarker):
 			scanned.sourceRaw = value
 		case bytes.Equal(field, gitFieldMarker):
@@ -67,7 +64,6 @@ func applySessionMetaPayload(scanned scannedSessionMetaPayload, state *scanState
 	applySessionTimestampRaw(scanned.timestampRaw, state)
 	applySessionCWDRaw(scanned.cwdRaw, state)
 	applySessionVersionRaw(scanned.versionRaw, state)
-	applySessionModelRaw(scanned.modelRaw, state)
 	applySessionGitBranchRaw(scanned.gitRaw, state)
 	applySessionSourceRaw(scanned.sourceRaw, state)
 }
@@ -97,15 +93,6 @@ func applySessionVersionRaw(raw []byte, state *scanState) {
 	}
 	if version, ok := readRawJSONString(raw); ok {
 		state.meta.Version = version
-	}
-}
-
-func applySessionModelRaw(raw []byte, state *scanState) {
-	if state.meta.Model != "" {
-		return
-	}
-	if model, ok := readRawJSONString(raw); ok {
-		state.meta.Model = model
 	}
 }
 

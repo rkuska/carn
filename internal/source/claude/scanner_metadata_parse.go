@@ -73,6 +73,7 @@ func parseAssistantRecord(
 	meta *sessionMeta,
 	found *bool,
 	hasConversationContent bool,
+	isSubagentFile bool,
 ) (bool, error) {
 	if *found && hasConversationContent {
 		return false, nil
@@ -83,7 +84,7 @@ func parseAssistantRecord(
 		return false, fmt.Errorf("parseRecordLine: %w", err)
 	}
 
-	if !*found && rec.Message.Model != "" {
+	if !*found && rec.Message.Model != "" && (isSubagentFile || !rec.IsSidechain) {
 		meta.Model = rec.Message.Model
 		*found = true
 	}

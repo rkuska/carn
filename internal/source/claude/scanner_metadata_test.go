@@ -153,6 +153,91 @@ func TestScanMetadataHandlesLargeAssistantContent(t *testing.T) {
 	assert.Equal(t, 2, result.meta.MessageCount)
 }
 
+func TestScanMetadataPrefersPrimaryAssistantModelOverEarlierSidechain(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session-primary.jsonl")
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "inspect"),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":        "assistant",
+			"sessionId":   "s1",
+			"slug":        "demo",
+			"timestamp":   "2024-01-01T00:00:01Z",
+			"isSidechain": true,
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude-haiku-4-5-20251001",
+				"content": []map[string]any{
+					{"type": "text", "text": "background tool planning"},
+				},
+			},
+		}),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":      "assistant",
+			"sessionId": "s1",
+			"slug":      "demo",
+			"timestamp": "2024-01-01T00:00:02Z",
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude-sonnet-4",
+				"content": []map[string]any{
+					{"type": "text", "text": "visible reply"},
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	result, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-sonnet-4", result.meta.Model)
+}
+
+func TestScanMetadataCapturesModelFromSubagentFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session-primary", "subagents", "agent-1.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+
+	content := strings.Join([]string{
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":        "user",
+			"sessionId":   "s1",
+			"slug":        "helper",
+			"timestamp":   "2024-01-01T00:00:00Z",
+			"isSidechain": true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "inspect tokenizer edge cases",
+			},
+		}),
+		marshalTestJSONLRecord(t, map[string]any{
+			"type":        "assistant",
+			"sessionId":   "s1",
+			"slug":        "helper",
+			"timestamp":   "2024-01-01T00:00:01Z",
+			"isSidechain": true,
+			"message": map[string]any{
+				"role":  "assistant",
+				"model": "claude-haiku-4-5-20251001",
+				"content": []map[string]any{
+					{"type": "text", "text": "report ready"},
+				},
+			},
+		}),
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	result, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-haiku-4-5-20251001", result.meta.Model)
+}
+
 func TestAssistantSignedThinkingCountsAsConversationContent(t *testing.T) {
 	t.Parallel()
 

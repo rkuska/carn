@@ -26,8 +26,8 @@ None.
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
 | internal/app/stats_keys.go | source | 349 | 80 | 383 |
+| internal/conversation/conversation_display.go | source | 261 | 73 | 289 |
 | internal/config/config.go | source | 310 | 71 | 367 |
-| internal/conversation/conversation_display.go | source | 259 | 71 | 287 |
 | internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/source/claude/known_schema_extras.go | source | 241 | 68 | 269 |
@@ -40,13 +40,13 @@ None.
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
 | internal/source/claude/scanner.go | source | 271 | 62 | 308 |
+| internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
-| internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
 | internal/app/stats_tab_cache.go | source | 320 | 56 | 353 |
 | internal/app/stats_metric_detail.go | source | 369 | 55 | 404 |
 | internal/canonical/blob_decoder.go | source | 347 | 54 | 387 |
-| internal/source/claude/scanner_metadata.go | source | 370 | 48 | 398 |
+| internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |

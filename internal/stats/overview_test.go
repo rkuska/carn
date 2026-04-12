@@ -225,6 +225,27 @@ func TestComputeOverviewSkipsZeroTokenGroupsAndSessions(t *testing.T) {
 	assert.Equal(t, "real", got.TopSessions[0].Slug)
 }
 
+func TestComputeOverviewSkipsEmptyModelBuckets(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"model-missing",
+			time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withModel(""),
+			withUsage(100, 0, 0, 25),
+		),
+	}
+
+	got := ComputeOverview(sessions)
+
+	assert.Empty(t, got.ByModel)
+	assert.Equal(t, []ProjectTokens{{Project: "alpha", Tokens: 125}}, got.ByProject)
+	require.Len(t, got.TopSessions, 1)
+	assert.Equal(t, "model-missing", got.TopSessions[0].Slug)
+}
+
 func TestComputeOverviewUsesTotalMessageCountForSubagentTopSessions(t *testing.T) {
 	t.Parallel()
 

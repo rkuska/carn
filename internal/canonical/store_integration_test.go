@@ -423,10 +423,12 @@ func TestStoreCodexLoadPreservesReconstructedTurnUsage(t *testing.T) {
 	conversations, err := store.List(context.Background(), archiveDir)
 	require.NoError(t, err)
 	require.Len(t, conversations, 1)
+	assert.Empty(t, conversations[0].Model())
 
 	session, err := store.Load(context.Background(), archiveDir, conversations[0])
 	require.NoError(t, err)
 	require.Len(t, session.Messages, 2)
+	assert.Empty(t, session.Meta.Model)
 	assert.Equal(t, conv.TokenUsage{
 		CacheCreationInputTokens: 105,
 		CacheReadInputTokens:     15,

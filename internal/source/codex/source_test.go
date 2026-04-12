@@ -106,6 +106,12 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[4].Role)
 	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[4].Thinking)
 	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[4].Text)
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 23270,
+		CacheReadInputTokens:     62150,
+		OutputTokens:             7470,
+		ReasoningOutputTokens:    4870,
+	}, mainSession.Messages[4].Usage)
 	require.Len(t, mainSession.Messages[4].ToolCalls, 1)
 	assert.Equal(t, "exec_command", mainSession.Messages[4].ToolCalls[0].Name)
 	require.Len(t, mainSession.Messages[4].ToolResults, 1)
@@ -120,6 +126,12 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, "Inspect the parser.", mainSession.Messages[6].Text)
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[7].Role)
 	assert.Equal(t, "Parser inspected.", mainSession.Messages[7].Text)
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 7400,
+		CacheReadInputTokens:     21500,
+		OutputTokens:             2550,
+		ReasoningOutputTokens:    1250,
+	}, mainSession.Messages[7].Usage)
 
 	hiddenSession, err := New().Load(context.Background(), byID["019cexample-hidden"])
 	require.NoError(t, err)
@@ -134,6 +146,12 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, "Visible reasoning should win.", hiddenSession.Messages[3].Thinking)
 	assert.False(t, hiddenSession.Messages[3].HasHiddenThinking)
 	assert.True(t, hiddenSession.Messages[3].HasThinking())
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 15800,
+		CacheReadInputTokens:     38400,
+		OutputTokens:             3750,
+		ReasoningOutputTokens:    5200,
+	}, hiddenSession.Messages[3].Usage)
 
 	legacySession, err := New().Load(context.Background(), byID["019cexample-legacy"])
 	require.NoError(t, err)

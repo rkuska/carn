@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestScanRolloutLineAppliesSessionMetaPayload(t *testing.T) {
@@ -26,7 +28,7 @@ func TestScanRolloutLineAppliesSessionMetaPayload(t *testing.T) {
 	assert.Equal(t, "thread-strin", state.meta.Slug)
 	assert.Equal(t, "/workspace/project", state.meta.CWD)
 	assert.Equal(t, "0.114.0", state.meta.Version)
-	assert.Equal(t, "openai", state.meta.Model)
+	assert.Empty(t, state.meta.Model)
 	assert.Equal(t, "main", state.meta.GitBranch)
 }
 
@@ -91,6 +93,28 @@ func TestScanRolloutLineTracksToolCountsAndTokenUsage(t *testing.T) {
 	assert.Equal(t, 10, state.meta.TotalUsage.CacheReadInputTokens)
 	assert.Equal(t, 45, state.meta.TotalUsage.OutputTokens)
 	assert.Equal(t, 5, state.meta.TotalUsage.ReasoningOutputTokens)
+}
+
+func TestScanRolloutLineTracksStoredTokenCountShape(t *testing.T) {
+	t.Parallel()
+
+	state := newScanState("/tmp/thread.jsonl")
+
+	require.NoError(t, scanRolloutLine([]byte(
+		`{"timestamp":"2026-03-16T10:00:04Z","type":"event_msg","payload":{`+
+			`"type":"token_count","info":{"total_token_usage":{`+
+			`"input_tokens":85420,"cached_input_tokens":62150,`+
+			`"output_tokens":12340,"reasoning_output_tokens":4870,"total_tokens":97760},`+
+			`"last_token_usage":{"input_tokens":85420,"cached_input_tokens":62150,`+
+			`"output_tokens":12340,"reasoning_output_tokens":4870,"total_tokens":97760}}}}`,
+	), &state))
+
+	assert.Equal(t, conv.TokenUsage{
+		CacheCreationInputTokens: 23270,
+		CacheReadInputTokens:     62150,
+		OutputTokens:             7470,
+		ReasoningOutputTokens:    4870,
+	}, state.meta.TotalUsage)
 }
 
 func TestScanRolloutLineTracksToolErrorCounts(t *testing.T) {
@@ -193,6 +217,7 @@ func TestScanRolloutParsesSingleFile(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "thread-string-summary", rollout.meta.ID)
 	assert.Equal(t, 1, rollout.meta.MessageCount)
+	assert.Empty(t, rollout.meta.Model)
 	assert.Equal(t, "Explain the parser.", rollout.meta.FirstMessage)
 }
 

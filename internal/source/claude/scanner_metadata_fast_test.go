@@ -105,3 +105,51 @@ func TestParseUsageObject(t *testing.T) {
 		OutputTokens:             42,
 	}, parseUsageObject(raw))
 }
+
+func TestParseUsageObjectWithNestedCacheCreationDetails(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"input_tokens": 3,
+		"cache_creation_input_tokens": 15402,
+		"cache_read_input_tokens": 10681,
+		"cache_creation": {
+			"ephemeral_5m_input_tokens": 0,
+			"ephemeral_1h_input_tokens": 15402
+		},
+		"output_tokens": 5,
+		"service_tier": "standard"
+	}`)
+
+	assert.Equal(t, tokenUsage{
+		InputTokens:              3,
+		CacheCreationInputTokens: 15402,
+		CacheReadInputTokens:     10681,
+		OutputTokens:             5,
+	}, parseUsageObject(raw))
+}
+
+func TestParseJSONUsageWithNestedCacheCreationDetails(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"input_tokens": 3,
+		"cache_creation_input_tokens": 15402,
+		"cache_read_input_tokens": 10681,
+		"cache_creation": {
+			"ephemeral_5m_input_tokens": 0,
+			"ephemeral_1h_input_tokens": 15402
+		},
+		"output_tokens": 5,
+		"service_tier": "standard"
+	}`)
+
+	usage, err := parseJSONUsage(raw)
+	assert.NoError(t, err)
+	assert.Equal(t, &jsonUsage{
+		InputTokens:              3,
+		CacheCreationInputTokens: 15402,
+		CacheReadInputTokens:     10681,
+		OutputTokens:             5,
+	}, usage)
+}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/bubbles/v2/list"
 
@@ -124,22 +125,30 @@ func buildDeepSearchItems(query string, conversations []conv.Conversation) []con
 func conversationMetadataDescription(conversation conv.Conversation) string {
 	msgCount := conversation.TotalMessageCount()
 	mainCount := conversation.MainMessageCount()
-	desc := fmt.Sprintf("%s  %d msgs", conversation.Model(), msgCount)
+
+	parts := make([]string, 0, 6)
+	if version := conversation.Version(); version != "" {
+		parts = append(parts, version)
+	}
+	if model := conversation.Model(); model != "" {
+		parts = append(parts, model)
+	}
+
+	msgPart := fmt.Sprintf("%d msgs", msgCount)
 	if mainCount > 0 && mainCount != msgCount {
-		desc = fmt.Sprintf("%s  %d msgs (%d main)", conversation.Model(), msgCount, mainCount)
+		msgPart = fmt.Sprintf("%d msgs (%d main)", msgCount, mainCount)
 	}
-	if v := conversation.Version(); v != "" {
-		desc = v + "  " + desc
-	}
+	parts = append(parts, msgPart)
 	if total := conversation.TotalTokenUsage().TotalTokens(); total > 0 {
-		desc += fmt.Sprintf("  %dk tokens", total/1000)
+		parts = append(parts, fmt.Sprintf("%dk tokens", total/1000))
 	}
 	if d := conversation.Duration(); d > 0 {
-		desc += "  " + conv.FormatDuration(d)
+		parts = append(parts, conv.FormatDuration(d))
 	}
 	if counts := conversation.TotalToolCounts(); len(counts) > 0 {
-		desc += "  " + conv.FormatToolCounts(counts)
+		parts = append(parts, conv.FormatToolCounts(counts))
 	}
+	desc := strings.Join(parts, "  ")
 	return providerPrefixedDescription(conversation, desc)
 }
 

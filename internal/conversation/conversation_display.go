@@ -220,8 +220,10 @@ func buildDisplayDescription(
 		builder.WriteString(version)
 		builder.WriteString("  ")
 	}
-	builder.WriteString(model)
-	builder.WriteString("  ")
+	if model != "" {
+		builder.WriteString(model)
+		builder.WriteString("  ")
+	}
 	builder.WriteString(strconv.Itoa(messageCount))
 	builder.WriteString(" msgs")
 	if mainMessageCount > 0 && mainMessageCount != messageCount {
