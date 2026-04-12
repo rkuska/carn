@@ -32,7 +32,7 @@ const (
 
 	statsLaneCacheDaily   statsLaneID = "cache_daily"
 	statsLaneCacheSegment statsLaneID = "cache_segment"
-	statsLaneCacheMiss    statsLaneID = "cache_miss"
+	statsLaneCacheReuse   statsLaneID = "cache_reuse"
 	statsLaneCacheHitDur  statsLaneID = "cache_hit_dur"
 
 	statsLanePerformanceOutcome    statsLaneID = "performance_outcome"
@@ -82,9 +82,9 @@ func toolsStatsLanes() []statsLane {
 
 func cacheStatsLanes() []statsLane {
 	return []statsLane{
-		{id: statsLaneCacheDaily, title: "Daily Cache Tokens", metricHelpDesc: "metric", supportsMetric: true},
+		{id: statsLaneCacheDaily, title: "Daily Cache Rate", metricHelpDesc: "metric", supportsMetric: true},
 		{id: statsLaneCacheSegment, title: "Main vs Subagent"},
-		{id: statsLaneCacheMiss, title: "Cache Miss Cost by Duration"},
+		{id: statsLaneCacheReuse, title: "Cache Reuse by Duration"},
 		{id: statsLaneCacheHitDur, title: "Cache Hit Rate by Duration"},
 	}
 }

@@ -39,8 +39,8 @@ const (
 type cacheMetric int
 
 const (
-	cacheMetricRead cacheMetric = iota
-	cacheMetricWrite
+	cacheMetricHitRate cacheMetric = iota
+	cacheMetricReuseRatio
 )
 
 type statsModel struct {

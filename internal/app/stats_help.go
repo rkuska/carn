@@ -102,7 +102,7 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 		return "cycle the daily chart between sessions, messages, and tokens"
 	}
 	if lane.id == statsLaneCacheDaily {
-		return "cycle between daily cache read and cache write tokens"
+		return "cycle between daily hit rate and reuse ratio"
 	}
 	if lane.id == statsLanePerformanceOutcome ||
 		lane.id == statsLanePerformanceDiscipline ||

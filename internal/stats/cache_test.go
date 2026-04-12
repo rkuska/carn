@@ -22,8 +22,8 @@ func TestComputeCacheEmptySessions(t *testing.T) {
 	assert.Zero(t, got.ReuseRatio)
 	assert.Zero(t, got.Main.SessionCount)
 	assert.Zero(t, got.Subagent.SessionCount)
-	assert.Empty(t, got.DailyCacheRead)
-	assert.Empty(t, got.DailyCacheWrite)
+	assert.Empty(t, got.DailyHitRate)
+	assert.Empty(t, got.DailyReuseRatio)
 	assert.Empty(t, got.DurationBuckets)
 }
 
@@ -175,41 +175,69 @@ func TestComputeCacheSubagentOnlySessions(t *testing.T) {
 	assert.InDelta(t, 0.7, got.Subagent.HitRate, 0.001)
 }
 
-func TestComputeCacheDailyReadSeries(t *testing.T) {
+func TestComputeCacheDailyRates(t *testing.T) {
 	t.Parallel()
 
+	// Day 1: two sessions
+	//   s1: prompt=1000 (I=100, W=100, R=800)
+	//   s2: prompt=1000 (I=200, W=200, R=600)
+	//   Token-weighted hit rate: (800+600)/(1000+1000) = 0.7
+	//   Reuse ratio: (800+600)/(100+200) = 4.667
+	// Day 2 (gap day): no sessions → both rates=0
+	// Day 3: one session
+	//   s3: prompt=500 (I=100, W=100, R=300)
+	//   Hit rate: 300/500 = 0.6
+	//   Reuse ratio: 300/100 = 3.0
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
-			withUsage(100, 50, 400, 50)),
+			withUsage(100, 100, 800, 50)),
 		testMeta("s2", time.Date(2026, 1, 10, 14, 0, 0, 0, time.UTC),
-			withUsage(100, 50, 600, 50)),
+			withUsage(200, 200, 600, 50)),
 		testMeta("s3", time.Date(2026, 1, 12, 9, 0, 0, 0, time.UTC),
-			withUsage(100, 50, 200, 50)),
+			withUsage(100, 100, 300, 50)),
 	}
 
 	got := ComputeCache(sessions, TimeRange{})
 
-	require.Len(t, got.DailyCacheRead, 3)
-	assert.Equal(t, 1000, got.DailyCacheRead[0].Count)
-	assert.Equal(t, 0, got.DailyCacheRead[1].Count)
-	assert.Equal(t, 200, got.DailyCacheRead[2].Count)
+	require.Len(t, got.DailyHitRate, 3)
+	assert.InDelta(t, 0.7, got.DailyHitRate[0].Rate, 0.001)
+	assert.InDelta(t, 0.0, got.DailyHitRate[1].Rate, 0.001)
+	assert.InDelta(t, 0.6, got.DailyHitRate[2].Rate, 0.001)
+
+	require.Len(t, got.DailyReuseRatio, 3)
+	assert.InDelta(t, 4.667, got.DailyReuseRatio[0].Rate, 0.001)
+	assert.InDelta(t, 0.0, got.DailyReuseRatio[1].Rate, 0.001)
+	assert.InDelta(t, 3.0, got.DailyReuseRatio[2].Rate, 0.001)
 }
 
-func TestComputeCacheDailyWriteSeries(t *testing.T) {
+func TestComputeCacheDailyHitRateZeroPromptDay(t *testing.T) {
 	t.Parallel()
 
+	// Session with zero prompt tokens should yield 0 rate
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
-			withUsage(100, 300, 400, 50)),
-		testMeta("s2", time.Date(2026, 1, 11, 9, 0, 0, 0, time.UTC),
-			withUsage(100, 150, 400, 50)),
+			withUsage(0, 0, 0, 100)),
 	}
 
 	got := ComputeCache(sessions, TimeRange{})
 
-	require.Len(t, got.DailyCacheWrite, 2)
-	assert.Equal(t, 300, got.DailyCacheWrite[0].Count)
-	assert.Equal(t, 150, got.DailyCacheWrite[1].Count)
+	require.Len(t, got.DailyHitRate, 1)
+	assert.InDelta(t, 0.0, got.DailyHitRate[0].Rate, 0.001)
+}
+
+func TestComputeCacheDailyReuseRatioZeroWrite(t *testing.T) {
+	t.Parallel()
+
+	// No cache writes → reuse ratio 0
+	sessions := []sessionMeta{
+		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withUsage(500, 0, 500, 100)),
+	}
+
+	got := ComputeCache(sessions, TimeRange{})
+
+	require.Len(t, got.DailyReuseRatio, 1)
+	assert.InDelta(t, 0.0, got.DailyReuseRatio[0].Rate, 0.001)
 }
 
 func TestComputeCacheDurationBuckets(t *testing.T) {
@@ -231,28 +259,33 @@ func TestComputeCacheDurationBuckets(t *testing.T) {
 
 	require.Len(t, got.DurationBuckets, 6)
 
-	// <5m bucket: short session, hitRate = 700/1000 = 0.7
+	// <5m bucket: short session, hitRate = 700/1000 = 0.7, reuse = 700/100 = 7.0
 	assert.Equal(t, "<5m", got.DurationBuckets[0].Label)
 	assert.Equal(t, 1, got.DurationBuckets[0].Sessions)
 	assert.InDelta(t, 0.7, got.DurationBuckets[0].HitRate, 0.001)
-	assert.Equal(t, 200, got.DurationBuckets[0].MissTokens)
+	assert.InDelta(t, 7.0, got.DurationBuckets[0].ReuseRatio, 0.001)
 
-	// 15-30 bucket: medium session, hitRate = 500/1000 = 0.5
+	// 15-30 bucket: medium session, hitRate = 500/1000 = 0.5, reuse = 500/100 = 5.0
 	assert.Equal(t, "15-30", got.DurationBuckets[2].Label)
 	assert.Equal(t, 1, got.DurationBuckets[2].Sessions)
 	assert.InDelta(t, 0.5, got.DurationBuckets[2].HitRate, 0.001)
-	assert.Equal(t, 400, got.DurationBuckets[2].MissTokens)
+	assert.InDelta(t, 5.0, got.DurationBuckets[2].ReuseRatio, 0.001)
 
-	// 2h+ bucket: long session, hitRate = 100/1000 = 0.1
+	// 2h+ bucket: long session, hitRate = 100/1000 = 0.1, reuse = 100/100 = 1.0
 	assert.Equal(t, "2h+", got.DurationBuckets[5].Label)
 	assert.Equal(t, 1, got.DurationBuckets[5].Sessions)
 	assert.InDelta(t, 0.1, got.DurationBuckets[5].HitRate, 0.001)
-	assert.Equal(t, 800, got.DurationBuckets[5].MissTokens)
+	assert.InDelta(t, 1.0, got.DurationBuckets[5].ReuseRatio, 0.001)
 }
 
 func TestComputeCacheDurationBucketsAveraging(t *testing.T) {
 	t.Parallel()
 
+	// Two sessions in <5m bucket:
+	//   s1: R=700, W=100, prompt=1000
+	//   s2: R=400, W=100, prompt=1000
+	// Token-weighted reuse = (700+400)/(100+100) = 1100/200 = 5.5
+	// Session-averaged hit rate = (0.7 + 0.4) / 2 = 0.55
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
 			withLastTimestamp(time.Date(2026, 1, 10, 9, 2, 0, 0, time.UTC)),
@@ -264,12 +297,27 @@ func TestComputeCacheDurationBucketsAveraging(t *testing.T) {
 
 	got := ComputeCache(sessions, TimeRange{})
 
-	// Both in <5m bucket: avg hitRate = (0.7 + 0.4)/2 = 0.55
-	// avg missTokens = (200 + 500) / 2 = 350
 	bucket := got.DurationBuckets[0]
 	assert.Equal(t, 2, bucket.Sessions)
 	assert.InDelta(t, 0.55, bucket.HitRate, 0.001)
-	assert.Equal(t, 350, bucket.MissTokens)
+	assert.InDelta(t, 5.5, bucket.ReuseRatio, 0.001)
+}
+
+func TestComputeCacheDurationBucketReuseZeroWrite(t *testing.T) {
+	t.Parallel()
+
+	// Session with no cache writes → reuse ratio 0
+	sessions := []sessionMeta{
+		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withLastTimestamp(time.Date(2026, 1, 10, 9, 2, 0, 0, time.UTC)),
+			withUsage(500, 0, 500, 100)),
+	}
+
+	got := ComputeCache(sessions, TimeRange{})
+
+	bucket := got.DurationBuckets[0]
+	assert.Equal(t, 1, bucket.Sessions)
+	assert.InDelta(t, 0.0, bucket.ReuseRatio, 0.001)
 }
 
 func TestComputeCacheNoCacheTokens(t *testing.T) {

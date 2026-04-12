@@ -280,8 +280,8 @@ type Cache struct {
 	ReuseRatio      float64
 	Main            CacheSegment
 	Subagent        CacheSegment
-	DailyCacheRead  []DailyCount
-	DailyCacheWrite []DailyCount
+	DailyHitRate    []DailyRate
+	DailyReuseRatio []DailyRate
 	DurationBuckets []CacheDurationBucket
 }
 
@@ -291,11 +291,17 @@ type CacheSegment struct {
 	CacheWrite   int
 	Prompt       int
 	HitRate      float64
+	MissTokens   int
 }
 
 type CacheDurationBucket struct {
 	Label      string
 	HitRate    float64
-	MissTokens int
+	ReuseRatio float64
 	Sessions   int
+}
+
+type DailyRate struct {
+	Date time.Time
+	Rate float64
 }

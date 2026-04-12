@@ -15,16 +15,18 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 
 	location := activityLocation(sessions, timeRange)
 	cache := Cache{
-		DailyCacheRead:  make([]DailyCount, 0),
-		DailyCacheWrite: make([]DailyCount, 0),
+		DailyHitRate:    make([]DailyRate, 0),
+		DailyReuseRatio: make([]DailyRate, 0),
 	}
 
 	readByDay := make(map[time.Time]int)
 	writeByDay := make(map[time.Time]int)
+	promptByDay := make(map[time.Time]int)
 
 	type durationAccum struct {
 		hitRateSum float64
-		missSum    int
+		readSum    int
+		writeSum   int
 		count      int
 	}
 	buckets := [6]durationAccum{}
@@ -38,6 +40,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 		)
 		readByDay[day] += session.TotalUsage.CacheReadInputTokens
 		writeByDay[day] += session.TotalUsage.CacheCreationInputTokens
+		promptByDay[day] += sessionPromptTokens(session)
 
 		prompt := sessionPromptTokens(session)
 		var hitRate float64
@@ -47,7 +50,8 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 
 		idx := durationBucket(session.Duration())
 		buckets[idx].hitRateSum += hitRate
-		buckets[idx].missSum += session.TotalUsage.InputTokens
+		buckets[idx].readSum += session.TotalUsage.CacheReadInputTokens
+		buckets[idx].writeSum += session.TotalUsage.CacheCreationInputTokens
 		buckets[idx].count++
 	}
 
@@ -55,11 +59,20 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 
 	start, end := cacheDayBounds(sessions, timeRange, location)
 	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
-		cache.DailyCacheRead = append(cache.DailyCacheRead, DailyCount{
-			Date: day, Count: readByDay[day],
+		var hitRate float64
+		if p := promptByDay[day]; p > 0 {
+			hitRate = float64(readByDay[day]) / float64(p)
+		}
+		cache.DailyHitRate = append(cache.DailyHitRate, DailyRate{
+			Date: day, Rate: hitRate,
 		})
-		cache.DailyCacheWrite = append(cache.DailyCacheWrite, DailyCount{
-			Date: day, Count: writeByDay[day],
+
+		var reuseRatio float64
+		if w := writeByDay[day]; w > 0 {
+			reuseRatio = float64(readByDay[day]) / float64(w)
+		}
+		cache.DailyReuseRatio = append(cache.DailyReuseRatio, DailyRate{
+			Date: day, Rate: reuseRatio,
 		})
 	}
 
@@ -69,7 +82,9 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 		bucket := CacheDurationBucket{Label: label, Sessions: b.count}
 		if b.count > 0 {
 			bucket.HitRate = b.hitRateSum / float64(b.count)
-			bucket.MissTokens = b.missSum / b.count
+			if b.writeSum > 0 {
+				bucket.ReuseRatio = float64(b.readSum) / float64(b.writeSum)
+			}
 		}
 		cache.DurationBuckets[i] = bucket
 	}
@@ -93,6 +108,7 @@ func accumulateCacheSession(cache *Cache, session conv.SessionMeta) {
 	seg.CacheRead += usage.CacheReadInputTokens
 	seg.CacheWrite += usage.CacheCreationInputTokens
 	seg.Prompt += prompt
+	seg.MissTokens += usage.InputTokens
 }
 
 func finalizeCacheRates(cache *Cache) {

@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"math"
 
+	"github.com/NimbleMarkets/ntcharts/v2/linechart"
+
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -12,7 +14,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	cache := m.snapshot.Cache
 	chips := renderSummaryChips(m.cacheSummaryChips(cache), width)
 
-	chartTitle, counts, chartColor := m.cacheDailySeries()
+	chartTitle, rates, chartColor, yFmt := m.cacheDailySeries()
 	chartHeight := 12
 	if height < 18 {
 		chartHeight = max(height-6, 6)
@@ -22,7 +24,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 		width, 30,
 		chartTitle, m.cacheLaneCursor == 0,
 		func(bodyWidth int) string {
-			return renderDailyActivityChartBody(counts, max(bodyWidth, 10), chartHeight, chartColor)
+			return renderDailyRateChartBody(rates, max(bodyWidth, 10), chartHeight, chartColor, yFmt)
 		},
 		"Main vs Subagent", m.cacheLaneCursor == 1,
 		func(bodyWidth int) string {
@@ -30,15 +32,15 @@ func (m statsModel) renderCacheTab(width, height int) string {
 		},
 	)
 
-	missBuckets := cacheMissBuckets(cache.DurationBuckets)
+	reuseBuckets := cacheReuseBuckets(cache.DurationBuckets)
 	hitBuckets := cacheHitRateBuckets(cache.DurationBuckets)
 	histHeight := 8
 
 	bottomPair := renderStatsLanePair(
 		width, 30,
-		"Cache Miss Cost by Duration", m.cacheLaneCursor == 2,
+		"Cache Reuse by Duration", m.cacheLaneCursor == 2,
 		func(bodyWidth int) string {
-			return renderVerticalHistogramBody(missBuckets, bodyWidth, histHeight, colorChartError)
+			return renderVerticalHistogramBody(reuseBuckets, bodyWidth, histHeight, colorChartToken)
 		},
 		"Cache Hit Rate by Duration", m.cacheLaneCursor == 3,
 		func(bodyWidth int) string {
@@ -67,14 +69,25 @@ func (m statsModel) cacheSummaryChips(cache statspkg.Cache) []chip {
 	return chips
 }
 
-func (m statsModel) cacheDailySeries() (string, []statspkg.DailyCount, color.Color) {
-	switch m.cacheMetric {
-	case cacheMetricWrite:
-		return "Daily Cache Write", m.snapshot.Cache.DailyCacheWrite, colorChartBar
-	case cacheMetricRead:
-		return "Daily Cache Read", m.snapshot.Cache.DailyCacheRead, colorChartToken
+func (m statsModel) cacheDailySeries() (string, []statspkg.DailyRate, color.Color, linechart.LabelFormatter) {
+	switch m.cacheMetric { //nolint:exhaustive // only cache metrics handled here
+	case cacheMetricReuseRatio:
+		return "Daily Reuse Ratio", m.snapshot.Cache.DailyReuseRatio, colorChartBar, reuseYLabel()
+	default:
+		return "Daily Hit Rate", m.snapshot.Cache.DailyHitRate, colorChartToken, percentYLabel()
 	}
-	return "Daily Cache Read", m.snapshot.Cache.DailyCacheRead, colorChartToken
+}
+
+func percentYLabel() linechart.LabelFormatter {
+	return func(_ int, v float64) string {
+		return fmt.Sprintf("%.0f%%", v*100)
+	}
+}
+
+func reuseYLabel() linechart.LabelFormatter {
+	return func(_ int, v float64) string {
+		return fmt.Sprintf("%.1fx", v)
+	}
 }
 
 func cacheSegmentBars(cache statspkg.Cache) []barItem {
@@ -85,17 +98,20 @@ func cacheSegmentBars(cache statspkg.Cache) []barItem {
 			barItem{Label: "Sub  cache-rd", Value: cache.Subagent.CacheRead},
 			barItem{Label: "Main cache-wr", Value: cache.Main.CacheWrite},
 			barItem{Label: "Sub  cache-wr", Value: cache.Subagent.CacheWrite},
-			barItem{Label: "Main hit%", Value: int(cache.Main.HitRate * 100)},
-			barItem{Label: "Sub  hit%", Value: int(cache.Subagent.HitRate * 100)},
+			barItem{Label: "Main miss", Value: cache.Main.MissTokens},
+			barItem{Label: "Sub  miss", Value: cache.Subagent.MissTokens},
 		)
 	}
 	return bars
 }
 
-func cacheMissBuckets(durations []statspkg.CacheDurationBucket) []histBucket {
+func cacheReuseBuckets(durations []statspkg.CacheDurationBucket) []histBucket {
 	buckets := make([]histBucket, 0, len(durations))
 	for _, d := range durations {
-		buckets = append(buckets, histBucket{Label: d.Label, Count: d.MissTokens})
+		buckets = append(buckets, histBucket{
+			Label: d.Label,
+			Count: int(math.Round(d.ReuseRatio * 100)),
+		})
 	}
 	return buckets
 }
@@ -123,8 +139,8 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 		return m.renderCacheDailyMetricDetail(cache, lane.title, width)
 	case statsLaneCacheSegment:
 		return renderCacheSegmentMetricDetail(cache, width)
-	case statsLaneCacheMiss:
-		return renderCacheMissMetricDetail(cache, width)
+	case statsLaneCacheReuse:
+		return renderCacheReuseMetricDetail(cache, width)
 	case statsLaneCacheHitDur:
 		return renderCacheHitDurMetricDetail(cache, width)
 	default:
@@ -133,16 +149,38 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 }
 
 func (m statsModel) renderCacheDailyMetricDetail(cache statspkg.Cache, title string, width int) string {
-	_, counts, _ := m.cacheDailySeries()
-	peakDay, peakCount := peakDailyCount(counts)
+	switch m.cacheMetric { //nolint:exhaustive // only cache metrics handled here
+	case cacheMetricReuseRatio:
+		return m.renderCacheDailyReuseDetail(cache, title, width)
+	default:
+		return m.renderCacheDailyHitRateDetail(cache, title, width)
+	}
+}
+
+func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title string, width int) string {
+	peakDay, peakRate := peakDailyRate(cache.DailyHitRate)
 	return renderStatsMetricDetail(title, width, []chip{
 		{Label: "peak day", Value: peakDay},
-		{Label: "peak tokens", Value: statspkg.FormatNumber(peakCount)},
-		{Label: "total read", Value: statspkg.FormatNumber(cache.TotalCacheRead)},
-		{Label: "total write", Value: statspkg.FormatNumber(cache.TotalCacheWrite)},
+		{Label: "peak hit rate", Value: formatRate(peakRate)},
+		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
 	},
-		metricDetailLine("Question", "How does cache token volume change over time?"),
-		metricDetailLine("Reading", "The chart shows daily token volume. Press m to toggle read/write."),
+		metricDetailLine("Question", "How does cache hit rate change over time?"),
+		metricDetailLine("Reading", "Y-axis is token-weighted hit rate (%). Press m to toggle to reuse ratio."),
+	)
+}
+
+func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title string, width int) string {
+	peakDay, peakRate := peakDailyRate(cache.DailyReuseRatio)
+	return renderStatsMetricDetail(title, width, []chip{
+		{Label: "peak day", Value: peakDay},
+		{Label: "peak reuse", Value: formatReuse(peakRate)},
+		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
+	},
+		metricDetailLine("Question", "How does cache write leverage change over time?"),
+		metricDetailLine(
+			"Reading",
+			"Y-axis is reads per write (Nx). Higher means each write is reused more. Press m to toggle.",
+		),
 	)
 }
 
@@ -161,18 +199,17 @@ func renderCacheSegmentMetricDetail(cache statspkg.Cache, width int) string {
 	)
 }
 
-func renderCacheMissMetricDetail(cache statspkg.Cache, width int) string {
-	missMetric := func(b statspkg.CacheDurationBucket) int { return b.MissTokens }
-	worst := worstCacheDurationBucket(cache.DurationBuckets, missMetric)
-	totalMiss := cache.TotalPrompt - cache.TotalCacheRead - cache.TotalCacheWrite
-	return renderStatsMetricDetail("Cache Miss Cost by Duration", width, []chip{
-		{Label: "highest miss bucket", Value: worst},
-		{Label: "total miss tokens", Value: statspkg.FormatNumber(totalMiss)},
+func renderCacheReuseMetricDetail(cache statspkg.Cache, width int) string {
+	best := bestCacheReuseBucket(cache.DurationBuckets)
+	return renderStatsMetricDetail("Cache Reuse by Duration", width, []chip{
+		{Label: "best reuse bucket", Value: best},
+		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
 	},
-		metricDetailLine("Question", "Which session durations have the highest cache miss cost?"),
+		metricDetailLine("Question", "Which session durations leverage cache writes best?"),
 		metricDetailLine(
 			"Reading",
-			"Taller bars mean more uncached prompt tokens per session. Long sessions may lose cache due to TTL expiry.",
+			"Taller bars mean more cache reads per write. "+
+				"Low reuse signals wasted writes from TTL expiry or context shifts.",
 		),
 	)
 }
@@ -191,23 +228,20 @@ func renderCacheHitDurMetricDetail(cache statspkg.Cache, width int) string {
 	)
 }
 
-func worstCacheDurationBucket(
-	buckets []statspkg.CacheDurationBucket,
-	metric func(statspkg.CacheDurationBucket) int,
-) string {
+func bestCacheReuseBucket(buckets []statspkg.CacheDurationBucket) string {
 	if len(buckets) == 0 {
 		return noDataLabel
 	}
-	worst := buckets[0]
-	for _, b := range buckets[1:] {
-		if b.Sessions > 0 && metric(b) > metric(worst) {
-			worst = b
+	best := statspkg.CacheDurationBucket{}
+	for _, b := range buckets {
+		if b.Sessions > 0 && b.ReuseRatio > best.ReuseRatio {
+			best = b
 		}
 	}
-	if worst.Sessions == 0 {
+	if best.Sessions == 0 {
 		return noDataLabel
 	}
-	return worst.Label
+	return best.Label
 }
 
 func bestCacheDurationBucket(buckets []statspkg.CacheDurationBucket) string {
@@ -224,6 +258,22 @@ func bestCacheDurationBucket(buckets []statspkg.CacheDurationBucket) string {
 		return noDataLabel
 	}
 	return best.Label
+}
+
+func peakDailyRate(rates []statspkg.DailyRate) (string, float64) {
+	if len(rates) == 0 {
+		return noDataLabel, 0
+	}
+	peak := rates[0]
+	for _, r := range rates[1:] {
+		if r.Rate > peak.Rate {
+			peak = r
+		}
+	}
+	if peak.Rate == 0 {
+		return noDataLabel, 0
+	}
+	return peak.Date.Format("Jan 02"), peak.Rate
 }
 
 func formatRate(rate float64) string {
