@@ -47,7 +47,7 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 	assert.Equal(t, 35, got.MessageCount)
 	assert.Equal(
 		t,
-		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 100},
+		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 2100},
 		got.Tokens,
 	)
 	assert.Equal(

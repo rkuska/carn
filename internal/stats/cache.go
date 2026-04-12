@@ -34,12 +34,13 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 	for _, session := range sessions {
 		accumulateCacheSession(&cache, session)
 
+		writeProxy := cacheWriteProxy(session.TotalUsage)
 		day := startOfDayInLocation(
 			normalizeActivityTime(session.Timestamp, location),
 			location,
 		)
 		readByDay[day] += session.TotalUsage.CacheReadInputTokens
-		writeByDay[day] += session.TotalUsage.CacheCreationInputTokens
+		writeByDay[day] += writeProxy
 		promptByDay[day] += sessionPromptTokens(session)
 
 		prompt := sessionPromptTokens(session)
@@ -51,7 +52,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 		idx := durationBucket(session.Duration())
 		buckets[idx].hitRateSum += hitRate
 		buckets[idx].readSum += session.TotalUsage.CacheReadInputTokens
-		buckets[idx].writeSum += session.TotalUsage.CacheCreationInputTokens
+		buckets[idx].writeSum += writeProxy
 		buckets[idx].count++
 	}
 
@@ -95,9 +96,10 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 func accumulateCacheSession(cache *Cache, session conv.SessionMeta) {
 	usage := session.TotalUsage
 	prompt := sessionPromptTokens(session)
+	writeProxy := cacheWriteProxy(usage)
 
 	cache.TotalCacheRead += usage.CacheReadInputTokens
-	cache.TotalCacheWrite += usage.CacheCreationInputTokens
+	cache.TotalCacheWrite += writeProxy
 	cache.TotalPrompt += prompt
 
 	seg := &cache.Main
@@ -106,9 +108,9 @@ func accumulateCacheSession(cache *Cache, session conv.SessionMeta) {
 	}
 	seg.SessionCount++
 	seg.CacheRead += usage.CacheReadInputTokens
-	seg.CacheWrite += usage.CacheCreationInputTokens
+	seg.CacheWrite += writeProxy
 	seg.Prompt += prompt
-	seg.MissTokens += usage.InputTokens
+	seg.MissTokens += prompt - usage.CacheReadInputTokens - writeProxy
 }
 
 func finalizeCacheRates(cache *Cache) {
@@ -130,6 +132,20 @@ func finalizeSegmentRates(seg *CacheSegment) {
 	if seg.Prompt > 0 {
 		seg.HitRate = float64(seg.CacheRead) / float64(seg.Prompt)
 	}
+}
+
+// cacheWriteProxy returns the best available cache-write token count.
+// Providers that report explicit writes (Claude) return CacheCreationInputTokens.
+// Providers that only report reads (Codex/OpenAI) fall back to InputTokens
+// (uncached tokens) as an approximation of cache writes.
+func cacheWriteProxy(usage conv.TokenUsage) int {
+	if usage.CacheCreationInputTokens > 0 {
+		return usage.CacheCreationInputTokens
+	}
+	if usage.CacheReadInputTokens > 0 {
+		return usage.InputTokens
+	}
+	return 0
 }
 
 func sessionPromptTokens(session conv.SessionMeta) int {

@@ -59,7 +59,7 @@ func accumulateOverviewSession(
 	overview.Tokens.Input += session.TotalUsage.InputTokens
 	overview.Tokens.Output += session.TotalUsage.OutputTokens
 	overview.Tokens.CacheRead += session.TotalUsage.CacheReadInputTokens
-	overview.Tokens.CacheWrite += session.TotalUsage.CacheCreationInputTokens
+	overview.Tokens.CacheWrite += cacheWriteProxy(session.TotalUsage)
 	addTokenGroupTotal(modelTotals, session.Model, totalTokens)
 	addTokenGroupTotal(projectTotals, session.Project.DisplayName, totalTokens)
 	return SessionSummary{
