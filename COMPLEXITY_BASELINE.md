@@ -43,9 +43,10 @@ None.
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/source/claude/scanner_metadata_parse.go | source | 174 | 60 | 195 |
+| internal/app/stats_tab_cache.go | source | 320 | 56 | 353 |
 | internal/app/stats_metric_detail.go | source | 369 | 55 | 404 |
 | internal/canonical/blob_decoder.go | source | 347 | 54 | 387 |
-| internal/source/claude/scanner_metadata.go | source | 365 | 48 | 393 |
+| internal/source/claude/scanner_metadata.go | source | 370 | 48 | 398 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |

@@ -72,7 +72,8 @@ func (m statsModel) cacheSummaryChips(cache statspkg.Cache) []chip {
 func (m statsModel) cacheDailySeries() (string, []statspkg.DailyRate, color.Color, linechart.LabelFormatter) {
 	switch m.cacheMetric { //nolint:exhaustive // only cache metrics handled here
 	case cacheMetricReuseRatio:
-		return "Daily Reuse Ratio", m.snapshot.Cache.DailyReuseRatio, colorChartBar, reuseYLabel()
+		rates, cap, hasInfinite := normalizeReuseDailyRates(m.snapshot.Cache.DailyReuseRatio)
+		return "Daily Reuse Ratio", rates, colorChartBar, reuseYLabel(cap, hasInfinite)
 	default:
 		return "Daily Hit Rate", m.snapshot.Cache.DailyHitRate, colorChartToken, percentYLabel()
 	}
@@ -84,8 +85,11 @@ func percentYLabel() linechart.LabelFormatter {
 	}
 }
 
-func reuseYLabel() linechart.LabelFormatter {
+func reuseYLabel(maxValue float64, hasInfinite bool) linechart.LabelFormatter {
 	return func(_ int, v float64) string {
+		if hasInfinite && v >= maxValue {
+			return "inf"
+		}
 		return fmt.Sprintf("%.1fx", v)
 	}
 }
@@ -107,11 +111,34 @@ func cacheSegmentBars(cache statspkg.Cache) []barItem {
 
 func cacheReuseBuckets(durations []statspkg.CacheDurationBucket) []histBucket {
 	buckets := make([]histBucket, 0, len(durations))
+	maxFiniteCount := 0
+	infiniteIndexes := make([]int, 0)
 	for _, d := range durations {
+		if math.IsInf(d.ReuseRatio, 1) {
+			infiniteIndexes = append(infiniteIndexes, len(buckets))
+			buckets = append(buckets, histBucket{
+				Label:   d.Label,
+				Display: "inf",
+			})
+			continue
+		}
+		count := int(math.Round(d.ReuseRatio * 100))
+		if count > maxFiniteCount {
+			maxFiniteCount = count
+		}
 		buckets = append(buckets, histBucket{
 			Label: d.Label,
-			Count: int(math.Round(d.ReuseRatio * 100)),
+			Count: count,
 		})
+	}
+	if len(infiniteIndexes) == 0 {
+		return buckets
+	}
+	if maxFiniteCount == 0 {
+		maxFiniteCount = 100
+	}
+	for _, index := range infiniteIndexes {
+		buckets[index].Count = maxFiniteCount
 	}
 	return buckets
 }
@@ -281,8 +308,46 @@ func formatRate(rate float64) string {
 }
 
 func formatReuse(ratio float64) string {
+	if math.IsInf(ratio, 1) {
+		return "inf"
+	}
 	if ratio < 0.05 {
 		return "0x"
 	}
 	return fmt.Sprintf("%.1fx", ratio)
+}
+
+func normalizeReuseDailyRates(rates []statspkg.DailyRate) ([]statspkg.DailyRate, float64, bool) {
+	if len(rates) == 0 {
+		return nil, 1, false
+	}
+
+	maxFinite := 0.0
+	hasInfinite := false
+	for _, rate := range rates {
+		if math.IsInf(rate.Rate, 1) {
+			hasInfinite = true
+			continue
+		}
+		if rate.Rate > maxFinite {
+			maxFinite = rate.Rate
+		}
+	}
+
+	cap := max(maxFinite, 0.01)
+	if hasInfinite && cap < 1 {
+		cap = 1
+	}
+
+	normalized := make([]statspkg.DailyRate, len(rates))
+	copy(normalized, rates)
+	if !hasInfinite {
+		return normalized, cap, false
+	}
+	for i := range normalized {
+		if math.IsInf(normalized[i].Rate, 1) {
+			normalized[i].Rate = cap
+		}
+	}
+	return normalized, cap, true
 }

@@ -18,6 +18,7 @@ func testMeta(
 ) conv.SessionMeta {
 	meta := conv.SessionMeta{
 		ID:               id,
+		Provider:         conv.ProviderClaude,
 		Slug:             id,
 		Timestamp:        timestamp,
 		LastTimestamp:    timestamp,
@@ -60,6 +61,12 @@ func withProject(name string) func(*conv.SessionMeta) {
 func withModel(model string) func(*conv.SessionMeta) {
 	return func(meta *conv.SessionMeta) {
 		meta.Model = model
+	}
+}
+
+func withProvider(provider conv.Provider) func(*conv.SessionMeta) {
+	return func(meta *conv.SessionMeta) {
+		meta.Provider = provider
 	}
 }
 

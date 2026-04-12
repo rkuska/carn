@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
@@ -47,7 +49,7 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 	assert.Equal(t, 35, got.MessageCount)
 	assert.Equal(
 		t,
-		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 2100},
+		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 100},
 		got.Tokens,
 	)
 	assert.Equal(
@@ -70,6 +72,28 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 	assert.Equal(t, "s2", got.TopSessions[0].Slug)
 	assert.Equal(t, "s1", got.TopSessions[1].Slug)
 	assert.Equal(t, "s3", got.TopSessions[2].Slug)
+}
+
+func TestComputeOverviewUsesCodexLegacyWriteProxy(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"codex-legacy",
+			time.Date(2026, 1, 11, 9, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderCodex),
+			withModel("gpt-5"),
+			withUsage(450, 0, 50, 90),
+		),
+	}
+
+	got := ComputeOverview(sessions)
+
+	assert.Equal(
+		t,
+		TokenTotals{Total: 590, Input: 450, Output: 90, CacheRead: 50, CacheWrite: 450},
+		got.Tokens,
+	)
 }
 
 func TestComputeOverviewEmptyInput(t *testing.T) {

@@ -101,9 +101,13 @@ func histogramBucketRenders(
 	for _, bucket := range buckets {
 		scaledHeight := scaledWidth(bucket.Count, maxCount, maxHeight)
 		labelLevel, labelInside := histogramValueLabelPlacement(scaledHeight, maxHeight)
+		label := bucket.Display
+		if label == "" {
+			label = statspkg.FormatNumber(bucket.Count)
+		}
 		renderBuckets = append(renderBuckets, histogramBucketRender{
 			scaledHeight: scaledHeight,
-			label:        statspkg.FormatNumber(bucket.Count),
+			label:        label,
 			labelLevel:   labelLevel,
 			labelInside:  labelInside,
 		})

@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -118,22 +119,22 @@ func TestComputeCacheZeroDenominators(t *testing.T) {
 	assert.Zero(t, got.ReuseRatio)
 }
 
-func TestComputeCacheZeroCacheWriteWithReads(t *testing.T) {
+func TestComputeCacheClaudeMissesStayOutOfCacheWrites(t *testing.T) {
 	t.Parallel()
 
-	// Codex pattern: cache reads present but no explicit cache writes.
-	// Write proxy uses InputTokens (uncached) as estimate.
-	// ReuseRatio = CacheRead / writeProxy = 500 / 500 = 1.0
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderClaude),
 			withUsage(500, 0, 500, 100)),
 	}
 
 	got := ComputeCache(sessions, TimeRange{})
 
-	assert.InDelta(t, 1.0, got.ReuseRatio, 0.001)
 	assert.InDelta(t, 0.5, got.HitRate, 0.001)
-	assert.Equal(t, 500, got.TotalCacheWrite)
+	assert.InDelta(t, 0.5, got.MissRate, 0.001)
+	assert.Zero(t, got.TotalCacheWrite)
+	assert.Equal(t, 500, got.Main.MissTokens)
+	assert.True(t, math.IsInf(got.ReuseRatio, 1))
 }
 
 func TestComputeCacheMainSubagentSplit(t *testing.T) {
@@ -231,20 +232,18 @@ func TestComputeCacheDailyHitRateZeroPromptDay(t *testing.T) {
 	assert.InDelta(t, 0.0, got.DailyHitRate[0].Rate, 0.001)
 }
 
-func TestComputeCacheDailyReuseRatioWriteProxy(t *testing.T) {
+func TestComputeCacheDailyReuseRatioIsInfiniteWithoutWrites(t *testing.T) {
 	t.Parallel()
 
-	// Codex pattern: reads without explicit writes.
-	// Write proxy = InputTokens = 500. Reuse = 500/500 = 1.0
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
-			withUsage(500, 0, 500, 100)),
+			withUsage(0, 0, 500, 100)),
 	}
 
 	got := ComputeCache(sessions, TimeRange{})
 
 	require.Len(t, got.DailyReuseRatio, 1)
-	assert.InDelta(t, 1.0, got.DailyReuseRatio[0].Rate, 0.001)
+	assert.True(t, math.IsInf(got.DailyReuseRatio[0].Rate, 1))
 }
 
 func TestComputeCacheDurationBuckets(t *testing.T) {
@@ -310,22 +309,20 @@ func TestComputeCacheDurationBucketsAveraging(t *testing.T) {
 	assert.InDelta(t, 5.5, bucket.ReuseRatio, 0.001)
 }
 
-func TestComputeCacheDurationBucketReuseWriteProxy(t *testing.T) {
+func TestComputeCacheDurationBucketReuseIsInfiniteWithoutWrites(t *testing.T) {
 	t.Parallel()
 
-	// Codex pattern: reads without explicit writes.
-	// Write proxy = InputTokens = 500. Reuse = 500/500 = 1.0
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
 			withLastTimestamp(time.Date(2026, 1, 10, 9, 2, 0, 0, time.UTC)),
-			withUsage(500, 0, 500, 100)),
+			withUsage(0, 0, 500, 100)),
 	}
 
 	got := ComputeCache(sessions, TimeRange{})
 
 	bucket := got.DurationBuckets[0]
 	assert.Equal(t, 1, bucket.Sessions)
-	assert.InDelta(t, 1.0, bucket.ReuseRatio, 0.001)
+	assert.True(t, math.IsInf(bucket.ReuseRatio, 1))
 }
 
 func TestComputeCacheNoCacheTokens(t *testing.T) {
@@ -350,45 +347,65 @@ func TestCacheWriteProxy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		usage conv.TokenUsage
-		want  int
+		name string
+		meta conv.SessionMeta
+		want int
 	}{
 		{
 			name: "explicit writes returned as-is",
-			usage: conv.TokenUsage{
-				InputTokens:              200,
-				CacheCreationInputTokens: 100,
-				CacheReadInputTokens:     700,
+			meta: conv.SessionMeta{
+				Provider: conv.ProviderClaude,
+				TotalUsage: conv.TokenUsage{
+					InputTokens:              200,
+					CacheCreationInputTokens: 100,
+					CacheReadInputTokens:     700,
+				},
 			},
 			want: 100,
 		},
 		{
-			name: "reads without writes uses InputTokens as proxy",
-			usage: conv.TokenUsage{
-				InputTokens:          450,
-				CacheReadInputTokens: 50,
+			name: "legacy codex reads without writes uses InputTokens as proxy",
+			meta: conv.SessionMeta{
+				Provider: conv.ProviderCodex,
+				TotalUsage: conv.TokenUsage{
+					InputTokens:          450,
+					CacheReadInputTokens: 50,
+				},
 			},
 			want: 450,
 		},
 		{
-			name: "no reads no writes returns zero",
-			usage: conv.TokenUsage{
-				InputTokens: 500,
+			name: "claude reads without writes returns zero",
+			meta: conv.SessionMeta{
+				Provider: conv.ProviderClaude,
+				TotalUsage: conv.TokenUsage{
+					InputTokens:          450,
+					CacheReadInputTokens: 50,
+				},
 			},
 			want: 0,
 		},
 		{
-			name:  "zero usage returns zero",
-			usage: conv.TokenUsage{},
-			want:  0,
+			name: "no reads no writes returns zero",
+			meta: conv.SessionMeta{
+				Provider: conv.ProviderCodex,
+				TotalUsage: conv.TokenUsage{
+					InputTokens: 500,
+				},
+			},
+			want: 0,
+		},
+		{
+			name: "zero usage returns zero",
+			meta: conv.SessionMeta{},
+			want: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, cacheWriteProxy(tt.usage))
+			assert.Equal(t, tt.want, cacheWriteProxy(tt.meta))
 		})
 	}
 }
@@ -417,8 +434,10 @@ func TestComputeCacheMixedProviderWriteProxy(t *testing.T) {
 	// Codex writeProxy = 450
 	sessions := []sessionMeta{
 		testMeta("claude", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderClaude),
 			withUsage(200, 100, 700, 100)),
 		testMeta("codex", time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderCodex),
 			withUsage(450, 0, 50, 100)),
 	}
 
@@ -438,6 +457,7 @@ func TestComputeCacheWriteProxySegmentInvariant(t *testing.T) {
 	// Codex pattern: verify CacheRead + CacheWrite + MissTokens == Prompt
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderCodex),
 			withUsage(450, 0, 50, 100)),
 	}
 

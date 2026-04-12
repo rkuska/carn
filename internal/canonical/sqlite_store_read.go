@@ -155,6 +155,7 @@ func loadSQLiteSessions(
 		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)
 		}
+		meta.Provider = conversations[index].Ref.Provider
 		meta.Project = conversations[index].Project
 		conversations[index].Sessions = append(conversations[index].Sessions, meta)
 	}

@@ -18,8 +18,9 @@ type barItem struct {
 }
 
 type histBucket struct {
-	Label string
-	Count int
+	Label   string
+	Count   int
+	Display string
 }
 
 type tableRow struct {

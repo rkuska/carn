@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"math"
 	"time"
 
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -34,7 +35,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 	for _, session := range sessions {
 		accumulateCacheSession(&cache, session)
 
-		writeProxy := cacheWriteProxy(session.TotalUsage)
+		writeProxy := cacheWriteProxy(session)
 		day := startOfDayInLocation(
 			normalizeActivityTime(session.Timestamp, location),
 			location,
@@ -68,12 +69,8 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 			Date: day, Rate: hitRate,
 		})
 
-		var reuseRatio float64
-		if w := writeByDay[day]; w > 0 {
-			reuseRatio = float64(readByDay[day]) / float64(w)
-		}
 		cache.DailyReuseRatio = append(cache.DailyReuseRatio, DailyRate{
-			Date: day, Rate: reuseRatio,
+			Date: day, Rate: cacheReuseRatio(readByDay[day], writeByDay[day]),
 		})
 	}
 
@@ -83,9 +80,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 		bucket := CacheDurationBucket{Label: label, Sessions: b.count}
 		if b.count > 0 {
 			bucket.HitRate = b.hitRateSum / float64(b.count)
-			if b.writeSum > 0 {
-				bucket.ReuseRatio = float64(b.readSum) / float64(b.writeSum)
-			}
+			bucket.ReuseRatio = cacheReuseRatio(b.readSum, b.writeSum)
 		}
 		cache.DurationBuckets[i] = bucket
 	}
@@ -96,7 +91,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 func accumulateCacheSession(cache *Cache, session conv.SessionMeta) {
 	usage := session.TotalUsage
 	prompt := sessionPromptTokens(session)
-	writeProxy := cacheWriteProxy(usage)
+	writeProxy := cacheWriteProxy(session)
 
 	cache.TotalCacheRead += usage.CacheReadInputTokens
 	cache.TotalCacheWrite += writeProxy
@@ -120,9 +115,7 @@ func finalizeCacheRates(cache *Cache) {
 		cache.WriteRate = float64(cache.TotalCacheWrite) / prompt
 		cache.MissRate = float64(cache.TotalPrompt-cache.TotalCacheRead-cache.TotalCacheWrite) / prompt
 	}
-	if cache.TotalCacheWrite > 0 {
-		cache.ReuseRatio = float64(cache.TotalCacheRead) / float64(cache.TotalCacheWrite)
-	}
+	cache.ReuseRatio = cacheReuseRatio(cache.TotalCacheRead, cache.TotalCacheWrite)
 
 	finalizeSegmentRates(&cache.Main)
 	finalizeSegmentRates(&cache.Subagent)
@@ -135,17 +128,29 @@ func finalizeSegmentRates(seg *CacheSegment) {
 }
 
 // cacheWriteProxy returns the best available cache-write token count.
-// Providers that report explicit writes (Claude) return CacheCreationInputTokens.
-// Providers that only report reads (Codex/OpenAI) fall back to InputTokens
-// (uncached tokens) as an approximation of cache writes.
-func cacheWriteProxy(usage conv.TokenUsage) int {
+// Source-side normalization already fills CacheCreationInputTokens for current
+// providers. Keep the InputTokens fallback only for legacy Codex/OpenAI
+// sessions that predate that normalization.
+func cacheWriteProxy(session conv.SessionMeta) int {
+	usage := session.TotalUsage
 	if usage.CacheCreationInputTokens > 0 {
 		return usage.CacheCreationInputTokens
 	}
-	if usage.CacheReadInputTokens > 0 {
+	if session.Provider == conv.ProviderCodex && usage.CacheReadInputTokens > 0 {
 		return usage.InputTokens
 	}
 	return 0
+}
+
+func cacheReuseRatio(read, write int) float64 {
+	switch {
+	case write > 0:
+		return float64(read) / float64(write)
+	case read > 0:
+		return math.Inf(1)
+	default:
+		return 0
+	}
 }
 
 func sessionPromptTokens(session conv.SessionMeta) int {

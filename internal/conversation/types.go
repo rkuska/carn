@@ -91,6 +91,7 @@ func IsRejectedToolResultContent(content string) bool {
 
 type SessionMeta struct {
 	ID                    string
+	Provider              Provider
 	Project               Project
 	Slug                  string
 	Timestamp             time.Time

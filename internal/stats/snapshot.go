@@ -32,7 +32,12 @@ func flattenConversationSessions(conversations []conv.Conversation) []conv.Sessi
 	}
 	sessions := make([]conv.SessionMeta, 0, count)
 	for _, conversation := range conversations {
-		sessions = append(sessions, conversation.Sessions...)
+		for _, session := range conversation.Sessions {
+			if session.Provider == "" {
+				session.Provider = conversation.Ref.Provider
+			}
+			sessions = append(sessions, session)
+		}
 	}
 	return sessions
 }

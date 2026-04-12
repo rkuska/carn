@@ -12,6 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -181,7 +182,11 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	defer metadataReaderPool.Put(br)
 
 	result := scannedSession{
-		meta: sessionMeta{FilePath: filePath, Project: proj},
+		meta: sessionMeta{
+			FilePath: filePath,
+			Provider: conv.ProviderClaude,
+			Project:  proj,
+		},
 	}
 	state := newMetadataScanState(&result)
 

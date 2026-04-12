@@ -84,6 +84,7 @@ func newScanState(path string) scanState {
 	return scanState{
 		meta: conv.SessionMeta{
 			FilePath: path,
+			Provider: conv.ProviderCodex,
 		},
 		readEvidence: make(map[string]struct{}),
 		drift:        &drift,

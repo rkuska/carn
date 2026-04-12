@@ -276,6 +276,7 @@ func loadSQLiteConversationSessionsByRowID(
 		); err != nil {
 			return fmt.Errorf("finalizeSessionMeta: %w", err)
 		}
+		meta.Provider = convValue.Ref.Provider
 		meta.Project = convValue.Project
 		convValue.Sessions = append(convValue.Sessions, meta)
 	}
