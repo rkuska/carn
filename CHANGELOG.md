@@ -1,3 +1,17 @@
+# v0.3.1
+
+A small polish release that fixes a visual spacing issue in the stats
+dashboard lane cards.
+
+## Fixes
+
+- **Stats lane card padding** — Chart bars and text in lane cards started
+  immediately after the badge border with no vertical gap, making the content
+  look cramped. Lane cards now include a line of breathing room between the
+  title badge and the body.
+
+---
+
 # v0.3.0
 
 This release adds a dedicated Cache stats tab, moves the stats dashboard onto
