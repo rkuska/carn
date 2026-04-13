@@ -66,8 +66,7 @@ func Run() error {
 		Compress:   true,
 	}
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: logWriter, NoColor: true}).
-		With().Timestamp().Logger().Level(level)
+	logger := newAppLogger(logWriter, level)
 	defer func() {
 		if closeErr := logWriter.Close(); closeErr != nil {
 			logger.Warn().Err(closeErr).Msg("logWriter.Close")
