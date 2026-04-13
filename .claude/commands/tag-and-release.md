@@ -17,9 +17,44 @@ Before starting, verify the working tree is ready for a release:
    and ask the user to pull. If ahead, warn that unpushed commits
    exist and confirm they should be included in the release.
 
-## Step 1 — Update project documents
+## Step 1 — Gather context
 
-Before gathering release context, update the project's baseline documents
+Run these commands to understand what changed since the last release.
+
+Find the last tag:
+
+```bash
+LAST_TAG=$(git describe --tags --abbrev=0)
+```
+
+Then list commits since that tag with full bodies:
+
+```bash
+git log "${LAST_TAG}..HEAD" --format='%h %s%n%b---'
+```
+
+Categorize commits by type (`feat`, `fix`, `refactor`, `perf`, `chore`,
+`docs`, `style`) and by scope. Count features and fixes.
+
+## Step 2 — Determine version
+
+Present the user with a short summary of what changed (number of features,
+fixes, improvements). Suggest a version number:
+
+- Any `feat` commits → suggest **minor** bump (e.g. v0.1.0 → v0.2.0)
+- Only `fix` commits → suggest **patch** bump (e.g. v0.1.0 → v0.1.1)
+- Any commit body containing `BREAKING CHANGE` → suggest **major** bump
+
+**Ask the user** what version this should be. Accept their explicit version
+or their confirmation of the suggestion.
+
+## Step 3 — Update project documents
+
+**Skip this step for patch releases.** Fixes rarely introduce new types,
+change package structure, or move performance baselines. Proceed directly
+to Step 4.
+
+For **minor** or **major** releases, update the project's baseline documents
 so they reflect the code being tagged. Work through each document below
 and make the necessary edits.
 
@@ -72,37 +107,6 @@ rm "$TMPFILE"
 ```
 
 If nothing changed, skip the commit and continue.
-
-## Step 2 — Gather context
-
-Run these commands to understand what changed since the last release.
-
-Find the last tag:
-
-```bash
-LAST_TAG=$(git describe --tags --abbrev=0)
-```
-
-Then list commits since that tag with full bodies:
-
-```bash
-git log "${LAST_TAG}..HEAD" --format='%h %s%n%b---'
-```
-
-Categorize commits by type (`feat`, `fix`, `refactor`, `perf`, `chore`,
-`docs`, `style`) and by scope. Count features and fixes.
-
-## Step 3 — Determine version
-
-Present the user with a short summary of what changed (number of features,
-fixes, improvements). Suggest a version number:
-
-- Any `feat` commits → suggest **minor** bump (e.g. v0.1.0 → v0.2.0)
-- Only `fix` commits → suggest **patch** bump (e.g. v0.1.0 → v0.1.1)
-- Any commit body containing `BREAKING CHANGE` → suggest **major** bump
-
-**Ask the user** what version this should be. Accept their explicit version
-or their confirmation of the suggestion.
 
 ## Step 4 — Draft release notes
 
