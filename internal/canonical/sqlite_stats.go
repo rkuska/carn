@@ -189,10 +189,16 @@ func collectConversationStatsData(
 	sources sourceRegistry,
 	collector StatsCollector,
 	convValue conversation,
+	preloadedSessions []sessionFull,
 ) ([]conv.SessionStatsData, []conv.ActivityBucketRow, error) {
 	source, ok := sources.lookup(conversationProvider(convValue.Ref.Provider))
 	if !ok {
 		return nil, nil, fmt.Errorf("collectConversationStatsData: %w", errSourceNotRegistered)
+	}
+
+	if len(preloadedSessions) == len(convValue.Sessions) && len(preloadedSessions) > 0 {
+		sessions := statsSessionsWithMeta(convValue, preloadedSessions)
+		return collectLoadedConversationStats(collector, sessions), aggregateActivityBuckets(sessions), nil
 	}
 
 	statsData := make([]conv.SessionStatsData, 0, len(convValue.Sessions))
@@ -202,15 +208,51 @@ func collectConversationStatsData(
 		if err != nil {
 			return nil, nil, fmt.Errorf("source.LoadSession_%s: %w", meta.ID, err)
 		}
-		session.Meta = meta
-		session.Meta.Provider = convValue.Ref.Provider
-		session.Meta.Project = convValue.Project
+		session = statsSessionWithMeta(session, convValue, meta)
 		loadedSessions = append(loadedSessions, session)
-		if collector != nil {
-			statsData = append(statsData, collector.CollectSessionStats(session))
+		if sessionStats, ok := collectSessionStatsData(collector, session); ok {
+			statsData = append(statsData, sessionStats)
 		}
 	}
 	return statsData, aggregateActivityBuckets(loadedSessions), nil
+}
+
+func collectLoadedConversationStats(
+	collector StatsCollector,
+	sessions []sessionFull,
+) []conv.SessionStatsData {
+	if collector == nil || len(sessions) == 0 {
+		return nil
+	}
+	statsData := make([]conv.SessionStatsData, 0, len(sessions))
+	for _, session := range sessions {
+		if sessionStats, ok := collectSessionStatsData(collector, session); ok {
+			statsData = append(statsData, sessionStats)
+		}
+	}
+	return statsData
+}
+
+func statsSessionWithMeta(session sessionFull, convValue conversation, meta sessionMeta) sessionFull {
+	session.Meta = meta
+	session.Meta.Provider = convValue.Ref.Provider
+	session.Meta.Project = convValue.Project
+	return session
+}
+
+func statsSessionsWithMeta(convValue conversation, loadedSessions []sessionFull) []sessionFull {
+	sessions := make([]sessionFull, len(loadedSessions))
+	for i := range loadedSessions {
+		sessions[i] = statsSessionWithMeta(loadedSessions[i], convValue, convValue.Sessions[i])
+	}
+	return sessions
+}
+
+func collectSessionStatsData(collector StatsCollector, session sessionFull) (conv.SessionStatsData, bool) {
+	if collector == nil {
+		return conv.SessionStatsData{}, false
+	}
+	return collector.CollectSessionStats(session), true
 }
 
 func aggregateActivityBuckets(sessions []sessionFull) []conv.ActivityBucketRow {

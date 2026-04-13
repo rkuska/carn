@@ -325,7 +325,7 @@ func dailyRateBarGaps(bucketCount, plotWidth, barWidth int) []int {
 	}
 
 	extra := plotWidth - bucketCount*barWidth - gapCount*baseGapWidth
-	for i := 0; i < extra; i++ {
+	for i := range extra {
 		gaps[(i+1)*gapCount/(extra+1)]++
 	}
 	return gaps
@@ -397,7 +397,7 @@ func placeDailyRateLabel(
 	}
 
 	labelWidth := len([]rune(placement.Label))
-	for i := 0; i < labelWidth; i++ {
+	for i := range labelWidth {
 		if used[start+i] {
 			return false
 		}

@@ -40,6 +40,16 @@ type parseResult struct {
 	activityBucketRows []conv.ActivityBucketRow
 }
 
+type conversationBundleLoader interface {
+	LoadConversationBundle(ctx context.Context, conv conversation) (sessionFull, []sessionFull, error)
+}
+
+type parseOutputResult struct {
+	key     string
+	session sessionFull
+	units   []searchUnit
+}
+
 func (c searchCorpus) Len() int {
 	total := 0
 	for _, units := range c.byConversation {
@@ -139,12 +149,55 @@ func parseConversationsParallelWithSources(
 	sources sourceRegistry,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
-	results, err := parseConversationsParallelResultsWithSources(ctx, sources, nil, conversations)
+	results, err := parseConversationOutputsParallelWithSources(ctx, sources, conversations)
 	if err != nil {
-		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
+		return nil, searchCorpus{}, fmt.Errorf("parseConversationOutputsParallelWithSources: %w", err)
 	}
-	transcripts, corpus := buildParseOutputs(results)
+	transcripts, corpus := buildParseOutputsFromConversationOutputs(results)
 	return transcripts, corpus, nil
+}
+
+func parseConversationOutputsParallelWithSources(
+	ctx context.Context,
+	sources sourceRegistry,
+	conversations []conversation,
+) ([]parseOutputResult, error) {
+	if len(conversations) == 0 {
+		return nil, nil
+	}
+
+	results := make([]parseOutputResult, len(conversations))
+	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for i := range conversations {
+		index := i
+		conv := conversations[i]
+		group.Go(func() error {
+			if err := sem.Acquire(groupCtx, 1); err != nil {
+				return fmt.Errorf("sem.Acquire_%s: %w", conv.CacheKey(), err)
+			}
+			defer sem.Release(1)
+
+			session, err := loadConversationSession(groupCtx, sources, conv)
+			if err != nil {
+				return fmt.Errorf("loadConversationSession_%s: %w", conv.CacheKey(), err)
+			}
+
+			key := conv.CacheKey()
+			results[index] = parseOutputResult{
+				key:     key,
+				session: session,
+				units:   buildSearchUnits(key, session),
+			}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("errgroup.Wait: %w", err)
+	}
+	return results, nil
 }
 
 func parseConversationsParallelResultsWithSources(
@@ -170,15 +223,16 @@ func parseConversationsParallelResultsWithSources(
 			}
 			defer sem.Release(1)
 
-			session, err := loadConversationSession(groupCtx, sources, conv)
+			session, loadedSessions, err := loadConversationBundle(groupCtx, sources, conv)
 			if err != nil {
-				return fmt.Errorf("loadConversationSession_%s: %w", conv.CacheKey(), err)
+				return fmt.Errorf("loadConversationBundle_%s: %w", conv.CacheKey(), err)
 			}
 			enrichedConv, enrichedSession, err := enrichConversationToolOutcomes(
 				groupCtx,
 				sources,
 				conv,
 				session,
+				loadedSessions,
 			)
 			if err != nil {
 				return fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
@@ -188,6 +242,7 @@ func parseConversationsParallelResultsWithSources(
 				sources,
 				collector,
 				conv,
+				loadedSessions,
 			)
 			if err != nil {
 				return fmt.Errorf("collectConversationStatsData_%s: %w", conv.CacheKey(), err)
@@ -236,6 +291,20 @@ func buildParseOutputs(results []parseResult) (map[string]sessionFull, searchCor
 	return transcripts, corpus
 }
 
+func buildParseOutputsFromConversationOutputs(
+	results []parseOutputResult,
+) (map[string]sessionFull, searchCorpus) {
+	transcripts := make(map[string]sessionFull, len(results))
+	corpus := searchCorpus{
+		byConversation: make(map[string][]searchUnit, len(results)),
+	}
+	for _, result := range results {
+		transcripts[result.key] = result.session
+		corpus.byConversation[result.key] = result.units
+	}
+	return transcripts, corpus
+}
+
 func conversationsFromParseResults(results []parseResult) []conversation {
 	conversations := make([]conversation, len(results))
 	for i, result := range results {
@@ -259,4 +328,32 @@ func loadConversationSession(
 		return sessionFull{}, fmt.Errorf("source.Load: %w", err)
 	}
 	return session, nil
+}
+
+func loadConversationBundle(
+	ctx context.Context,
+	sources sourceRegistry,
+	conv conversation,
+) (sessionFull, []sessionFull, error) {
+	source, ok := sources.lookup(conversationProvider(conv.Ref.Provider))
+	if !ok {
+		return sessionFull{}, nil, fmt.Errorf("loadConversationBundle: %w", errors.New("provider is not registered"))
+	}
+
+	if loader, ok := any(source).(conversationBundleLoader); ok {
+		session, sessions, err := loader.LoadConversationBundle(ctx, conv)
+		if err != nil {
+			return sessionFull{}, nil, fmt.Errorf("loader.LoadConversationBundle: %w", err)
+		}
+		return session, sessions, nil
+	}
+
+	session, err := loadConversationSession(ctx, sources, conv)
+	if err != nil {
+		return sessionFull{}, nil, fmt.Errorf("loadConversationSession: %w", err)
+	}
+	if len(conv.Sessions) == 1 {
+		return session, []sessionFull{session}, nil
+	}
+	return session, nil, nil
 }

@@ -17,6 +17,7 @@ func enrichConversationToolOutcomes(
 	sources sourceRegistry,
 	convValue conversation,
 	session sessionFull,
+	preloadedSessions []sessionFull,
 ) (conversation, sessionFull, error) {
 	if len(convValue.Sessions) == 0 {
 		return convValue, session, nil
@@ -34,32 +35,71 @@ func enrichConversationToolOutcomes(
 		return enriched, enrichedSession, nil
 	}
 
-	enriched := convValue
-	enriched.Sessions = append([]sessionMeta(nil), convValue.Sessions...)
+	if len(preloadedSessions) == len(convValue.Sessions) && len(preloadedSessions) > 0 {
+		enriched, enrichedSession := applyPreloadedToolOutcomeCounts(convValue, session, preloadedSessions)
+		return enriched, enrichedSession, nil
+	}
+
+	enriched, err := loadToolOutcomeCounts(ctx, source, convValue)
+	if err != nil {
+		return conversation{}, sessionFull{}, err
+	}
+	enrichedSessionConv, enrichedSession := applyFirstSessionToolOutcomeCounts(enriched, session)
+	return enrichedSessionConv, enrichedSession, nil
+}
+
+func applyPreloadedToolOutcomeCounts(
+	convValue conversation,
+	session sessionFull,
+	preloadedSessions []sessionFull,
+) (conversation, sessionFull) {
+	enriched := copyConversationSessions(convValue)
+	for i, meta := range convValue.Sessions {
+		applyToolOutcomeCounts(&meta, conv.DeriveToolOutcomeCounts(preloadedSessions[i].Messages))
+		enriched.Sessions[i] = meta
+	}
+	return applyFirstSessionToolOutcomeCounts(enriched, session)
+}
+
+func loadToolOutcomeCounts(
+	ctx context.Context,
+	source Source,
+	convValue conversation,
+) (conversation, error) {
+	enriched := copyConversationSessions(convValue)
 	for i, meta := range convValue.Sessions {
 		loaded, err := source.LoadSession(ctx, convValue, meta)
 		if err != nil {
-			return conversation{}, sessionFull{}, fmt.Errorf("source.LoadSession_%s: %w", meta.ID, err)
+			return conversation{}, fmt.Errorf("source.LoadSession_%s: %w", meta.ID, err)
 		}
 		applyToolOutcomeCounts(&meta, conv.DeriveToolOutcomeCounts(loaded.Messages))
 		enriched.Sessions[i] = meta
 	}
-
-	if len(enriched.Sessions) > 0 {
-		session.Meta.ToolCounts = enriched.Sessions[0].ToolCounts
-		session.Meta.ToolErrorCounts = enriched.Sessions[0].ToolErrorCounts
-		session.Meta.ToolRejectCounts = enriched.Sessions[0].ToolRejectCounts
-	}
-	return enriched, session, nil
+	return enriched, nil
 }
 
 func applyScannedToolOutcomeCounts(convValue conversation, session sessionFull) (conversation, sessionFull) {
-	enriched := convValue
-	enriched.Sessions = append([]sessionMeta(nil), convValue.Sessions...)
+	enriched := copyConversationSessions(convValue)
 	if len(enriched.Sessions) == 0 {
 		return enriched, session
 	}
 
+	return applyFirstSessionToolOutcomeCounts(enriched, session)
+}
+
+func copyConversationSessions(convValue conversation) conversation {
+	enriched := convValue
+	enriched.Sessions = append([]sessionMeta(nil), convValue.Sessions...)
+	return enriched
+}
+
+func applyFirstSessionToolOutcomeCounts(
+	enriched conversation,
+	session sessionFull,
+) (conversation, sessionFull) {
+	if len(enriched.Sessions) == 0 {
+		return enriched, session
+	}
 	session.Meta.ToolCounts = enriched.Sessions[0].ToolCounts
 	session.Meta.ToolErrorCounts = enriched.Sessions[0].ToolErrorCounts
 	session.Meta.ToolRejectCounts = enriched.Sessions[0].ToolRejectCounts

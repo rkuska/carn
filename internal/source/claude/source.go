@@ -42,6 +42,17 @@ func (Source) Load(ctx context.Context, conversation conv.Conversation) (conv.Se
 	return session, nil
 }
 
+func (Source) LoadConversationBundle(
+	ctx context.Context,
+	conversation conv.Conversation,
+) (conv.Session, []conv.Session, error) {
+	session, sessions, err := loadConversationBundle(ctx, conversation)
+	if err != nil {
+		return conv.Session{}, nil, fmt.Errorf("loadConversationBundle: %w", err)
+	}
+	return session, sessions, nil
+}
+
 func (s Source) LoadSession(
 	ctx context.Context,
 	conversation conv.Conversation,
