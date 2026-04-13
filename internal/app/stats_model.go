@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/key"
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -44,42 +43,34 @@ const (
 )
 
 type statsModel struct {
-	conversations                 []conv.Conversation
-	store                         browserStore
-	ctx                           context.Context
-	archiveDir                    string
-	tab                           statsTab
-	timeRange                     stats.TimeRange
-	snapshot                      stats.Snapshot
-	claudeTurnMetricSessions      []stats.SessionTurnMetrics
-	claudeTurnMetricsSourceKey    string
-	claudeTurnMetrics             []stats.PositionTokenMetrics
-	claudeTurnMetricsLoadingKey   string
-	performanceSequenceSessions   []stats.PerformanceSequenceSession
-	performanceSequenceSourceKey  string
-	performanceSequenceLoadingKey string
-	filter                        browserFilterState
-	viewer                        viewerModel
-	viewerOpen                    bool
-	notification                  notification
-	helpOpen                      bool
-	renderedTabContent            string
-	viewport                      viewport.Model
-	spinner                       spinner.Model
-	width, height                 int
-	overviewLaneCursor            int
-	overviewSessionCursor         int
-	activityMetric                activityMetric
-	activityLaneCursor            int
-	sessionsLaneCursor            int
-	toolsLaneCursor               int
-	cacheLaneCursor               int
-	cacheMetric                   cacheMetric
-	performanceLaneCursor         int
-	performanceMetricCursor       int
-	glamourStyle                  string
-	timestampFormat               string
-	launcher                      sessionLauncher
+	conversations           []conv.Conversation
+	store                   browserStore
+	ctx                     context.Context
+	archiveDir              string
+	tab                     statsTab
+	timeRange               stats.TimeRange
+	snapshot                stats.Snapshot
+	filter                  browserFilterState
+	viewer                  viewerModel
+	viewerOpen              bool
+	notification            notification
+	helpOpen                bool
+	renderedTabContent      string
+	viewport                viewport.Model
+	width, height           int
+	overviewLaneCursor      int
+	overviewSessionCursor   int
+	activityMetric          activityMetric
+	activityLaneCursor      int
+	sessionsLaneCursor      int
+	toolsLaneCursor         int
+	cacheLaneCursor         int
+	cacheMetric             cacheMetric
+	performanceLaneCursor   int
+	performanceMetricCursor int
+	glamourStyle            string
+	timestampFormat         string
+	launcher                sessionLauncher
 }
 
 const (
@@ -122,9 +113,6 @@ func newStatsModel(
 	vp := viewport.New()
 	vp.KeyMap.PageDown.SetEnabled(false)
 	vp.KeyMap.PageUp.SetEnabled(false)
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
 
 	model := statsModel{
 		conversations: conversations,
@@ -132,7 +120,6 @@ func newStatsModel(
 		ctx:           context.Background(),
 		filter:        copyBrowserFilterState(filter),
 		viewport:      vp,
-		spinner:       s,
 		width:         width,
 		height:        height,
 		tab:           statsTabOverview,
@@ -174,15 +161,8 @@ func (m statsModel) handleStatsMessage(msg tea.Msg) (statsModel, tea.Cmd, bool) 
 		return m.setSize(msg.Width, msg.Height), nil, true
 	case closeStatsMsg:
 		return m, nil, true
-	case claudeTurnMetricsLoadedMsg:
-		return m.applyClaudeTurnMetricsLoaded(msg), nil, true
-	case performanceSequenceLoadedMsg:
-		return m.applyPerformanceSequenceLoaded(msg), nil, true
 	case statsSessionLoadedMsg:
 		return m.openLoadedViewer(msg), nil, true
-	case spinner.TickMsg:
-		next, cmd := m.handleSpinnerTick(msg)
-		return next, cmd, true
 	case notificationMsg:
 		m.notification = msg.notification
 		return m, clearNotificationAfter(msg.notification.kind), true
@@ -212,14 +192,11 @@ func (m statsModel) setSize(width, height int) statsModel {
 
 func (m statsModel) applyFilterChange() statsModel {
 	m = m.recomputeSnapshot()
-	m.claudeTurnMetricSessions = nil
-	m.claudeTurnMetricsSourceKey = ""
-	m.claudeTurnMetrics = nil
-	m.claudeTurnMetricsLoadingKey = ""
-	m.performanceSequenceSessions = nil
-	m.performanceSequenceSourceKey = ""
-	m.performanceSequenceLoadingKey = ""
 	return m.renderViewportContent(true)
+}
+
+func (m statsModel) applyFilterChangeAndMaybeLoad() (statsModel, tea.Cmd) {
+	return m.applyFilterChange(), nil
 }
 
 func (m statsModel) renderViewportContent(resetScroll bool) statsModel {
@@ -270,13 +247,53 @@ func (m statsModel) renderActiveTab() string {
 
 func (m statsModel) recomputeSnapshot() statsModel {
 	conversations := m.filteredConversations()
-	var sequence []stats.PerformanceSequenceSession
-	if m.performanceSequenceSourceKey == m.performanceSequenceSourceCacheKey() {
-		sequence = m.performanceSequenceSessions
-	}
-	m.snapshot = stats.ComputeSnapshot(conversations, m.timeRange, sequence)
+	cacheKeys := filteredConversationCacheKeys(conversations)
+	sequence, turnMetrics, dailyTokens := m.loadPrecomputedStatsRows(cacheKeys)
+	m.snapshot = stats.ComputeSnapshotWithPrecomputed(
+		conversations,
+		m.timeRange,
+		sequence,
+		turnMetrics,
+		dailyTokens,
+	)
 	m = m.normalizeStatsSelection()
 	return m
+}
+
+func (m statsModel) loadPrecomputedStatsRows(
+	cacheKeys []string,
+) ([]conv.PerformanceSequenceSession, []conv.SessionTurnMetrics, []conv.DailyTokenRow) {
+	if m.store == nil || m.archiveDir == "" || len(cacheKeys) == 0 {
+		return nil, nil, nil
+	}
+
+	return loadStatsRows(
+		m.ctx,
+		m.store,
+		m.archiveDir,
+		cacheKeys,
+	)
+}
+
+func loadStatsRows(
+	ctx context.Context,
+	store browserStore,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.PerformanceSequenceSession, []conv.SessionTurnMetrics, []conv.DailyTokenRow) {
+	sequence, err := store.QueryPerformanceSequence(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		sequence = nil
+	}
+	turnMetrics, err := store.QueryTurnMetrics(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		turnMetrics = nil
+	}
+	dailyTokens, err := store.QueryDailyTokens(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		dailyTokens = nil
+	}
+	return sequence, turnMetrics, dailyTokens
 }
 
 func (m statsModel) contentWidth() int {
@@ -289,6 +306,14 @@ func (m statsModel) contentHeight() int {
 
 func (m statsModel) filteredConversations() []conv.Conversation {
 	return applyStructuredFilters(m.conversations, m.filter.dimensions)
+}
+
+func filteredConversationCacheKeys(conversations []conv.Conversation) []string {
+	cacheKeys := make([]string, 0, len(conversations))
+	for _, conversation := range conversations {
+		cacheKeys = append(cacheKeys, conversation.CacheKey())
+	}
+	return cacheKeys
 }
 
 func (m statsModel) footerStatusParts() []string {

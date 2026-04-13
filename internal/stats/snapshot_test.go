@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -81,4 +83,90 @@ func TestComputeSnapshotAppliesLoadedPerformanceSequence(t *testing.T) {
 	if got.Performance.Scope.SequenceSampleCount != 1 {
 		t.Fatalf("SequenceSampleCount = %d, want 1", got.Performance.Scope.SequenceSampleCount)
 	}
+}
+
+func TestComputeSnapshotWithPrecomputedUsesDailyTokensAndTurnMetrics(t *testing.T) {
+	t.Parallel()
+
+	currentTime := time.Date(2026, 2, 10, 10, 0, 0, 0, time.UTC)
+	conversations := []conversation{
+		testConversation(
+			conv.ProviderClaude,
+			"current",
+			testMeta(
+				"current",
+				currentTime,
+				withMainMessages(5),
+				withUsage(999, 0, 0, 999),
+				func(meta *conv.SessionMeta) {
+					meta.UserMessageCount = 2
+					meta.AssistantMessageCount = 3
+				},
+			),
+		),
+	}
+
+	got := ComputeSnapshotWithPrecomputed(
+		conversations,
+		TimeRange{
+			Start: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			End:   time.Date(2026, 2, 28, 23, 59, 59, 0, time.UTC),
+		},
+		[]conv.PerformanceSequenceSession{{
+			Timestamp:         currentTime,
+			Mutated:           true,
+			FirstPassResolved: true,
+			MutationCount:     1,
+			ActionCount:       1,
+		}},
+		[]conv.SessionTurnMetrics{
+			{
+				Timestamp: currentTime,
+				Turns: []conv.TurnTokens{{
+					InputTokens: 100,
+					TurnTokens:  150,
+				}},
+			},
+			{
+				Timestamp: currentTime.Add(2 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 120,
+					TurnTokens:  180,
+				}},
+			},
+			{
+				Timestamp: currentTime.Add(4 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 140,
+					TurnTokens:  210,
+				}},
+			},
+		},
+		[]conv.DailyTokenRow{
+			{
+				Date:                  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				SessionCount:          1,
+				MessageCount:          5,
+				UserMessageCount:      2,
+				AssistantMessageCount: 3,
+				InputTokens:           200,
+				OutputTokens:          50,
+			},
+			{
+				Date:                  time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+				SessionCount:          1,
+				MessageCount:          5,
+				UserMessageCount:      2,
+				AssistantMessageCount: 3,
+				InputTokens:           200,
+				OutputTokens:          50,
+			},
+		},
+	)
+
+	assert.Equal(t, 1, got.Overview.SessionCount)
+	assert.Equal(t, TrendDirectionFlat, got.Overview.TokenTrend.Direction)
+	assert.Len(t, got.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 1, got.Activity.ActiveDays)
+	assert.True(t, got.Performance.Scope.SequenceLoaded)
 }

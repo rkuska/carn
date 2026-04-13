@@ -106,6 +106,27 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 	})
 	defer restoreNow()
 
+	store := &fakeBrowserStore{
+		dailyTokenRows: []conv.DailyTokenRow{
+			{
+				Date:                  time.Date(2026, 3, 13, 0, 0, 0, 0, time.UTC),
+				SessionCount:          1,
+				MessageCount:          4,
+				UserMessageCount:      2,
+				AssistantMessageCount: 2,
+				InputTokens:           1000,
+			},
+			{
+				Date:                  time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+				SessionCount:          1,
+				MessageCount:          4,
+				UserMessageCount:      2,
+				AssistantMessageCount: 2,
+				InputTokens:           1250,
+			},
+		},
+	}
+
 	m := newStatsModel(
 		[]conv.Conversation{
 			testStatsConversationWithProviderAndSessions(
@@ -122,11 +143,12 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 				}),
 			),
 		},
-		&fakeBrowserStore{},
+		store,
 		120,
 		32,
 		newBrowserFilterState(),
 	)
+	m.archiveDir = t.TempDir()
 	m.timeRange = statsRange7d()
 	m = m.applyFilterChange()
 
@@ -523,13 +545,18 @@ func TestStatsRenderActivityUsesBorderedLaneCards(t *testing.T) {
 	assert.True(t, strings.HasPrefix(strings.TrimSpace(heatmapLine), "╭"))
 }
 
-func TestStatsRenderSessionsShowsBorderedTurnMetricCardsWhileLoading(t *testing.T) {
+func TestStatsRenderSessionsShowsBorderedTurnMetricCards(t *testing.T) {
 	t.Parallel()
 
 	m := newStatsRenderModel(120, 32)
 	m.tab = statsTabSessions
 	m.sessionsLaneCursor = 2
-	m.claudeTurnMetricsLoadingKey = m.claudeTurnMetricsSourceCacheKey()
+	m.snapshot.Sessions.ClaudeTurnMetrics = []statspkg.PositionTokenMetrics{{
+		Position:           1,
+		AverageInputTokens: 120,
+		AverageTurnTokens:  180,
+		SampleCount:        3,
+	}}
 
 	body := ansi.Strip(m.renderSessionsTab(120))
 	histogramLine := findRenderedLine(t, body, "Session Duration")
@@ -539,7 +566,7 @@ func TestStatsRenderSessionsShowsBorderedTurnMetricCardsWhileLoading(t *testing.
 	assert.Contains(t, histogramLine, "Messages per Session")
 	assert.Contains(t, turnMetricLine, "▸ "+statsClaudeContextGrowthTitle)
 	assert.Contains(t, turnMetricLine, statsClaudeTurnCostTitle)
-	assert.Contains(t, body, "Computing turn charts...")
+	assert.NotContains(t, body, "Computing turn charts...")
 }
 
 func TestStatsRenderToolsUsesBorderedLaneCards(t *testing.T) {

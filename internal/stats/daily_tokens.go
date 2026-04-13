@@ -101,27 +101,29 @@ func sortDailyTokenRows(rows map[dailyTokenKey]conv.DailyTokenRow) []conv.DailyT
 	for _, row := range rows {
 		result = append(result, row)
 	}
-	slices.SortFunc(result, func(left, right conv.DailyTokenRow) int {
-		switch {
-		case left.Date.Before(right.Date):
-			return -1
-		case left.Date.After(right.Date):
-			return 1
-		case left.Provider < right.Provider:
-			return -1
-		case left.Provider > right.Provider:
-			return 1
-		case left.Model < right.Model:
-			return -1
-		case left.Model > right.Model:
-			return 1
-		case left.Project < right.Project:
-			return -1
-		case left.Project > right.Project:
-			return 1
-		default:
-			return 0
-		}
-	})
+	slices.SortFunc(result, compareDailyTokenRows)
 	return result
+}
+
+func compareDailyTokenRows(left, right conv.DailyTokenRow) int {
+	switch {
+	case left.Date.Before(right.Date):
+		return -1
+	case left.Date.After(right.Date):
+		return 1
+	case left.Provider < right.Provider:
+		return -1
+	case left.Provider > right.Provider:
+		return 1
+	case left.Model < right.Model:
+		return -1
+	case left.Model > right.Model:
+		return 1
+	case left.Project < right.Project:
+		return -1
+	case left.Project > right.Project:
+		return 1
+	default:
+		return 0
+	}
 }

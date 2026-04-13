@@ -52,6 +52,62 @@ func ComputeActivity(sessions []conv.SessionMeta, timeRange TimeRange) Activity 
 	return activity
 }
 
+func ComputeActivityFromDaily(
+	sessions []conv.SessionMeta,
+	dailyTokens []conv.DailyTokenRow,
+	timeRange TimeRange,
+) Activity {
+	location := activityLocation(sessions, timeRange)
+	start, end, ok := resolveActivityBoundsFromDaily(sessions, dailyTokens, timeRange, location)
+	if !ok {
+		return Activity{}
+	}
+
+	activity := Activity{
+		DailySessions: make([]DailyCount, 0),
+		DailyMessages: make([]DailyCount, 0),
+		DailyTokens:   make([]DailyCount, 0),
+	}
+	sessionsByDay := make(map[time.Time]int)
+	messagesByDay := make(map[time.Time]int)
+	tokensByDay := make(map[time.Time]int)
+	activeDates := make(map[time.Time]struct{})
+
+	for _, row := range dailyTokens {
+		day := activityDailyRowDay(row.Date, location)
+		if day.IsZero() {
+			continue
+		}
+		sessionsByDay[day] += row.SessionCount
+		messagesByDay[day] += row.MessageCount
+		tokensByDay[day] += dailyRowTotalTokens(row)
+		if dailyRowHasActivity(row) {
+			activeDates[day] = struct{}{}
+		}
+	}
+
+	for _, session := range sessions {
+		sessionTime := normalizeActivityTime(session.Timestamp, location)
+		weekday := weekdayIndex(sessionTime)
+		hour := sessionTime.Hour()
+		activity.Heatmap[weekday][hour]++
+	}
+
+	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
+		activity.TotalDays++
+		activity.DailySessions = append(activity.DailySessions, DailyCount{Date: day, Count: sessionsByDay[day]})
+		activity.DailyMessages = append(activity.DailyMessages, DailyCount{Date: day, Count: messagesByDay[day]})
+		activity.DailyTokens = append(activity.DailyTokens, DailyCount{Date: day, Count: tokensByDay[day]})
+		if _, ok := activeDates[day]; ok {
+			activity.ActiveDays++
+		}
+	}
+
+	activity.CurrentStreak = countBackwardStreak(activeDates, end)
+	activity.LongestStreak = countLongestStreak(activeDates)
+	return activity
+}
+
 func resolveActivityBounds(
 	sessions []conv.SessionMeta,
 	timeRange TimeRange,
@@ -77,6 +133,77 @@ func resolveActivityBounds(
 		return time.Time{}, time.Time{}, false
 	}
 	return start, end, true
+}
+
+func resolveActivityBoundsFromDaily(
+	sessions []conv.SessionMeta,
+	dailyTokens []conv.DailyTokenRow,
+	timeRange TimeRange,
+	location *time.Location,
+) (time.Time, time.Time, bool) {
+	if len(sessions) == 0 && len(dailyTokens) == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	start := timeRange.Start
+	end := timeRange.End
+	if start.IsZero() || end.IsZero() {
+		minDay, maxDay, ok := activityBounds(sessions, dailyTokens, location)
+		if !ok {
+			return time.Time{}, time.Time{}, false
+		}
+		if start.IsZero() {
+			start = minDay
+		}
+		if end.IsZero() {
+			end = maxDay
+		}
+	}
+
+	start = startOfDayInLocation(start, location)
+	end = startOfDayInLocation(end, location)
+	if end.Before(start) {
+		return time.Time{}, time.Time{}, false
+	}
+	return start, end, true
+}
+
+func activityBounds(
+	sessions []conv.SessionMeta,
+	dailyTokens []conv.DailyTokenRow,
+	location *time.Location,
+) (time.Time, time.Time, bool) {
+	var (
+		minDay time.Time
+		maxDay time.Time
+		ok     bool
+	)
+
+	if len(sessions) > 0 {
+		minDay, maxDay = activitySessionBounds(sessions, location)
+		ok = true
+	}
+
+	for _, row := range dailyTokens {
+		day := activityDailyRowDay(row.Date, location)
+		if day.IsZero() {
+			continue
+		}
+		if !ok {
+			minDay = day
+			maxDay = day
+			ok = true
+			continue
+		}
+		if day.Before(minDay) {
+			minDay = day
+		}
+		if day.After(maxDay) {
+			maxDay = day
+		}
+	}
+
+	return minDay, maxDay, ok
 }
 
 func activitySessionBounds(sessions []conv.SessionMeta, location *time.Location) (time.Time, time.Time) {
@@ -105,6 +232,28 @@ func activityLocation(sessions []conv.SessionMeta, timeRange TimeRange) *time.Lo
 	default:
 		return time.UTC
 	}
+}
+
+func activityDailyRowDay(day time.Time, location *time.Location) time.Time {
+	if day.IsZero() {
+		return time.Time{}
+	}
+	year, month, date := day.Date()
+	return time.Date(year, month, date, 0, 0, 0, 0, location)
+}
+
+func dailyRowTotalTokens(row conv.DailyTokenRow) int {
+	return row.InputTokens +
+		row.CacheCreationTokens +
+		row.CacheReadTokens +
+		row.OutputTokens +
+		row.ReasoningOutputTokens
+}
+
+func dailyRowHasActivity(row conv.DailyTokenRow) bool {
+	return row.SessionCount > 0 ||
+		row.MessageCount > 0 ||
+		dailyRowTotalTokens(row) > 0
 }
 
 func normalizeActivityTime(ts time.Time, location *time.Location) time.Time {

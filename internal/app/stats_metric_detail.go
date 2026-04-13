@@ -167,7 +167,7 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 		)
 	}
 	if lane.id == statsLaneSessionsContext {
-		return renderStatsMetricDetail(lane.title, width, contextMetricDetailChips(m.claudeTurnMetrics),
+		return renderStatsMetricDetail(lane.title, width, contextMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
 			metricDetailLine("Question", "How quickly does prompt context accumulate as sessions go deeper?"),
 			metricDetailLine(
 				"Reading",
@@ -175,7 +175,7 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 			),
 		)
 	}
-	return renderStatsMetricDetail(lane.title, width, turnCostMetricDetailChips(m.claudeTurnMetrics),
+	return renderStatsMetricDetail(lane.title, width, turnCostMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
 		metricDetailLine(
 			"Question",
 			"How expensive does each turn become once prompt and response are counted together?",

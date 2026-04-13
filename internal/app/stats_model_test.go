@@ -160,7 +160,7 @@ func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 	assert.Contains(t, view, "[stats] 1 sessions")
 }
 
-func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
+func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
 		return now
@@ -168,11 +168,35 @@ func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemA
 	defer restoreNow()
 
 	store := &fakeBrowserStore{
-		loadSessionResults: map[string]conv.Session{
-			"stats-1":  testStatsLoadedSession("stats-1"),
-			"stats-2a": testStatsLoadedSession("stats-2a"),
-			"stats-2b": testStatsLoadedSession("stats-2b"),
-			"stats-3":  testStatsLoadedSession("stats-3"),
+		turnMetricRows: []conv.SessionTurnMetrics{
+			{
+				Timestamp: now.Add(-time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 100,
+					TurnTokens:  150,
+				}},
+			},
+			{
+				Timestamp: now.Add(-2 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 120,
+					TurnTokens:  180,
+				}},
+			},
+			{
+				Timestamp: now.Add(-3 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 140,
+					TurnTokens:  210,
+				}},
+			},
+			{
+				Timestamp: now.AddDate(0, 0, -45),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 160,
+					TurnTokens:  240,
+				}},
+			},
 		},
 	}
 
@@ -199,82 +223,155 @@ func TestStatsSessionsTabLoadsTurnMetricsInBackgroundOncePerFilterAndReusesThemA
 		32,
 		newBrowserFilterState(),
 	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
 
 	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
 
-	require.NotNil(t, cmd)
-	assert.Nil(t, m.claudeTurnMetrics)
-	assert.Zero(t, store.loadCalls)
+	assert.Nil(t, cmd)
 	assert.Zero(t, store.loadSessionCalls)
-	assert.Contains(t, ansi.Strip(m.View()), "Loading")
-
-	firstLoad := requireBatchMsgType[claudeTurnMetricsLoadedMsg](t, cmd())
-	m, _ = m.Update(firstLoad)
-
-	require.NotEmpty(t, m.claudeTurnMetrics)
 	assert.Equal(t, 4, m.snapshot.Overview.SessionCount)
-	assert.Equal(t, 5, store.loadSessionCalls)
-	assert.Equal(t, []string{"stats-1", "stats-2a", "stats-2b", "codex-1", "stats-3"}, store.loadSessionIDs)
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
+	assert.NotContains(t, ansi.Strip(m.View()), "Loading")
 
 	m, cmd = m.Update(ctrlKey("b"))
 	assert.Nil(t, cmd)
 
 	m, cmd = m.Update(ctrlKey("f"))
 	assert.Nil(t, cmd)
-	assert.Equal(t, 5, store.loadSessionCalls)
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
 
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "r"})
 	assert.Nil(t, cmd)
-	require.NotEmpty(t, m.claudeTurnMetrics)
 	assert.Equal(t, statsRangeLabel90d, statsTimeRangeLabel(m.timeRange))
 	assert.Equal(t, 5, m.snapshot.Overview.SessionCount)
-	assert.Equal(t, 5, store.loadSessionCalls)
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 4, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
+	assert.Zero(t, store.loadSessionCalls)
 }
 
-func TestStatsSessionsTabIgnoresStaleClaudeTurnMetricResults(t *testing.T) {
-	t.Parallel()
-
+func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 	store := &fakeBrowserStore{
-		loadSessionResults: map[string]conv.Session{
-			"stats-1": testStatsLoadedSession("stats-1"),
-			"stats-2": testStatsLoadedSession("stats-2"),
+		turnMetricRowsByKey: map[string][]conv.SessionTurnMetrics{},
+		dailyTokenRowsByKey: map[string][]conv.DailyTokenRow{},
+	}
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
+
+	withPlans := testStatsConversationWithProvider(
+		conv.ProviderClaude,
+		"stats-1",
+		"alpha",
+		now,
+	)
+	withPlans.PlanCount = 1
+
+	withoutPlans := testStatsConversationWithProvider(
+		conv.ProviderClaude,
+		"stats-2",
+		"beta",
+		now.Add(-time.Hour),
+	)
+
+	store.turnMetricRowsByKey[withPlans.CacheKey()] = []conv.SessionTurnMetrics{
+		{
+			Timestamp: now.Add(-time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 100,
+				TurnTokens:  150,
+			}},
+		},
+		{
+			Timestamp: now.Add(-2 * time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 120,
+				TurnTokens:  180,
+			}},
+		},
+		{
+			Timestamp: now.Add(-3 * time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 140,
+				TurnTokens:  210,
+			}},
 		},
 	}
-	now := time.Now()
+	store.turnMetricRowsByKey[withoutPlans.CacheKey()] = []conv.SessionTurnMetrics{
+		{
+			Timestamp: now.Add(-4 * time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 200,
+				TurnTokens:  260,
+			}},
+		},
+		{
+			Timestamp: now.Add(-5 * time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 220,
+				TurnTokens:  280,
+			}},
+		},
+		{
+			Timestamp: now.Add(-6 * time.Hour),
+			Turns: []conv.TurnTokens{{
+				InputTokens: 240,
+				TurnTokens:  300,
+			}},
+		},
+	}
+
+	store.dailyTokenRowsByKey[withPlans.CacheKey()] = []conv.DailyTokenRow{{
+		Date:                  now,
+		SessionCount:          1,
+		MessageCount:          4,
+		UserMessageCount:      2,
+		AssistantMessageCount: 2,
+		InputTokens:           30,
+		OutputTokens:          10,
+	}}
+	store.dailyTokenRowsByKey[withoutPlans.CacheKey()] = []conv.DailyTokenRow{{
+		Date:                  now.AddDate(0, 0, -2),
+		SessionCount:          1,
+		MessageCount:          6,
+		UserMessageCount:      3,
+		AssistantMessageCount: 3,
+		InputTokens:           70,
+		OutputTokens:          20,
+	}}
 
 	m := newStatsModel(
-		[]conv.Conversation{
-			testStatsConversationWithProvider(conv.ProviderClaude, "stats-1", "alpha", now),
-			testStatsConversationWithProvider(conv.ProviderClaude, "stats-2", "beta", now.AddDate(0, 0, -45)),
-		},
+		[]conv.Conversation{withPlans, withoutPlans},
 		store,
 		120,
 		32,
 		newBrowserFilterState(),
 	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
 
-	m, _ = m.Update(ctrlKey("f"))
-	m, cmd := m.Update(ctrlKey("f"))
-	require.NotNil(t, cmd)
-	firstLoad := requireBatchMsgType[claudeTurnMetricsLoadedMsg](t, cmd())
+	m.filter.dimensions[filterDimHasPlans] = dimensionFilter{boolState: boolFilterYes}
+	m = m.applyFilterChange()
 
-	m.filter.dimensions[filterDimProject] = dimensionFilter{
-		selected: map[string]bool{"alpha": true},
+	assert.Equal(t, 1, m.snapshot.Overview.SessionCount)
+	assert.Equal(t, 1, m.snapshot.Activity.ActiveDays)
+	assert.Equal(t, 1, m.snapshot.Activity.CurrentStreak)
+
+	totalTokens := 0
+	for _, day := range m.snapshot.Activity.DailyTokens {
+		totalTokens += day.Count
 	}
-	m, cmd = m.applyFilterChangeAndMaybeLoad()
-	require.NotNil(t, cmd)
-	secondLoad := requireBatchMsgType[claudeTurnMetricsLoadedMsg](t, cmd())
+	assert.Equal(t, 40, totalTokens)
 
-	m, _ = m.Update(firstLoad)
-	assert.Nil(t, m.claudeTurnMetrics)
-	assert.Contains(t, ansi.Strip(m.View()), "Loading")
-
-	m, _ = m.Update(secondLoad)
-	assert.Empty(t, m.claudeTurnMetrics)
-	assert.False(t, m.claudeTurnMetricsLoading())
-	assert.Equal(t, m.claudeTurnMetricsSourceCacheKey(), m.claudeTurnMetricsSourceKey)
-	assert.Equal(t, 3, store.loadSessionCalls)
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
+	assert.InDelta(t, 120.0, m.snapshot.Sessions.ClaudeTurnMetrics[0].AverageInputTokens, 0.0001)
+	assert.Zero(t, store.loadSessionCalls)
 }
 
 func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
@@ -503,22 +600,6 @@ func testStatsSessionMeta(
 		option(&meta)
 	}
 	return meta
-}
-
-func testStatsLoadedSession(id string) conv.Session {
-	session := conv.Session{
-		Meta: conv.SessionMeta{
-			ID:        id,
-			Project:   conv.Project{DisplayName: "alpha"},
-			Timestamp: statsNow(),
-		},
-		Messages: []conv.Message{
-			{Role: conv.RoleUser, Text: "q1", Usage: conv.TokenUsage{InputTokens: 10, OutputTokens: 1}},
-			{Role: conv.RoleAssistant, Text: "a1", Usage: conv.TokenUsage{InputTokens: 20, OutputTokens: 2}},
-			{Role: conv.RoleUser, Text: "q2", Usage: conv.TokenUsage{InputTokens: 30, OutputTokens: 3}},
-		},
-	}
-	return session
 }
 
 func TestStatsOpenAndCloseMessagesSwitchViewState(t *testing.T) {

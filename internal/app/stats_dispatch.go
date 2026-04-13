@@ -36,6 +36,7 @@ func (m appModel) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
 		stats.glamourStyle = m.glamourStyle
 		stats.timestampFormat = m.browser.timestampFormat
 		stats.launcher = m.launcher
+		stats = stats.applyFilterChange()
 		m.stats = stats
 		m.state = viewStats
 		return m, nil

@@ -100,3 +100,30 @@ func TestPreviousTimeRange(t *testing.T) {
 		got.End,
 	)
 }
+
+func TestComputeTokenTrendFromDaily(t *testing.T) {
+	t.Parallel()
+
+	timeRange := TimeRange{
+		Start: time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 3, 23, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC),
+	}
+
+	daily := []DailyTokenRow{
+		{
+			Date:         time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC),
+			InputTokens:  800,
+			OutputTokens: 200,
+		},
+		{
+			Date:         time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+			InputTokens:  1200,
+			OutputTokens: 0,
+		},
+	}
+
+	assert.Equal(t, TokenTrend{
+		Direction:     TrendDirectionUp,
+		PercentChange: 20,
+	}, ComputeTokenTrendFromDaily(daily, timeRange))
+}

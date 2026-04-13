@@ -42,6 +42,37 @@ func ComputeTokenTrend(sessions []conv.SessionMeta, timeRange TimeRange) TokenTr
 	}
 }
 
+func ComputeTokenTrendFromDaily(
+	dailyTokens []conv.DailyTokenRow,
+	timeRange TimeRange,
+) TokenTrend {
+	if timeRange.Start.IsZero() && timeRange.End.IsZero() {
+		return TokenTrend{}
+	}
+
+	previousRange := previousTimeRange(timeRange)
+	previousTokens := totalTokensForDailyRows(dailyTokens, previousRange)
+	if previousTokens <= 0 {
+		return TokenTrend{}
+	}
+
+	currentTokens := totalTokensForDailyRows(dailyTokens, timeRange)
+	change := float64(currentTokens-previousTokens) / float64(previousTokens) * 100
+	if math.Abs(change) < overviewFlatTrendThreshold {
+		return TokenTrend{Direction: TrendDirectionFlat}
+	}
+	if change > 0 {
+		return TokenTrend{
+			Direction:     TrendDirectionUp,
+			PercentChange: int(math.Round(change)),
+		}
+	}
+	return TokenTrend{
+		Direction:     TrendDirectionDown,
+		PercentChange: int(math.Round(change)),
+	}
+}
+
 func previousTimeRange(current TimeRange) TimeRange {
 	duration := current.End.Sub(current.Start)
 	end := current.Start.Add(-time.Nanosecond)
@@ -53,6 +84,33 @@ func totalTokensForSessions(sessions []conv.SessionMeta) int {
 	total := 0
 	for _, session := range sessions {
 		total += session.TotalUsage.TotalTokens()
+	}
+	return total
+}
+
+func totalTokensForDailyRows(dailyTokens []conv.DailyTokenRow, timeRange TimeRange) int {
+	if len(dailyTokens) == 0 {
+		return 0
+	}
+
+	location := time.UTC
+	switch {
+	case !timeRange.Start.IsZero():
+		location = timeRange.Start.Location()
+	case !timeRange.End.IsZero():
+		location = timeRange.End.Location()
+	case !dailyTokens[0].Date.IsZero() && dailyTokens[0].Date.Location() != nil:
+		location = dailyTokens[0].Date.Location()
+	}
+
+	start := startOfDayInLocation(timeRange.Start, location)
+	end := startOfDayInLocation(timeRange.End, location)
+	total := 0
+	for _, row := range dailyTokens {
+		day := activityDailyRowDay(row.Date, location)
+		if !day.Before(start) && !day.After(end) {
+			total += dailyRowTotalTokens(row)
+		}
 	}
 	return total
 }

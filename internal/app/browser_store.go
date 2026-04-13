@@ -16,6 +16,21 @@ type browserStore interface {
 	List(ctx context.Context, archiveDir string) ([]conv.Conversation, error)
 	Load(ctx context.Context, archiveDir string, conversation conv.Conversation) (conv.Session, error)
 	LoadSession(ctx context.Context, conversation conv.Conversation, sessionMeta conv.SessionMeta) (conv.Session, error)
+	QueryPerformanceSequence(
+		ctx context.Context,
+		archiveDir string,
+		cacheKeys []string,
+	) ([]conv.PerformanceSequenceSession, error)
+	QueryTurnMetrics(
+		ctx context.Context,
+		archiveDir string,
+		cacheKeys []string,
+	) ([]conv.SessionTurnMetrics, error)
+	QueryDailyTokens(
+		ctx context.Context,
+		archiveDir string,
+		cacheKeys []string,
+	) ([]conv.DailyTokenRow, error)
 	DeepSearch(
 		ctx context.Context,
 		archiveDir, query string,
@@ -29,7 +44,13 @@ type canonicalBrowserStore struct {
 }
 
 func newDefaultBrowserStore() browserStore {
-	return newBrowserStore(canonical.New(nil), claude.New(), codex.New())
+	claudeBackend := claude.New()
+	codexBackend := codex.New()
+	return newBrowserStore(
+		canonical.New(statsCollectorImpl{}, claudeBackend, codexBackend),
+		claudeBackend,
+		codexBackend,
+	)
 }
 
 type sessionTranscriptSource interface {
@@ -99,6 +120,42 @@ func (s canonicalBrowserStore) LoadSession(
 		return conv.Session{}, fmt.Errorf("source.LoadSession: %w", err)
 	}
 	return session, nil
+}
+
+func (s canonicalBrowserStore) QueryPerformanceSequence(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.PerformanceSequenceSession, error) {
+	rows, err := s.store.QueryPerformanceSequence(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("store.QueryPerformanceSequence: %w", err)
+	}
+	return rows, nil
+}
+
+func (s canonicalBrowserStore) QueryTurnMetrics(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.SessionTurnMetrics, error) {
+	rows, err := s.store.QueryTurnMetrics(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("store.QueryTurnMetrics: %w", err)
+	}
+	return rows, nil
+}
+
+func (s canonicalBrowserStore) QueryDailyTokens(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.DailyTokenRow, error) {
+	rows, err := s.store.QueryDailyTokens(ctx, archiveDir, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("store.QueryDailyTokens: %w", err)
+	}
+	return rows, nil
 }
 
 func (s canonicalBrowserStore) DeepSearch(

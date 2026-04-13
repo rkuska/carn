@@ -16,23 +16,20 @@ import (
 )
 
 const (
-	statsLoadingText                  = "Loading..."
-	statsClaudeContextGrowthTitle     = "Context Growth"
-	statsClaudeTurnCostTitle          = "Turn Cost"
-	statsNoClaudeTurnMetricsData      = "No message usage data"
-	statsClaudeMetricsNoDataLabel     = "turn metrics"
-	statsClaudeContextEarlyLabel      = "context 1-5 avg"
-	statsClaudeContextLateLabel       = "context 20+ avg"
-	statsClaudeContextFactorLabel     = "context multiplier"
-	statsClaudeTurnCostEarlyLabel     = "turn cost 1-5 avg"
-	statsClaudeTurnCostLateLabel      = "turn cost 20+ avg"
-	statsClaudeTurnCostFactorLabel    = "turn cost multiplier"
-	statsClaudeTurnChartsLoadingLabel = "Computing turn charts..."
+	statsClaudeContextGrowthTitle  = "Context Growth"
+	statsClaudeTurnCostTitle       = "Turn Cost"
+	statsNoClaudeTurnMetricsData   = "No message usage data"
+	statsClaudeMetricsNoDataLabel  = "turn metrics"
+	statsClaudeContextEarlyLabel   = "context 1-5 avg"
+	statsClaudeContextLateLabel    = "context 20+ avg"
+	statsClaudeContextFactorLabel  = "context multiplier"
+	statsClaudeTurnCostEarlyLabel  = "turn cost 1-5 avg"
+	statsClaudeTurnCostLateLabel   = "turn cost 20+ avg"
+	statsClaudeTurnCostFactorLabel = "turn cost multiplier"
 )
 
 func (m statsModel) renderSessionsTab(width int) string {
 	sessionStats := m.snapshot.Sessions
-	loadingClaudeTurnMetrics := m.claudeTurnMetricsLoading()
 	chips := renderSummaryChips([]chip{
 		{Label: "avg duration", Value: conv.FormatDuration(sessionStats.AverageDuration)},
 		{Label: "avg messages", Value: formatFloat(sessionStats.AverageMessages)},
@@ -64,7 +61,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 		},
 	)
 
-	growthChips := renderSummaryChips(claudeTurnMetricChips(m.claudeTurnMetrics, loadingClaudeTurnMetrics), width)
+	growthChips := renderSummaryChips(claudeTurnMetricChips(sessionStats.ClaudeTurnMetrics), width)
 	growthCharts := renderStatsLanePair(
 		width,
 		30,
@@ -74,7 +71,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 			return m.renderClaudeTurnMetricLaneBody(
 				bodyWidth,
 				10,
-				loadingClaudeTurnMetrics,
+				sessionStats.ClaudeTurnMetrics,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageInputTokens
 				},
@@ -86,7 +83,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 			return m.renderClaudeTurnMetricLaneBody(
 				bodyWidth,
 				10,
-				loadingClaudeTurnMetrics,
+				sessionStats.ClaudeTurnMetrics,
 				func(metric statspkg.PositionTokenMetrics) float64 {
 					return metric.AverageTurnTokens
 				},
@@ -103,10 +100,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 	)
 }
 
-func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics, loading bool) []chip {
-	if loading {
-		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: statsLoadingText}}
-	}
+func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics) []chip {
 	if len(metrics) == 0 {
 		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: "No data"}}
 	}
@@ -232,23 +226,19 @@ func renderClaudeTurnChartBody(
 
 func (m statsModel) renderClaudeTurnMetricLaneBody(
 	width, height int,
-	loading bool,
+	metrics []statspkg.PositionTokenMetrics,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
-	switch {
-	case loading:
-		return m.claudeTurnMetricsLoadingLine()
-	case m.claudeTurnMetrics == nil:
+	if len(metrics) == 0 {
 		return statsNoClaudeTurnMetricsData
-	default:
-		return renderClaudeTurnChartBody(
-			m.claudeTurnMetrics,
-			width,
-			height,
-			colorChartToken,
-			value,
-		)
 	}
+	return renderClaudeTurnChartBody(
+		metrics,
+		width,
+		height,
+		colorChartToken,
+		value,
+	)
 }
 
 func claudeTurnChartPoints(

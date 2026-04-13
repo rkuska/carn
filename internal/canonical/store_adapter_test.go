@@ -89,6 +89,25 @@ func TestStoreNeedsRebuildWhenSearchCorpusVersionIsStale(t *testing.T) {
 	assert.True(t, needsRebuild)
 }
 
+func TestStoreNeedsRebuildWhenProjectionVersionIsStale(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	store := New(nil, claude.New())
+
+	conversations := []conversation{testSQLiteConversation("s1")}
+	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
+		conversations[0].CacheKey(): {
+			Meta: conversations[0].Sessions[0],
+		},
+	}, searchCorpus{})
+	setSQLiteMetaValue(t, archiveDir, metaProjectionKey, strconv.Itoa(storeProjectionVersion-1))
+
+	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.True(t, needsRebuild)
+}
+
 func TestStoreDeepSearchAvailabilityIsFalseWhenSearchCorpusVersionIsStale(t *testing.T) {
 	t.Parallel()
 

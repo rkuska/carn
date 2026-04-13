@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -190,6 +192,105 @@ func TestStoreRebuildAllPersistsStreamingSearchAndPlans(t *testing.T) {
 	assert.True(t, available)
 	require.Len(t, results, 1)
 	assert.Contains(t, results[0].SearchPreview, "index this answer")
+}
+
+func TestStoreRebuildAllBackfillsStatsRowsWhenProjectionVersionIsStale(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	convValue := writeTestConversation(t, rawDir, "project-a", "session-1", "slug-1", []string{
+		"answer",
+	})
+
+	session := sessionFull{
+		Meta: convValue.Sessions[0],
+		Messages: []message{
+			{
+				Role:      role("user"),
+				Text:      "question",
+				Timestamp: convValue.Sessions[0].Timestamp,
+			},
+			{
+				Role:      role("assistant"),
+				Text:      "answer",
+				Timestamp: convValue.Sessions[0].Timestamp.Add(time.Minute),
+				Usage: conv.TokenUsage{
+					InputTokens:  100,
+					OutputTokens: 50,
+				},
+			},
+		},
+	}
+
+	require.NoError(t, writeCanonicalStoreAtomically(
+		context.Background(),
+		archiveDir,
+		[]conversation{convValue},
+		map[string]sessionFull{
+			convValue.CacheKey(): session,
+		},
+		searchCorpus{},
+		nil,
+		nil,
+	))
+	setSQLiteMetaValue(t, archiveDir, metaProjectionKey, strconv.Itoa(storeProjectionVersion-1))
+
+	source := stubSource{
+		scanConversations: []conversation{convValue},
+		sessions: map[string]sessionFull{
+			convValue.CacheKey(): session,
+		},
+		sessionLoads: map[string]sessionFull{
+			"session-1": session,
+		},
+	}
+	store := New(stubStatsCollector{
+		rows: map[string]conv.SessionStatsData{
+			"session-1": {
+				PerformanceSequence: conv.PerformanceSequenceSession{
+					Timestamp:         convValue.Sessions[0].Timestamp,
+					Mutated:           true,
+					FirstPassResolved: true,
+					MutationCount:     1,
+					ActionCount:       1,
+				},
+				TurnMetrics: conv.SessionTurnMetrics{
+					Timestamp: convValue.Sessions[0].Timestamp,
+					Turns: []conv.TurnTokens{{
+						InputTokens: 100,
+						TurnTokens:  150,
+					}},
+				},
+			},
+		},
+	}, source)
+
+	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
+	require.NoError(t, err)
+	assert.True(t, needsRebuild)
+
+	sequence, err := store.QueryPerformanceSequence(context.Background(), archiveDir, []string{convValue.CacheKey()})
+	require.NoError(t, err)
+	assert.Empty(t, sequence)
+
+	turnMetrics, err := store.QueryTurnMetrics(context.Background(), archiveDir, []string{convValue.CacheKey()})
+	require.NoError(t, err)
+	assert.Empty(t, turnMetrics)
+
+	_, err = store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
+
+	sequence, err = store.QueryPerformanceSequence(context.Background(), archiveDir, []string{convValue.CacheKey()})
+	require.NoError(t, err)
+	require.Len(t, sequence, 1)
+	assert.True(t, sequence[0].Mutated)
+	assert.True(t, sequence[0].FirstPassResolved)
+
+	turnMetrics, err = store.QueryTurnMetrics(context.Background(), archiveDir, []string{convValue.CacheKey()})
+	require.NoError(t, err)
+	require.Len(t, turnMetrics, 1)
+	assert.Equal(t, []conv.TurnTokens{{InputTokens: 100, TurnTokens: 150}}, turnMetrics[0].Turns)
 }
 
 func TestStoreRebuildAllPersistsTranscriptDerivedToolOutcomesPerSession(t *testing.T) {

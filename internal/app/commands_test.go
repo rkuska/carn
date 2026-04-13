@@ -15,19 +15,25 @@ import (
 )
 
 type fakeBrowserStore struct {
-	listResult         []conv.Conversation
-	listErr            error
-	loadResult         conv.Session
-	loadErr            error
-	loadCalls          int
-	loadSessionResult  conv.Session
-	loadSessionResults map[string]conv.Session
-	loadSessionErr     error
-	loadSessionCalls   int
-	loadSessionIDs     []string
-	deepSearchCalls    int
-	deepSearchResults  map[string][]conv.Conversation
-	deepSearchErr      error
+	listResult          []conv.Conversation
+	listErr             error
+	loadResult          conv.Session
+	loadErr             error
+	loadCalls           int
+	loadSessionResult   conv.Session
+	loadSessionResults  map[string]conv.Session
+	loadSessionErr      error
+	loadSessionCalls    int
+	loadSessionIDs      []string
+	deepSearchCalls     int
+	deepSearchResults   map[string][]conv.Conversation
+	deepSearchErr       error
+	sequenceRows        []conv.PerformanceSequenceSession
+	sequenceRowsByKey   map[string][]conv.PerformanceSequenceSession
+	turnMetricRows      []conv.SessionTurnMetrics
+	turnMetricRowsByKey map[string][]conv.SessionTurnMetrics
+	dailyTokenRows      []conv.DailyTokenRow
+	dailyTokenRowsByKey map[string][]conv.DailyTokenRow
 }
 
 func (s *fakeBrowserStore) List(context.Context, string) ([]conv.Conversation, error) {
@@ -76,6 +82,51 @@ func (s *fakeBrowserStore) DeepSearch(
 		return results, nil
 	}
 	return nil, nil
+}
+
+func (s *fakeBrowserStore) QueryPerformanceSequence(
+	_ context.Context,
+	_ string,
+	cacheKeys []string,
+) ([]conv.PerformanceSequenceSession, error) {
+	if len(s.sequenceRowsByKey) > 0 {
+		rows := make([]conv.PerformanceSequenceSession, 0)
+		for _, key := range cacheKeys {
+			rows = append(rows, s.sequenceRowsByKey[key]...)
+		}
+		return rows, nil
+	}
+	return append([]conv.PerformanceSequenceSession(nil), s.sequenceRows...), nil
+}
+
+func (s *fakeBrowserStore) QueryTurnMetrics(
+	_ context.Context,
+	_ string,
+	cacheKeys []string,
+) ([]conv.SessionTurnMetrics, error) {
+	if len(s.turnMetricRowsByKey) > 0 {
+		rows := make([]conv.SessionTurnMetrics, 0)
+		for _, key := range cacheKeys {
+			rows = append(rows, s.turnMetricRowsByKey[key]...)
+		}
+		return rows, nil
+	}
+	return append([]conv.SessionTurnMetrics(nil), s.turnMetricRows...), nil
+}
+
+func (s *fakeBrowserStore) QueryDailyTokens(
+	_ context.Context,
+	_ string,
+	cacheKeys []string,
+) ([]conv.DailyTokenRow, error) {
+	if len(s.dailyTokenRowsByKey) > 0 {
+		rows := make([]conv.DailyTokenRow, 0)
+		for _, key := range cacheKeys {
+			rows = append(rows, s.dailyTokenRowsByKey[key]...)
+		}
+		return rows, nil
+	}
+	return append([]conv.DailyTokenRow(nil), s.dailyTokenRows...), nil
 }
 
 func TestExportTextReturnsSuccessNotification(t *testing.T) {

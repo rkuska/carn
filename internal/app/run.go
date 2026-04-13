@@ -128,7 +128,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
-	store := canonical.New(nil, claudeBackend, codexBackend)
+	store := canonical.New(statsCollectorImpl{}, claudeBackend, codexBackend)
 	storeAdapter := newBrowserStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{

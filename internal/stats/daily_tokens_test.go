@@ -13,7 +13,7 @@ import (
 func TestAggregateDailyTokensSingleSessionSingleDay(t *testing.T) {
 	t.Parallel()
 
-	session := conv.Session{
+	inputSession := conv.Session{
 		Meta: testMeta(
 			"s1",
 			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
@@ -36,7 +36,7 @@ func TestAggregateDailyTokensSingleSessionSingleDay(t *testing.T) {
 		},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{session})
+	got := AggregateDailyTokens([]conv.Session{inputSession})
 	require.Len(t, got, 1)
 	assert.Equal(t, []conv.DailyTokenRow{{
 		Date:                  time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
@@ -58,7 +58,7 @@ func TestAggregateDailyTokensSingleSessionSingleDay(t *testing.T) {
 func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 	t.Parallel()
 
-	session := conv.Session{
+	inputSession := conv.Session{
 		Meta: testMeta(
 			"s1",
 			time.Date(2026, 1, 5, 23, 55, 0, 0, time.UTC),
@@ -79,7 +79,7 @@ func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 		},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{session})
+	got := AggregateDailyTokens([]conv.Session{inputSession})
 	require.Len(t, got, 2)
 	assert.Equal(t, []conv.DailyTokenRow{
 		{
@@ -108,7 +108,7 @@ func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 func TestAggregateDailyTokensFallsBackToSessionStartForZeroMessageTimestamp(t *testing.T) {
 	t.Parallel()
 
-	session := conv.Session{
+	inputSession := conv.Session{
 		Meta: testMeta("s1", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC), withMainMessages(3)),
 		Messages: []conv.Message{{
 			Role:  conv.RoleAssistant,
@@ -116,7 +116,7 @@ func TestAggregateDailyTokensFallsBackToSessionStartForZeroMessageTimestamp(t *t
 		}},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{session})
+	got := AggregateDailyTokens([]conv.Session{inputSession})
 	require.Len(t, got, 1)
 	assert.Equal(t, time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC), got[0].Date)
 	assert.Equal(t, 40, got[0].InputTokens)
@@ -126,7 +126,7 @@ func TestAggregateDailyTokensFallsBackToSessionStartForZeroMessageTimestamp(t *t
 func TestAggregateDailyTokensUsesSessionMessageCountsNotTranscriptLength(t *testing.T) {
 	t.Parallel()
 
-	session := conv.Session{
+	inputSession := conv.Session{
 		Meta: testMeta(
 			"subagent",
 			time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
@@ -145,7 +145,7 @@ func TestAggregateDailyTokensUsesSessionMessageCountsNotTranscriptLength(t *test
 		}},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{session})
+	got := AggregateDailyTokens([]conv.Session{inputSession})
 	require.Len(t, got, 1)
 	assert.Equal(t, 12, got[0].MessageCount)
 	assert.Equal(t, 4, got[0].UserMessageCount)

@@ -19,17 +19,12 @@ func (m statsModel) renderPerformanceTab(width int) string {
 		}, "\n\n")
 	}
 
-	loadingSequence := m.performanceSequenceLoading()
 	sections := []string{renderPerformanceHeadline(performance, width)}
 
 	sections = append(sections,
 		renderSummaryChips(performanceScoreChips(performance), width),
 		renderSummaryChips(performanceScopeChips(performance), width),
 	)
-
-	if loadingSequence {
-		sections = append(sections, m.performanceSequenceLoadingLine())
-	}
 
 	sections = append(sections, renderPerformanceCards(m, width))
 	sections = append(sections, m.renderActiveMetricDetail(width))

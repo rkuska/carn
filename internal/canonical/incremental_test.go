@@ -326,7 +326,12 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 		},
 	}
 
-	_, err = store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{first.Sessions[0].FilePath})
+	_, err = store.Rebuild(
+		context.Background(),
+		archiveDir,
+		conversationProvider("claude"),
+		[]string{first.Sessions[0].FilePath},
+	)
 	require.NoError(t, err)
 
 	sequence, err = store.QueryPerformanceSequence(context.Background(), archiveDir, cacheKeys)

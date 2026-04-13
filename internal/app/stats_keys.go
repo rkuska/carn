@@ -6,8 +6,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/rkuska/carn/internal/stats"
 )
 
 type statsKeyMap struct {
@@ -81,12 +79,10 @@ func (m statsModel) handleStatsActionKey(msg tea.KeyPressMsg) (statsModel, tea.C
 	switch {
 	case key.Matches(msg, statsKeys.NextTab):
 		m.tab = nextStatsTab(m.tab)
-		next, cmd := m.renderViewportContentAndMaybeLoad(true)
-		return next, cmd, true
+		return m.renderViewportContent(true), nil, true
 	case key.Matches(msg, statsKeys.PrevTab):
 		m.tab = prevStatsTab(m.tab)
-		next, cmd := m.renderViewportContentAndMaybeLoad(true)
-		return next, cmd, true
+		return m.renderViewportContent(true), nil, true
 	case key.Matches(msg, statsKeys.Range):
 		next, cmd := m.handleStatsRangeAction()
 		return next, cmd, true
@@ -105,20 +101,6 @@ func (m statsModel) handleStatsActionKey(msg tea.KeyPressMsg) (statsModel, tea.C
 func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
 	m.timeRange = nextStatsTimeRange(m.timeRange)
 	m = m.recomputeSnapshot()
-	claudeTurnMetricsCached := m.claudeTurnMetricsSourceKey == m.claudeTurnMetricsSourceCacheKey()
-
-	if claudeTurnMetricsCached {
-		m.claudeTurnMetrics = stats.ComputeTurnTokenMetricsForRange(m.claudeTurnMetricSessions, m.timeRange)
-		m.snapshot.Sessions.ClaudeTurnMetrics = m.claudeTurnMetrics
-	} else {
-		m.claudeTurnMetrics = nil
-	}
-	if m.tab == statsTabSessions && !claudeTurnMetricsCached {
-		return m.renderViewportContentAndMaybeLoad(true)
-	}
-	if m.tab == statsTabPerformance && m.performanceSequenceSourceKey != m.performanceSequenceSourceCacheKey() {
-		return m.renderViewportContentAndMaybeLoad(true)
-	}
 	return m.renderViewportContent(true), nil
 }
 

@@ -220,68 +220,80 @@ func aggregateDailyTokens(sessions []sessionFull) []conv.DailyTokenRow {
 
 	rows := make(map[dailyTokenRowKey]conv.DailyTokenRow)
 	for _, session := range sessions {
-		startDay := statsDay(session.Meta.Timestamp)
-		if !startDay.IsZero() {
-			key := dailyTokenKeyForMeta(session.Meta, startDay)
-			row := rows[key]
-			row.Date = startDay
-			row.Provider = string(session.Meta.Provider)
-			row.Model = session.Meta.Model
-			row.Project = session.Meta.Project.DisplayName
-			row.SessionCount++
-			row.MessageCount += statsSessionMessageCount(session.Meta)
-			row.UserMessageCount += session.Meta.UserMessageCount
-			row.AssistantMessageCount += session.Meta.AssistantMessageCount
-			rows[key] = row
-		}
-
-		for _, msg := range session.Messages {
-			day := statsMessageDay(session.Meta.Timestamp, msg.Timestamp)
-			if day.IsZero() {
-				continue
-			}
-			key := dailyTokenKeyForMeta(session.Meta, day)
-			row := rows[key]
-			row.Date = day
-			row.Provider = string(session.Meta.Provider)
-			row.Model = session.Meta.Model
-			row.Project = session.Meta.Project.DisplayName
-			row.InputTokens += msg.Usage.InputTokens
-			row.CacheCreationTokens += msg.Usage.CacheCreationInputTokens
-			row.CacheReadTokens += msg.Usage.CacheReadInputTokens
-			row.OutputTokens += msg.Usage.OutputTokens
-			row.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
-			rows[key] = row
-		}
+		aggregateSessionActivityRow(rows, session)
+		aggregateSessionMessageTokens(rows, session)
 	}
 
 	result := make([]conv.DailyTokenRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row)
 	}
-	slices.SortFunc(result, func(left, right conv.DailyTokenRow) int {
-		switch {
-		case left.Date.Before(right.Date):
-			return -1
-		case left.Date.After(right.Date):
-			return 1
-		case left.Provider < right.Provider:
-			return -1
-		case left.Provider > right.Provider:
-			return 1
-		case left.Model < right.Model:
-			return -1
-		case left.Model > right.Model:
-			return 1
-		case left.Project < right.Project:
-			return -1
-		case left.Project > right.Project:
-			return 1
-		default:
-			return 0
-		}
-	})
+	slices.SortFunc(result, compareDailyTokenRow)
 	return result
+}
+
+func aggregateSessionActivityRow(rows map[dailyTokenRowKey]conv.DailyTokenRow, session sessionFull) {
+	startDay := statsDay(session.Meta.Timestamp)
+	if startDay.IsZero() {
+		return
+	}
+
+	key := dailyTokenKeyForMeta(session.Meta, startDay)
+	row := dailyTokenBaseRow(session.Meta, startDay, rows[key])
+	row.SessionCount++
+	row.MessageCount += statsSessionMessageCount(session.Meta)
+	row.UserMessageCount += session.Meta.UserMessageCount
+	row.AssistantMessageCount += session.Meta.AssistantMessageCount
+	rows[key] = row
+}
+
+func aggregateSessionMessageTokens(rows map[dailyTokenRowKey]conv.DailyTokenRow, session sessionFull) {
+	for _, msg := range session.Messages {
+		day := statsMessageDay(session.Meta.Timestamp, msg.Timestamp)
+		if day.IsZero() {
+			continue
+		}
+
+		key := dailyTokenKeyForMeta(session.Meta, day)
+		row := dailyTokenBaseRow(session.Meta, day, rows[key])
+		row.InputTokens += msg.Usage.InputTokens
+		row.CacheCreationTokens += msg.Usage.CacheCreationInputTokens
+		row.CacheReadTokens += msg.Usage.CacheReadInputTokens
+		row.OutputTokens += msg.Usage.OutputTokens
+		row.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
+		rows[key] = row
+	}
+}
+
+func dailyTokenBaseRow(meta sessionMeta, day time.Time, row conv.DailyTokenRow) conv.DailyTokenRow {
+	row.Date = day
+	row.Provider = string(meta.Provider)
+	row.Model = meta.Model
+	row.Project = meta.Project.DisplayName
+	return row
+}
+
+func compareDailyTokenRow(left, right conv.DailyTokenRow) int {
+	switch {
+	case left.Date.Before(right.Date):
+		return -1
+	case left.Date.After(right.Date):
+		return 1
+	case left.Provider < right.Provider:
+		return -1
+	case left.Provider > right.Provider:
+		return 1
+	case left.Model < right.Model:
+		return -1
+	case left.Model > right.Model:
+		return 1
+	case left.Project < right.Project:
+		return -1
+	case left.Project > right.Project:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func dailyTokenKeyForMeta(meta sessionMeta, day time.Time) dailyTokenRowKey {

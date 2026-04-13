@@ -243,7 +243,7 @@ func TestRenderPerformanceCardsStacksAtNarrowWidths(t *testing.T) {
 	assert.Contains(t, body, "Robustness")
 }
 
-func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReusesThemAcrossRanges(t *testing.T) {
+func TestStatsPerformanceTabUsesPrecomputedSequenceAcrossRanges(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
 		return now
@@ -251,11 +251,34 @@ func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReus
 	defer restoreNow()
 
 	store := &fakeBrowserStore{
-		loadSessionResults: map[string]conv.Session{
-			"perf-1":  testPerformanceLoadedSession("perf-1", now, true),
-			"perf-2a": testPerformanceLoadedSession("perf-2a", now.Add(-2*time.Hour), true),
-			"perf-2b": testPerformanceLoadedSession("perf-2b", now.Add(-90*time.Minute), false),
-			"perf-3":  testPerformanceLoadedSession("perf-3", now.AddDate(0, 0, -45), true),
+		sequenceRows: []conv.PerformanceSequenceSession{
+			{
+				Timestamp:         now,
+				Mutated:           true,
+				FirstPassResolved: true,
+				MutationCount:     1,
+				ActionCount:       1,
+			},
+			{
+				Timestamp:         now.Add(-2 * time.Hour),
+				Mutated:           true,
+				FirstPassResolved: true,
+				MutationCount:     1,
+				ActionCount:       1,
+			},
+			{
+				Timestamp:     now.Add(-90 * time.Minute),
+				Mutated:       true,
+				MutationCount: 1,
+				ActionCount:   1,
+			},
+			{
+				Timestamp:         now.AddDate(0, 0, -45),
+				Mutated:           true,
+				FirstPassResolved: true,
+				MutationCount:     1,
+				ActionCount:       1,
+			},
 		},
 	}
 	m := newStatsModel(
@@ -285,6 +308,8 @@ func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReus
 		32,
 		newBrowserFilterState(),
 	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
 
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
@@ -292,28 +317,21 @@ func TestStatsPerformanceTabLoadsSequenceMetricsInBackgroundOncePerFilterAndReus
 	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
 
-	require.NotNil(t, cmd)
-	assert.False(t, m.snapshot.Performance.Scope.SequenceLoaded)
-	assert.Zero(t, store.loadSessionCalls)
-	assert.Contains(t, ansi.Strip(m.View()), "Loading transcript sequence metrics")
-
-	firstLoad := requireBatchMsgType[performanceSequenceLoadedMsg](t, cmd())
-	m, _ = m.Update(firstLoad)
-
+	assert.Nil(t, cmd)
 	assert.True(t, m.snapshot.Performance.Scope.SequenceLoaded)
 	assert.Equal(t, 3, m.snapshot.Performance.Scope.SequenceSampleCount)
-	assert.Equal(t, 4, store.loadSessionCalls)
-	assert.Equal(t, []string{"perf-1", "perf-2a", "perf-2b", "perf-3"}, store.loadSessionIDs)
+	assert.Zero(t, store.loadSessionCalls)
+	assert.NotContains(t, ansi.Strip(m.View()), "Loading transcript sequence metrics")
 
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "r"})
 	assert.Nil(t, cmd)
 	assert.Equal(t, statsRangeLabel90d, statsTimeRangeLabel(m.timeRange))
 	assert.True(t, m.snapshot.Performance.Scope.SequenceLoaded)
 	assert.Equal(t, 4, m.snapshot.Performance.Scope.SequenceSampleCount)
-	assert.Equal(t, 4, store.loadSessionCalls)
+	assert.Zero(t, store.loadSessionCalls)
 }
 
-func TestStatsPerformanceTabIgnoresStaleSequenceResults(t *testing.T) {
+func TestStatsPerformanceTabScopesSequenceByHasPlansFilter(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
 		return now
@@ -321,57 +339,61 @@ func TestStatsPerformanceTabIgnoresStaleSequenceResults(t *testing.T) {
 	defer restoreNow()
 
 	store := &fakeBrowserStore{
-		loadSessionResults: map[string]conv.Session{
-			"perf-1": testPerformanceLoadedSession("perf-1", now, true),
-			"perf-2": testPerformanceLoadedSession("perf-2", now.AddDate(0, 0, -45), false),
-		},
+		sequenceRowsByKey: map[string][]conv.PerformanceSequenceSession{},
 	}
+	withPlans := testStatsConversationWithProviderAndSessions(
+		conv.ProviderClaude,
+		"perf-1",
+		"alpha",
+		testPerformanceSessionMeta("perf-1", "alpha", now),
+	)
+	withPlans.PlanCount = 1
+	withoutPlans := testStatsConversationWithProviderAndSessions(
+		conv.ProviderClaude,
+		"perf-2",
+		"beta",
+		testPerformanceSessionMeta("perf-2", "beta", now.Add(-time.Hour)),
+	)
+
+	store.sequenceRowsByKey[withPlans.CacheKey()] = []conv.PerformanceSequenceSession{{
+		Timestamp:         now,
+		Mutated:           true,
+		FirstPassResolved: true,
+		MutationCount:     1,
+		ActionCount:       1,
+	}}
+	store.sequenceRowsByKey[withoutPlans.CacheKey()] = []conv.PerformanceSequenceSession{{
+		Timestamp:     now.Add(-time.Hour),
+		Mutated:       true,
+		MutationCount: 1,
+		ActionCount:   1,
+	}}
+
 	m := newStatsModel(
-		[]conv.Conversation{
-			testStatsConversationWithProviderAndSessions(
-				conv.ProviderClaude,
-				"perf-1",
-				"alpha",
-				testPerformanceSessionMeta("perf-1", "alpha", now),
-			),
-			testStatsConversationWithProviderAndSessions(
-				conv.ProviderClaude,
-				"perf-2",
-				"beta",
-				testPerformanceSessionMeta("perf-2", "beta", now.AddDate(0, 0, -45)),
-			),
-		},
+		[]conv.Conversation{withPlans, withoutPlans},
 		store,
 		120,
 		32,
 		newBrowserFilterState(),
 	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	m.filter.dimensions[filterDimHasPlans] = dimensionFilter{boolState: boolFilterYes}
+	m = m.applyFilterChange()
 
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, _ = m.Update(ctrlKey("f"))
 	m, cmd := m.Update(ctrlKey("f"))
-	require.NotNil(t, cmd)
-	firstLoad := requireBatchMsgType[performanceSequenceLoadedMsg](t, cmd())
 
-	m.filter.dimensions[filterDimProject] = dimensionFilter{
-		selected: map[string]bool{"alpha": true},
-	}
-	m, cmd = m.applyFilterChangeAndMaybeLoad()
-	require.NotNil(t, cmd)
-	secondLoad := requireBatchMsgType[performanceSequenceLoadedMsg](t, cmd())
-
-	m, _ = m.Update(firstLoad)
-	assert.False(t, m.snapshot.Performance.Scope.SequenceLoaded)
-	assert.Contains(t, ansi.Strip(m.View()), "Loading transcript sequence metrics")
-
-	m, _ = m.Update(secondLoad)
+	assert.Nil(t, cmd)
 	assert.True(t, m.snapshot.Performance.Scope.SequenceLoaded)
 	assert.Equal(t, 1, m.snapshot.Performance.Scope.SequenceSampleCount)
-	assert.False(t, m.performanceSequenceLoading())
-	assert.Equal(t, m.performanceSequenceSourceCacheKey(), m.performanceSequenceSourceKey)
-	assert.Equal(t, 3, store.loadSessionCalls)
+	assert.Equal(t, 1, m.snapshot.Performance.Scope.SessionCount)
+	assert.Contains(t, ansi.Strip(m.View()), "Outcome")
+	assert.Zero(t, store.loadSessionCalls)
 }
 
 func TestStatsPerformanceTabDoesNotLoadSequenceMetricsForMixedScope(t *testing.T) {
@@ -678,112 +700,4 @@ func testPerformanceSessionMeta(
 		option(&meta)
 	}
 	return meta
-}
-
-func testPerformanceLoadedSession(id string, ts time.Time, resolved bool) conv.Session {
-	filePath := "/tmp/" + id + ".go"
-	session := conv.Session{
-		Meta: conv.SessionMeta{
-			ID:        id,
-			Project:   conv.Project{DisplayName: "alpha"},
-			Timestamp: ts,
-		},
-		Messages: []conv.Message{
-			{Role: conv.RoleUser, Text: "fix " + id},
-		},
-	}
-
-	if resolved {
-		session.Messages = append(session.Messages,
-			conv.Message{
-				Role:     conv.RoleAssistant,
-				Thinking: "inspect first",
-				ToolCalls: []conv.ToolCall{{
-					Name: "Read",
-					Action: conv.NormalizedAction{
-						Type:    conv.NormalizedActionRead,
-						Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-					},
-				}},
-			},
-			conv.Message{
-				Role: conv.RoleAssistant,
-				ToolCalls: []conv.ToolCall{{
-					Name: "Edit",
-					Action: conv.NormalizedAction{
-						Type:    conv.NormalizedActionMutate,
-						Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-					},
-				}},
-			},
-			conv.Message{
-				Role: conv.RoleUser,
-				ToolResults: []conv.ToolResult{{
-					ToolName: "Edit",
-					Action: conv.NormalizedAction{
-						Type:    conv.NormalizedActionMutate,
-						Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-					},
-				}},
-			},
-			conv.Message{
-				Role: conv.RoleAssistant,
-				ToolCalls: []conv.ToolCall{{
-					Name: "Bash",
-					Action: conv.NormalizedAction{
-						Type:    conv.NormalizedActionTest,
-						Targets: []conv.ActionTarget{{Type: conv.ActionTargetCommand, Value: "go test ./..."}},
-					},
-				}},
-			},
-			conv.Message{
-				Role: conv.RoleUser,
-				ToolResults: []conv.ToolResult{{
-					ToolName: "Bash",
-					Action: conv.NormalizedAction{
-						Type:    conv.NormalizedActionTest,
-						Targets: []conv.ActionTarget{{Type: conv.ActionTargetCommand, Value: "go test ./..."}},
-					},
-				}},
-			},
-		)
-		return session
-	}
-
-	session.Messages = append(session.Messages,
-		conv.Message{
-			Role:              conv.RoleAssistant,
-			HasHiddenThinking: true,
-			ToolCalls: []conv.ToolCall{{
-				Name: "Edit",
-				Action: conv.NormalizedAction{
-					Type:    conv.NormalizedActionMutate,
-					Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-				},
-			}},
-		},
-		conv.Message{
-			Role: conv.RoleUser,
-			Text: "inspect first",
-			ToolResults: []conv.ToolResult{{
-				ToolName: "Edit",
-				IsError:  true,
-				Action: conv.NormalizedAction{
-					Type:    conv.NormalizedActionMutate,
-					Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-				},
-			}},
-		},
-		conv.Message{
-			Role: conv.RoleAssistant,
-			ToolCalls: []conv.ToolCall{{
-				Name: "Edit",
-				Action: conv.NormalizedAction{
-					Type:    conv.NormalizedActionMutate,
-					Targets: []conv.ActionTarget{{Type: conv.ActionTargetFilePath, Value: filePath}},
-				},
-			}},
-		},
-	)
-	return session
 }

@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestComputeActivityBuildsDailySeriesHeatmapAndStreaks(t *testing.T) {
@@ -157,6 +159,42 @@ func TestComputeActivityUsesTotalMessageCountForSubagentSessions(t *testing.T) {
 
 	require.Len(t, got.DailyMessages, 1)
 	assert.Equal(t, 12, got.DailyMessages[0].Count)
+}
+
+func TestComputeActivityFromDailyUsesDailyRowsForSeriesAndSessionsForHeatmap(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta("s1", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)),
+		testMeta("s2", time.Date(2026, 1, 6, 14, 0, 0, 0, time.UTC)),
+	}
+	daily := []conv.DailyTokenRow{
+		{
+			Date:         time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			SessionCount: 1,
+			MessageCount: 4,
+			InputTokens:  100,
+			OutputTokens: 20,
+		},
+		{
+			Date:         time.Date(2026, 1, 6, 0, 0, 0, 0, time.UTC),
+			SessionCount: 1,
+			MessageCount: 6,
+			InputTokens:  150,
+			OutputTokens: 30,
+		},
+	}
+
+	got := ComputeActivityFromDaily(sessions, daily, TimeRange{
+		Start: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 6, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, []int{1, 1}, dailyCounts(got.DailySessions))
+	assert.Equal(t, []int{4, 6}, dailyCounts(got.DailyMessages))
+	assert.Equal(t, []int{120, 180}, dailyCounts(got.DailyTokens))
+	assert.Equal(t, 1, got.Heatmap[0][9])
+	assert.Equal(t, 1, got.Heatmap[1][14])
 }
 
 func dailyCounts(items []DailyCount) []int {
