@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -372,6 +373,171 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
 	assert.InDelta(t, 120.0, m.snapshot.Sessions.ClaudeTurnMetrics[0].AverageInputTokens, 0.0001)
 	assert.Zero(t, store.loadSessionCalls)
+}
+
+func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) {
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
+
+	store := &fakeBrowserStore{
+		sequenceErr: errors.New("sequence boom"),
+		turnMetricRows: []conv.SessionTurnMetrics{
+			{
+				Timestamp: now.Add(-time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 100,
+					TurnTokens:  150,
+				}},
+			},
+			{
+				Timestamp: now.Add(-2 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 120,
+					TurnTokens:  180,
+				}},
+			},
+			{
+				Timestamp: now.Add(-3 * time.Hour),
+				Turns: []conv.TurnTokens{{
+					InputTokens: 140,
+					TurnTokens:  210,
+				}},
+			},
+		},
+		dailyTokenRows: []conv.DailyTokenRow{{
+			Date:                  now,
+			SessionCount:          1,
+			MessageCount:          4,
+			UserMessageCount:      2,
+			AssistantMessageCount: 2,
+			InputTokens:           30,
+			OutputTokens:          10,
+		}},
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	assert.Equal(t, notificationError, m.notification.kind)
+	assert.Contains(t, m.notification.text, "couldn't load sequence metrics")
+	assert.Contains(t, m.notification.text, "Press q, then R")
+	assert.True(t, m.statsQueryFailures.degraded())
+	assert.False(t, m.snapshot.Performance.Scope.SequenceLoaded)
+
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
+	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
+
+	totalTokens := 0
+	for _, day := range m.snapshot.Activity.DailyTokens {
+		totalTokens += day.Count
+	}
+	assert.Equal(t, 40, totalTokens)
+
+	view := ansi.Strip(m.View())
+	assert.Contains(t, view, statsDegradedBadgeText)
+	assert.Contains(t, view, statsDegradedHintText)
+}
+
+func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
+
+	store := &fakeBrowserStore{
+		sequenceErr: errors.New("sequence boom"),
+		dailyTokenRows: []conv.DailyTokenRow{{
+			Date:                  now,
+			SessionCount:          1,
+			MessageCount:          4,
+			UserMessageCount:      2,
+			AssistantMessageCount: 2,
+			InputTokens:           30,
+			OutputTokens:          10,
+		}},
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	assert.True(t, m.statsQueryFailures.degraded())
+	assert.Equal(t, notificationError, m.notification.kind)
+
+	store.sequenceErr = nil
+	store.sequenceRows = []conv.PerformanceSequenceSession{{
+		Timestamp:         now,
+		Mutated:           true,
+		FirstPassResolved: true,
+		MutationCount:     1,
+		ActionCount:       1,
+	}}
+
+	m = m.applyFilterChange()
+
+	assert.False(t, m.statsQueryFailures.degraded())
+	assert.Equal(t, notification{}, m.notification)
+	assert.True(t, m.snapshot.Performance.Scope.SequenceLoaded)
+
+	view := ansi.Strip(m.View())
+	assert.NotContains(t, view, statsDegradedBadgeText)
+	assert.NotContains(t, view, statsDegradedHintText)
+}
+
+func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.T) {
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	restoreNow := setStatsNowForTest(func() time.Time {
+		return now
+	})
+	defer restoreNow()
+
+	store := &fakeBrowserStore{
+		sequenceErr: errors.New("sequence boom"),
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	assert.Contains(t, m.notification.text, "sequence metrics")
+
+	store.sequenceErr = nil
+	store.dailyTokenErr = errors.New("daily boom")
+	store.sequenceRows = []conv.PerformanceSequenceSession{{
+		Timestamp:         now,
+		Mutated:           true,
+		FirstPassResolved: true,
+		MutationCount:     1,
+		ActionCount:       1,
+	}}
+	m = m.applyFilterChange()
+
+	assert.True(t, m.statsQueryFailures.degraded())
+	assert.Contains(t, m.notification.text, "daily token totals")
+	assert.NotContains(t, m.notification.text, "sequence metrics")
 }
 
 func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {

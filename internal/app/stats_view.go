@@ -139,13 +139,10 @@ func (m statsModel) footerHelpRow() string {
 	}
 
 	if m.filter.active {
-		return composeFooterRow(m.width, renderHelpItems(filterFooterItems(m.filter)), "")
+		return composeFooterRow(m.width, renderHelpItems(filterFooterItems(m.filter)), m.footerHelpRight())
 	}
 
-	right := ""
-	if m.performanceScopeGateActive() {
-		right = "need 1 provider + 1 model"
-	}
+	right := m.footerHelpRight()
 	leftWidth := m.contentWidth()
 	if right != "" {
 		leftWidth = max(m.contentWidth()-lipgloss.Width(right)-1, 0)
@@ -153,13 +150,31 @@ func (m statsModel) footerHelpRow() string {
 	return composeFooterRow(m.width, renderFittedHelpItems(m.statsNavigationHelpItems(), leftWidth), right)
 }
 
+func (m statsModel) footerHelpRight() string {
+	if m.statsQueryFailures.degraded() {
+		return statsDegradedHintText
+	}
+	if m.performanceScopeGateActive() {
+		return "need 1 provider + 1 model"
+	}
+	return ""
+}
+
 func (m statsModel) footerStatusRow() string {
 	status := joinNonEmpty(m.footerStatusParts(), "  ")
 	if m.filter.active {
-		status = joinNonEmpty(filterFooterStatusParts(m.conversations, m.filter), "  ")
+		status = joinNonEmpty(m.filterFooterStatusParts(), "  ")
 	}
 	if m.notification.text != "" {
 		status = joinNonEmpty([]string{status, renderNotification(m.notification)}, "  ")
 	}
 	return composeFooterRow(m.width, status, m.scrollStatus())
+}
+
+func (m statsModel) filterFooterStatusParts() []string {
+	parts := filterFooterStatusParts(m.conversations, m.filter)
+	if m.statsQueryFailures.degraded() {
+		parts = append(parts, renderStatsDegradedBadge())
+	}
+	return parts
 }

@@ -410,6 +410,18 @@ func TestStatsFooterStatusRowHidesScrollPercentWhenContentFits(t *testing.T) {
 	assert.NotContains(t, row, "%")
 }
 
+func TestStatsFooterStatusRowShowsDegradedBadge(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(80, 20)
+	m.statsQueryFailures = statsQueryFailureDailyTokens
+
+	row := ansi.Strip(m.footerStatusRow())
+
+	assert.Contains(t, row, statsDegradedBadgeText)
+	assert.Contains(t, row, "[stats] 1 sessions")
+}
+
 func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	t.Parallel()
 
@@ -434,6 +446,18 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	assert.NotContains(t, row, "m metric")
 }
 
+func TestStatsFooterHelpRowShowsRebuildHintWhenDegraded(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(80, 20)
+	m.statsQueryFailures = statsQueryFailureTurnMetrics
+
+	row := ansi.Strip(m.footerHelpRow())
+
+	assert.Contains(t, row, statsDegradedHintText)
+	assert.Contains(t, row, "h/l lane")
+}
+
 func TestStatsFooterHelpRowPromptsToFixPerformanceScopeWhenGateIsActive(t *testing.T) {
 	t.Parallel()
 
@@ -451,6 +475,24 @@ func TestStatsFooterHelpRowPromptsToFixPerformanceScopeWhenGateIsActive(t *testi
 	assert.Contains(t, row, "need 1 provider + 1 model")
 	assert.Contains(t, row, "h/l lane")
 	assert.NotContains(t, row, "m metric")
+}
+
+func TestStatsFooterHelpRowPrefersRebuildHintOverScopeGateWhenDegraded(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(80, 20)
+	m.tab = statsTabPerformance
+	m.snapshot.Performance.Scope = statspkg.PerformanceScope{
+		Providers:    []string{"Claude", "Codex"},
+		Models:       []string{"claude-opus-4-1", "gpt-5.4"},
+		SingleFamily: false,
+	}
+	m.statsQueryFailures = statsQueryFailurePerformanceSequence
+
+	row := ansi.Strip(m.footerHelpRow())
+
+	assert.Contains(t, row, statsDegradedHintText)
+	assert.NotContains(t, row, "need 1 provider + 1 model")
 }
 
 func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {

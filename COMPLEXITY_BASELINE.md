@@ -58,6 +58,7 @@ None.
 | internal/stats/performance_lane.go | source | 340 | 10 | 347 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
 | internal/app/stats_tab_performance_test.go | test | 637 | 4 | 703 |
+| internal/app/stats_model_test.go | test | 687 | 3 | 793 |
 
 ## Notes
 

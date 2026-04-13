@@ -66,6 +66,7 @@ type statsModel struct {
 	toolsLaneCursor         int
 	cacheLaneCursor         int
 	cacheMetric             cacheMetric
+	statsQueryFailures      statsQueryFailures
 	performanceLaneCursor   int
 	performanceMetricCursor int
 	glamourStyle            string
@@ -248,13 +249,14 @@ func (m statsModel) renderActiveTab() string {
 func (m statsModel) recomputeSnapshot() statsModel {
 	conversations := m.filteredConversations()
 	cacheKeys := filteredConversationCacheKeys(conversations)
-	sequence, turnMetrics, dailyTokens := m.loadPrecomputedStatsRows(cacheKeys)
+	rows := m.loadPrecomputedStatsRows(cacheKeys)
+	m = m.applyStatsQueryFailures(rows.queryFailure)
 	m.snapshot = stats.ComputeSnapshotWithPrecomputed(
 		conversations,
 		m.timeRange,
-		sequence,
-		turnMetrics,
-		dailyTokens,
+		rows.sequence,
+		rows.turnMetrics,
+		rows.dailyTokens,
 	)
 	m = m.normalizeStatsSelection()
 	return m
@@ -262,9 +264,9 @@ func (m statsModel) recomputeSnapshot() statsModel {
 
 func (m statsModel) loadPrecomputedStatsRows(
 	cacheKeys []string,
-) ([]conv.PerformanceSequenceSession, []conv.SessionTurnMetrics, []conv.DailyTokenRow) {
+) statsPrecomputedRows {
 	if m.store == nil || m.archiveDir == "" || len(cacheKeys) == 0 {
-		return nil, nil, nil
+		return statsPrecomputedRows{}
 	}
 
 	return loadStatsRows(
@@ -273,27 +275,6 @@ func (m statsModel) loadPrecomputedStatsRows(
 		m.archiveDir,
 		cacheKeys,
 	)
-}
-
-func loadStatsRows(
-	ctx context.Context,
-	store browserStore,
-	archiveDir string,
-	cacheKeys []string,
-) ([]conv.PerformanceSequenceSession, []conv.SessionTurnMetrics, []conv.DailyTokenRow) {
-	sequence, err := store.QueryPerformanceSequence(ctx, archiveDir, cacheKeys)
-	if err != nil {
-		sequence = nil
-	}
-	turnMetrics, err := store.QueryTurnMetrics(ctx, archiveDir, cacheKeys)
-	if err != nil {
-		turnMetrics = nil
-	}
-	dailyTokens, err := store.QueryDailyTokens(ctx, archiveDir, cacheKeys)
-	if err != nil {
-		dailyTokens = nil
-	}
-	return sequence, turnMetrics, dailyTokens
 }
 
 func (m statsModel) contentWidth() int {
@@ -317,9 +298,12 @@ func filteredConversationCacheKeys(conversations []conv.Conversation) []string {
 }
 
 func (m statsModel) footerStatusParts() []string {
-	parts := make([]string, 0, 1+len(filterBadges(m.filter.dimensions)))
+	parts := make([]string, 0, 2+len(filterBadges(m.filter.dimensions)))
 	for _, badge := range filterBadges(m.filter.dimensions) {
 		parts = append(parts, styleToolCall.Render("["+badge+"]"))
+	}
+	if m.statsQueryFailures.degraded() {
+		parts = append(parts, renderStatsDegradedBadge())
 	}
 	parts = append(parts, fmt.Sprintf("[stats] %d sessions", m.snapshot.Overview.SessionCount))
 	return parts

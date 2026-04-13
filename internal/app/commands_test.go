@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,10 +29,13 @@ type fakeBrowserStore struct {
 	deepSearchCalls     int
 	deepSearchResults   map[string][]conv.Conversation
 	deepSearchErr       error
+	sequenceErr         error
 	sequenceRows        []conv.PerformanceSequenceSession
 	sequenceRowsByKey   map[string][]conv.PerformanceSequenceSession
+	turnMetricErr       error
 	turnMetricRows      []conv.SessionTurnMetrics
 	turnMetricRowsByKey map[string][]conv.SessionTurnMetrics
+	dailyTokenErr       error
 	dailyTokenRows      []conv.DailyTokenRow
 	dailyTokenRowsByKey map[string][]conv.DailyTokenRow
 }
@@ -89,6 +93,9 @@ func (s *fakeBrowserStore) QueryPerformanceSequence(
 	_ string,
 	cacheKeys []string,
 ) ([]conv.PerformanceSequenceSession, error) {
+	if s.sequenceErr != nil {
+		return nil, s.sequenceErr
+	}
 	if len(s.sequenceRowsByKey) > 0 {
 		rows := make([]conv.PerformanceSequenceSession, 0)
 		for _, key := range cacheKeys {
@@ -104,6 +111,9 @@ func (s *fakeBrowserStore) QueryTurnMetrics(
 	_ string,
 	cacheKeys []string,
 ) ([]conv.SessionTurnMetrics, error) {
+	if s.turnMetricErr != nil {
+		return nil, s.turnMetricErr
+	}
 	if len(s.turnMetricRowsByKey) > 0 {
 		rows := make([]conv.SessionTurnMetrics, 0)
 		for _, key := range cacheKeys {
@@ -119,6 +129,9 @@ func (s *fakeBrowserStore) QueryDailyTokens(
 	_ string,
 	cacheKeys []string,
 ) ([]conv.DailyTokenRow, error) {
+	if s.dailyTokenErr != nil {
+		return nil, s.dailyTokenErr
+	}
 	if len(s.dailyTokenRowsByKey) > 0 {
 		rows := make([]conv.DailyTokenRow, 0)
 		for _, key := range cacheKeys {
@@ -152,6 +165,25 @@ func TestExportTextReturnsSuccessNotification(t *testing.T) {
 	content, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 	assert.Equal(t, "hello export", string(content))
+}
+
+func TestFakeBrowserStoreStatsQueryErrors(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeBrowserStore{
+		sequenceErr:   errors.New("sequence boom"),
+		turnMetricErr: errors.New("turn boom"),
+		dailyTokenErr: errors.New("daily boom"),
+	}
+
+	_, err := store.QueryPerformanceSequence(context.Background(), "", []string{"a"})
+	require.ErrorContains(t, err, "sequence boom")
+
+	_, err = store.QueryTurnMetrics(context.Background(), "", []string{"a"})
+	require.ErrorContains(t, err, "turn boom")
+
+	_, err = store.QueryDailyTokens(context.Background(), "", []string{"a"})
+	require.ErrorContains(t, err, "daily boom")
 }
 
 func TestConversationExportFileNameUsesProviderAwareGenericName(t *testing.T) {
