@@ -1,3 +1,53 @@
+# v0.3.0
+
+This release adds a dedicated Cache stats tab, moves the stats dashboard onto
+precomputed SQLite rows for faster rendering, and fixes token accounting across
+both Claude and Codex providers. Activity tracking is now timezone-aware, prompt
+growth charts focus on main-thread turns, and Codex token semantics are
+normalized to match Anthropic's exclusive-bucket convention — eliminating
+double-counting that made cross-provider comparisons misleading.
+
+![Cache stats tab](https://raw.githubusercontent.com/rkuska/carn/v0.3.0/releases/assets/v0.3.0/cache.png)
+
+## Features
+
+- **Cache stats tab** — A new tab between Tools and Performance surfaces
+  prompt-cache behavior with hit rate, miss rate, reuse ratio, daily trends,
+  main-vs-subagent comparison, and duration histograms.
+
+- **Precomputed stats rows** — Stats UI reads from canonical SQLite rows
+  instead of loading transcript blobs. A one-time backfill runs on first
+  launch after upgrade.
+
+- **Message timestamps** — Per-message timestamps preserved through
+  projection paths and canonical transcript blobs.
+
+## Fixes
+
+- **Codex token double-counting** — Codex parser normalizes OpenAI's
+  inclusive token semantics to exclusive buckets at parse time.
+
+- **Sidechain model metadata leak** — Primary sessions no longer inherit
+  sidechain model identifiers.
+
+- **UTC minute activity buckets** — Timezone-correct rebucketing and
+  streak calculation.
+
+- **Prompt growth aligned to main-thread turns** — Subagents, sidechains,
+  and tool-only steps excluded from turn position.
+
+## Improvements
+
+- **Stats hot path overhead reduced** — Fixed-size top-five, indexed day
+  buckets, preallocated slices, direct border rendering.
+
+- **Degraded stats notification** — Error notification with rebuild
+  guidance when precomputed row queries fail.
+
+- **Full timestamps in carn.log** — RFC3339 format with timezone offset.
+
+---
+
 # v0.2.0
 
 càrn v0.2.0 turns the transcript browser into an analytics surface. A new
