@@ -40,6 +40,7 @@ func TestProjectConversationTranscriptMergesLinkedTranscripts(t *testing.T) {
 func TestProjectConversationTranscriptKeepsViewerFieldsOnly(t *testing.T) {
 	t.Parallel()
 
+	msgTimestamp := time.Date(2026, 3, 8, 9, 0, 0, 0, time.UTC)
 	got := projectConversationTranscript([]parsedMessage{
 		{
 			message: message{
@@ -56,7 +57,7 @@ func TestProjectConversationTranscriptKeepsViewerFieldsOnly(t *testing.T) {
 				IsSidechain:    true,
 				IsAgentDivider: true,
 			},
-			timestamp: time.Date(2026, 3, 8, 9, 0, 0, 0, time.UTC),
+			timestamp: msgTimestamp,
 			usage:     tokenUsage{InputTokens: 10, OutputTokens: 5},
 		},
 	}, nil)
@@ -76,5 +77,6 @@ func TestProjectConversationTranscriptKeepsViewerFieldsOnly(t *testing.T) {
 		IsSidechain:    true,
 		IsAgentDivider: true,
 		Usage:          tokenUsage{InputTokens: 10, OutputTokens: 5},
+		Timestamp:      msgTimestamp,
 	}, got[0])
 }

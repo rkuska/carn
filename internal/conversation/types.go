@@ -241,6 +241,7 @@ type Message struct {
 	IsAgentDivider    bool
 	Usage             TokenUsage
 	Performance       MessagePerformanceMeta
+	Timestamp         time.Time
 }
 
 func (m Message) IsVisible() bool {

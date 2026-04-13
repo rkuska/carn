@@ -2,6 +2,7 @@ package canonical
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,8 @@ func TestDecodeSessionBlobFastPreservesDistinctActionTargets(t *testing.T) {
 		Meta: sessionMeta{ID: "s1"},
 		Messages: []message{
 			{
-				Role: conv.RoleAssistant,
+				Role:      conv.RoleAssistant,
+				Timestamp: time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC),
 				ToolCalls: []toolCall{
 					{
 						Name: "Read",
@@ -67,6 +69,7 @@ func TestDecodeSessionBlobFastPreservesDistinctActionTargets(t *testing.T) {
 	require.Len(t, decoded.Messages[0].ToolCalls, 2)
 	require.Len(t, decoded.Messages[0].ToolResults, 1)
 
+	assert.True(t, decoded.Messages[0].Timestamp.Equal(session.Messages[0].Timestamp))
 	assert.Equal(t, "/tmp/one.go", decoded.Messages[0].ToolCalls[0].Action.Targets[0].Value)
 	assert.Equal(t, "go test ./...", decoded.Messages[0].ToolCalls[1].Action.Targets[0].Value)
 	assert.Equal(t, "go build ./...", decoded.Messages[0].ToolResults[0].Action.Targets[0].Value)

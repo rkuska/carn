@@ -137,6 +137,7 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 					Phase:                   "commentary",
 					Effort:                  "xhigh",
 				},
+				Timestamp: time.Date(2025, 1, 15, 10, 40, 0, 0, time.Local),
 			},
 		},
 	}
@@ -159,6 +160,7 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 	assert.Equal(t, session.Messages[0].Role, decoded.Messages[0].Role)
 	assert.Equal(t, session.Messages[0].Text, decoded.Messages[0].Text)
 	assert.Equal(t, session.Messages[0].Visibility, decoded.Messages[0].Visibility)
+	assert.Zero(t, decoded.Messages[0].Timestamp)
 
 	// Second message: complex assistant message with tools and plans
 	assert.Equal(t, session.Messages[1].Role, decoded.Messages[1].Role)
@@ -169,6 +171,7 @@ func TestWithEncodedSessionBlobRoundTrip(t *testing.T) {
 	assert.Equal(t, session.Messages[1].Plans, decoded.Messages[1].Plans)
 	assert.Equal(t, session.Messages[1].IsSidechain, decoded.Messages[1].IsSidechain)
 	assert.Equal(t, session.Messages[1].Usage, decoded.Messages[1].Usage)
+	assert.Equal(t, session.Messages[1].Timestamp, decoded.Messages[1].Timestamp)
 }
 
 func TestWithEncodedSessionBlobMinimal(t *testing.T) {

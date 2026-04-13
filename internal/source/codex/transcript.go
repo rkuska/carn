@@ -192,6 +192,7 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 			Visibility:        msg.visibility,
 			IsAgentDivider:    msg.isAgentDivider,
 			Performance:       msg.performance,
+			Timestamp:         msg.timestamp,
 		})
 	}
 	return projected

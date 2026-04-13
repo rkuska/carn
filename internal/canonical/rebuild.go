@@ -17,7 +17,7 @@ import (
 
 const (
 	storeSchemaVersion       = 8
-	storeProjectionVersion   = 9
+	storeProjectionVersion   = 10
 	storeSearchCorpusVersion = 3
 )
 

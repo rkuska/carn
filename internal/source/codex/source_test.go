@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,9 +104,11 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Contains(t, mainSession.Messages[2].Text, "<cwd>/workspace/project</cwd>")
 	assert.Equal(t, conv.RoleUser, mainSession.Messages[3].Role)
 	assert.Equal(t, "# Import Codex sessions\n\nImplement support for codex sessions.", mainSession.Messages[3].Text)
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 0, 2, 300*1_000_000, time.UTC), mainSession.Messages[3].Timestamp)
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[4].Role)
 	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[4].Thinking)
 	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[4].Text)
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 0, 6, 200*1_000_000, time.UTC), mainSession.Messages[4].Timestamp)
 	assert.Equal(t, conv.TokenUsage{
 		CacheCreationInputTokens: 23270,
 		CacheReadInputTokens:     62150,
@@ -124,8 +127,10 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, "Planck is inspecting the parser.", mainSession.Messages[5].Text)
 	assert.Equal(t, conv.RoleUser, mainSession.Messages[6].Role)
 	assert.Equal(t, "Inspect the parser.", mainSession.Messages[6].Text)
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 10, 1, 0, time.UTC), mainSession.Messages[6].Timestamp)
 	assert.Equal(t, conv.RoleAssistant, mainSession.Messages[7].Role)
 	assert.Equal(t, "Parser inspected.", mainSession.Messages[7].Text)
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 10, 2, 0, time.UTC), mainSession.Messages[7].Timestamp)
 	assert.Equal(t, conv.TokenUsage{
 		CacheCreationInputTokens: 7400,
 		CacheReadInputTokens:     21500,
@@ -141,11 +146,13 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Empty(t, hiddenSession.Messages[1].Thinking)
 	assert.True(t, hiddenSession.Messages[1].HasHiddenThinking)
 	assert.True(t, hiddenSession.Messages[1].HasThinking())
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 15, 4, 100*1_000_000, time.UTC), hiddenSession.Messages[1].Timestamp)
 	assert.Equal(t, conv.RoleAssistant, hiddenSession.Messages[3].Role)
 	assert.Equal(t, "Second answer with visible reasoning.", hiddenSession.Messages[3].Text)
 	assert.Equal(t, "Visible reasoning should win.", hiddenSession.Messages[3].Thinking)
 	assert.False(t, hiddenSession.Messages[3].HasHiddenThinking)
 	assert.True(t, hiddenSession.Messages[3].HasThinking())
+	assert.Equal(t, time.Date(2026, 3, 13, 10, 15, 7, 100*1_000_000, time.UTC), hiddenSession.Messages[3].Timestamp)
 	assert.Equal(t, conv.TokenUsage{
 		CacheCreationInputTokens: 15800,
 		CacheReadInputTokens:     38400,

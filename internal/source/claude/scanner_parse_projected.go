@@ -33,6 +33,7 @@ func parseSessionProjectedWithContextInto(
 	if err := visitSessionMessages(ctx, filePath, pc, func(msg parsedMessage) {
 		m := msg.message
 		m.Usage = msg.usage
+		m.Timestamp = msg.timestamp
 		messages = append(messages, m)
 		addUsage(&totalUsage, msg.usage)
 	}); err != nil {

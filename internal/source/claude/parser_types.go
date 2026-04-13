@@ -36,6 +36,7 @@ func messagesFromParsed(messages []parsedMessage) []message {
 	for _, msg := range messages {
 		m := msg.message
 		m.Usage = msg.usage
+		m.Timestamp = msg.timestamp
 		projected = append(projected, m)
 	}
 	return projected

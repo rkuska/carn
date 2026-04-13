@@ -40,6 +40,11 @@ func writeMessage(w *bufio.Writer, msg message) error {
 			bw.err = fmt.Errorf("writePlan: %w", err)
 		}
 	}
+	timestamp := int64(0)
+	if !msg.Timestamp.IsZero() {
+		timestamp = msg.Timestamp.UnixNano()
+	}
+	bw.writeInt(timestamp)
 	if bw.err != nil {
 		return fmt.Errorf("writeMessage: %w", bw.err)
 	}

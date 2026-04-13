@@ -139,6 +139,10 @@ func (d *blobDecoder) readMessage(targetArena *actionTargetArena) message {
 	for i := range msg.Plans {
 		msg.Plans[i] = d.readPlan()
 	}
+	timestampValue := d.readInt()
+	if timestampValue != 0 {
+		msg.Timestamp = unixTime(timestampValue)
+	}
 
 	return msg
 }
