@@ -18,7 +18,7 @@ func renderStatsLaneBox(title string, selected bool, width int, content string) 
 		selectedStatsTitle(title, selected),
 		width,
 		statsLaneBorderColor(selected),
-		content,
+		"\n"+content,
 	)
 }
 
@@ -29,9 +29,9 @@ func renderStatsLanePane(title string, selected bool, width, bodyHeight int, con
 	return renderFramedPane(
 		selectedStatsTitle(title, selected),
 		width,
-		max(bodyHeight, 1),
+		max(bodyHeight, 1)+1,
 		statsLaneBorderColor(selected),
-		content,
+		"\n"+content,
 	)
 }
 

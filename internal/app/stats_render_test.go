@@ -550,7 +550,7 @@ func TestRenderStatsLanePairUsesBorderedCardsAndAlignedHeights(t *testing.T) {
 	assert.Contains(t, titleLine, "│")
 
 	lines := strings.Split(stripped, "\n")
-	require.Len(t, lines, 5)
+	require.Len(t, lines, 6)
 	for _, line := range lines {
 		assert.Equal(t, 80, lipgloss.Width(line))
 	}
