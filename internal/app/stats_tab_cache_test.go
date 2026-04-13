@@ -19,8 +19,8 @@ func TestNormalizeReuseDailyRatesClampsInfinitePoints(t *testing.T) {
 	t.Parallel()
 
 	rates := []statspkg.DailyRate{
-		{Rate: math.Inf(1)},
-		{Rate: 3},
+		{Rate: math.Inf(1), HasActivity: true},
+		{Rate: 3, HasActivity: true},
 	}
 
 	normalized, cap, hasInfinite := normalizeReuseDailyRates(rates)
@@ -28,6 +28,7 @@ func TestNormalizeReuseDailyRatesClampsInfinitePoints(t *testing.T) {
 	assert.True(t, hasInfinite)
 	assert.InDelta(t, 3.0, cap, 0.001)
 	assert.InDelta(t, 3.0, normalized[0].Rate, 0.001)
+	assert.True(t, normalized[0].HasActivity)
 	assert.InDelta(t, 3.0, normalized[1].Rate, 0.001)
 }
 

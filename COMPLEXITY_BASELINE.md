@@ -31,6 +31,7 @@ None.
 | internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
 | internal/app/transcript_segments.go | source | 357 | 68 | 402 |
 | internal/source/claude/known_schema_extras.go | source | 241 | 68 | 269 |
+| internal/app/stats_daily_rate_chart.go | source | 383 | 67 | 428 |
 | internal/stats/performance_session.go | source | 323 | 67 | 346 |
 | internal/canonical/sqlite_db.go | source | 283 | 67 | 307 |
 | internal/source/claude/scanner_parse.go | source | 276 | 67 | 317 |
@@ -43,7 +44,7 @@ None.
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
-| internal/app/stats_tab_cache.go | source | 320 | 56 | 353 |
+| internal/app/stats_tab_cache.go | source | 325 | 56 | 358 |
 | internal/app/stats_metric_detail.go | source | 369 | 55 | 404 |
 | internal/canonical/blob_decoder.go | source | 347 | 54 | 387 |
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |

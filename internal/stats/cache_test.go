@@ -208,13 +208,19 @@ func TestComputeCacheDailyRates(t *testing.T) {
 
 	require.Len(t, got.DailyHitRate, 3)
 	assert.InDelta(t, 0.7, got.DailyHitRate[0].Rate, 0.001)
+	assert.True(t, got.DailyHitRate[0].HasActivity)
 	assert.InDelta(t, 0.0, got.DailyHitRate[1].Rate, 0.001)
+	assert.False(t, got.DailyHitRate[1].HasActivity)
 	assert.InDelta(t, 0.6, got.DailyHitRate[2].Rate, 0.001)
+	assert.True(t, got.DailyHitRate[2].HasActivity)
 
 	require.Len(t, got.DailyReuseRatio, 3)
 	assert.InDelta(t, 4.667, got.DailyReuseRatio[0].Rate, 0.001)
+	assert.True(t, got.DailyReuseRatio[0].HasActivity)
 	assert.InDelta(t, 0.0, got.DailyReuseRatio[1].Rate, 0.001)
+	assert.False(t, got.DailyReuseRatio[1].HasActivity)
 	assert.InDelta(t, 3.0, got.DailyReuseRatio[2].Rate, 0.001)
+	assert.True(t, got.DailyReuseRatio[2].HasActivity)
 }
 
 func TestComputeCacheDailyHitRateZeroPromptDay(t *testing.T) {
@@ -230,6 +236,7 @@ func TestComputeCacheDailyHitRateZeroPromptDay(t *testing.T) {
 
 	require.Len(t, got.DailyHitRate, 1)
 	assert.InDelta(t, 0.0, got.DailyHitRate[0].Rate, 0.001)
+	assert.True(t, got.DailyHitRate[0].HasActivity)
 }
 
 func TestComputeCacheDailyReuseRatioIsInfiniteWithoutWrites(t *testing.T) {
@@ -244,6 +251,7 @@ func TestComputeCacheDailyReuseRatioIsInfiniteWithoutWrites(t *testing.T) {
 
 	require.Len(t, got.DailyReuseRatio, 1)
 	assert.True(t, math.IsInf(got.DailyReuseRatio[0].Rate, 1))
+	assert.True(t, got.DailyReuseRatio[0].HasActivity)
 }
 
 func TestComputeCacheDurationBuckets(t *testing.T) {

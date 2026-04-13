@@ -192,7 +192,11 @@ func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title st
 		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
 	},
 		metricDetailLine("Question", "How does cache hit rate change over time?"),
-		metricDetailLine("Reading", "Y-axis is token-weighted hit rate (%). Press m to toggle to reuse ratio."),
+		metricDetailLine(
+			"Reading",
+			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
+				"and baseline marks mean worked but hit 0%. Press m to toggle to reuse ratio.",
+		),
 	)
 }
 
@@ -206,7 +210,8 @@ func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title stri
 		metricDetailLine("Question", "How does cache write leverage change over time?"),
 		metricDetailLine(
 			"Reading",
-			"Y-axis is reads per write (Nx). Higher means each write is reused more. Press m to toggle.",
+			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
+				"and baseline marks mean worked but got no cache reuse. Press m to toggle.",
 		),
 	)
 }

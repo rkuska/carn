@@ -103,52 +103,7 @@ func renderDailyRateChartBody(
 	lineColor color.Color,
 	yFormatter linechart.LabelFormatter,
 ) string {
-	lines := make([]string, 0, 2)
-	if len(rates) == 0 {
-		lines = append(lines, "No data")
-		return lipgloss.JoinVertical(lipgloss.Left, lines...)
-	}
-
-	maxValue := 0.01
-	start, end := dailyRateChartRange(rates)
-	for _, r := range rates {
-		if r.Rate > maxValue {
-			maxValue = r.Rate
-		}
-	}
-
-	chart := tslc.New(
-		width,
-		height,
-		tslc.WithTimeRange(start, end),
-		tslc.WithYRange(0, maxValue),
-		tslc.WithYLabelFormatter(yFormatter),
-		tslc.WithLineStyle(runes.ArcLineStyle),
-		tslc.WithStyle(lipgloss.NewStyle().Foreground(lineColor)),
-		tslc.WithAxesStyles(
-			lipgloss.NewStyle().Foreground(colorSecondary),
-			lipgloss.NewStyle().Foreground(colorNormalDesc),
-		),
-	)
-	for _, r := range rates {
-		chart.Push(tslc.TimePoint{Time: r.Date, Value: r.Rate})
-	}
-	chart.Draw()
-	lines = append(lines, chart.View())
-	return lipgloss.JoinVertical(lipgloss.Left, lines...)
-}
-
-func dailyRateChartRange(rates []statspkg.DailyRate) (time.Time, time.Time) {
-	if len(rates) == 0 {
-		return time.Time{}, time.Time{}
-	}
-
-	start := rates[0].Date
-	end := rates[len(rates)-1].Date
-	if !end.After(start) {
-		end = start.Add(24 * time.Hour)
-	}
-	return start, end
+	return renderDailyRateColumnChart(rates, width, height, lineColor, yFormatter)
 }
 
 func activityChartRange(counts []statspkg.DailyCount) (time.Time, time.Time) {

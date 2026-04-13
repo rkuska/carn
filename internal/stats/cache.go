@@ -23,6 +23,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 	readByDay := make(map[time.Time]int)
 	writeByDay := make(map[time.Time]int)
 	promptByDay := make(map[time.Time]int)
+	activeByDay := make(map[time.Time]bool)
 
 	type durationAccum struct {
 		hitRateSum float64
@@ -40,6 +41,7 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 			normalizeActivityTime(session.Timestamp, location),
 			location,
 		)
+		activeByDay[day] = true
 		readByDay[day] += session.TotalUsage.CacheReadInputTokens
 		writeByDay[day] += writeProxy
 		promptByDay[day] += sessionPromptTokens(session)
@@ -66,11 +68,11 @@ func ComputeCache(sessions []conv.SessionMeta, timeRange TimeRange) Cache {
 			hitRate = float64(readByDay[day]) / float64(p)
 		}
 		cache.DailyHitRate = append(cache.DailyHitRate, DailyRate{
-			Date: day, Rate: hitRate,
+			Date: day, Rate: hitRate, HasActivity: activeByDay[day],
 		})
 
 		cache.DailyReuseRatio = append(cache.DailyReuseRatio, DailyRate{
-			Date: day, Rate: cacheReuseRatio(readByDay[day], writeByDay[day]),
+			Date: day, Rate: cacheReuseRatio(readByDay[day], writeByDay[day]), HasActivity: activeByDay[day],
 		})
 	}
 

@@ -302,6 +302,7 @@ type CacheDurationBucket struct {
 }
 
 type DailyRate struct {
-	Date time.Time
-	Rate float64
+	Date        time.Time
+	Rate        float64
+	HasActivity bool
 }
