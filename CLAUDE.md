@@ -68,7 +68,8 @@ by `internal/config`.
 `internal/app/tool_result_style.go`,
 `internal/app/conversation_header.go`, `internal/app/browser_store.go`,
 `internal/app/import_pipeline_binding.go`,
-`internal/app/drift_notification.go`, `internal/app/version.go`
+`internal/app/drift_notification.go`, `internal/app/logging.go`,
+`internal/app/version.go`
 
 **Shared conversation model**: `internal/conversation/*.go`
 
@@ -117,6 +118,11 @@ by `internal/config`.
   duration, retries, compaction, task lifecycle, error, and provider counters
 - `ToolOutcomeCounts` — per-tool success, error, and rejection counts
 - `ActionOutcomeCounts` — per-action success, error, and rejection counts
+- `ActivityBucketRow` — per-minute activity bucket with turn and token counts
+- `PerformanceSequenceSession` — per-session performance sequence data point
+- `SessionStatsData` — bundled per-session stats for canonical store rebuild
+- `SessionTurnMetrics` — per-session turn-level token metrics
+- `TurnTokens` — prompt, completion, and reasoning tokens for a single turn
 
 ## How to write code
 
