@@ -17,7 +17,63 @@ Before starting, verify the working tree is ready for a release:
    and ask the user to pull. If ahead, warn that unpushed commits
    exist and confirm they should be included in the release.
 
-## Step 1 — Gather context
+## Step 1 — Update project documents
+
+Before gathering release context, update the project's baseline documents
+so they reflect the code being tagged. Work through each document below
+and make the necessary edits.
+
+### PERF_BASELINE.md
+
+Run the full benchmark suite from `CLAUDE.md` — one command at a time,
+sequentially. Replace the results table with fresh numbers and update the
+"Refreshed on" date. If any benchmark moved more than 5% in either
+direction, update the Delta Summary section comparing old vs. new values.
+Remove delta entries that are no longer relevant.
+
+### CLAUDE.md
+
+Check the **Package map** section against the actual files on disk:
+
+1. Verify every file path listed still exists. Remove stale entries.
+2. Glob `internal/**/*.go` (excluding `*_test.go`) and check for files
+   that are not mentioned in the package map. Add missing entries under
+   the appropriate group.
+3. Check the **Core types** list against `internal/conversation/*.go`
+   exports. Add new types and remove deleted ones.
+
+### VOCABULARY.md
+
+Review for completeness against changes since the last tag:
+
+1. Check for new exported types, concepts, or UI elements introduced
+   since `$LAST_TAG`.
+2. Add any missing terms to the appropriate section.
+3. Remove terms for features or concepts that no longer exist.
+
+### Commit
+
+If any documents changed, stage and commit them before proceeding:
+
+```bash
+TMPFILE=$(mktemp)
+cat > "$TMPFILE" << EOF
+docs: refresh baseline documents for release
+
+Update PERF_BASELINE.md, CLAUDE.md, and VOCABULARY.md to reflect
+the current state of the codebase ahead of tagging.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+EOF
+
+git add PERF_BASELINE.md CLAUDE.md VOCABULARY.md
+git commit -F "$TMPFILE"
+rm "$TMPFILE"
+```
+
+If nothing changed, skip the commit and continue.
+
+## Step 2 — Gather context
 
 Run these commands to understand what changed since the last release.
 
@@ -36,7 +92,7 @@ git log "${LAST_TAG}..HEAD" --format='%h %s%n%b---'
 Categorize commits by type (`feat`, `fix`, `refactor`, `perf`, `chore`,
 `docs`, `style`) and by scope. Count features and fixes.
 
-## Step 2 — Determine version
+## Step 3 — Determine version
 
 Present the user with a short summary of what changed (number of features,
 fixes, improvements). Suggest a version number:
@@ -48,7 +104,7 @@ fixes, improvements). Suggest a version number:
 **Ask the user** what version this should be. Accept their explicit version
 or their confirmation of the suggestion.
 
-## Step 3 — Draft release notes
+## Step 4 — Draft release notes
 
 Write human-readable release notes describing the **final shipped state**,
 not the development journey.
@@ -98,7 +154,7 @@ Rules:
 **Present the full draft** and ask the user to review. Wait for them to say
 "looks good" or request changes. Iterate until approved.
 
-## Step 4 — Visual content
+## Step 5 — Visual content
 
 **Ask the user**: "Do you want to add screenshots, ASCII art, or neither
 for this release?"
@@ -123,7 +179,7 @@ code block in the release notes.
 
 Proceed with prose only.
 
-## Step 5 — Write and commit release notes
+## Step 6 — Write and commit release notes
 
 After the user approves the final draft:
 
@@ -161,7 +217,7 @@ git commit -F "$TMPFILE"
 rm "$TMPFILE"
 ```
 
-## Step 6 — Tag and push
+## Step 7 — Tag and push
 
 First check that the tag does not already exist:
 
