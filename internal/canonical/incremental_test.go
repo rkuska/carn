@@ -252,8 +252,8 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 				TurnMetrics: conv.SessionTurnMetrics{
 					Timestamp: first.Sessions[0].Timestamp,
 					Turns: []conv.TurnTokens{{
-						InputTokens: 10,
-						TurnTokens:  12,
+						PromptTokens: 10,
+						TurnTokens:   12,
 					}},
 				},
 			},
@@ -265,8 +265,8 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 				TurnMetrics: conv.SessionTurnMetrics{
 					Timestamp: second.Sessions[0].Timestamp,
 					Turns: []conv.TurnTokens{{
-						InputTokens: 20,
-						TurnTokens:  24,
+						PromptTokens: 20,
+						TurnTokens:   24,
 					}},
 				},
 			},
@@ -287,8 +287,8 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 	turnMetrics, err := store.QueryTurnMetrics(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)
 	require.Len(t, turnMetrics, 2)
-	assert.Equal(t, 10, turnMetrics[0].Turns[0].InputTokens)
-	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
+	assert.Equal(t, 10, turnMetrics[0].Turns[0].PromptTokens)
+	assert.Equal(t, 20, turnMetrics[1].Turns[0].PromptTokens)
 
 	daily, err := store.QueryActivityBuckets(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)
@@ -321,8 +321,8 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 		TurnMetrics: conv.SessionTurnMetrics{
 			Timestamp: first.Sessions[0].Timestamp,
 			Turns: []conv.TurnTokens{{
-				InputTokens: 40,
-				TurnTokens:  46,
+				PromptTokens: 40,
+				TurnTokens:   46,
 			}},
 		},
 	}
@@ -344,8 +344,8 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 	turnMetrics, err = store.QueryTurnMetrics(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)
 	require.Len(t, turnMetrics, 2)
-	assert.Equal(t, 40, turnMetrics[0].Turns[0].InputTokens)
-	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
+	assert.Equal(t, 40, turnMetrics[0].Turns[0].PromptTokens)
+	assert.Equal(t, 20, turnMetrics[1].Turns[0].PromptTokens)
 
 	daily, err = store.QueryActivityBuckets(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)

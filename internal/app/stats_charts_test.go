@@ -292,11 +292,11 @@ func TestClaudeTurnChartPointsUseActualTurnPositions(t *testing.T) {
 	t.Parallel()
 
 	points := claudeTurnChartPoints([]statspkg.PositionTokenMetrics{
-		{Position: 1, AverageInputTokens: 100},
-		{Position: 67, AverageInputTokens: 200},
-		{Position: 413, AverageInputTokens: 300},
+		{Position: 1, AveragePromptTokens: 100},
+		{Position: 67, AveragePromptTokens: 200},
+		{Position: 413, AveragePromptTokens: 300},
 	}, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageInputTokens
+		return metric.AveragePromptTokens
 	})
 
 	require.Len(t, points, 3)
@@ -333,43 +333,88 @@ func TestRenderClaudeTurnChartRespectsActualTurnGapSpacing(t *testing.T) {
 	t.Parallel()
 
 	compact := ansi.Strip(renderClaudeTurnChart(
-		"Context Growth",
+		"Prompt Growth",
 		[]statspkg.PositionTokenMetrics{
-			{Position: 1, AverageInputTokens: 10},
-			{Position: 2, AverageInputTokens: 20},
-			{Position: 10, AverageInputTokens: 30},
+			{Position: 1, AveragePromptTokens: 10},
+			{Position: 2, AveragePromptTokens: 20},
+			{Position: 10, AveragePromptTokens: 30},
 		},
 		40,
 		8,
 		colorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
-			return metric.AverageInputTokens
+			return metric.AveragePromptTokens
 		},
 	))
 	wideGap := ansi.Strip(renderClaudeTurnChart(
-		"Context Growth",
+		"Prompt Growth",
 		[]statspkg.PositionTokenMetrics{
-			{Position: 1, AverageInputTokens: 10},
-			{Position: 6, AverageInputTokens: 20},
-			{Position: 10, AverageInputTokens: 30},
+			{Position: 1, AveragePromptTokens: 10},
+			{Position: 6, AveragePromptTokens: 20},
+			{Position: 10, AveragePromptTokens: 30},
 		},
 		40,
 		8,
 		colorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
-			return metric.AverageInputTokens
+			return metric.AveragePromptTokens
 		},
 	))
 
 	assert.NotEqual(t, compact, wideGap)
 }
 
-func TestClaudeTurnAxisStepTargetsReadableTickDensity(t *testing.T) {
+func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 1, claudeTurnAxisStep(0, 6))
-	assert.Equal(t, 1, claudeTurnAxisStep(5, 6))
-	assert.Equal(t, 11, claudeTurnAxisStep(56, 6))
+	rendered := ansi.Strip(renderClaudeTurnChart(
+		"Prompt Growth",
+		[]statspkg.PositionTokenMetrics{
+			{Position: 1, AveragePromptTokens: 10},
+			{Position: 67, AveragePromptTokens: 20},
+			{Position: 413, AveragePromptTokens: 30},
+		},
+		50,
+		8,
+		colorChartToken,
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AveragePromptTokens
+		},
+	))
+
+	assert.Contains(t, rendered, "67")
+	assert.Contains(t, rendered, "413")
+}
+
+func TestRenderClaudeTurnChartUsesMultipleXAxisRowsWhenNeeded(t *testing.T) {
+	t.Parallel()
+
+	rendered := ansi.Strip(renderClaudeTurnChart(
+		"Prompt Growth",
+		[]statspkg.PositionTokenMetrics{
+			{Position: 11, AveragePromptTokens: 10},
+			{Position: 22, AveragePromptTokens: 20},
+			{Position: 33, AveragePromptTokens: 30},
+			{Position: 44, AveragePromptTokens: 40},
+			{Position: 55, AveragePromptTokens: 50},
+			{Position: 66, AveragePromptTokens: 60},
+			{Position: 77, AveragePromptTokens: 70},
+		},
+		24,
+		8,
+		colorChartToken,
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AveragePromptTokens
+		},
+	))
+
+	assert.Contains(t, rendered, "11")
+	assert.Contains(t, rendered, "22")
+	assert.Contains(t, rendered, "33")
+	assert.Contains(t, rendered, "44")
+	assert.Contains(t, rendered, "55")
+	assert.Contains(t, rendered, "66")
+	assert.Contains(t, rendered, "77")
 }
 
 func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T) {
@@ -378,19 +423,19 @@ func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T)
 	metrics := make([]statspkg.PositionTokenMetrics, 0, 30)
 	for i := 1; i <= 30; i++ {
 		metrics = append(metrics, statspkg.PositionTokenMetrics{
-			Position:           i,
-			AverageInputTokens: float64(i) * 10000,
+			Position:            i,
+			AveragePromptTokens: float64(i) * 10000,
 		})
 	}
 
 	rendered := ansi.Strip(renderClaudeTurnChart(
-		"Context Growth",
+		"Prompt Growth",
 		metrics,
 		38,
 		8,
 		colorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
-			return metric.AverageInputTokens
+			return metric.AveragePromptTokens
 		},
 	))
 	lines := strings.Split(rendered, "\n")

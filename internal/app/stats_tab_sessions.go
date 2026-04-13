@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"image/color"
+	"math"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -16,13 +18,13 @@ import (
 )
 
 const (
-	statsClaudeContextGrowthTitle  = "Context Growth"
+	statsClaudePromptGrowthTitle   = "Prompt Growth"
 	statsClaudeTurnCostTitle       = "Turn Cost"
-	statsNoClaudeTurnMetricsData   = "No message usage data"
+	statsNoClaudeTurnMetricsData   = "No main-thread turn metrics"
 	statsClaudeMetricsNoDataLabel  = "turn metrics"
-	statsClaudeContextEarlyLabel   = "context 1-5 avg"
-	statsClaudeContextLateLabel    = "context 20+ avg"
-	statsClaudeContextFactorLabel  = "context multiplier"
+	statsClaudePromptEarlyLabel    = "prompt 1-5 avg"
+	statsClaudePromptLateLabel     = "prompt 20+ avg"
+	statsClaudePromptFactorLabel   = "prompt multiplier"
 	statsClaudeTurnCostEarlyLabel  = "turn cost 1-5 avg"
 	statsClaudeTurnCostLateLabel   = "turn cost 20+ avg"
 	statsClaudeTurnCostFactorLabel = "turn cost multiplier"
@@ -65,7 +67,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 	growthCharts := renderStatsLanePair(
 		width,
 		30,
-		statsClaudeContextGrowthTitle,
+		statsClaudePromptGrowthTitle,
 		m.sessionsLaneCursor == 2,
 		func(bodyWidth int) string {
 			return m.renderClaudeTurnMetricLaneBody(
@@ -73,7 +75,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 				10,
 				sessionStats.ClaudeTurnMetrics,
 				func(metric statspkg.PositionTokenMetrics) float64 {
-					return metric.AverageInputTokens
+					return metric.AveragePromptTokens
 				},
 			)
 		},
@@ -106,10 +108,10 @@ func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics) []chip {
 	}
 
 	contextFirstFive := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageInputTokens
+		return metric.AveragePromptTokens
 	})
 	contextTwentyPlus := averageTurnMetricRange(metrics, 20, 999, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageInputTokens
+		return metric.AveragePromptTokens
 	})
 	turnCostFirstFive := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
 		return metric.AverageTurnTokens
@@ -118,9 +120,9 @@ func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics) []chip {
 		return metric.AverageTurnTokens
 	})
 	return []chip{
-		{Label: statsClaudeContextEarlyLabel, Value: formatFloat(contextFirstFive)},
-		{Label: statsClaudeContextLateLabel, Value: formatFloat(contextTwentyPlus)},
-		{Label: statsClaudeContextFactorLabel, Value: formatTurnMetricMultiplier(contextFirstFive, contextTwentyPlus)},
+		{Label: statsClaudePromptEarlyLabel, Value: formatFloat(contextFirstFive)},
+		{Label: statsClaudePromptLateLabel, Value: formatFloat(contextTwentyPlus)},
+		{Label: statsClaudePromptFactorLabel, Value: formatTurnMetricMultiplier(contextFirstFive, contextTwentyPlus)},
 		{Label: statsClaudeTurnCostEarlyLabel, Value: formatFloat(turnCostFirstFive)},
 		{Label: statsClaudeTurnCostLateLabel, Value: formatFloat(turnCostTwentyPlus)},
 		{Label: statsClaudeTurnCostFactorLabel, Value: formatTurnMetricMultiplier(turnCostFirstFive, turnCostTwentyPlus)},
@@ -202,7 +204,7 @@ func renderClaudeTurnChartBody(
 		maxY,
 		linechart.WithXYSteps(1, 2),
 	)
-	baseChart.SetXStep(claudeTurnAxisStep(baseChart.GraphWidth(), 6))
+	baseChart.SetXStep(1)
 	chart := wlc.New(
 		chartWidth,
 		height,
@@ -220,7 +222,11 @@ func renderClaudeTurnChartBody(
 		chart.Plot(point)
 	}
 	chart.Draw()
-	lines = append(lines, strings.Join(splitAndFitLines(chart.View(), width), "\n"))
+	chartLines := strings.Split(chart.View(), "\n")
+	if axisLabels := claudeTurnAxisLabelRows(metrics, &baseChart); len(axisLabels) > 0 && len(chartLines) > 0 {
+		chartLines = append(chartLines[:len(chartLines)-1], axisLabels...)
+	}
+	lines = append(lines, strings.Join(splitAndFitLines(strings.Join(chartLines, "\n"), width), "\n"))
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
@@ -265,12 +271,148 @@ func claudeTurnChartRange(metrics []statspkg.PositionTokenMetrics) (float64, flo
 	return minX, maxX + 1
 }
 
-func claudeTurnAxisStep(graphWidth, maxLabels int) int {
-	if graphWidth <= 0 || maxLabels <= 1 {
-		return 1
+type claudeTurnAxisLabelPlacement struct {
+	Anchor int
+	Label  string
+}
+
+func claudeTurnAxisLabelRows(
+	metrics []statspkg.PositionTokenMetrics,
+	chart *linechart.Model,
+) []string {
+	if chart == nil || len(metrics) == 0 || chart.GraphWidth() <= 0 {
+		return nil
 	}
-	if graphWidth <= maxLabels {
-		return 1
+
+	placements := claudeTurnAxisLabelPlacements(metrics, chart)
+	if len(placements) == 0 {
+		return nil
 	}
-	return max((graphWidth-1)/(maxLabels-1), 1)
+
+	rows := claudeTurnAxisLabelGrid(chart.GraphWidth(), placements)
+	return renderClaudeTurnAxisRows(strings.Repeat(" ", chart.Origin().X+1), rows)
+}
+
+func claudeTurnAxisLabelPlacements(
+	metrics []statspkg.PositionTokenMetrics,
+	chart *linechart.Model,
+) []claudeTurnAxisLabelPlacement {
+	placements := make([]claudeTurnAxisLabelPlacement, 0, len(metrics))
+	for _, metric := range metrics {
+		placement, ok := claudeTurnAxisLabelPlacementForMetric(metric, chart)
+		if !ok {
+			continue
+		}
+		placements = append(placements, placement)
+	}
+	return placements
+}
+
+func claudeTurnAxisLabelPlacementForMetric(
+	metric statspkg.PositionTokenMetrics,
+	chart *linechart.Model,
+) (claudeTurnAxisLabelPlacement, bool) {
+	if chart == nil || chart.GraphWidth() <= 0 {
+		return claudeTurnAxisLabelPlacement{}, false
+	}
+
+	scaled := chart.ScaleFloat64Point(canvas.Float64Point{X: float64(metric.Position), Y: 0})
+	anchor := int(math.Round(scaled.X))
+	anchor = max(min(anchor, chart.GraphWidth()-1), 0)
+	return claudeTurnAxisLabelPlacement{
+		Anchor: anchor,
+		Label:  strconv.Itoa(metric.Position),
+	}, true
+}
+
+func claudeTurnAxisLabelGrid(
+	plotWidth int,
+	placements []claudeTurnAxisLabelPlacement,
+) [][]rune {
+	rows := make([][]rune, 0, 1)
+	usedRows := make([][]bool, 0, 1)
+	for _, placement := range placements {
+		if placement.Label == "" {
+			continue
+		}
+		if placeClaudeTurnAxisLabelInRows(rows, usedRows, plotWidth, placement) {
+			continue
+		}
+
+		row, used, ok := newClaudeTurnAxisLabelRow(plotWidth, placement)
+		if !ok {
+			continue
+		}
+		rows = append(rows, row)
+		usedRows = append(usedRows, used)
+	}
+	return rows
+}
+
+func placeClaudeTurnAxisLabelInRows(
+	rows [][]rune,
+	usedRows [][]bool,
+	plotWidth int,
+	placement claudeTurnAxisLabelPlacement,
+) bool {
+	for i := range rows {
+		if placeClaudeTurnAxisLabel(rows[i], usedRows[i], plotWidth, placement) {
+			return true
+		}
+	}
+	return false
+}
+
+func newClaudeTurnAxisLabelRow(
+	plotWidth int,
+	placement claudeTurnAxisLabelPlacement,
+) ([]rune, []bool, bool) {
+	row := []rune(strings.Repeat(" ", plotWidth))
+	used := make([]bool, plotWidth)
+	if !placeClaudeTurnAxisLabel(row, used, plotWidth, placement) {
+		return nil, nil, false
+	}
+	return row, used, true
+}
+
+func renderClaudeTurnAxisRows(prefix string, rows [][]rune) []string {
+	rendered := make([]string, 0, len(rows))
+	for _, row := range rows {
+		rendered = append(rendered, prefix+string(row))
+	}
+	return rendered
+}
+
+func placeClaudeTurnAxisLabel(
+	row []rune,
+	used []bool,
+	plotWidth int,
+	placement claudeTurnAxisLabelPlacement,
+) bool {
+	start, ok := claudeTurnAxisLabelStart(plotWidth, placement)
+	if !ok {
+		return false
+	}
+
+	label := []rune(placement.Label)
+	for i := range label {
+		if used[start+i] {
+			return false
+		}
+	}
+	for i, r := range label {
+		row[start+i] = r
+		used[start+i] = true
+	}
+	return true
+}
+
+func claudeTurnAxisLabelStart(plotWidth int, placement claudeTurnAxisLabelPlacement) (int, bool) {
+	labelWidth := len([]rune(placement.Label))
+	if labelWidth == 0 || labelWidth > plotWidth {
+		return 0, false
+	}
+	start := placement.Anchor - labelWidth/2
+	start = max(min(start, plotWidth-labelWidth), 0)
+	return start, true
 }

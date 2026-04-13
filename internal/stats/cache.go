@@ -193,8 +193,7 @@ func cacheReuseRatio(read, write int) float64 {
 }
 
 func sessionPromptTokens(session conv.SessionMeta) int {
-	u := session.TotalUsage
-	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+	return session.TotalUsage.PromptTokens()
 }
 
 func resolveCacheBounds(

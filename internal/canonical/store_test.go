@@ -258,8 +258,8 @@ func TestStoreRebuildAllBackfillsStatsRowsWhenProjectionVersionIsStale(t *testin
 				TurnMetrics: conv.SessionTurnMetrics{
 					Timestamp: convValue.Sessions[0].Timestamp,
 					Turns: []conv.TurnTokens{{
-						InputTokens: 100,
-						TurnTokens:  150,
+						PromptTokens: 100,
+						TurnTokens:   150,
 					}},
 				},
 			},
@@ -290,7 +290,7 @@ func TestStoreRebuildAllBackfillsStatsRowsWhenProjectionVersionIsStale(t *testin
 	turnMetrics, err = store.QueryTurnMetrics(context.Background(), archiveDir, []string{convValue.CacheKey()})
 	require.NoError(t, err)
 	require.Len(t, turnMetrics, 1)
-	assert.Equal(t, []conv.TurnTokens{{InputTokens: 100, TurnTokens: 150}}, turnMetrics[0].Turns)
+	assert.Equal(t, []conv.TurnTokens{{PromptTokens: 100, TurnTokens: 150}}, turnMetrics[0].Turns)
 }
 
 func TestStoreRebuildAllPersistsTranscriptDerivedToolOutcomesPerSession(t *testing.T) {

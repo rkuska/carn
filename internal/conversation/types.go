@@ -42,12 +42,12 @@ type TokenUsage struct {
 	ReasoningOutputTokens    int
 }
 
+func (u TokenUsage) PromptTokens() int {
+	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+}
+
 func (u TokenUsage) TotalTokens() int {
-	return u.InputTokens +
-		u.CacheCreationInputTokens +
-		u.CacheReadInputTokens +
-		u.OutputTokens +
-		u.ReasoningOutputTokens
+	return u.PromptTokens() + u.OutputTokens + u.ReasoningOutputTokens
 }
 
 type DiffHunk struct {
@@ -285,8 +285,8 @@ type SessionTurnMetrics struct {
 }
 
 type TurnTokens struct {
-	InputTokens int
-	TurnTokens  int
+	PromptTokens int `json:"prompt_tokens"`
+	TurnTokens   int `json:"turn_tokens"`
 }
 
 type ActivityBucketRow struct {

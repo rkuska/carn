@@ -11,6 +11,5 @@ func performanceSessionPromptTokens(session performanceSession) int {
 	if session.meta == nil {
 		return 0
 	}
-	u := session.meta.TotalUsage
-	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens
+	return session.meta.TotalUsage.PromptTokens()
 }

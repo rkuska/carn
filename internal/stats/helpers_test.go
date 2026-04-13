@@ -133,12 +133,16 @@ func testSession(id string, messages []conv.Message) conv.Session {
 }
 
 func assistantUsageMessage(input, output int) conv.Message {
+	return assistantUsageMessageWithUsage(conv.TokenUsage{
+		InputTokens:  input,
+		OutputTokens: output,
+	})
+}
+
+func assistantUsageMessageWithUsage(usage conv.TokenUsage) conv.Message {
 	return conv.Message{
-		Role: conv.RoleAssistant,
-		Usage: conv.TokenUsage{
-			InputTokens:  input,
-			OutputTokens: output,
-		},
+		Role:  conv.RoleAssistant,
+		Usage: usage,
 	}
 }
 
@@ -146,9 +150,33 @@ func userMessage() conv.Message {
 	return conv.Message{Role: conv.RoleUser, Text: "user"}
 }
 
+func sidechainUserMessage() conv.Message {
+	return conv.Message{Role: conv.RoleUser, Text: "user", IsSidechain: true}
+}
+
 func userToolResultMessage() conv.Message {
 	return conv.Message{
 		Role:        conv.RoleUser,
 		ToolResults: []conv.ToolResult{{ToolName: "Read", Content: "ok"}},
 	}
+}
+
+func sidechainAssistantUsageMessage(input, output int) conv.Message {
+	msg := assistantUsageMessage(input, output)
+	msg.IsSidechain = true
+	return msg
+}
+
+func systemMessage(text string) conv.Message {
+	return conv.Message{Role: conv.RoleSystem, Text: text}
+}
+
+func agentDividerMessage() conv.Message {
+	return conv.Message{IsAgentDivider: true}
+}
+
+func subagentSession(id string, messages []conv.Message) conv.Session {
+	s := testSession(id, messages)
+	s.Meta.IsSubagent = true
+	return s
 }

@@ -123,22 +123,22 @@ func TestComputeSnapshotWithPrecomputedUsesDailyTokensAndTurnMetrics(t *testing.
 			{
 				Timestamp: currentTime,
 				Turns: []conv.TurnTokens{{
-					InputTokens: 100,
-					TurnTokens:  150,
+					PromptTokens: 100,
+					TurnTokens:   150,
 				}},
 			},
 			{
 				Timestamp: currentTime.Add(2 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 120,
-					TurnTokens:  180,
+					PromptTokens: 120,
+					TurnTokens:   180,
 				}},
 			},
 			{
 				Timestamp: currentTime.Add(4 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 140,
-					TurnTokens:  210,
+					PromptTokens: 140,
+					TurnTokens:   210,
 				}},
 			},
 		},

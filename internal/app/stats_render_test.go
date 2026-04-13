@@ -594,19 +594,19 @@ func TestStatsRenderSessionsShowsBorderedTurnMetricCards(t *testing.T) {
 	m.tab = statsTabSessions
 	m.sessionsLaneCursor = 2
 	m.snapshot.Sessions.ClaudeTurnMetrics = []statspkg.PositionTokenMetrics{{
-		Position:           1,
-		AverageInputTokens: 120,
-		AverageTurnTokens:  180,
-		SampleCount:        3,
+		Position:            1,
+		AveragePromptTokens: 120,
+		AverageTurnTokens:   180,
+		SampleCount:         3,
 	}}
 
 	body := ansi.Strip(m.renderSessionsTab(120))
 	histogramLine := findRenderedLine(t, body, "Session Duration")
-	turnMetricLine := findRenderedLine(t, body, statsClaudeContextGrowthTitle)
+	turnMetricLine := findRenderedLine(t, body, statsClaudePromptGrowthTitle)
 
 	assert.Contains(t, histogramLine, "╭")
 	assert.Contains(t, histogramLine, "Messages per Session")
-	assert.Contains(t, turnMetricLine, "▸ "+statsClaudeContextGrowthTitle)
+	assert.Contains(t, turnMetricLine, "▸ "+statsClaudePromptGrowthTitle)
 	assert.Contains(t, turnMetricLine, statsClaudeTurnCostTitle)
 	assert.NotContains(t, body, "Computing turn charts...")
 }

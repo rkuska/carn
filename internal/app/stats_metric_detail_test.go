@@ -55,8 +55,9 @@ func TestStatsRenderSessionsMetricDetailFollowsSelectedLane(t *testing.T) {
 
 	m.sessionsLaneCursor = 2
 	body = ansi.Strip(m.renderSessionsTab(120))
-	assert.Contains(t, body, "Context Growth")
-	assert.Contains(t, body, "context multiplier")
+	assert.Contains(t, body, "Prompt Growth")
+	assert.Contains(t, body, "prompt multiplier")
+	assert.Contains(t, body, "main-thread user turn number")
 }
 
 func TestStatsRenderToolsMetricDetailFollowsSelectedLane(t *testing.T) {

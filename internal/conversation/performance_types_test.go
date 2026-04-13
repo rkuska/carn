@@ -20,6 +20,19 @@ func TestTokenUsageTotalTokensIncludesReasoningOutput(t *testing.T) {
 	assert.Equal(t, 24, usage.TotalTokens())
 }
 
+func TestTokenUsagePromptTokensIncludesCacheInputs(t *testing.T) {
+	t.Parallel()
+
+	usage := TokenUsage{
+		InputTokens:              10,
+		CacheCreationInputTokens: 2,
+		CacheReadInputTokens:     3,
+		OutputTokens:             4,
+	}
+
+	assert.Equal(t, 15, usage.PromptTokens())
+}
+
 func TestDeriveActionOutcomeCounts(t *testing.T) {
 	t.Parallel()
 

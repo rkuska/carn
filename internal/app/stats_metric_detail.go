@@ -167,22 +167,30 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 		)
 	}
 	if lane.id == statsLaneSessionsContext {
-		return renderStatsMetricDetail(lane.title, width, contextMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
-			metricDetailLine("Question", "How quickly does prompt context accumulate as sessions go deeper?"),
+		return renderStatsMetricDetail(lane.title, width, promptMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
+			metricDetailLine("Question", "How does prompt size grow as main-thread sessions go deeper?"),
 			metricDetailLine(
 				"Reading",
-				"The X-axis is user turn number and the Y-axis is average maximum input tokens.",
+				"The X-axis is main-thread user turn number and the Y-axis is average prompt-side tokens.",
+			),
+			metricDetailLine(
+				"Scope",
+				"Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt.",
 			),
 		)
 	}
 	return renderStatsMetricDetail(lane.title, width, turnCostMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
 		metricDetailLine(
 			"Question",
-			"How expensive does each turn become once prompt and response are counted together?",
+			"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
 		),
 		metricDetailLine(
 			"Reading",
-			"The X-axis is user turn number and the Y-axis is average input plus output tokens.",
+			"The X-axis is main-thread user turn number and the Y-axis is average total assistant tokens per turn.",
+		),
+		metricDetailLine(
+			"Scope",
+			"Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt.",
 		),
 	)
 }
@@ -375,17 +383,17 @@ func formatRatio(value float64) string {
 	return fmt.Sprintf("%.1f:1", value)
 }
 
-func contextMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
+func promptMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
 	early := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageInputTokens
+		return metric.AveragePromptTokens
 	})
 	late := averageTurnMetricRange(metrics, 20, 999, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageInputTokens
+		return metric.AveragePromptTokens
 	})
 	return []chip{
-		{Label: statsClaudeContextEarlyLabel, Value: formatFloat(early)},
-		{Label: statsClaudeContextLateLabel, Value: formatFloat(late)},
-		{Label: statsClaudeContextFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
+		{Label: statsClaudePromptEarlyLabel, Value: formatFloat(early)},
+		{Label: statsClaudePromptLateLabel, Value: formatFloat(late)},
+		{Label: statsClaudePromptFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
 	}
 }
 

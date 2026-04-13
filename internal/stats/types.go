@@ -112,10 +112,10 @@ type HistogramBucket struct {
 }
 
 type PositionTokenMetrics struct {
-	Position           int
-	AverageInputTokens float64
-	AverageTurnTokens  float64
-	SampleCount        int
+	Position            int
+	AveragePromptTokens float64
+	AverageTurnTokens   float64
+	SampleCount         int
 }
 
 type SessionToolMetrics struct {

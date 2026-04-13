@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func TestComputeSessionsAggregatesRatiosAndHistograms(t *testing.T) {
@@ -161,7 +163,7 @@ func TestComputeSessionsUsesTotalMessageCountForSubagentSessions(t *testing.T) {
 	assert.Equal(t, HistogramBucket{Label: "5-15", Count: 1}, got.MessageHistogram[1])
 }
 
-func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T) {
+func TestComputeTurnTokenMetricsAveragesPromptAndTurnCostByPosition(t *testing.T) {
 	t.Parallel()
 
 	sessions := []session{
@@ -184,6 +186,8 @@ func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T)
 			assistantUsageMessage(35, 10),
 			userMessage(),
 			assistantUsageMessage(70, 10),
+			userMessage(),
+			assistantUsageMessage(80, 20),
 		}),
 		testSession("zero", []message{
 			userMessage(),
@@ -195,12 +199,12 @@ func TestComputeTurnTokenMetricsAveragesInputAndTurnCostByPosition(t *testing.T)
 	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
 	assert.Equal(t, 3, got[0].SampleCount)
-	assert.InDelta(t, 28.3333333333, got[0].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 53.3333333333, got[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 40.0, got[0].AveragePromptTokens, 0.0001)
+	assert.InDelta(t, 55.0, got[0].AverageTurnTokens, 0.0001)
 	assert.Equal(t, 2, got[1].Position)
 	assert.Equal(t, 3, got[1].SampleCount)
-	assert.InDelta(t, 56.6666666667, got[1].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 93.3333333333, got[1].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 60.0, got[1].AveragePromptTokens, 0.0001)
+	assert.InDelta(t, 100.0, got[1].AverageTurnTokens, 0.0001)
 }
 
 func TestComputeTurnTokenMetricsUsesRealTurnBoundariesInsteadOfAssistantSteps(t *testing.T) {
@@ -226,17 +230,67 @@ func TestComputeTurnTokenMetricsUsesRealTurnBoundariesInsteadOfAssistantSteps(t 
 			assistantUsageMessage(250, 25),
 			userMessage(),
 			assistantUsageMessage(600, 60),
+			userMessage(),
+			assistantUsageMessage(700, 70),
 		}),
 	}
 
 	got := ComputeTurnTokenMetrics(sessions)
 	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
-	assert.InDelta(t, 250, got[0].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 385, got[0].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 366.6666666667, got[0].AveragePromptTokens, 0.0001)
+	assert.InDelta(t, 495.0, got[0].AverageTurnTokens, 0.0001)
 	assert.Equal(t, 2, got[1].Position)
-	assert.InDelta(t, 500, got[1].AverageInputTokens, 0.0001)
-	assert.InDelta(t, 550, got[1].AverageTurnTokens, 0.0001)
+	assert.InDelta(t, 533.3333333333, got[1].AveragePromptTokens, 0.0001)
+	assert.InDelta(t, 586.6666666667, got[1].AverageTurnTokens, 0.0001)
+}
+
+func TestComputeTurnTokenMetricsUsesPromptTokensAndFullAssistantTurnCost(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              10,
+				CacheCreationInputTokens: 5,
+				CacheReadInputTokens:     15,
+				OutputTokens:             4,
+				ReasoningOutputTokens:    6,
+			}),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:           20,
+				CacheReadInputTokens:  5,
+				OutputTokens:          3,
+				ReasoningOutputTokens: 1,
+			}),
+		}),
+		testSession("s2", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              30,
+				CacheCreationInputTokens: 10,
+				OutputTokens:             5,
+				ReasoningOutputTokens:    5,
+			}),
+		}),
+		testSession("s3", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              20,
+				CacheCreationInputTokens: 10,
+				CacheReadInputTokens:     30,
+				OutputTokens:             10,
+				ReasoningOutputTokens:    5,
+			}),
+		}),
+	}
+
+	got := ComputeTurnTokenMetrics(sessions)
+	require.Len(t, got, 1)
+	assert.Equal(t, 1, got[0].Position)
+	assert.InDelta(t, 43.3333333333, got[0].AveragePromptTokens, 0.0001)
+	assert.InDelta(t, 64.6666666667, got[0].AverageTurnTokens, 0.0001)
 }
 
 func TestCollectSessionTurnMetricsCapturesUserTurnsPerSession(t *testing.T) {
@@ -261,8 +315,40 @@ func TestCollectSessionTurnMetricsCapturesUserTurnsPerSession(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, sessions[0].Meta.Timestamp, got[0].Timestamp)
 	assert.Equal(t, []TurnTokens{
-		{InputTokens: 200, TurnTokens: 330},
-		{InputTokens: 300, TurnTokens: 330},
+		{PromptTokens: 200, TurnTokens: 330},
+		{PromptTokens: 300, TurnTokens: 330},
+	}, got[0].Turns)
+}
+
+func TestCollectSessionTurnMetricsSkipsSubagentsAndNonMainThreadMessages(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("main", []message{
+			assistantUsageMessage(100, 10),
+			userMessage(),
+			assistantUsageMessage(10, 1),
+			sidechainUserMessage(),
+			sidechainAssistantUsageMessage(50, 5),
+			userToolResultMessage(),
+			systemMessage("system"),
+			assistantUsageMessage(20, 2),
+			agentDividerMessage(),
+			assistantUsageMessage(30, 3),
+			userMessage(),
+			assistantUsageMessage(40, 4),
+		}),
+		subagentSession("sub", []message{
+			userMessage(),
+			assistantUsageMessage(999, 99),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	assert.Equal(t, []TurnTokens{
+		{PromptTokens: 20, TurnTokens: 33},
+		{PromptTokens: 40, TurnTokens: 44},
 	}, got[0].Turns)
 }
 
@@ -274,29 +360,29 @@ func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t
 		{
 			Timestamp: now,
 			Turns: []TurnTokens{
-				{InputTokens: 10, TurnTokens: 15},
-				{InputTokens: 20, TurnTokens: 30},
+				{PromptTokens: 10, TurnTokens: 15},
+				{PromptTokens: 20, TurnTokens: 30},
 			},
 		},
 		{
 			Timestamp: now.AddDate(0, 0, -10),
 			Turns: []TurnTokens{
-				{InputTokens: 20, TurnTokens: 25},
-				{InputTokens: 30, TurnTokens: 40},
+				{PromptTokens: 20, TurnTokens: 25},
+				{PromptTokens: 30, TurnTokens: 40},
 			},
 		},
 		{
 			Timestamp: now.AddDate(0, 0, -20),
 			Turns: []TurnTokens{
-				{InputTokens: 30, TurnTokens: 35},
-				{InputTokens: 40, TurnTokens: 50},
+				{PromptTokens: 30, TurnTokens: 35},
+				{PromptTokens: 40, TurnTokens: 50},
 			},
 		},
 		{
 			Timestamp: now.AddDate(0, 0, -50),
 			Turns: []TurnTokens{
-				{InputTokens: 40, TurnTokens: 45},
-				{InputTokens: 50, TurnTokens: 60},
+				{PromptTokens: 40, TurnTokens: 45},
+				{PromptTokens: 50, TurnTokens: 60},
 			},
 		},
 	}
@@ -306,16 +392,16 @@ func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t
 		End:   now,
 	})
 	require.Len(t, thirtyDay, 2)
-	assert.InDelta(t, 20, thirtyDay[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 20, thirtyDay[0].AveragePromptTokens, 0.0001)
 	assert.InDelta(t, 25, thirtyDay[0].AverageTurnTokens, 0.0001)
-	assert.InDelta(t, 30, thirtyDay[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 30, thirtyDay[1].AveragePromptTokens, 0.0001)
 	assert.InDelta(t, 40, thirtyDay[1].AverageTurnTokens, 0.0001)
 
 	allTime := ComputeTurnTokenMetricsForRange(sessions, TimeRange{})
 	require.Len(t, allTime, 2)
-	assert.InDelta(t, 25, allTime[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 25, allTime[0].AveragePromptTokens, 0.0001)
 	assert.InDelta(t, 30, allTime[0].AverageTurnTokens, 0.0001)
-	assert.InDelta(t, 35, allTime[1].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 35, allTime[1].AveragePromptTokens, 0.0001)
 	assert.InDelta(t, 45, allTime[1].AverageTurnTokens, 0.0001)
 }
 
@@ -324,15 +410,18 @@ func TestComputeTurnTokenMetricsSkipsSparsePositions(t *testing.T) {
 
 	sessions := []session{
 		testSession("s1", []message{
+			userMessage(),
 			assistantUsageMessage(100, 10),
-			assistantUsageMessage(200, 20),
 		}),
 		testSession("s2", []message{
+			userMessage(),
 			assistantUsageMessage(110, 10),
-			assistantUsageMessage(210, 20),
 		}),
 		testSession("s3", []message{
+			userMessage(),
 			assistantUsageMessage(120, 10),
+			userMessage(),
+			assistantUsageMessage(220, 20),
 		}),
 	}
 

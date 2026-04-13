@@ -158,8 +158,8 @@ func TestParseConversationsParallelResultsReusesLoadedSingleSessionForStats(t *t
 			TurnMetrics: conv.SessionTurnMetrics{
 				Timestamp: session.Meta.Timestamp,
 				Turns: []conv.TurnTokens{{
-					InputTokens: session.Messages[0].Usage.InputTokens,
-					TurnTokens:  session.Messages[0].Usage.InputTokens + session.Messages[0].Usage.OutputTokens,
+					PromptTokens: session.Messages[0].Usage.PromptTokens(),
+					TurnTokens:   session.Messages[0].Usage.TotalTokens(),
 				}},
 			},
 		}
@@ -379,8 +379,8 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 				TurnMetrics: conv.SessionTurnMetrics{
 					Timestamp: first.Sessions[0].Timestamp,
 					Turns: []conv.TurnTokens{{
-						InputTokens: 120,
-						TurnTokens:  180,
+						PromptTokens: 120,
+						TurnTokens:   180,
 					}},
 				},
 			}},
@@ -392,8 +392,8 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 				TurnMetrics: conv.SessionTurnMetrics{
 					Timestamp: second.Sessions[0].Timestamp.Add(time.Minute),
 					Turns: []conv.TurnTokens{{
-						InputTokens: 90,
-						TurnTokens:  140,
+						PromptTokens: 90,
+						TurnTokens:   140,
 					}},
 				},
 			}},
@@ -435,7 +435,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 	turnMetrics, err := store.QueryTurnMetrics(context.Background(), archiveDir, []string{first.CacheKey()})
 	require.NoError(t, err)
 	require.Len(t, turnMetrics, 1)
-	assert.Equal(t, []conv.TurnTokens{{InputTokens: 120, TurnTokens: 180}}, turnMetrics[0].Turns)
+	assert.Equal(t, []conv.TurnTokens{{PromptTokens: 120, TurnTokens: 180}}, turnMetrics[0].Turns)
 
 	daily, err := store.QueryActivityBuckets(
 		context.Background(),

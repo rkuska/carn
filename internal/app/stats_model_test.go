@@ -173,29 +173,29 @@ func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
 			{
 				Timestamp: now.Add(-time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 100,
-					TurnTokens:  150,
+					PromptTokens: 100,
+					TurnTokens:   150,
 				}},
 			},
 			{
 				Timestamp: now.Add(-2 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 120,
-					TurnTokens:  180,
+					PromptTokens: 120,
+					TurnTokens:   180,
 				}},
 			},
 			{
 				Timestamp: now.Add(-3 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 140,
-					TurnTokens:  210,
+					PromptTokens: 140,
+					TurnTokens:   210,
 				}},
 			},
 			{
 				Timestamp: now.AddDate(0, 0, -45),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 160,
-					TurnTokens:  240,
+					PromptTokens: 160,
+					TurnTokens:   240,
 				}},
 			},
 		},
@@ -284,22 +284,22 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 		{
 			Timestamp: now.Add(-time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 100,
-				TurnTokens:  150,
+				PromptTokens: 100,
+				TurnTokens:   150,
 			}},
 		},
 		{
 			Timestamp: now.Add(-2 * time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 120,
-				TurnTokens:  180,
+				PromptTokens: 120,
+				TurnTokens:   180,
 			}},
 		},
 		{
 			Timestamp: now.Add(-3 * time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 140,
-				TurnTokens:  210,
+				PromptTokens: 140,
+				TurnTokens:   210,
 			}},
 		},
 	}
@@ -307,22 +307,22 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 		{
 			Timestamp: now.Add(-4 * time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 200,
-				TurnTokens:  260,
+				PromptTokens: 200,
+				TurnTokens:   260,
 			}},
 		},
 		{
 			Timestamp: now.Add(-5 * time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 220,
-				TurnTokens:  280,
+				PromptTokens: 220,
+				TurnTokens:   280,
 			}},
 		},
 		{
 			Timestamp: now.Add(-6 * time.Hour),
 			Turns: []conv.TurnTokens{{
-				InputTokens: 240,
-				TurnTokens:  300,
+				PromptTokens: 240,
+				TurnTokens:   300,
 			}},
 		},
 	}
@@ -371,7 +371,7 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 
 	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
 	assert.Equal(t, 3, m.snapshot.Sessions.ClaudeTurnMetrics[0].SampleCount)
-	assert.InDelta(t, 120.0, m.snapshot.Sessions.ClaudeTurnMetrics[0].AverageInputTokens, 0.0001)
+	assert.InDelta(t, 120.0, m.snapshot.Sessions.ClaudeTurnMetrics[0].AveragePromptTokens, 0.0001)
 	assert.Zero(t, store.loadSessionCalls)
 }
 
@@ -388,22 +388,22 @@ func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) 
 			{
 				Timestamp: now.Add(-time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 100,
-					TurnTokens:  150,
+					PromptTokens: 100,
+					TurnTokens:   150,
 				}},
 			},
 			{
 				Timestamp: now.Add(-2 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 120,
-					TurnTokens:  180,
+					PromptTokens: 120,
+					TurnTokens:   180,
 				}},
 			},
 			{
 				Timestamp: now.Add(-3 * time.Hour),
 				Turns: []conv.TurnTokens{{
-					InputTokens: 140,
-					TurnTokens:  210,
+					PromptTokens: 140,
+					TurnTokens:   210,
 				}},
 			},
 		},

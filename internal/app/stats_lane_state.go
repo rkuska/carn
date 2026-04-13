@@ -66,7 +66,7 @@ func sessionsStatsLanes() []statsLane {
 	return []statsLane{
 		{id: statsLaneSessionsDuration, title: "Session Duration"},
 		{id: statsLaneSessionsMessages, title: "Messages per Session"},
-		{id: statsLaneSessionsContext, title: statsClaudeContextGrowthTitle},
+		{id: statsLaneSessionsContext, title: statsClaudePromptGrowthTitle},
 		{id: statsLaneSessionsTurnCost, title: statsClaudeTurnCostTitle},
 	}
 }

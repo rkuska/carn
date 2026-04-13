@@ -45,9 +45,10 @@ None.
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/canonical/rebuild.go | source | 316 | 57 | 359 |
+| internal/app/stats_tab_sessions.go | source | 378 | 56 | 418 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
 | internal/app/stats_tab_cache.go | source | 325 | 56 | 358 |
-| internal/app/stats_metric_detail.go | source | 369 | 55 | 404 |
+| internal/app/stats_metric_detail.go | source | 377 | 55 | 412 |
 | internal/canonical/sqlite_stats.go | source | 336 | 53 | 369 |
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |

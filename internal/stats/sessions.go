@@ -53,6 +53,9 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 
 	series := make([]SessionTurnMetrics, 0, len(sessions))
 	for _, session := range sessions {
+		if session.Meta.IsSubagent {
+			continue
+		}
 		turns := collectSessionTurns(session.Messages)
 		if len(turns) == 0 {
 			continue
@@ -68,34 +71,49 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 func collectSessionTurns(messages []conv.Message) []TurnTokens {
 	turns := make([]TurnTokens, 0, estimatedTurnCapacity(messages))
 	current := TurnTokens{}
+	turnActive := false
 	hasUsage := false
 
 	flush := func() {
 		if !hasUsage {
+			turnActive = false
 			return
 		}
 		turns = append(turns, current)
 		current = TurnTokens{}
+		turnActive = false
 		hasUsage = false
 	}
 
 	for _, message := range messages {
+		if message.IsSidechain {
+			continue
+		}
+		if message.IsAgentDivider {
+			flush()
+			continue
+		}
 		if isTurnBoundary(message) {
 			flush()
+			turnActive = true
+			continue
+		}
+		if !turnActive {
 			continue
 		}
 		if message.Role != conv.RoleAssistant {
 			continue
 		}
 
-		turnTokens := message.Usage.InputTokens + message.Usage.OutputTokens
+		turnTokens := message.Usage.TotalTokens()
 		if turnTokens <= 0 {
 			continue
 		}
 
-		// A single user turn can fan out into multiple assistant/tool steps.
-		// Track the deepest prompt reached in the turn and the total token cost.
-		current.InputTokens = max(current.InputTokens, message.Usage.InputTokens)
+		// A single main-thread user prompt can fan out into multiple
+		// assistant/tool steps. Track the deepest prompt reached in the turn
+		// and the total assistant-side token cost.
+		current.PromptTokens = max(current.PromptTokens, message.Usage.PromptTokens())
 		current.TurnTokens += turnTokens
 		hasUsage = true
 	}
@@ -112,9 +130,6 @@ func estimatedTurnCapacity(messages []conv.Message) int {
 }
 
 func isTurnBoundary(message conv.Message) bool {
-	if message.IsAgentDivider {
-		return true
-	}
 	return message.Role == conv.RoleUser && strings.TrimSpace(message.Text) != ""
 }
 
@@ -127,7 +142,7 @@ func ComputeTurnTokenMetricsForRange(
 	}
 
 	type turnTotals struct {
-		input   float64
+		prompt  float64
 		turn    float64
 		samples int
 	}
@@ -140,7 +155,7 @@ func ComputeTurnTokenMetricsForRange(
 		for index, turn := range session.Turns {
 			position := index + 1
 			total := totals[position]
-			total.input += float64(turn.InputTokens)
+			total.prompt += float64(turn.PromptTokens)
 			total.turn += float64(turn.TurnTokens)
 			total.samples++
 			totals[position] = total
@@ -152,10 +167,10 @@ func ComputeTurnTokenMetricsForRange(
 			continue
 		}
 		metrics = append(metrics, PositionTokenMetrics{
-			Position:           position,
-			AverageInputTokens: total.input / float64(total.samples),
-			AverageTurnTokens:  total.turn / float64(total.samples),
-			SampleCount:        total.samples,
+			Position:            position,
+			AveragePromptTokens: total.prompt / float64(total.samples),
+			AverageTurnTokens:   total.turn / float64(total.samples),
+			SampleCount:         total.samples,
 		})
 	}
 	slices.SortFunc(metrics, func(left, right PositionTokenMetrics) int {
