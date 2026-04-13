@@ -18,7 +18,7 @@ func writeCanonicalStoreAtomically(
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
 	statsData map[string][]conv.SessionStatsData,
-	dailyTokenRows map[string][]conv.DailyTokenRow,
+	activityBucketRows map[string][]conv.ActivityBucketRow,
 ) error {
 	return withCanonicalStoreTempDB(ctx, archiveDir, func(tempPath string) error {
 		db, err := openSQLiteDB(ctx, tempPath, false)
@@ -42,7 +42,7 @@ func writeCanonicalStoreAtomically(
 			transcripts,
 			corpus,
 			statsData,
-			dailyTokenRows,
+			activityBucketRows,
 		)
 		if err != nil {
 			return fmt.Errorf("replaceSQLiteStoreContents: %w", err)
@@ -106,7 +106,7 @@ func clearSQLiteStoreTables(ctx context.Context, tx *sql.Tx) error {
 	for _, stmt := range []string{
 		`DELETE FROM stats_performance_sequence`,
 		`DELETE FROM stats_turn_metrics`,
-		`DELETE FROM stats_daily_tokens`,
+		`DELETE FROM stats_activity_buckets`,
 		`DELETE FROM conversation_sessions`,
 		`DELETE FROM search_chunks`,
 		`DELETE FROM conversations`,

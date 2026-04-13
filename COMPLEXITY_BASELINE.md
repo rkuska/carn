@@ -50,7 +50,6 @@ None.
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
-| internal/canonical/sqlite_stats.go | source | 300 | 42 | 328 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |

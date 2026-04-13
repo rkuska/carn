@@ -21,7 +21,7 @@ func applySQLiteIncrementalRebuild(
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
 	statsData map[string][]conv.SessionStatsData,
-	dailyTokenRows map[string][]conv.DailyTokenRow,
+	activityBucketRows map[string][]conv.ActivityBucketRow,
 ) error {
 	if err := ensureSQLiteSchemaBase(ctx, db); err != nil {
 		return fmt.Errorf("ensureSQLiteSchemaBase: %w", err)
@@ -46,7 +46,7 @@ func applySQLiteIncrementalRebuild(
 		transcripts,
 		groupedUnits,
 		statsData,
-		dailyTokenRows,
+		activityBucketRows,
 	); err != nil {
 		return fmt.Errorf("applySQLiteIncrementalRebuildTx: %w", err)
 	}
@@ -64,7 +64,7 @@ func applySQLiteIncrementalRebuildTx(
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
 	statsData map[string][]conv.SessionStatsData,
-	dailyTokenRows map[string][]conv.DailyTokenRow,
+	activityBucketRows map[string][]conv.ActivityBucketRow,
 ) error {
 	if err := dropSQLiteSearchTriggers(ctx, tx); err != nil {
 		return fmt.Errorf("dropSQLiteSearchTriggers: %w", err)
@@ -85,7 +85,7 @@ func applySQLiteIncrementalRebuildTx(
 		transcripts,
 		groupedUnits,
 		statsData,
-		dailyTokenRows,
+		activityBucketRows,
 	); err != nil {
 		return fmt.Errorf("insertSQLiteConversations: %w", err)
 	}

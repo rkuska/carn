@@ -290,11 +290,12 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 	assert.Equal(t, 10, turnMetrics[0].Turns[0].InputTokens)
 	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
 
-	daily, err := store.QueryDailyTokens(context.Background(), archiveDir, cacheKeys)
+	daily, err := store.QueryActivityBuckets(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)
-	require.Len(t, daily, 2)
+	require.Len(t, daily, 3)
 	assert.Equal(t, 2, daily[0].SessionCount)
-	assert.Equal(t, 30, daily[1].InputTokens)
+	assert.Equal(t, 10, daily[1].InputTokens)
+	assert.Equal(t, 20, daily[2].InputTokens)
 
 	source.resolution = src.IncrementalResolution{
 		Conversations: []conversation{first},
@@ -346,12 +347,14 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 	assert.Equal(t, 40, turnMetrics[0].Turns[0].InputTokens)
 	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
 
-	daily, err = store.QueryDailyTokens(context.Background(), archiveDir, cacheKeys)
+	daily, err = store.QueryActivityBuckets(context.Background(), archiveDir, cacheKeys)
 	require.NoError(t, err)
-	require.Len(t, daily, 2)
+	require.Len(t, daily, 3)
 	assert.Equal(t, 2, daily[0].SessionCount)
-	assert.Equal(t, 60, daily[1].InputTokens)
-	assert.Equal(t, 10, daily[1].OutputTokens)
+	assert.Equal(t, 40, daily[1].InputTokens)
+	assert.Equal(t, 6, daily[1].OutputTokens)
+	assert.Equal(t, 20, daily[2].InputTokens)
+	assert.Equal(t, 4, daily[2].OutputTokens)
 }
 
 func TestBuildParseOutputsReturnsGroupedSearchCorpus(t *testing.T) {

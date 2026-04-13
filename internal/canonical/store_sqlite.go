@@ -34,14 +34,14 @@ func (s *Store) QueryTurnMetrics(
 	return rows, nil
 }
 
-func (s *Store) QueryDailyTokens(
+func (s *Store) QueryActivityBuckets(
 	ctx context.Context,
 	archiveDir string,
 	cacheKeys []string,
-) ([]conv.DailyTokenRow, error) {
-	rows, err := queryStoreStatsRows(s, ctx, archiveDir, cacheKeys, readStatsDailyTokens)
+) ([]conv.ActivityBucketRow, error) {
+	rows, err := queryStoreStatsRows(s, ctx, archiveDir, cacheKeys, readStatsActivityBuckets)
 	if err != nil {
-		return nil, fmt.Errorf("queryStatsRows_dailyTokens: %w", err)
+		return nil, fmt.Errorf("queryStatsRows_activityBuckets: %w", err)
 	}
 	return rows, nil
 }

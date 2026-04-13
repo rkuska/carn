@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	storeSchemaVersion       = 9
+	storeSchemaVersion       = 10
 	storeProjectionVersion   = 11
 	storeSearchCorpusVersion = 3
 )
@@ -32,12 +32,12 @@ type searchCorpus struct {
 }
 
 type parseResult struct {
-	key            string
-	conversation   conversation
-	session        sessionFull
-	units          []searchUnit
-	statsData      []conv.SessionStatsData
-	dailyTokenRows []conv.DailyTokenRow
+	key                string
+	conversation       conversation
+	session            sessionFull
+	units              []searchUnit
+	statsData          []conv.SessionStatsData
+	activityBucketRows []conv.ActivityBucketRow
 }
 
 func (c searchCorpus) Len() int {
@@ -80,7 +80,7 @@ func rebuildCanonicalStore(
 
 	parsedConversations := conversationsFromParseResults(results)
 	transcripts, corpus := buildParseOutputs(results)
-	statsData, dailyTokenRows := buildParseStatsOutputs(results)
+	statsData, activityBucketRows := buildParseStatsOutputs(results)
 	setPlanCounts(parsedConversations, transcripts)
 
 	if err := writeCanonicalStoreAtomically(
@@ -90,7 +90,7 @@ func rebuildCanonicalStore(
 		transcripts,
 		corpus,
 		statsData,
-		dailyTokenRows,
+		activityBucketRows,
 	); err != nil {
 		return drift, fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
 	}
@@ -183,7 +183,7 @@ func parseConversationsParallelResultsWithSources(
 			if err != nil {
 				return fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
 			}
-			statsData, dailyTokenRows, err := collectConversationStatsData(
+			statsData, activityBucketRows, err := collectConversationStatsData(
 				groupCtx,
 				sources,
 				collector,
@@ -195,12 +195,12 @@ func parseConversationsParallelResultsWithSources(
 
 			key := conv.CacheKey()
 			results[index] = parseResult{
-				key:            key,
-				conversation:   enrichedConv,
-				session:        enrichedSession,
-				units:          buildSearchUnits(key, enrichedSession),
-				statsData:      statsData,
-				dailyTokenRows: dailyTokenRows,
+				key:                key,
+				conversation:       enrichedConv,
+				session:            enrichedSession,
+				units:              buildSearchUnits(key, enrichedSession),
+				statsData:          statsData,
+				activityBucketRows: activityBucketRows,
 			}
 			return nil
 		})
@@ -214,14 +214,14 @@ func parseConversationsParallelResultsWithSources(
 
 func buildParseStatsOutputs(
 	results []parseResult,
-) (map[string][]conv.SessionStatsData, map[string][]conv.DailyTokenRow) {
+) (map[string][]conv.SessionStatsData, map[string][]conv.ActivityBucketRow) {
 	statsData := make(map[string][]conv.SessionStatsData, len(results))
-	dailyTokenRows := make(map[string][]conv.DailyTokenRow, len(results))
+	activityBucketRows := make(map[string][]conv.ActivityBucketRow, len(results))
 	for _, result := range results {
 		statsData[result.key] = result.statsData
-		dailyTokenRows[result.key] = result.dailyTokenRows
+		activityBucketRows[result.key] = result.activityBucketRows
 	}
-	return statsData, dailyTokenRows
+	return statsData, activityBucketRows
 }
 
 func buildParseOutputs(results []parseResult) (map[string]sessionFull, searchCorpus) {

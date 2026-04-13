@@ -26,18 +26,18 @@ func ComputeSnapshotWithPrecomputed(
 	timeRange TimeRange,
 	sequence []conv.PerformanceSequenceSession,
 	turnMetrics []conv.SessionTurnMetrics,
-	dailyTokens []conv.DailyTokenRow,
+	dailyTokens []conv.ActivityBucketRow,
 ) Snapshot {
 	sessions := flattenConversationSessions(conversations)
 	filtered := FilterByTimeRange(sessions, timeRange)
 	overview := ComputeOverview(filtered)
-	overview.TokenTrend = ComputeTokenTrendFromDaily(dailyTokens, timeRange)
+	overview.TokenTrend = ComputeTokenTrendFromBuckets(dailyTokens, timeRange)
 	sessionStats := ComputeSessions(filtered)
 	sessionStats.ClaudeTurnMetrics = ComputeTurnTokenMetricsForRange(turnMetrics, timeRange)
 
 	return Snapshot{
 		Overview:    overview,
-		Activity:    ComputeActivityFromDaily(filtered, dailyTokens, timeRange),
+		Activity:    ComputeActivityFromBuckets(filtered, dailyTokens, timeRange),
 		Sessions:    sessionStats,
 		Tools:       ComputeTools(filtered),
 		Cache:       ComputeCache(filtered, timeRange),

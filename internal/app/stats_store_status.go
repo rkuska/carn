@@ -15,7 +15,7 @@ type statsQueryFailures uint8
 const (
 	statsQueryFailurePerformanceSequence statsQueryFailures = 1 << iota
 	statsQueryFailureTurnMetrics
-	statsQueryFailureDailyTokens
+	statsQueryFailureActivityBuckets
 )
 
 const (
@@ -24,10 +24,10 @@ const (
 )
 
 type statsPrecomputedRows struct {
-	sequence     []conv.PerformanceSequenceSession
-	turnMetrics  []conv.SessionTurnMetrics
-	dailyTokens  []conv.DailyTokenRow
-	queryFailure statsQueryFailures
+	sequence        []conv.PerformanceSequenceSession
+	turnMetrics     []conv.SessionTurnMetrics
+	activityBuckets []conv.ActivityBucketRow
+	queryFailure    statsQueryFailures
 }
 
 func (f statsQueryFailures) degraded() bool {
@@ -42,8 +42,8 @@ func (f statsQueryFailures) labels() []string {
 	if f&statsQueryFailureTurnMetrics != 0 {
 		labels = append(labels, "turn metrics")
 	}
-	if f&statsQueryFailureDailyTokens != 0 {
-		labels = append(labels, "daily token totals")
+	if f&statsQueryFailureActivityBuckets != 0 {
+		labels = append(labels, "activity buckets")
 	}
 	return labels
 }
@@ -114,14 +114,14 @@ func loadStatsRows(
 		&rows.queryFailure,
 		statsQueryFailureTurnMetrics,
 	)
-	rows.dailyTokens = loadStatsQuery(
+	rows.activityBuckets = loadStatsQuery(
 		ctx,
-		store.QueryDailyTokens,
+		store.QueryActivityBuckets,
 		archiveDir,
 		cacheKeys,
-		"daily_tokens",
+		"activity_buckets",
 		&rows.queryFailure,
-		statsQueryFailureDailyTokens,
+		statsQueryFailureActivityBuckets,
 	)
 	return rows
 }

@@ -142,9 +142,9 @@ func TestComputeSnapshotWithPrecomputedUsesDailyTokensAndTurnMetrics(t *testing.
 				}},
 			},
 		},
-		[]conv.DailyTokenRow{
+		[]conv.ActivityBucketRow{
 			{
-				Date:                  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				BucketStart:           time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 				SessionCount:          1,
 				MessageCount:          5,
 				UserMessageCount:      2,
@@ -153,7 +153,7 @@ func TestComputeSnapshotWithPrecomputedUsesDailyTokensAndTurnMetrics(t *testing.
 				OutputTokens:          50,
 			},
 			{
-				Date:                  time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+				BucketStart:           time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 				SessionCount:          1,
 				MessageCount:          5,
 				UserMessageCount:      2,

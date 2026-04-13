@@ -26,11 +26,11 @@ type browserStore interface {
 		archiveDir string,
 		cacheKeys []string,
 	) ([]conv.SessionTurnMetrics, error)
-	QueryDailyTokens(
+	QueryActivityBuckets(
 		ctx context.Context,
 		archiveDir string,
 		cacheKeys []string,
-	) ([]conv.DailyTokenRow, error)
+	) ([]conv.ActivityBucketRow, error)
 	DeepSearch(
 		ctx context.Context,
 		archiveDir, query string,
@@ -146,14 +146,14 @@ func (s canonicalBrowserStore) QueryTurnMetrics(
 	return rows, nil
 }
 
-func (s canonicalBrowserStore) QueryDailyTokens(
+func (s canonicalBrowserStore) QueryActivityBuckets(
 	ctx context.Context,
 	archiveDir string,
 	cacheKeys []string,
-) ([]conv.DailyTokenRow, error) {
-	rows, err := s.store.QueryDailyTokens(ctx, archiveDir, cacheKeys)
+) ([]conv.ActivityBucketRow, error) {
+	rows, err := s.store.QueryActivityBuckets(ctx, archiveDir, cacheKeys)
 	if err != nil {
-		return nil, fmt.Errorf("store.QueryDailyTokens: %w", err)
+		return nil, fmt.Errorf("store.QueryActivityBuckets: %w", err)
 	}
 	return rows, nil
 }

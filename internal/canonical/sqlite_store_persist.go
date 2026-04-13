@@ -34,7 +34,7 @@ func replaceSQLiteStoreContents(
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
 	statsData map[string][]conv.SessionStatsData,
-	dailyTokenRows map[string][]conv.DailyTokenRow,
+	activityBucketRows map[string][]conv.ActivityBucketRow,
 ) (sqliteStoreCounts, error) {
 	if err := ensureSQLiteSchemaBase(ctx, db); err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("ensureSQLiteSchemaBase: %w", err)
@@ -61,7 +61,7 @@ func replaceSQLiteStoreContents(
 		transcripts,
 		corpus.byConversation,
 		statsData,
-		dailyTokenRows,
+		activityBucketRows,
 	)
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversations: %w", err)
@@ -95,7 +95,7 @@ func insertSQLiteConversations(
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
 	statsData map[string][]conv.SessionStatsData,
-	dailyTokenRows map[string][]conv.DailyTokenRow,
+	activityBucketRows map[string][]conv.ActivityBucketRow,
 ) (sqliteStoreCounts, error) {
 	convStmt, sessionStmt, err := prepareSQLiteConversationStatements(ctx, tx)
 	if err != nil {
@@ -131,7 +131,7 @@ func insertSQLiteConversations(
 			session,
 			groupedUnits[conv.CacheKey()],
 			statsData[conv.CacheKey()],
-			dailyTokenRows[conv.CacheKey()],
+			activityBucketRows[conv.CacheKey()],
 		)
 		if err != nil {
 			return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversation: %w", err)
@@ -153,7 +153,7 @@ func insertSQLiteConversation(
 	session sessionFull,
 	units []searchUnit,
 	statsData []conv.SessionStatsData,
-	dailyTokenRows []conv.DailyTokenRow,
+	activityBucketRows []conv.ActivityBucketRow,
 ) (sqliteStoreCounts, error) {
 	conversationID, err := insertSQLiteConversationRow(ctx, convStmt, conv, session)
 	if err != nil {
@@ -168,7 +168,7 @@ func insertSQLiteConversation(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteSearchChunks: %w", err)
 	}
-	if err := insertSQLiteConversationStats(ctx, tx, conv.CacheKey(), statsData, dailyTokenRows); err != nil {
+	if err := insertSQLiteConversationStats(ctx, tx, conv.CacheKey(), statsData, activityBucketRows); err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversationStats: %w", err)
 	}
 
@@ -184,7 +184,7 @@ func insertSQLiteConversationStats(
 	tx *sql.Tx,
 	cacheKey string,
 	statsData []conv.SessionStatsData,
-	dailyTokenRows []conv.DailyTokenRow,
+	activityBucketRows []conv.ActivityBucketRow,
 ) error {
 	for ordinal, row := range statsData {
 		if err := writeStatsPerformanceSequence(ctx, tx, cacheKey, ordinal, row.PerformanceSequence); err != nil {
@@ -194,8 +194,8 @@ func insertSQLiteConversationStats(
 			return fmt.Errorf("writeStatsTurnMetrics: %w", err)
 		}
 	}
-	if err := writeStatsDailyTokens(ctx, tx, cacheKey, dailyTokenRows); err != nil {
-		return fmt.Errorf("writeStatsDailyTokens: %w", err)
+	if err := writeStatsActivityBuckets(ctx, tx, cacheKey, activityBucketRows); err != nil {
+		return fmt.Errorf("writeStatsActivityBuckets: %w", err)
 	}
 	return nil
 }

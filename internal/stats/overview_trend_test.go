@@ -101,22 +101,23 @@ func TestPreviousTimeRange(t *testing.T) {
 	)
 }
 
-func TestComputeTokenTrendFromDaily(t *testing.T) {
+func TestComputeTokenTrendFromBuckets(t *testing.T) {
 	t.Parallel()
 
+	prague := time.FixedZone("CET", 1*60*60)
 	timeRange := TimeRange{
-		Start: time.Date(2026, 3, 17, 0, 0, 0, 0, time.UTC),
-		End:   time.Date(2026, 3, 23, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC),
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+		End:   time.Date(2026, 3, 22, 23, 59, 59, int(time.Second-time.Nanosecond), prague),
 	}
 
-	daily := []DailyTokenRow{
+	buckets := []ActivityBucketRow{
 		{
-			Date:         time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC),
+			BucketStart:  time.Date(2026, 3, 20, 23, 30, 0, 0, time.UTC),
 			InputTokens:  800,
 			OutputTokens: 200,
 		},
 		{
-			Date:         time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+			BucketStart:  time.Date(2026, 3, 21, 23, 30, 0, 0, time.UTC),
 			InputTokens:  1200,
 			OutputTokens: 0,
 		},
@@ -125,5 +126,5 @@ func TestComputeTokenTrendFromDaily(t *testing.T) {
 	assert.Equal(t, TokenTrend{
 		Direction:     TrendDirectionUp,
 		PercentChange: 20,
-	}, ComputeTokenTrendFromDaily(daily, timeRange))
+	}, ComputeTokenTrendFromBuckets(buckets, timeRange))
 }

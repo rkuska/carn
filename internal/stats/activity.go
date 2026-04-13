@@ -52,13 +52,13 @@ func ComputeActivity(sessions []conv.SessionMeta, timeRange TimeRange) Activity 
 	return activity
 }
 
-func ComputeActivityFromDaily(
+func ComputeActivityFromBuckets(
 	sessions []conv.SessionMeta,
-	dailyTokens []conv.DailyTokenRow,
+	activityBuckets []conv.ActivityBucketRow,
 	timeRange TimeRange,
 ) Activity {
 	location := activityLocation(sessions, timeRange)
-	start, end, ok := resolveActivityBoundsFromDaily(sessions, dailyTokens, timeRange, location)
+	start, end, ok := resolveActivityBoundsFromBuckets(sessions, activityBuckets, timeRange, location)
 	if !ok {
 		return Activity{}
 	}
@@ -73,15 +73,18 @@ func ComputeActivityFromDaily(
 	tokensByDay := make(map[time.Time]int)
 	activeDates := make(map[time.Time]struct{})
 
-	for _, row := range dailyTokens {
-		day := activityDailyRowDay(row.Date, location)
+	for _, row := range activityBuckets {
+		day := activityBucketDay(row.BucketStart, location)
 		if day.IsZero() {
+			continue
+		}
+		if day.Before(start) || day.After(end) {
 			continue
 		}
 		sessionsByDay[day] += row.SessionCount
 		messagesByDay[day] += row.MessageCount
-		tokensByDay[day] += dailyRowTotalTokens(row)
-		if dailyRowHasActivity(row) {
+		tokensByDay[day] += activityBucketTotalTokens(row)
+		if activityBucketHasSessionActivity(row) {
 			activeDates[day] = struct{}{}
 		}
 	}
@@ -135,20 +138,20 @@ func resolveActivityBounds(
 	return start, end, true
 }
 
-func resolveActivityBoundsFromDaily(
+func resolveActivityBoundsFromBuckets(
 	sessions []conv.SessionMeta,
-	dailyTokens []conv.DailyTokenRow,
+	activityBuckets []conv.ActivityBucketRow,
 	timeRange TimeRange,
 	location *time.Location,
 ) (time.Time, time.Time, bool) {
-	if len(sessions) == 0 && len(dailyTokens) == 0 {
+	if len(sessions) == 0 && len(activityBuckets) == 0 {
 		return time.Time{}, time.Time{}, false
 	}
 
 	start := timeRange.Start
 	end := timeRange.End
 	if start.IsZero() || end.IsZero() {
-		minDay, maxDay, ok := activityBounds(sessions, dailyTokens, location)
+		minDay, maxDay, ok := activityBounds(sessions, activityBuckets, location)
 		if !ok {
 			return time.Time{}, time.Time{}, false
 		}
@@ -170,7 +173,7 @@ func resolveActivityBoundsFromDaily(
 
 func activityBounds(
 	sessions []conv.SessionMeta,
-	dailyTokens []conv.DailyTokenRow,
+	activityBuckets []conv.ActivityBucketRow,
 	location *time.Location,
 ) (time.Time, time.Time, bool) {
 	var (
@@ -184,8 +187,8 @@ func activityBounds(
 		ok = true
 	}
 
-	for _, row := range dailyTokens {
-		day := activityDailyRowDay(row.Date, location)
+	for _, row := range activityBuckets {
+		day := activityBucketDay(row.BucketStart, location)
 		if day.IsZero() {
 			continue
 		}
@@ -234,15 +237,14 @@ func activityLocation(sessions []conv.SessionMeta, timeRange TimeRange) *time.Lo
 	}
 }
 
-func activityDailyRowDay(day time.Time, location *time.Location) time.Time {
-	if day.IsZero() {
+func activityBucketDay(bucketStart time.Time, location *time.Location) time.Time {
+	if bucketStart.IsZero() {
 		return time.Time{}
 	}
-	year, month, date := day.Date()
-	return time.Date(year, month, date, 0, 0, 0, 0, location)
+	return startOfDayInLocation(bucketStart, location)
 }
 
-func dailyRowTotalTokens(row conv.DailyTokenRow) int {
+func activityBucketTotalTokens(row conv.ActivityBucketRow) int {
 	return row.InputTokens +
 		row.CacheCreationTokens +
 		row.CacheReadTokens +
@@ -250,10 +252,8 @@ func dailyRowTotalTokens(row conv.DailyTokenRow) int {
 		row.ReasoningOutputTokens
 }
 
-func dailyRowHasActivity(row conv.DailyTokenRow) bool {
-	return row.SessionCount > 0 ||
-		row.MessageCount > 0 ||
-		dailyRowTotalTokens(row) > 0
+func activityBucketHasSessionActivity(row conv.ActivityBucketRow) bool {
+	return row.SessionCount > 0 || row.MessageCount > 0
 }
 
 func normalizeActivityTime(ts time.Time, location *time.Location) time.Time {

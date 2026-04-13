@@ -161,31 +161,37 @@ func TestComputeActivityUsesTotalMessageCountForSubagentSessions(t *testing.T) {
 	assert.Equal(t, 12, got.DailyMessages[0].Count)
 }
 
-func TestComputeActivityFromDailyUsesDailyRowsForSeriesAndSessionsForHeatmap(t *testing.T) {
+func TestComputeActivityFromBucketsUsesBucketRowsForSeriesAndSessionsForHeatmap(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
 		testMeta("s1", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)),
 		testMeta("s2", time.Date(2026, 1, 6, 14, 0, 0, 0, time.UTC)),
 	}
-	daily := []conv.DailyTokenRow{
+	buckets := []conv.ActivityBucketRow{
 		{
-			Date:         time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			BucketStart:  time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
 			SessionCount: 1,
 			MessageCount: 4,
+		},
+		{
+			BucketStart:  time.Date(2026, 1, 5, 9, 5, 0, 0, time.UTC),
 			InputTokens:  100,
 			OutputTokens: 20,
 		},
 		{
-			Date:         time.Date(2026, 1, 6, 0, 0, 0, 0, time.UTC),
+			BucketStart:  time.Date(2026, 1, 6, 14, 0, 0, 0, time.UTC),
 			SessionCount: 1,
 			MessageCount: 6,
+		},
+		{
+			BucketStart:  time.Date(2026, 1, 6, 14, 5, 0, 0, time.UTC),
 			InputTokens:  150,
 			OutputTokens: 30,
 		},
 	}
 
-	got := ComputeActivityFromDaily(sessions, daily, TimeRange{
+	got := ComputeActivityFromBuckets(sessions, buckets, TimeRange{
 		Start: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
 		End:   time.Date(2026, 1, 6, 23, 59, 59, 0, time.UTC),
 	})
@@ -195,6 +201,90 @@ func TestComputeActivityFromDailyUsesDailyRowsForSeriesAndSessionsForHeatmap(t *
 	assert.Equal(t, []int{120, 180}, dailyCounts(got.DailyTokens))
 	assert.Equal(t, 1, got.Heatmap[0][9])
 	assert.Equal(t, 1, got.Heatmap[1][14])
+}
+
+func TestComputeActivityFromBucketsUsesTimeRangeTimezoneForDailySeries(t *testing.T) {
+	t.Parallel()
+
+	prague := time.FixedZone("CET", 1*60*60)
+	sessions := []sessionMeta{
+		testMeta("d1", time.Date(2026, 3, 21, 23, 30, 0, 0, time.UTC), withMainMessages(4)),
+		testMeta("d2", time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC), withMainMessages(6)),
+	}
+	buckets := []conv.ActivityBucketRow{
+		{
+			BucketStart:  time.Date(2026, 3, 21, 23, 30, 0, 0, time.UTC),
+			SessionCount: 1,
+			MessageCount: 4,
+		},
+		{
+			BucketStart: time.Date(2026, 3, 21, 23, 31, 0, 0, time.UTC),
+			InputTokens: 80,
+		},
+		{
+			BucketStart:  time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC),
+			SessionCount: 1,
+			MessageCount: 6,
+		},
+		{
+			BucketStart: time.Date(2026, 3, 22, 10, 1, 0, 0, time.UTC),
+			InputTokens: 120,
+		},
+	}
+
+	got := ComputeActivityFromBuckets(sessions, buckets, TimeRange{
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+		End:   time.Date(2026, 3, 22, 23, 59, 59, 0, prague),
+	})
+
+	require.Len(t, got.DailySessions, 1)
+	assert.Equal(t, 2, got.DailySessions[0].Count)
+	assert.Equal(t, 10, got.DailyMessages[0].Count)
+	assert.Equal(t, 200, got.DailyTokens[0].Count)
+	assert.Equal(t, 1, got.ActiveDays)
+	assert.Equal(t, 1, got.TotalDays)
+}
+
+func TestComputeActivityFromBucketsRestrictsStreaksToSelectedRange(t *testing.T) {
+	t.Parallel()
+
+	buckets := []conv.ActivityBucketRow{
+		{BucketStart: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC), SessionCount: 1, MessageCount: 2},
+		{BucketStart: time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC), SessionCount: 1, MessageCount: 2},
+		{BucketStart: time.Date(2026, 1, 3, 9, 0, 0, 0, time.UTC), SessionCount: 1, MessageCount: 2},
+		{BucketStart: time.Date(2026, 1, 4, 9, 0, 0, 0, time.UTC), SessionCount: 1, MessageCount: 2},
+		{BucketStart: time.Date(2026, 1, 7, 9, 0, 0, 0, time.UTC), SessionCount: 1, MessageCount: 2},
+	}
+
+	got := ComputeActivityFromBuckets(nil, buckets, TimeRange{
+		Start: time.Date(2026, 1, 6, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 7, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, 1, got.ActiveDays)
+	assert.Equal(t, 1, got.CurrentStreak)
+	assert.Equal(t, 1, got.LongestStreak)
+	assert.Equal(t, []int{0, 1}, dailyCounts(got.DailySessions))
+}
+
+func TestComputeActivityFromBucketsTokenOnlyBucketsDoNotExtendStreaks(t *testing.T) {
+	t.Parallel()
+
+	buckets := []conv.ActivityBucketRow{
+		{BucketStart: time.Date(2026, 1, 5, 23, 55, 0, 0, time.UTC), SessionCount: 1, MessageCount: 6},
+		{BucketStart: time.Date(2026, 1, 6, 0, 2, 0, 0, time.UTC), InputTokens: 50, OutputTokens: 10},
+	}
+
+	got := ComputeActivityFromBuckets(nil, buckets, TimeRange{
+		Start: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 1, 6, 23, 59, 59, 0, time.UTC),
+	})
+
+	assert.Equal(t, 1, got.ActiveDays)
+	assert.Equal(t, 0, got.CurrentStreak)
+	assert.Equal(t, 1, got.LongestStreak)
+	assert.Equal(t, []int{1, 0}, dailyCounts(got.DailySessions))
+	assert.Equal(t, []int{0, 60}, dailyCounts(got.DailyTokens))
 }
 
 func dailyCounts(items []DailyCount) []int {

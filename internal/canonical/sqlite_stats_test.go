@@ -60,9 +60,9 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 				},
 			}},
 		},
-		map[string][]conv.DailyTokenRow{
+		map[string][]conv.ActivityBucketRow{
 			first.CacheKey(): {{
-				Date:                  day,
+				BucketStart:           day,
 				Provider:              "claude",
 				Model:                 "claude-sonnet-4",
 				Project:               "claude",
@@ -74,7 +74,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 				OutputTokens:          3,
 			}},
 			second.CacheKey(): {{
-				Date:                  day,
+				BucketStart:           day,
 				Provider:              "claude",
 				Model:                 "claude-sonnet-4",
 				Project:               "claude",
@@ -99,7 +99,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 	require.Len(t, turnMetrics, 1)
 	assert.Equal(t, []conv.TurnTokens{{InputTokens: 120, TurnTokens: 180}}, turnMetrics[0].Turns)
 
-	daily, err := store.QueryDailyTokens(
+	daily, err := store.QueryActivityBuckets(
 		context.Background(),
 		archiveDir,
 		[]string{first.CacheKey(), second.CacheKey()},
@@ -111,7 +111,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 	assert.Equal(t, 30, daily[0].InputTokens)
 	assert.Equal(t, 8, daily[0].OutputTokens)
 
-	filteredDaily, err := store.QueryDailyTokens(context.Background(), archiveDir, []string{first.CacheKey()})
+	filteredDaily, err := store.QueryActivityBuckets(context.Background(), archiveDir, []string{first.CacheKey()})
 	require.NoError(t, err)
 	require.Len(t, filteredDaily, 1)
 	assert.Equal(t, 1, filteredDaily[0].SessionCount)

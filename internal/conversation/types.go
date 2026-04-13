@@ -289,8 +289,8 @@ type TurnTokens struct {
 	TurnTokens  int
 }
 
-type DailyTokenRow struct {
-	Date                  time.Time
+type ActivityBucketRow struct {
+	BucketStart           time.Time
 	Provider              string
 	Model                 string
 	Project               string

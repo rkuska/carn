@@ -256,7 +256,7 @@ func (m statsModel) recomputeSnapshot() statsModel {
 		m.timeRange,
 		rows.sequence,
 		rows.turnMetrics,
-		rows.dailyTokens,
+		rows.activityBuckets,
 	)
 	m = m.normalizeStatsSelection()
 	return m

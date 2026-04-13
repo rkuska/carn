@@ -245,7 +245,7 @@ type PerformanceDiagnostic struct {
 type PerformanceSequenceSession = conv.PerformanceSequenceSession
 type SessionTurnMetrics = conv.SessionTurnMetrics
 type TurnTokens = conv.TurnTokens
-type DailyTokenRow = conv.DailyTokenRow
+type ActivityBucketRow = conv.ActivityBucketRow
 
 type Cache struct {
 	TotalCacheRead  int

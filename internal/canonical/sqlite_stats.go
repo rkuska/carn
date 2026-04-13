@@ -86,26 +86,26 @@ func writeStatsTurnMetrics(
 	return nil
 }
 
-func writeStatsDailyTokens(
+func writeStatsActivityBuckets(
 	ctx context.Context,
 	tx *sql.Tx,
 	cacheKey string,
-	rows []conv.DailyTokenRow,
+	rows []conv.ActivityBucketRow,
 ) error {
 	for _, row := range rows {
-		if row.Date.IsZero() {
+		if row.BucketStart.IsZero() {
 			continue
 		}
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO stats_daily_tokens(
-				conversation_cache_key, date_key, provider, model, project,
+			`INSERT INTO stats_activity_buckets(
+				conversation_cache_key, bucket_start_ns, provider, model, project,
 				session_count, message_count, user_message_count,
 				assistant_message_count, input_tokens, cache_creation_tokens,
 				cache_read_tokens, output_tokens, reasoning_output_tokens
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			cacheKey,
-			row.Date.Format("2006-01-02"),
+			timeToUnixNano(row.BucketStart),
 			row.Provider,
 			row.Model,
 			row.Project,
@@ -140,7 +140,7 @@ func deleteStatsByCacheKeys(ctx context.Context, tx *sql.Tx, cacheKeys []string)
 	for _, table := range []string{
 		"stats_performance_sequence",
 		"stats_turn_metrics",
-		"stats_daily_tokens",
+		"stats_activity_buckets",
 	} {
 		query := fmt.Sprintf(
 			`DELETE FROM %s WHERE conversation_cache_key IN (%s)`,
@@ -177,11 +177,11 @@ func unmarshalTurnTokens(raw string) ([]conv.TurnTokens, error) {
 	return turns, nil
 }
 
-type dailyTokenRowKey struct {
-	dateKey  string
-	provider string
-	model    string
-	project  string
+type activityBucketRowKey struct {
+	bucketStartNS int64
+	provider      string
+	model         string
+	project       string
 }
 
 func collectConversationStatsData(
@@ -189,7 +189,7 @@ func collectConversationStatsData(
 	sources sourceRegistry,
 	collector StatsCollector,
 	convValue conversation,
-) ([]conv.SessionStatsData, []conv.DailyTokenRow, error) {
+) ([]conv.SessionStatsData, []conv.ActivityBucketRow, error) {
 	source, ok := sources.lookup(conversationProvider(convValue.Ref.Provider))
 	if !ok {
 		return nil, nil, fmt.Errorf("collectConversationStatsData: %w", errSourceNotRegistered)
@@ -210,36 +210,36 @@ func collectConversationStatsData(
 			statsData = append(statsData, collector.CollectSessionStats(session))
 		}
 	}
-	return statsData, aggregateDailyTokens(loadedSessions), nil
+	return statsData, aggregateActivityBuckets(loadedSessions), nil
 }
 
-func aggregateDailyTokens(sessions []sessionFull) []conv.DailyTokenRow {
+func aggregateActivityBuckets(sessions []sessionFull) []conv.ActivityBucketRow {
 	if len(sessions) == 0 {
 		return nil
 	}
 
-	rows := make(map[dailyTokenRowKey]conv.DailyTokenRow)
+	rows := make(map[activityBucketRowKey]conv.ActivityBucketRow)
 	for _, session := range sessions {
 		aggregateSessionActivityRow(rows, session)
 		aggregateSessionMessageTokens(rows, session)
 	}
 
-	result := make([]conv.DailyTokenRow, 0, len(rows))
+	result := make([]conv.ActivityBucketRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row)
 	}
-	slices.SortFunc(result, compareDailyTokenRow)
+	slices.SortFunc(result, compareActivityBucketRow)
 	return result
 }
 
-func aggregateSessionActivityRow(rows map[dailyTokenRowKey]conv.DailyTokenRow, session sessionFull) {
-	startDay := statsDay(session.Meta.Timestamp)
-	if startDay.IsZero() {
+func aggregateSessionActivityRow(rows map[activityBucketRowKey]conv.ActivityBucketRow, session sessionFull) {
+	bucketStart := statsBucketStart(session.Meta.Timestamp)
+	if bucketStart.IsZero() {
 		return
 	}
 
-	key := dailyTokenKeyForMeta(session.Meta, startDay)
-	row := dailyTokenBaseRow(session.Meta, startDay, rows[key])
+	key := activityBucketKeyForMeta(session.Meta, bucketStart)
+	row := activityBucketBaseRow(session.Meta, bucketStart, rows[key])
 	row.SessionCount++
 	row.MessageCount += statsSessionMessageCount(session.Meta)
 	row.UserMessageCount += session.Meta.UserMessageCount
@@ -247,15 +247,15 @@ func aggregateSessionActivityRow(rows map[dailyTokenRowKey]conv.DailyTokenRow, s
 	rows[key] = row
 }
 
-func aggregateSessionMessageTokens(rows map[dailyTokenRowKey]conv.DailyTokenRow, session sessionFull) {
+func aggregateSessionMessageTokens(rows map[activityBucketRowKey]conv.ActivityBucketRow, session sessionFull) {
 	for _, msg := range session.Messages {
-		day := statsMessageDay(session.Meta.Timestamp, msg.Timestamp)
-		if day.IsZero() {
+		bucketStart := statsMessageBucketStart(session.Meta.Timestamp, msg.Timestamp)
+		if bucketStart.IsZero() {
 			continue
 		}
 
-		key := dailyTokenKeyForMeta(session.Meta, day)
-		row := dailyTokenBaseRow(session.Meta, day, rows[key])
+		key := activityBucketKeyForMeta(session.Meta, bucketStart)
+		row := activityBucketBaseRow(session.Meta, bucketStart, rows[key])
 		row.InputTokens += msg.Usage.InputTokens
 		row.CacheCreationTokens += msg.Usage.CacheCreationInputTokens
 		row.CacheReadTokens += msg.Usage.CacheReadInputTokens
@@ -265,19 +265,19 @@ func aggregateSessionMessageTokens(rows map[dailyTokenRowKey]conv.DailyTokenRow,
 	}
 }
 
-func dailyTokenBaseRow(meta sessionMeta, day time.Time, row conv.DailyTokenRow) conv.DailyTokenRow {
-	row.Date = day
+func activityBucketBaseRow(meta sessionMeta, bucketStart time.Time, row conv.ActivityBucketRow) conv.ActivityBucketRow {
+	row.BucketStart = bucketStart
 	row.Provider = string(meta.Provider)
 	row.Model = meta.Model
 	row.Project = meta.Project.DisplayName
 	return row
 }
 
-func compareDailyTokenRow(left, right conv.DailyTokenRow) int {
+func compareActivityBucketRow(left, right conv.ActivityBucketRow) int {
 	switch {
-	case left.Date.Before(right.Date):
+	case left.BucketStart.Before(right.BucketStart):
 		return -1
-	case left.Date.After(right.Date):
+	case left.BucketStart.After(right.BucketStart):
 		return 1
 	case left.Provider < right.Provider:
 		return -1
@@ -296,12 +296,12 @@ func compareDailyTokenRow(left, right conv.DailyTokenRow) int {
 	}
 }
 
-func dailyTokenKeyForMeta(meta sessionMeta, day time.Time) dailyTokenRowKey {
-	return dailyTokenRowKey{
-		dateKey:  day.Format("2006-01-02"),
-		provider: string(meta.Provider),
-		model:    meta.Model,
-		project:  meta.Project.DisplayName,
+func activityBucketKeyForMeta(meta sessionMeta, bucketStart time.Time) activityBucketRowKey {
+	return activityBucketRowKey{
+		bucketStartNS: bucketStart.UnixNano(),
+		provider:      string(meta.Provider),
+		model:         meta.Model,
+		project:       meta.Project.DisplayName,
 	}
 }
 
@@ -312,17 +312,16 @@ func statsSessionMessageCount(meta sessionMeta) int {
 	return meta.MainMessageCount
 }
 
-func statsMessageDay(sessionStart, messageTimestamp time.Time) time.Time {
+func statsMessageBucketStart(sessionStart, messageTimestamp time.Time) time.Time {
 	if !messageTimestamp.IsZero() {
-		return statsDay(messageTimestamp)
+		return statsBucketStart(messageTimestamp)
 	}
-	return statsDay(sessionStart)
+	return statsBucketStart(sessionStart)
 }
 
-func statsDay(timestamp time.Time) time.Time {
+func statsBucketStart(timestamp time.Time) time.Time {
 	if timestamp.IsZero() {
 		return time.Time{}
 	}
-	year, month, day := timestamp.Date()
-	return time.Date(year, month, day, 0, 0, 0, 0, timestamp.Location())
+	return timestamp.UTC().Truncate(time.Minute)
 }

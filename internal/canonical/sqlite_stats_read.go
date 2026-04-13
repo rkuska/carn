@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -133,25 +132,25 @@ func readStatsTurnMetrics(
 	return result, nil
 }
 
-func readStatsDailyTokens(
+func readStatsActivityBuckets(
 	ctx context.Context,
 	db *sql.DB,
 	cacheKeys []string,
-) ([]conv.DailyTokenRow, error) {
+) ([]conv.ActivityBucketRow, error) {
 	rows, err := queryStatsRows(
 		ctx,
 		db,
 		cacheKeys,
-		`SELECT date_key, provider, model, project,
+		`SELECT bucket_start_ns, provider, model, project,
 		        SUM(session_count), SUM(message_count),
 		        SUM(user_message_count), SUM(assistant_message_count),
 		        SUM(input_tokens), SUM(cache_creation_tokens),
 		        SUM(cache_read_tokens), SUM(output_tokens),
 		        SUM(reasoning_output_tokens)
-		   FROM stats_daily_tokens
+		   FROM stats_activity_buckets
 		  WHERE conversation_cache_key IN (%s)
-		  GROUP BY date_key, provider, model, project
-		  ORDER BY date_key, provider, model, project`,
+		  GROUP BY bucket_start_ns, provider, model, project
+		  ORDER BY bucket_start_ns, provider, model, project`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("queryStatsRows: %w", err)
@@ -162,12 +161,12 @@ func readStatsDailyTokens(
 		}
 	}()
 
-	result := make([]conv.DailyTokenRow, 0)
+	result := make([]conv.ActivityBucketRow, 0)
 	for rows.Next() {
-		var dateKey string
-		row := conv.DailyTokenRow{}
+		var bucketStartNS int64
+		row := conv.ActivityBucketRow{}
 		if err := rows.Scan(
-			&dateKey,
+			&bucketStartNS,
 			&row.Provider,
 			&row.Model,
 			&row.Project,
@@ -183,11 +182,7 @@ func readStatsDailyTokens(
 		); err != nil {
 			return nil, fmt.Errorf("rows.Scan: %w", err)
 		}
-		date, err := time.ParseInLocation("2006-01-02", dateKey, time.UTC)
-		if err != nil {
-			return nil, fmt.Errorf("time.ParseInLocation: %w", err)
-		}
-		row.Date = date
+		row.BucketStart = unixTime(bucketStartNS)
 		result = append(result, row)
 	}
 	if err := rows.Err(); err != nil {

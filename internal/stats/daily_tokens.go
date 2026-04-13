@@ -7,36 +7,35 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-type dailyTokenKey struct {
-	dateKey  string
-	provider string
-	model    string
-	project  string
+type activityBucketKey struct {
+	bucketStartNS int64
+	provider      string
+	model         string
+	project       string
 }
 
-func AggregateDailyTokens(sessions []conv.Session) []conv.DailyTokenRow {
+func AggregateActivityBuckets(sessions []conv.Session) []conv.ActivityBucketRow {
 	if len(sessions) == 0 {
 		return nil
 	}
 
-	rows := make(map[dailyTokenKey]conv.DailyTokenRow)
+	rows := make(map[activityBucketKey]conv.ActivityBucketRow)
 	for _, session := range sessions {
-		startDay := dailyTokenDay(session.Meta.Timestamp)
-		if !startDay.IsZero() {
-			row := rows[dailyTokenKeyForSession(session, startDay)]
-			row = mergeSessionActivityCounts(row, session.Meta, startDay)
-			rows[dailyTokenKeyForSession(session, startDay)] = row
+		bucketStart := activityBucketStart(session.Meta.Timestamp)
+		if !bucketStart.IsZero() {
+			key := activityBucketKeyForSession(session, bucketStart)
+			rows[key] = mergeSessionActivityCounts(rows[key], session.Meta, bucketStart)
 		}
 
 		for _, msg := range session.Messages {
-			day := dailyTokenMessageDay(session.Meta.Timestamp, msg.Timestamp)
-			if day.IsZero() {
+			bucketStart := activityBucketMessageStart(session.Meta.Timestamp, msg.Timestamp)
+			if bucketStart.IsZero() {
 				continue
 			}
 
-			key := dailyTokenKeyForSession(session, day)
+			key := activityBucketKeyForSession(session, bucketStart)
 			row := rows[key]
-			row.Date = day
+			row.BucketStart = bucketStart
 			row.Provider = string(session.Meta.Provider)
 			row.Model = session.Meta.Model
 			row.Project = session.Meta.Project.DisplayName
@@ -49,39 +48,38 @@ func AggregateDailyTokens(sessions []conv.Session) []conv.DailyTokenRow {
 		}
 	}
 
-	return sortDailyTokenRows(rows)
+	return sortActivityBucketRows(rows)
 }
 
-func dailyTokenKeyForSession(session conv.Session, day time.Time) dailyTokenKey {
-	return dailyTokenKey{
-		dateKey:  day.Format("2006-01-02"),
-		provider: string(session.Meta.Provider),
-		model:    session.Meta.Model,
-		project:  session.Meta.Project.DisplayName,
+func activityBucketKeyForSession(session conv.Session, bucketStart time.Time) activityBucketKey {
+	return activityBucketKey{
+		bucketStartNS: bucketStart.UnixNano(),
+		provider:      string(session.Meta.Provider),
+		model:         session.Meta.Model,
+		project:       session.Meta.Project.DisplayName,
 	}
 }
 
-func dailyTokenMessageDay(sessionStart, messageTimestamp time.Time) time.Time {
+func activityBucketMessageStart(sessionStart, messageTimestamp time.Time) time.Time {
 	if !messageTimestamp.IsZero() {
-		return dailyTokenDay(messageTimestamp)
+		return activityBucketStart(messageTimestamp)
 	}
-	return dailyTokenDay(sessionStart)
+	return activityBucketStart(sessionStart)
 }
 
-func dailyTokenDay(timestamp time.Time) time.Time {
+func activityBucketStart(timestamp time.Time) time.Time {
 	if timestamp.IsZero() {
 		return time.Time{}
 	}
-	year, month, day := timestamp.Date()
-	return time.Date(year, month, day, 0, 0, 0, 0, timestamp.Location())
+	return timestamp.UTC().Truncate(time.Minute)
 }
 
 func mergeSessionActivityCounts(
-	row conv.DailyTokenRow,
+	row conv.ActivityBucketRow,
 	meta conv.SessionMeta,
-	day time.Time,
-) conv.DailyTokenRow {
-	row.Date = day
+	bucketStart time.Time,
+) conv.ActivityBucketRow {
+	row.BucketStart = bucketStart
 	row.Provider = string(meta.Provider)
 	row.Model = meta.Model
 	row.Project = meta.Project.DisplayName
@@ -92,24 +90,24 @@ func mergeSessionActivityCounts(
 	return row
 }
 
-func sortDailyTokenRows(rows map[dailyTokenKey]conv.DailyTokenRow) []conv.DailyTokenRow {
+func sortActivityBucketRows(rows map[activityBucketKey]conv.ActivityBucketRow) []conv.ActivityBucketRow {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	result := make([]conv.DailyTokenRow, 0, len(rows))
+	result := make([]conv.ActivityBucketRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row)
 	}
-	slices.SortFunc(result, compareDailyTokenRows)
+	slices.SortFunc(result, compareActivityBucketRows)
 	return result
 }
 
-func compareDailyTokenRows(left, right conv.DailyTokenRow) int {
+func compareActivityBucketRows(left, right conv.ActivityBucketRow) int {
 	switch {
-	case left.Date.Before(right.Date):
+	case left.BucketStart.Before(right.BucketStart):
 		return -1
-	case left.Date.After(right.Date):
+	case left.BucketStart.After(right.BucketStart):
 		return 1
 	case left.Provider < right.Provider:
 		return -1

@@ -63,7 +63,7 @@ func tryIncrementalRebuildWithSources(
 		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
 	resolution.Conversations = conversationsFromParseResults(results)
-	parsedTranscripts, groupedUnits, statsData, dailyTokenRows := buildIncrementalParseOutputs(results)
+	parsedTranscripts, groupedUnits, statsData, activityBucketRows := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
 
 	if err := applySQLiteIncrementalRebuild(
@@ -74,7 +74,7 @@ func tryIncrementalRebuildWithSources(
 		parsedTranscripts,
 		groupedUnits,
 		statsData,
-		dailyTokenRows,
+		activityBucketRows,
 	); err != nil {
 		return drift, fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
 	}
@@ -213,17 +213,17 @@ func buildIncrementalParseOutputs(
 	map[string]sessionFull,
 	map[string][]searchUnit,
 	map[string][]conv.SessionStatsData,
-	map[string][]conv.DailyTokenRow,
+	map[string][]conv.ActivityBucketRow,
 ) {
 	transcripts := make(map[string]sessionFull, len(results))
 	groupedUnits := make(map[string][]searchUnit, len(results))
 	statsData := make(map[string][]conv.SessionStatsData, len(results))
-	dailyTokenRows := make(map[string][]conv.DailyTokenRow, len(results))
+	activityBucketRows := make(map[string][]conv.ActivityBucketRow, len(results))
 	for _, result := range results {
 		transcripts[result.key] = result.session
 		groupedUnits[result.key] = result.units
 		statsData[result.key] = result.statsData
-		dailyTokenRows[result.key] = result.dailyTokenRows
+		activityBucketRows[result.key] = result.activityBucketRows
 	}
-	return transcripts, groupedUnits, statsData, dailyTokenRows
+	return transcripts, groupedUnits, statsData, activityBucketRows
 }

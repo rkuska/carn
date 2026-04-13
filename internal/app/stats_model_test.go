@@ -256,8 +256,8 @@ func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
 
 func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 	store := &fakeBrowserStore{
-		turnMetricRowsByKey: map[string][]conv.SessionTurnMetrics{},
-		dailyTokenRowsByKey: map[string][]conv.DailyTokenRow{},
+		turnMetricRowsByKey:     map[string][]conv.SessionTurnMetrics{},
+		activityBucketRowsByKey: map[string][]conv.ActivityBucketRow{},
 	}
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
@@ -327,8 +327,8 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 		},
 	}
 
-	store.dailyTokenRowsByKey[withPlans.CacheKey()] = []conv.DailyTokenRow{{
-		Date:                  now,
+	store.activityBucketRowsByKey[withPlans.CacheKey()] = []conv.ActivityBucketRow{{
+		BucketStart:           now,
 		SessionCount:          1,
 		MessageCount:          4,
 		UserMessageCount:      2,
@@ -336,8 +336,8 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 		InputTokens:           30,
 		OutputTokens:          10,
 	}}
-	store.dailyTokenRowsByKey[withoutPlans.CacheKey()] = []conv.DailyTokenRow{{
-		Date:                  now.AddDate(0, 0, -2),
+	store.activityBucketRowsByKey[withoutPlans.CacheKey()] = []conv.ActivityBucketRow{{
+		BucketStart:           now.AddDate(0, 0, -2),
 		SessionCount:          1,
 		MessageCount:          6,
 		UserMessageCount:      3,
@@ -407,8 +407,8 @@ func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) 
 				}},
 			},
 		},
-		dailyTokenRows: []conv.DailyTokenRow{{
-			Date:                  now,
+		activityBucketRows: []conv.ActivityBucketRow{{
+			BucketStart:           now,
 			SessionCount:          1,
 			MessageCount:          4,
 			UserMessageCount:      2,
@@ -457,8 +457,8 @@ func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
 
 	store := &fakeBrowserStore{
 		sequenceErr: errors.New("sequence boom"),
-		dailyTokenRows: []conv.DailyTokenRow{{
-			Date:                  now,
+		activityBucketRows: []conv.ActivityBucketRow{{
+			BucketStart:           now,
 			SessionCount:          1,
 			MessageCount:          4,
 			UserMessageCount:      2,
@@ -525,7 +525,7 @@ func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.
 	assert.Contains(t, m.notification.text, "sequence metrics")
 
 	store.sequenceErr = nil
-	store.dailyTokenErr = errors.New("daily boom")
+	store.activityBucketErr = errors.New("activity boom")
 	store.sequenceRows = []conv.PerformanceSequenceSession{{
 		Timestamp:         now,
 		Mutated:           true,
@@ -536,7 +536,7 @@ func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.
 	m = m.applyFilterChange()
 
 	assert.True(t, m.statsQueryFailures.degraded())
-	assert.Contains(t, m.notification.text, "daily token totals")
+	assert.Contains(t, m.notification.text, "activity buckets")
 	assert.NotContains(t, m.notification.text, "sequence metrics")
 }
 

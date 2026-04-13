@@ -107,9 +107,9 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 	defer restoreNow()
 
 	store := &fakeBrowserStore{
-		dailyTokenRows: []conv.DailyTokenRow{
+		activityBucketRows: []conv.ActivityBucketRow{
 			{
-				Date:                  time.Date(2026, 3, 13, 0, 0, 0, 0, time.UTC),
+				BucketStart:           time.Date(2026, 3, 13, 0, 0, 0, 0, time.UTC),
 				SessionCount:          1,
 				MessageCount:          4,
 				UserMessageCount:      2,
@@ -117,7 +117,7 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 				InputTokens:           1000,
 			},
 			{
-				Date:                  time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
+				BucketStart:           time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
 				SessionCount:          1,
 				MessageCount:          4,
 				UserMessageCount:      2,
@@ -414,7 +414,7 @@ func TestStatsFooterStatusRowShowsDegradedBadge(t *testing.T) {
 	t.Parallel()
 
 	m := newStatsRenderModel(80, 20)
-	m.statsQueryFailures = statsQueryFailureDailyTokens
+	m.statsQueryFailures = statsQueryFailureActivityBuckets
 
 	row := ansi.Strip(m.footerStatusRow())
 

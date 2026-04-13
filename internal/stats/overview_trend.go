@@ -42,8 +42,8 @@ func ComputeTokenTrend(sessions []conv.SessionMeta, timeRange TimeRange) TokenTr
 	}
 }
 
-func ComputeTokenTrendFromDaily(
-	dailyTokens []conv.DailyTokenRow,
+func ComputeTokenTrendFromBuckets(
+	activityBuckets []conv.ActivityBucketRow,
 	timeRange TimeRange,
 ) TokenTrend {
 	if timeRange.Start.IsZero() && timeRange.End.IsZero() {
@@ -51,12 +51,12 @@ func ComputeTokenTrendFromDaily(
 	}
 
 	previousRange := previousTimeRange(timeRange)
-	previousTokens := totalTokensForDailyRows(dailyTokens, previousRange)
+	previousTokens := totalTokensForActivityBuckets(activityBuckets, previousRange)
 	if previousTokens <= 0 {
 		return TokenTrend{}
 	}
 
-	currentTokens := totalTokensForDailyRows(dailyTokens, timeRange)
+	currentTokens := totalTokensForActivityBuckets(activityBuckets, timeRange)
 	change := float64(currentTokens-previousTokens) / float64(previousTokens) * 100
 	if math.Abs(change) < overviewFlatTrendThreshold {
 		return TokenTrend{Direction: TrendDirectionFlat}
@@ -88,8 +88,8 @@ func totalTokensForSessions(sessions []conv.SessionMeta) int {
 	return total
 }
 
-func totalTokensForDailyRows(dailyTokens []conv.DailyTokenRow, timeRange TimeRange) int {
-	if len(dailyTokens) == 0 {
+func totalTokensForActivityBuckets(activityBuckets []conv.ActivityBucketRow, timeRange TimeRange) int {
+	if len(activityBuckets) == 0 {
 		return 0
 	}
 
@@ -99,17 +99,17 @@ func totalTokensForDailyRows(dailyTokens []conv.DailyTokenRow, timeRange TimeRan
 		location = timeRange.Start.Location()
 	case !timeRange.End.IsZero():
 		location = timeRange.End.Location()
-	case !dailyTokens[0].Date.IsZero() && dailyTokens[0].Date.Location() != nil:
-		location = dailyTokens[0].Date.Location()
+	case !activityBuckets[0].BucketStart.IsZero() && activityBuckets[0].BucketStart.Location() != nil:
+		location = activityBuckets[0].BucketStart.Location()
 	}
 
 	start := startOfDayInLocation(timeRange.Start, location)
 	end := startOfDayInLocation(timeRange.End, location)
 	total := 0
-	for _, row := range dailyTokens {
-		day := activityDailyRowDay(row.Date, location)
+	for _, row := range activityBuckets {
+		day := activityBucketDay(row.BucketStart, location)
 		if !day.Before(start) && !day.After(end) {
-			total += dailyRowTotalTokens(row)
+			total += activityBucketTotalTokens(row)
 		}
 	}
 	return total

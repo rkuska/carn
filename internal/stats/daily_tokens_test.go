@@ -10,7 +10,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func TestAggregateDailyTokensSingleSessionSingleDay(t *testing.T) {
+func TestAggregateActivityBucketsSingleSessionSingleDay(t *testing.T) {
 	t.Parallel()
 
 	inputSession := conv.Session{
@@ -36,26 +36,34 @@ func TestAggregateDailyTokensSingleSessionSingleDay(t *testing.T) {
 		},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{inputSession})
-	require.Len(t, got, 1)
-	assert.Equal(t, []conv.DailyTokenRow{{
-		Date:                  time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
-		Provider:              string(conv.ProviderClaude),
-		Model:                 "claude-sonnet-4",
-		Project:               "proj",
-		SessionCount:          1,
-		MessageCount:          4,
-		UserMessageCount:      1,
-		AssistantMessageCount: 2,
-		InputTokens:           120,
-		CacheCreationTokens:   30,
-		CacheReadTokens:       10,
-		OutputTokens:          40,
-		ReasoningOutputTokens: 5,
-	}}, got)
+	got := AggregateActivityBuckets([]conv.Session{inputSession})
+	require.Len(t, got, 2)
+	assert.Equal(t, []conv.ActivityBucketRow{
+		{
+			BucketStart:           time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC),
+			Provider:              string(conv.ProviderClaude),
+			Model:                 "claude-sonnet-4",
+			Project:               "proj",
+			SessionCount:          1,
+			MessageCount:          4,
+			UserMessageCount:      1,
+			AssistantMessageCount: 2,
+		},
+		{
+			BucketStart:           time.Date(2026, 1, 5, 9, 5, 0, 0, time.UTC),
+			Provider:              string(conv.ProviderClaude),
+			Model:                 "claude-sonnet-4",
+			Project:               "proj",
+			InputTokens:           120,
+			CacheCreationTokens:   30,
+			CacheReadTokens:       10,
+			OutputTokens:          40,
+			ReasoningOutputTokens: 5,
+		},
+	}, got)
 }
 
-func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
+func TestAggregateActivityBucketsSplitsTokensAcrossMidnight(t *testing.T) {
 	t.Parallel()
 
 	inputSession := conv.Session{
@@ -79,11 +87,11 @@ func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 		},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{inputSession})
-	require.Len(t, got, 2)
-	assert.Equal(t, []conv.DailyTokenRow{
+	got := AggregateActivityBuckets([]conv.Session{inputSession})
+	require.Len(t, got, 3)
+	assert.Equal(t, []conv.ActivityBucketRow{
 		{
-			Date:                  time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			BucketStart:           time.Date(2026, 1, 5, 23, 55, 0, 0, time.UTC),
 			Provider:              string(conv.ProviderClaude),
 			Model:                 "claude-sonnet-4",
 			Project:               "proj",
@@ -91,11 +99,17 @@ func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 			MessageCount:          6,
 			UserMessageCount:      2,
 			AssistantMessageCount: 3,
-			InputTokens:           80,
-			OutputTokens:          20,
 		},
 		{
-			Date:         time.Date(2026, 1, 6, 0, 0, 0, 0, time.UTC),
+			BucketStart:  time.Date(2026, 1, 5, 23, 58, 0, 0, time.UTC),
+			Provider:     string(conv.ProviderClaude),
+			Model:        "claude-sonnet-4",
+			Project:      "proj",
+			InputTokens:  80,
+			OutputTokens: 20,
+		},
+		{
+			BucketStart:  time.Date(2026, 1, 6, 0, 2, 0, 0, time.UTC),
 			Provider:     string(conv.ProviderClaude),
 			Model:        "claude-sonnet-4",
 			Project:      "proj",
@@ -105,7 +119,7 @@ func TestAggregateDailyTokensSplitsTokensAcrossMidnight(t *testing.T) {
 	}, got)
 }
 
-func TestAggregateDailyTokensFallsBackToSessionStartForZeroMessageTimestamp(t *testing.T) {
+func TestAggregateActivityBucketsFallsBackToSessionStartForZeroMessageTimestamp(t *testing.T) {
 	t.Parallel()
 
 	inputSession := conv.Session{
@@ -116,14 +130,16 @@ func TestAggregateDailyTokensFallsBackToSessionStartForZeroMessageTimestamp(t *t
 		}},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{inputSession})
+	got := AggregateActivityBuckets([]conv.Session{inputSession})
 	require.Len(t, got, 1)
-	assert.Equal(t, time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC), got[0].Date)
+	assert.Equal(t, time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC), got[0].BucketStart)
+	assert.Equal(t, 1, got[0].SessionCount)
+	assert.Equal(t, 3, got[0].MessageCount)
 	assert.Equal(t, 40, got[0].InputTokens)
 	assert.Equal(t, 12, got[0].OutputTokens)
 }
 
-func TestAggregateDailyTokensUsesSessionMessageCountsNotTranscriptLength(t *testing.T) {
+func TestAggregateActivityBucketsUsesSessionMessageCountsNotTranscriptLength(t *testing.T) {
 	t.Parallel()
 
 	inputSession := conv.Session{
@@ -145,14 +161,16 @@ func TestAggregateDailyTokensUsesSessionMessageCountsNotTranscriptLength(t *test
 		}},
 	}
 
-	got := AggregateDailyTokens([]conv.Session{inputSession})
-	require.Len(t, got, 1)
+	got := AggregateActivityBuckets([]conv.Session{inputSession})
+	require.Len(t, got, 2)
 	assert.Equal(t, 12, got[0].MessageCount)
 	assert.Equal(t, 4, got[0].UserMessageCount)
 	assert.Equal(t, 8, got[0].AssistantMessageCount)
+	assert.Equal(t, 20, got[1].InputTokens)
+	assert.Equal(t, 5, got[1].OutputTokens)
 }
 
-func TestAggregateDailyTokensKeepsRowsSeparateByModelAndProject(t *testing.T) {
+func TestAggregateActivityBucketsKeepsRowsSeparateByModelAndProject(t *testing.T) {
 	t.Parallel()
 
 	day := time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)
@@ -175,10 +193,14 @@ func TestAggregateDailyTokensKeepsRowsSeparateByModelAndProject(t *testing.T) {
 		},
 	}
 
-	got := AggregateDailyTokens(sessions)
-	require.Len(t, got, 2)
+	got := AggregateActivityBuckets(sessions)
+	require.Len(t, got, 4)
 	assert.Equal(t, "claude-opus", got[0].Model)
 	assert.Equal(t, "proj-a", got[0].Project)
 	assert.Equal(t, "claude-sonnet-4", got[1].Model)
 	assert.Equal(t, "proj-b", got[1].Project)
+	assert.Equal(t, "claude-opus", got[2].Model)
+	assert.Equal(t, "proj-a", got[2].Project)
+	assert.Equal(t, "claude-sonnet-4", got[3].Model)
+	assert.Equal(t, "proj-b", got[3].Project)
 }

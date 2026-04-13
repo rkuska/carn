@@ -16,28 +16,28 @@ import (
 )
 
 type fakeBrowserStore struct {
-	listResult          []conv.Conversation
-	listErr             error
-	loadResult          conv.Session
-	loadErr             error
-	loadCalls           int
-	loadSessionResult   conv.Session
-	loadSessionResults  map[string]conv.Session
-	loadSessionErr      error
-	loadSessionCalls    int
-	loadSessionIDs      []string
-	deepSearchCalls     int
-	deepSearchResults   map[string][]conv.Conversation
-	deepSearchErr       error
-	sequenceErr         error
-	sequenceRows        []conv.PerformanceSequenceSession
-	sequenceRowsByKey   map[string][]conv.PerformanceSequenceSession
-	turnMetricErr       error
-	turnMetricRows      []conv.SessionTurnMetrics
-	turnMetricRowsByKey map[string][]conv.SessionTurnMetrics
-	dailyTokenErr       error
-	dailyTokenRows      []conv.DailyTokenRow
-	dailyTokenRowsByKey map[string][]conv.DailyTokenRow
+	listResult              []conv.Conversation
+	listErr                 error
+	loadResult              conv.Session
+	loadErr                 error
+	loadCalls               int
+	loadSessionResult       conv.Session
+	loadSessionResults      map[string]conv.Session
+	loadSessionErr          error
+	loadSessionCalls        int
+	loadSessionIDs          []string
+	deepSearchCalls         int
+	deepSearchResults       map[string][]conv.Conversation
+	deepSearchErr           error
+	sequenceErr             error
+	sequenceRows            []conv.PerformanceSequenceSession
+	sequenceRowsByKey       map[string][]conv.PerformanceSequenceSession
+	turnMetricErr           error
+	turnMetricRows          []conv.SessionTurnMetrics
+	turnMetricRowsByKey     map[string][]conv.SessionTurnMetrics
+	activityBucketErr       error
+	activityBucketRows      []conv.ActivityBucketRow
+	activityBucketRowsByKey map[string][]conv.ActivityBucketRow
 }
 
 func (s *fakeBrowserStore) List(context.Context, string) ([]conv.Conversation, error) {
@@ -124,22 +124,22 @@ func (s *fakeBrowserStore) QueryTurnMetrics(
 	return append([]conv.SessionTurnMetrics(nil), s.turnMetricRows...), nil
 }
 
-func (s *fakeBrowserStore) QueryDailyTokens(
+func (s *fakeBrowserStore) QueryActivityBuckets(
 	_ context.Context,
 	_ string,
 	cacheKeys []string,
-) ([]conv.DailyTokenRow, error) {
-	if s.dailyTokenErr != nil {
-		return nil, s.dailyTokenErr
+) ([]conv.ActivityBucketRow, error) {
+	if s.activityBucketErr != nil {
+		return nil, s.activityBucketErr
 	}
-	if len(s.dailyTokenRowsByKey) > 0 {
-		rows := make([]conv.DailyTokenRow, 0)
+	if len(s.activityBucketRowsByKey) > 0 {
+		rows := make([]conv.ActivityBucketRow, 0)
 		for _, key := range cacheKeys {
-			rows = append(rows, s.dailyTokenRowsByKey[key]...)
+			rows = append(rows, s.activityBucketRowsByKey[key]...)
 		}
 		return rows, nil
 	}
-	return append([]conv.DailyTokenRow(nil), s.dailyTokenRows...), nil
+	return append([]conv.ActivityBucketRow(nil), s.activityBucketRows...), nil
 }
 
 func TestExportTextReturnsSuccessNotification(t *testing.T) {
@@ -171,9 +171,9 @@ func TestFakeBrowserStoreStatsQueryErrors(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeBrowserStore{
-		sequenceErr:   errors.New("sequence boom"),
-		turnMetricErr: errors.New("turn boom"),
-		dailyTokenErr: errors.New("daily boom"),
+		sequenceErr:       errors.New("sequence boom"),
+		turnMetricErr:     errors.New("turn boom"),
+		activityBucketErr: errors.New("activity boom"),
 	}
 
 	_, err := store.QueryPerformanceSequence(context.Background(), "", []string{"a"})
@@ -182,8 +182,8 @@ func TestFakeBrowserStoreStatsQueryErrors(t *testing.T) {
 	_, err = store.QueryTurnMetrics(context.Background(), "", []string{"a"})
 	require.ErrorContains(t, err, "turn boom")
 
-	_, err = store.QueryDailyTokens(context.Background(), "", []string{"a"})
-	require.ErrorContains(t, err, "daily boom")
+	_, err = store.QueryActivityBuckets(context.Background(), "", []string{"a"})
+	require.ErrorContains(t, err, "activity boom")
 }
 
 func TestConversationExportFileNameUsesProviderAwareGenericName(t *testing.T) {

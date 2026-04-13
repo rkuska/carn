@@ -114,9 +114,9 @@ var sqliteSchemaStatements = []string{
 		turns_json TEXT NOT NULL DEFAULT '[]',
 		PRIMARY KEY (conversation_cache_key, session_ordinal)
 	)`,
-	`CREATE TABLE IF NOT EXISTS stats_daily_tokens (
+	`CREATE TABLE IF NOT EXISTS stats_activity_buckets (
 		conversation_cache_key TEXT NOT NULL,
-		date_key TEXT NOT NULL,
+		bucket_start_ns INTEGER NOT NULL,
 		provider TEXT NOT NULL,
 		model TEXT NOT NULL,
 		project TEXT NOT NULL,
@@ -131,7 +131,7 @@ var sqliteSchemaStatements = []string{
 		reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
 		PRIMARY KEY (
 			conversation_cache_key,
-			date_key,
+			bucket_start_ns,
 			provider,
 			model,
 			project
