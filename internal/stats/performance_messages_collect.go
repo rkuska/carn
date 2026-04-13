@@ -8,7 +8,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func (s PerformanceSequenceSession) sessionTimestamp() time.Time {
+func performanceSequenceTimestamp(s PerformanceSequenceSession) time.Time {
 	return s.Timestamp
 }
 

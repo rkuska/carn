@@ -128,7 +128,7 @@ func makeBenchBrowserArchive(
 func rebuildBenchBrowserStore(b *testing.B, archiveDir string) *canonical.Store {
 	b.Helper()
 
-	store := canonical.New(claude.New())
+	store := canonical.New(nil, claude.New())
 	if _, err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
 		b.Fatalf("store.RebuildAll: %v", err)
 	}
@@ -195,7 +195,7 @@ func BenchmarkBrowserLoadSessionsCold(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		store := canonical.New()
+		store := canonical.New(nil)
 		msg := loadSessionsCmdWithStore(ctx, archiveDir, newBrowserStore(store))()
 		loaded, ok := msg.(conversationsLoadedMsg)
 		if !ok {

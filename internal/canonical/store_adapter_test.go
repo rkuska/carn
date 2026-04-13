@@ -16,7 +16,7 @@ func TestStoreDeepSearchAvailabilityFollowsSQLitePresence(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 
@@ -41,7 +41,7 @@ func TestStoreNeedsRebuildCachesSQLiteHandle(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -74,7 +74,7 @@ func TestStoreNeedsRebuildWhenSearchCorpusVersionIsStale(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -93,7 +93,7 @@ func TestStoreDeepSearchAvailabilityIsFalseWhenSearchCorpusVersionIsStale(t *tes
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -113,7 +113,7 @@ func TestStoreDeepSearchQueryIsUnavailableWhenSearchCorpusVersionIsStale(t *test
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -140,7 +140,7 @@ func TestStoreDeepSearchUsesSQLiteIndex(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{testSQLiteConversation("s1")}
 	writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -191,7 +191,7 @@ func TestStoreDeepSearchMatchesQueriesAcrossTokenizerSeparators(t *testing.T) {
 			t.Parallel()
 
 			archiveDir := t.TempDir()
-			store := New(claude.New())
+			store := New(nil, claude.New())
 
 			conversations := []conversation{testSQLiteConversation("s1")}
 			writeSQLiteTestStore(t, archiveDir, conversations, map[string]sessionFull{
@@ -226,7 +226,7 @@ func TestStoreListReturnsSharedCachedCatalog(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	conversations := []conversation{{
 		Ref:       conversationRef{Provider: conversationProvider("claude"), ID: "s1"},
@@ -274,7 +274,15 @@ func writeSQLiteTestStore(
 ) {
 	tb.Helper()
 	ctx := context.Background()
-	require.NoError(tb, writeCanonicalStoreAtomically(ctx, archiveDir, conversations, transcripts, corpus))
+	require.NoError(tb, writeCanonicalStoreAtomically(
+		ctx,
+		archiveDir,
+		conversations,
+		transcripts,
+		corpus,
+		nil,
+		nil,
+	))
 }
 
 func testSearchCorpus(units ...searchUnit) searchCorpus {

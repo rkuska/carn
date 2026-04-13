@@ -19,6 +19,10 @@ type Source interface {
 	LoadSession(ctx context.Context, conv conv.Conversation, meta conv.SessionMeta) (conv.Session, error)
 }
 
+type StatsCollector interface {
+	CollectSessionStats(session conv.Session) conv.SessionStatsData
+}
+
 type sourceRegistry struct {
 	ordered    []Source
 	byProvider map[conversationProvider]Source
@@ -55,17 +59,19 @@ func (r sourceRegistry) lookup(provider conversationProvider) (Source, bool) {
 }
 
 type Store struct {
-	sources sourceRegistry
-	mu      sync.RWMutex
-	db      map[string]*sql.DB
-	catalog map[string][]conversation
+	collector StatsCollector
+	sources   sourceRegistry
+	mu        sync.RWMutex
+	db        map[string]*sql.DB
+	catalog   map[string][]conversation
 }
 
-func New(sources ...Source) *Store {
+func New(collector StatsCollector, sources ...Source) *Store {
 	return &Store{
-		sources: newSourceRegistry(sources...),
-		db:      make(map[string]*sql.DB),
-		catalog: make(map[string][]conversation),
+		collector: collector,
+		sources:   newSourceRegistry(sources...),
+		db:        make(map[string]*sql.DB),
+		catalog:   make(map[string][]conversation),
 	}
 }
 
@@ -167,6 +173,75 @@ func (s *Store) DeepSearch(
 		return nil, false, fmt.Errorf("runSQLiteDeepSearch: %w", err)
 	}
 	return results, true, nil
+}
+
+func (s *Store) QueryPerformanceSequence(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.PerformanceSequenceSession, error) {
+	if len(cacheKeys) == 0 {
+		return nil, nil
+	}
+
+	db, err := s.loadDB(ctx, archiveDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("loadDB: %w", err)
+	}
+	rows, err := readStatsPerformanceSequence(ctx, db, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("readStatsPerformanceSequence: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) QueryTurnMetrics(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.SessionTurnMetrics, error) {
+	if len(cacheKeys) == 0 {
+		return nil, nil
+	}
+
+	db, err := s.loadDB(ctx, archiveDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("loadDB: %w", err)
+	}
+	rows, err := readStatsTurnMetrics(ctx, db, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("readStatsTurnMetrics: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) QueryDailyTokens(
+	ctx context.Context,
+	archiveDir string,
+	cacheKeys []string,
+) ([]conv.DailyTokenRow, error) {
+	if len(cacheKeys) == 0 {
+		return nil, nil
+	}
+
+	db, err := s.loadDB(ctx, archiveDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("loadDB: %w", err)
+	}
+	rows, err := readStatsDailyTokens(ctx, db, cacheKeys)
+	if err != nil {
+		return nil, fmt.Errorf("readStatsDailyTokens: %w", err)
+	}
+	return rows, nil
 }
 
 func (s *Store) loadDB(ctx context.Context, archiveDir string) (*sql.DB, error) {

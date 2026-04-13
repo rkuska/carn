@@ -5,7 +5,7 @@ func applyPerformanceSequence(
 	timeRange TimeRange,
 	sequence []PerformanceSequenceSession,
 ) Performance {
-	window := performanceTimeWindow(timeRange, sequence)
+	window := performanceTimeWindow(timeRange, sequence, performanceSequenceTimestamp)
 	current := aggregatePerformanceSequenceInRange(sequence, window.current)
 	baseline := aggregatePerformanceSequenceInRange(sequence, window.baseline)
 	context := newPerformanceMetricContext(

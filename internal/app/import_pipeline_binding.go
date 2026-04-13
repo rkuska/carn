@@ -18,7 +18,7 @@ type importPipeline interface {
 func newDefaultImportPipeline(cfg arch.Config) importPipeline {
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
-	store := canonical.New(claudeBackend, codexBackend)
+	store := canonical.New(nil, claudeBackend, codexBackend)
 	return newImportPipeline(cfg, store, claudeBackend, codexBackend)
 }
 

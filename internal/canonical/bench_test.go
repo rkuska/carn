@@ -150,7 +150,7 @@ func makeBenchCanonicalStore(
 	b.Helper()
 
 	source := claude.New()
-	store := New(source)
+	store := New(nil, source)
 	archiveDir := makeBenchRawArchive(b, projects, sessionsPerProject, assistantTurns)
 
 	if _, err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
@@ -268,7 +268,7 @@ func BenchmarkCanonicalStoreLoadTranscript(b *testing.B) {
 
 func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 	archiveDir := makeBenchRawArchive(b, 6, 60, 12)
-	store := New(claude.New())
+	store := New(nil, claude.New())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

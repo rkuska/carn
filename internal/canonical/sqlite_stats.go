@@ -1,0 +1,316 @@
+package canonical
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+)
+
+var errSourceNotRegistered = errors.New("source is not registered")
+
+func writeStatsPerformanceSequence(
+	ctx context.Context,
+	tx *sql.Tx,
+	cacheKey string,
+	ordinal int,
+	row conv.PerformanceSequenceSession,
+) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO stats_performance_sequence(
+			conversation_cache_key, session_ordinal, timestamp_ns, mutated,
+			mutation_count, rewrite_count, targeted_mutation_count,
+			blind_mutation_count, distinct_mutation_targets, patch_hunk_count,
+			verification_passed, first_pass_resolved, correction_followups,
+			reasoning_loop_count, action_count, actions_before_first_mutation,
+			tokens_before_first_mutation, user_turns_before_first_mutation,
+			assistant_turns, visible_reasoning_chars, hidden_thinking_turns
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		cacheKey,
+		ordinal,
+		timeToUnixNano(row.Timestamp),
+		boolToInt(row.Mutated),
+		row.MutationCount,
+		row.RewriteCount,
+		row.TargetedMutationCount,
+		row.BlindMutationCount,
+		row.DistinctMutationTargets,
+		row.PatchHunkCount,
+		boolToInt(row.VerificationPassed),
+		boolToInt(row.FirstPassResolved),
+		row.CorrectionFollowups,
+		row.ReasoningLoopCount,
+		row.ActionCount,
+		row.ActionsBeforeFirstMutation,
+		row.TokensBeforeFirstMutation,
+		row.UserTurnsBeforeFirstMutation,
+		row.AssistantTurns,
+		row.VisibleReasoningChars,
+		row.HiddenThinkingTurns,
+	); err != nil {
+		return fmt.Errorf("tx.ExecContext: %w", err)
+	}
+	return nil
+}
+
+func writeStatsTurnMetrics(
+	ctx context.Context,
+	tx *sql.Tx,
+	cacheKey string,
+	ordinal int,
+	row conv.SessionTurnMetrics,
+) error {
+	turnsJSON, err := marshalTurnTokens(row.Turns)
+	if err != nil {
+		return fmt.Errorf("marshalTurnTokens: %w", err)
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO stats_turn_metrics(
+			conversation_cache_key, session_ordinal, timestamp_ns, turns_json
+		) VALUES (?, ?, ?, ?)`,
+		cacheKey,
+		ordinal,
+		timeToUnixNano(row.Timestamp),
+		turnsJSON,
+	); err != nil {
+		return fmt.Errorf("tx.ExecContext: %w", err)
+	}
+	return nil
+}
+
+func writeStatsDailyTokens(
+	ctx context.Context,
+	tx *sql.Tx,
+	cacheKey string,
+	rows []conv.DailyTokenRow,
+) error {
+	for _, row := range rows {
+		if row.Date.IsZero() {
+			continue
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO stats_daily_tokens(
+				conversation_cache_key, date_key, provider, model, project,
+				session_count, message_count, user_message_count,
+				assistant_message_count, input_tokens, cache_creation_tokens,
+				cache_read_tokens, output_tokens, reasoning_output_tokens
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			cacheKey,
+			row.Date.Format("2006-01-02"),
+			row.Provider,
+			row.Model,
+			row.Project,
+			row.SessionCount,
+			row.MessageCount,
+			row.UserMessageCount,
+			row.AssistantMessageCount,
+			row.InputTokens,
+			row.CacheCreationTokens,
+			row.CacheReadTokens,
+			row.OutputTokens,
+			row.ReasoningOutputTokens,
+		); err != nil {
+			return fmt.Errorf("tx.ExecContext: %w", err)
+		}
+	}
+	return nil
+}
+
+func deleteStatsByCacheKeys(ctx context.Context, tx *sql.Tx, cacheKeys []string) error {
+	if len(cacheKeys) == 0 {
+		return nil
+	}
+
+	args := make([]any, 0, len(cacheKeys))
+	placeholders := make([]string, 0, len(cacheKeys))
+	for _, key := range cacheKeys {
+		placeholders = append(placeholders, "?")
+		args = append(args, key)
+	}
+
+	for _, table := range []string{
+		"stats_performance_sequence",
+		"stats_turn_metrics",
+		"stats_daily_tokens",
+	} {
+		query := fmt.Sprintf(
+			`DELETE FROM %s WHERE conversation_cache_key IN (%s)`,
+			table,
+			strings.Join(placeholders, ", "),
+		)
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf("tx.ExecContext_%s: %w", table, err)
+		}
+	}
+	return nil
+}
+
+func marshalTurnTokens(turns []conv.TurnTokens) (string, error) {
+	if turns == nil {
+		turns = []conv.TurnTokens{}
+	}
+	encoded, err := json.Marshal(turns)
+	if err != nil {
+		return "", fmt.Errorf("json.Marshal: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func unmarshalTurnTokens(raw string) ([]conv.TurnTokens, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+
+	var turns []conv.TurnTokens
+	if err := json.Unmarshal([]byte(raw), &turns); err != nil {
+		return nil, fmt.Errorf("json.Unmarshal: %w", err)
+	}
+	return turns, nil
+}
+
+type dailyTokenRowKey struct {
+	dateKey  string
+	provider string
+	model    string
+	project  string
+}
+
+func collectConversationStatsData(
+	ctx context.Context,
+	sources sourceRegistry,
+	collector StatsCollector,
+	convValue conversation,
+) ([]conv.SessionStatsData, []conv.DailyTokenRow, error) {
+	source, ok := sources.lookup(conversationProvider(convValue.Ref.Provider))
+	if !ok {
+		return nil, nil, fmt.Errorf("collectConversationStatsData: %w", errSourceNotRegistered)
+	}
+
+	statsData := make([]conv.SessionStatsData, 0, len(convValue.Sessions))
+	loadedSessions := make([]sessionFull, 0, len(convValue.Sessions))
+	for _, meta := range convValue.Sessions {
+		session, err := source.LoadSession(ctx, convValue, meta)
+		if err != nil {
+			return nil, nil, fmt.Errorf("source.LoadSession_%s: %w", meta.ID, err)
+		}
+		session.Meta = meta
+		session.Meta.Provider = convValue.Ref.Provider
+		session.Meta.Project = convValue.Project
+		loadedSessions = append(loadedSessions, session)
+		if collector != nil {
+			statsData = append(statsData, collector.CollectSessionStats(session))
+		}
+	}
+	return statsData, aggregateDailyTokens(loadedSessions), nil
+}
+
+func aggregateDailyTokens(sessions []sessionFull) []conv.DailyTokenRow {
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	rows := make(map[dailyTokenRowKey]conv.DailyTokenRow)
+	for _, session := range sessions {
+		startDay := statsDay(session.Meta.Timestamp)
+		if !startDay.IsZero() {
+			key := dailyTokenKeyForMeta(session.Meta, startDay)
+			row := rows[key]
+			row.Date = startDay
+			row.Provider = string(session.Meta.Provider)
+			row.Model = session.Meta.Model
+			row.Project = session.Meta.Project.DisplayName
+			row.SessionCount++
+			row.MessageCount += statsSessionMessageCount(session.Meta)
+			row.UserMessageCount += session.Meta.UserMessageCount
+			row.AssistantMessageCount += session.Meta.AssistantMessageCount
+			rows[key] = row
+		}
+
+		for _, msg := range session.Messages {
+			day := statsMessageDay(session.Meta.Timestamp, msg.Timestamp)
+			if day.IsZero() {
+				continue
+			}
+			key := dailyTokenKeyForMeta(session.Meta, day)
+			row := rows[key]
+			row.Date = day
+			row.Provider = string(session.Meta.Provider)
+			row.Model = session.Meta.Model
+			row.Project = session.Meta.Project.DisplayName
+			row.InputTokens += msg.Usage.InputTokens
+			row.CacheCreationTokens += msg.Usage.CacheCreationInputTokens
+			row.CacheReadTokens += msg.Usage.CacheReadInputTokens
+			row.OutputTokens += msg.Usage.OutputTokens
+			row.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
+			rows[key] = row
+		}
+	}
+
+	result := make([]conv.DailyTokenRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, row)
+	}
+	slices.SortFunc(result, func(left, right conv.DailyTokenRow) int {
+		switch {
+		case left.Date.Before(right.Date):
+			return -1
+		case left.Date.After(right.Date):
+			return 1
+		case left.Provider < right.Provider:
+			return -1
+		case left.Provider > right.Provider:
+			return 1
+		case left.Model < right.Model:
+			return -1
+		case left.Model > right.Model:
+			return 1
+		case left.Project < right.Project:
+			return -1
+		case left.Project > right.Project:
+			return 1
+		default:
+			return 0
+		}
+	})
+	return result
+}
+
+func dailyTokenKeyForMeta(meta sessionMeta, day time.Time) dailyTokenRowKey {
+	return dailyTokenRowKey{
+		dateKey:  day.Format("2006-01-02"),
+		provider: string(meta.Provider),
+		model:    meta.Model,
+		project:  meta.Project.DisplayName,
+	}
+}
+
+func statsSessionMessageCount(meta sessionMeta) int {
+	if meta.IsSubagent && meta.MessageCount > 0 {
+		return meta.MessageCount
+	}
+	return meta.MainMessageCount
+}
+
+func statsMessageDay(sessionStart, messageTimestamp time.Time) time.Time {
+	if !messageTimestamp.IsZero() {
+		return statsDay(messageTimestamp)
+	}
+	return statsDay(sessionStart)
+}
+
+func statsDay(timestamp time.Time) time.Time {
+	if timestamp.IsZero() {
+		return time.Time{}
+	}
+	year, month, day := timestamp.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, timestamp.Location())
+}

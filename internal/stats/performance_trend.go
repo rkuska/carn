@@ -28,12 +28,12 @@ type performanceMetricScore struct {
 	hasBaseline bool
 }
 
-type performanceTimedSession interface {
-	sessionTimestamp() time.Time
-}
-
-func performanceTimeWindow[T performanceTimedSession](timeRange TimeRange, sessions []T) performanceWindow {
-	current := normalizePerformanceTimeRange(timeRange, sessions)
+func performanceTimeWindow[T any](
+	timeRange TimeRange,
+	sessions []T,
+	timestamp func(T) time.Time,
+) performanceWindow {
+	current := normalizePerformanceTimeRange(timeRange, sessions, timestamp)
 	if current.Start.IsZero() || current.End.IsZero() {
 		return performanceWindow{current: current}
 	}
@@ -53,7 +53,11 @@ func performanceTimeWindow[T performanceTimedSession](timeRange TimeRange, sessi
 	}
 }
 
-func normalizePerformanceTimeRange[T performanceTimedSession](timeRange TimeRange, sessions []T) TimeRange {
+func normalizePerformanceTimeRange[T any](
+	timeRange TimeRange,
+	sessions []T,
+	timestamp func(T) time.Time,
+) TimeRange {
 	if !timeRange.Start.IsZero() || !timeRange.End.IsZero() {
 		return timeRange
 	}
@@ -61,15 +65,15 @@ func normalizePerformanceTimeRange[T performanceTimedSession](timeRange TimeRang
 		return TimeRange{}
 	}
 
-	start := sessions[0].sessionTimestamp()
-	end := sessions[0].sessionTimestamp()
+	start := timestamp(sessions[0])
+	end := start
 	for _, session := range sessions[1:] {
-		timestamp := session.sessionTimestamp()
-		if timestamp.Before(start) {
-			start = timestamp
+		sessionTimestamp := timestamp(session)
+		if sessionTimestamp.Before(start) {
+			start = sessionTimestamp
 		}
-		if timestamp.After(end) {
-			end = timestamp
+		if sessionTimestamp.After(end) {
+			end = sessionTimestamp
 		}
 	}
 	if start.IsZero() || end.IsZero() {

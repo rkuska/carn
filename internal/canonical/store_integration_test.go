@@ -25,7 +25,7 @@ func TestStoreRebuildListLoadAndDeepSearch(t *testing.T) {
 	copyFixtureCorpusToArchive(t, archiveDir)
 
 	source := claude.New()
-	store := New(source)
+	store := New(nil, source)
 
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestStoreRebuildInvalidatesDeepSearchCache(t *testing.T) {
 	archiveDir := t.TempDir()
 	copyFixtureCorpusToArchive(t, archiveDir)
 
-	store := New(claude.New())
+	store := New(nil, claude.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderClaude, nil)
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ func TestStoreRebuildAddsClaudeSessionToExistingSlugGroup(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 	claudeRawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
 
 	writeTestConversation(t, claudeRawDir, "project-a", "session-1", "demo", []string{
@@ -143,7 +143,7 @@ func TestStoreRebuildMovesClaudeConversationWhenSlugChanges(t *testing.T) {
 	t.Parallel()
 
 	archiveDir := t.TempDir()
-	store := New(claude.New())
+	store := New(nil, claude.New())
 	claudeRawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
 
 	convValue := writeTestConversation(t, claudeRawDir, "project-a", "session-1", "old-slug", []string{
@@ -199,8 +199,8 @@ func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t
 		"before update",
 	})
 
-	incrementalStore := New(claude.New())
-	fullStore := New(claude.New())
+	incrementalStore := New(nil, claude.New())
+	fullStore := New(nil, claude.New())
 	_, err := incrementalStore.Rebuild(ctx, incrementalArchive, conv.ProviderClaude, nil)
 	require.NoError(t, err)
 	_, err = fullStore.Rebuild(ctx, fullArchive, conv.ProviderClaude, nil)
@@ -287,7 +287,7 @@ func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {
 	archiveDir := t.TempDir()
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 
@@ -323,7 +323,7 @@ func TestStoreCodexLoadPreservesHiddenThinkingAndDoesNotIndexViewerNote(t *testi
 	archiveDir := t.TempDir()
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 
@@ -416,7 +416,7 @@ func TestStoreCodexLoadPreservesReconstructedTurnUsage(t *testing.T) {
 		},
 	})
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 
@@ -449,7 +449,7 @@ func TestStoreDeepSearchSkipsHiddenSystemMessages(t *testing.T) {
 	archiveDir := t.TempDir()
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 
@@ -474,7 +474,7 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutChanges(t *te
 	archiveDir := t.TempDir()
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 
@@ -513,7 +513,7 @@ func TestStoreRebuildUpdatesParentConversationWhenCodexChildRolloutIsDeleted(t *
 	archiveDir := t.TempDir()
 	copyFixtureDir(t, codexFixtureCorpusDir(t), src.ProviderRawDir(archiveDir, conversationProvider("codex")))
 
-	store := New(codex.New())
+	store := New(nil, codex.New())
 	_, err := store.Rebuild(context.Background(), archiveDir, conv.ProviderCodex, nil)
 	require.NoError(t, err)
 

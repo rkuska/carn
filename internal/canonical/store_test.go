@@ -169,7 +169,7 @@ func TestStoreRebuildAllPersistsStreamingSearchAndPlans(t *testing.T) {
 			},
 		},
 	}
-	store := New(source)
+	store := New(nil, source)
 	require.NoError(t, os.MkdirAll(src.ProviderRawDir(archiveDir, conversationProvider("claude")), 0o755))
 
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
@@ -266,7 +266,7 @@ func TestStoreRebuildAllPersistsTranscriptDerivedToolOutcomesPerSession(t *testi
 		},
 	}
 
-	store := New(source)
+	store := New(nil, source)
 
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
 	require.NoError(t, err)
@@ -328,7 +328,7 @@ func TestStoreRebuildAllUsesScannedToolOutcomesWhenSourceOptsIn(t *testing.T) {
 		},
 	}
 
-	store := New(source)
+	store := New(nil, source)
 
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
 	require.NoError(t, err)

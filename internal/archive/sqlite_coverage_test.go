@@ -61,7 +61,7 @@ func assertProviderArchiveCoverage(
 	t.Helper()
 
 	archiveDir := filepath.Join(t.TempDir(), "archive")
-	store := canonical.New(backend)
+	store := canonical.New(nil, backend)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{provider: sourceDir},
 		ArchiveDir: archiveDir,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -19,6 +20,8 @@ func applySQLiteIncrementalRebuild(
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
+	statsData map[string][]conv.SessionStatsData,
+	dailyTokenRows map[string][]conv.DailyTokenRow,
 ) error {
 	if err := ensureSQLiteSchemaBase(ctx, db); err != nil {
 		return fmt.Errorf("ensureSQLiteSchemaBase: %w", err)
@@ -42,6 +45,8 @@ func applySQLiteIncrementalRebuild(
 		conversations,
 		transcripts,
 		groupedUnits,
+		statsData,
+		dailyTokenRows,
 	); err != nil {
 		return fmt.Errorf("applySQLiteIncrementalRebuildTx: %w", err)
 	}
@@ -58,6 +63,8 @@ func applySQLiteIncrementalRebuildTx(
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
+	statsData map[string][]conv.SessionStatsData,
+	dailyTokenRows map[string][]conv.DailyTokenRow,
 ) error {
 	if err := dropSQLiteSearchTriggers(ctx, tx); err != nil {
 		return fmt.Errorf("dropSQLiteSearchTriggers: %w", err)
@@ -65,10 +72,21 @@ func applySQLiteIncrementalRebuildTx(
 	if err := deleteSQLiteSearchIndexForCacheKeys(ctx, tx, replaceCacheKeys); err != nil {
 		return fmt.Errorf("deleteSQLiteSearchIndexForCacheKeys: %w", err)
 	}
+	if err := deleteStatsByCacheKeys(ctx, tx, replaceCacheKeys); err != nil {
+		return fmt.Errorf("deleteStatsByCacheKeys: %w", err)
+	}
 	if err := deleteSQLiteConversations(ctx, tx, replaceCacheKeys); err != nil {
 		return fmt.Errorf("deleteSQLiteConversations: %w", err)
 	}
-	if _, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, groupedUnits); err != nil {
+	if _, err := insertSQLiteConversations(
+		ctx,
+		tx,
+		conversations,
+		transcripts,
+		groupedUnits,
+		statsData,
+		dailyTokenRows,
+	); err != nil {
 		return fmt.Errorf("insertSQLiteConversations: %w", err)
 	}
 	if err := populateSQLiteSearchIndexForCacheKeys(ctx, tx, replaceCacheKeys); err != nil {

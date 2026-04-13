@@ -55,7 +55,7 @@ func makeTestBrowserArchive(t *testing.T) (string, *canonical.Store) {
 		`"model":"claude-sonnet-4","content":[{"type":"text","text":"done"}]}}`
 	require.NoError(t, os.WriteFile(sessionPath, []byte(session), 0o644))
 
-	store := canonical.New(claude.New())
+	store := canonical.New(nil, claude.New())
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
 	require.NoError(t, err)
 	return archiveDir, store

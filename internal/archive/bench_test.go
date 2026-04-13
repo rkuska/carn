@@ -131,7 +131,7 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 	setupBenchProjectDirs(b, sourceDir, 6, 60)
 
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(
 		Config{
 			SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},

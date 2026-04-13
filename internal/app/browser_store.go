@@ -29,7 +29,7 @@ type canonicalBrowserStore struct {
 }
 
 func newDefaultBrowserStore() browserStore {
-	return newBrowserStore(canonical.New(), claude.New(), codex.New())
+	return newBrowserStore(canonical.New(nil), claude.New(), codex.New())
 }
 
 type sessionTranscriptSource interface {

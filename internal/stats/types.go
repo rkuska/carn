@@ -1,6 +1,10 @@
 package stats
 
-import "time"
+import (
+	"time"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+)
 
 type TimeRange struct {
 	Start time.Time
@@ -114,22 +118,12 @@ type PositionTokenMetrics struct {
 	SampleCount        int
 }
 
-type SessionTurnMetrics struct {
-	Timestamp time.Time
-	Turns     []TurnTokens
-}
-
 type SessionToolMetrics struct {
 	Timestamp        time.Time
 	ToolCounts       map[string]int
 	ActionCounts     map[string]int
 	ToolErrorCounts  map[string]int
 	ToolRejectCounts map[string]int
-}
-
-type TurnTokens struct {
-	InputTokens int
-	TurnTokens  int
 }
 
 type ToolStat struct {
@@ -248,27 +242,10 @@ type PerformanceDiagnostic struct {
 	Series      []PerformancePoint
 }
 
-type PerformanceSequenceSession struct {
-	Timestamp                    time.Time
-	Mutated                      bool
-	MutationCount                int
-	RewriteCount                 int
-	TargetedMutationCount        int
-	BlindMutationCount           int
-	DistinctMutationTargets      int
-	PatchHunkCount               int
-	VerificationPassed           bool
-	FirstPassResolved            bool
-	CorrectionFollowups          int
-	ReasoningLoopCount           int
-	ActionCount                  int
-	ActionsBeforeFirstMutation   int
-	TokensBeforeFirstMutation    int
-	UserTurnsBeforeFirstMutation int
-	AssistantTurns               int
-	VisibleReasoningChars        int
-	HiddenThinkingTurns          int
-}
+type PerformanceSequenceSession = conv.PerformanceSequenceSession
+type SessionTurnMetrics = conv.SessionTurnMetrics
+type TurnTokens = conv.TurnTokens
+type DailyTokenRow = conv.DailyTokenRow
 
 type Cache struct {
 	TotalCacheRead  int

@@ -38,7 +38,7 @@ func TestPipelineAnalyze(t *testing.T) {
 	writeTestFile(t, filepath.Join(projDir, "session-2.jsonl"), makeJSONLRecord("user", "feat-b", "id2"))
 
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
 		ArchiveDir: archiveDir,
@@ -84,7 +84,7 @@ func TestPipelineAnalyzeDedupesQueuedFilesWithoutReordering(t *testing.T) {
 			},
 			ArchiveDir: filepath.Join(dir, "archive"),
 		},
-		canonical.New(),
+		canonical.New(nil),
 		stubBackend{
 			provider: conv.ProviderClaude,
 			analysis: src.Analysis{
@@ -109,7 +109,7 @@ func TestPipelineAnalyzeMissingSource(t *testing.T) {
 
 	dir := t.TempDir()
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: filepath.Join(dir, "missing")},
 		ArchiveDir: filepath.Join(dir, "archive"),
@@ -127,7 +127,7 @@ func TestPipelineAnalyzeContextCanceled(t *testing.T) {
 	t.Parallel()
 
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: t.TempDir()},
 		ArchiveDir: t.TempDir(),
@@ -152,7 +152,7 @@ func TestPipelineRunReportsSyncActivities(t *testing.T) {
 	writeTestFile(t, filepath.Join(projDir, "session-1.jsonl"), makeJSONLRecord("user", "feat-a", "id1"))
 
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
 		ArchiveDir: archiveDir,
@@ -178,7 +178,7 @@ func TestPipelineRunBuildsStoreWhenArchiveIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	archiveDir := filepath.Join(dir, "archive")
 	source := claude.New()
-	store := canonical.New(source)
+	store := canonical.New(nil, source)
 	pipeline := New(Config{
 		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: filepath.Join(dir, "missing")},
 		ArchiveDir: archiveDir,

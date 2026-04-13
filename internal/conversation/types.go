@@ -256,3 +256,56 @@ type Session struct {
 	Meta     SessionMeta
 	Messages []Message
 }
+
+type PerformanceSequenceSession struct {
+	Timestamp                    time.Time
+	Mutated                      bool
+	MutationCount                int
+	RewriteCount                 int
+	TargetedMutationCount        int
+	BlindMutationCount           int
+	DistinctMutationTargets      int
+	PatchHunkCount               int
+	VerificationPassed           bool
+	FirstPassResolved            bool
+	CorrectionFollowups          int
+	ReasoningLoopCount           int
+	ActionCount                  int
+	ActionsBeforeFirstMutation   int
+	TokensBeforeFirstMutation    int
+	UserTurnsBeforeFirstMutation int
+	AssistantTurns               int
+	VisibleReasoningChars        int
+	HiddenThinkingTurns          int
+}
+
+type SessionTurnMetrics struct {
+	Timestamp time.Time
+	Turns     []TurnTokens
+}
+
+type TurnTokens struct {
+	InputTokens int
+	TurnTokens  int
+}
+
+type DailyTokenRow struct {
+	Date                  time.Time
+	Provider              string
+	Model                 string
+	Project               string
+	SessionCount          int
+	MessageCount          int
+	UserMessageCount      int
+	AssistantMessageCount int
+	InputTokens           int
+	CacheCreationTokens   int
+	CacheReadTokens       int
+	OutputTokens          int
+	ReasoningOutputTokens int
+}
+
+type SessionStatsData struct {
+	PerformanceSequence PerformanceSequenceSession
+	TurnMetrics         SessionTurnMetrics
+}

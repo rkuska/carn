@@ -81,6 +81,7 @@ func TestStoreRebuildAllKeepsMultipleProviders(t *testing.T) {
 	)
 
 	store := New(
+		nil,
 		stubMultiSource{
 			provider: conversationProvider("claude"),
 			conversations: []conversation{

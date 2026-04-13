@@ -4,12 +4,22 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
+
+type stubStatsCollector struct {
+	rows map[string]conv.SessionStatsData
+}
+
+func (c stubStatsCollector) CollectSessionStats(session conv.Session) conv.SessionStatsData {
+	return c.rows[session.Meta.ID]
+}
 
 type stubIncrementalSource struct {
 	provider          conversationProvider
@@ -81,7 +91,7 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 			},
 		},
 	}
-	store := New(source)
+	store := New(nil, source)
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
 	require.NoError(t, err)
 
@@ -136,7 +146,7 @@ func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsS
 			},
 		},
 	}
-	store := New(source)
+	store := New(nil, source)
 	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
 	require.NoError(t, err)
 
@@ -169,7 +179,7 @@ func TestStoreIncrementalRebuildFallsBackToFullRebuildWhenSearchCorpusVersionIsS
 func TestBuildIncrementalParseOutputsReturnsGroupedUnits(t *testing.T) {
 	t.Parallel()
 
-	transcripts, grouped := buildIncrementalParseOutputs([]parseResult{
+	transcripts, grouped, _, _ := buildIncrementalParseOutputs([]parseResult{
 		{
 			key: "a",
 			session: sessionFull{
@@ -194,6 +204,149 @@ func TestBuildIncrementalParseOutputsReturnsGroupedUnits(t *testing.T) {
 	require.Len(t, transcripts, 2)
 	assert.Len(t, grouped["a"], 2)
 	assert.Len(t, grouped["b"], 1)
+}
+
+func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversations(t *testing.T) {
+	t.Parallel()
+
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	first := writeTestConversation(t, rawDir, "project-a", "session-1", "slug-1", []string{"first line"})
+	second := writeTestConversation(t, rawDir, "project-a", "session-2", "slug-2", []string{"second line"})
+
+	source := &stubIncrementalSource{
+		provider: conversationProvider("claude"),
+		scanConversations: []conversation{
+			first,
+			second,
+		},
+		sessions: map[string]sessionFull{
+			first.CacheKey(): {
+				Meta: first.Sessions[0],
+				Messages: []message{{
+					Role:      role("assistant"),
+					Text:      "first line",
+					Timestamp: time.Date(2026, 3, 13, 10, 1, 0, 0, time.UTC),
+					Usage:     conv.TokenUsage{InputTokens: 10, OutputTokens: 2},
+				}},
+			},
+			second.CacheKey(): {
+				Meta: second.Sessions[0],
+				Messages: []message{{
+					Role:      role("assistant"),
+					Text:      "second line",
+					Timestamp: time.Date(2026, 3, 13, 11, 1, 0, 0, time.UTC),
+					Usage:     conv.TokenUsage{InputTokens: 20, OutputTokens: 4},
+				}},
+			},
+		},
+	}
+	collector := stubStatsCollector{
+		rows: map[string]conv.SessionStatsData{
+			"session-1": {
+				PerformanceSequence: conv.PerformanceSequenceSession{
+					Timestamp:     first.Sessions[0].Timestamp,
+					Mutated:       true,
+					MutationCount: 1,
+				},
+				TurnMetrics: conv.SessionTurnMetrics{
+					Timestamp: first.Sessions[0].Timestamp,
+					Turns: []conv.TurnTokens{{
+						InputTokens: 10,
+						TurnTokens:  12,
+					}},
+				},
+			},
+			"session-2": {
+				PerformanceSequence: conv.PerformanceSequenceSession{
+					Timestamp:     second.Sessions[0].Timestamp,
+					MutationCount: 2,
+				},
+				TurnMetrics: conv.SessionTurnMetrics{
+					Timestamp: second.Sessions[0].Timestamp,
+					Turns: []conv.TurnTokens{{
+						InputTokens: 20,
+						TurnTokens:  24,
+					}},
+				},
+			},
+		},
+	}
+
+	store := New(collector, source)
+	_, err := store.RebuildAll(context.Background(), archiveDir, nil)
+	require.NoError(t, err)
+
+	cacheKeys := []string{first.CacheKey(), second.CacheKey()}
+	sequence, err := store.QueryPerformanceSequence(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, sequence, 2)
+	assert.Equal(t, 1, sequence[0].MutationCount)
+	assert.Equal(t, 2, sequence[1].MutationCount)
+
+	turnMetrics, err := store.QueryTurnMetrics(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, turnMetrics, 2)
+	assert.Equal(t, 10, turnMetrics[0].Turns[0].InputTokens)
+	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
+
+	daily, err := store.QueryDailyTokens(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, daily, 2)
+	assert.Equal(t, 2, daily[0].SessionCount)
+	assert.Equal(t, 30, daily[1].InputTokens)
+
+	source.resolution = src.IncrementalResolution{
+		Conversations: []conversation{first},
+		ReplaceCacheKeys: []string{
+			first.CacheKey(),
+		},
+	}
+	source.sessions[first.CacheKey()] = sessionFull{
+		Meta: first.Sessions[0],
+		Messages: []message{{
+			Role:      role("assistant"),
+			Text:      "updated first line",
+			Timestamp: time.Date(2026, 3, 13, 10, 2, 0, 0, time.UTC),
+			Usage:     conv.TokenUsage{InputTokens: 40, OutputTokens: 6},
+		}},
+	}
+	collector.rows["session-1"] = conv.SessionStatsData{
+		PerformanceSequence: conv.PerformanceSequenceSession{
+			Timestamp:     first.Sessions[0].Timestamp,
+			Mutated:       true,
+			MutationCount: 4,
+		},
+		TurnMetrics: conv.SessionTurnMetrics{
+			Timestamp: first.Sessions[0].Timestamp,
+			Turns: []conv.TurnTokens{{
+				InputTokens: 40,
+				TurnTokens:  46,
+			}},
+		},
+	}
+
+	_, err = store.Rebuild(context.Background(), archiveDir, conversationProvider("claude"), []string{first.Sessions[0].FilePath})
+	require.NoError(t, err)
+
+	sequence, err = store.QueryPerformanceSequence(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, sequence, 2)
+	assert.Equal(t, 4, sequence[0].MutationCount)
+	assert.Equal(t, 2, sequence[1].MutationCount)
+
+	turnMetrics, err = store.QueryTurnMetrics(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, turnMetrics, 2)
+	assert.Equal(t, 40, turnMetrics[0].Turns[0].InputTokens)
+	assert.Equal(t, 20, turnMetrics[1].Turns[0].InputTokens)
+
+	daily, err = store.QueryDailyTokens(context.Background(), archiveDir, cacheKeys)
+	require.NoError(t, err)
+	require.Len(t, daily, 2)
+	assert.Equal(t, 2, daily[0].SessionCount)
+	assert.Equal(t, 60, daily[1].InputTokens)
+	assert.Equal(t, 10, daily[1].OutputTokens)
 }
 
 func TestBuildParseOutputsReturnsGroupedSearchCorpus(t *testing.T) {

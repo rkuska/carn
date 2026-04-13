@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 type sqliteStoreCounts struct {
@@ -31,6 +33,8 @@ func replaceSQLiteStoreContents(
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
+	statsData map[string][]conv.SessionStatsData,
+	dailyTokenRows map[string][]conv.DailyTokenRow,
 ) (sqliteStoreCounts, error) {
 	if err := ensureSQLiteSchemaBase(ctx, db); err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("ensureSQLiteSchemaBase: %w", err)
@@ -50,7 +54,15 @@ func replaceSQLiteStoreContents(
 		return sqliteStoreCounts{}, fmt.Errorf("clearSQLiteStoreTables: %w", err)
 	}
 
-	counts, err := insertSQLiteConversations(ctx, tx, conversations, transcripts, corpus.byConversation)
+	counts, err := insertSQLiteConversations(
+		ctx,
+		tx,
+		conversations,
+		transcripts,
+		corpus.byConversation,
+		statsData,
+		dailyTokenRows,
+	)
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversations: %w", err)
 	}
@@ -82,6 +94,8 @@ func insertSQLiteConversations(
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	groupedUnits map[string][]searchUnit,
+	statsData map[string][]conv.SessionStatsData,
+	dailyTokenRows map[string][]conv.DailyTokenRow,
 ) (sqliteStoreCounts, error) {
 	convStmt, sessionStmt, err := prepareSQLiteConversationStatements(ctx, tx)
 	if err != nil {
@@ -116,6 +130,8 @@ func insertSQLiteConversations(
 			conv,
 			session,
 			groupedUnits[conv.CacheKey()],
+			statsData[conv.CacheKey()],
+			dailyTokenRows[conv.CacheKey()],
 		)
 		if err != nil {
 			return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversation: %w", err)
@@ -132,10 +148,12 @@ func insertSQLiteConversation(
 	ctx context.Context,
 	convStmt *sql.Stmt,
 	sessionStmt *sql.Stmt,
-	chunkExec sqliteExecContext,
+	tx *sql.Tx,
 	conv conversation,
 	session sessionFull,
 	units []searchUnit,
+	statsData []conv.SessionStatsData,
+	dailyTokenRows []conv.DailyTokenRow,
 ) (sqliteStoreCounts, error) {
 	conversationID, err := insertSQLiteConversationRow(ctx, convStmt, conv, session)
 	if err != nil {
@@ -146,9 +164,12 @@ func insertSQLiteConversation(
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteSessionRows: %w", err)
 	}
-	searchChunkCount, err := insertSQLiteSearchChunks(ctx, chunkExec, conversationID, units)
+	searchChunkCount, err := insertSQLiteSearchChunks(ctx, tx, conversationID, units)
 	if err != nil {
 		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteSearchChunks: %w", err)
+	}
+	if err := insertSQLiteConversationStats(ctx, tx, conv.CacheKey(), statsData, dailyTokenRows); err != nil {
+		return sqliteStoreCounts{}, fmt.Errorf("insertSQLiteConversationStats: %w", err)
 	}
 
 	return sqliteStoreCounts{
@@ -156,6 +177,27 @@ func insertSQLiteConversation(
 		sessions:      sessionCount,
 		searchChunks:  searchChunkCount,
 	}, nil
+}
+
+func insertSQLiteConversationStats(
+	ctx context.Context,
+	tx *sql.Tx,
+	cacheKey string,
+	statsData []conv.SessionStatsData,
+	dailyTokenRows []conv.DailyTokenRow,
+) error {
+	for ordinal, row := range statsData {
+		if err := writeStatsPerformanceSequence(ctx, tx, cacheKey, ordinal, row.PerformanceSequence); err != nil {
+			return fmt.Errorf("writeStatsPerformanceSequence: %w", err)
+		}
+		if err := writeStatsTurnMetrics(ctx, tx, cacheKey, ordinal, row.TurnMetrics); err != nil {
+			return fmt.Errorf("writeStatsTurnMetrics: %w", err)
+		}
+	}
+	if err := writeStatsDailyTokens(ctx, tx, cacheKey, dailyTokenRows); err != nil {
+		return fmt.Errorf("writeStatsDailyTokens: %w", err)
+	}
+	return nil
 }
 
 func insertSQLiteConversationRow(

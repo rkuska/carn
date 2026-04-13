@@ -23,7 +23,7 @@ func ComputePerformance(
 	sequence []PerformanceSequenceSession,
 ) Performance {
 	sessions := flattenPerformanceSessions(conversations)
-	window := performanceTimeWindow(timeRange, sessions)
+	window := performanceTimeWindow(timeRange, sessions, performanceSessionTimestamp)
 	current := aggregatePerformanceSessionsInRange(sessions, window.current)
 	baseline := aggregatePerformanceSessionsInRange(sessions, window.baseline)
 	context := newPerformanceMetricContext(

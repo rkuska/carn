@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func writeCanonicalStoreAtomically(
@@ -15,6 +17,8 @@ func writeCanonicalStoreAtomically(
 	conversations []conversation,
 	transcripts map[string]sessionFull,
 	corpus searchCorpus,
+	statsData map[string][]conv.SessionStatsData,
+	dailyTokenRows map[string][]conv.DailyTokenRow,
 ) error {
 	return withCanonicalStoreTempDB(ctx, archiveDir, func(tempPath string) error {
 		db, err := openSQLiteDB(ctx, tempPath, false)
@@ -31,7 +35,15 @@ func writeCanonicalStoreAtomically(
 			return fmt.Errorf("configureSQLiteBulkLoadDB: %w", err)
 		}
 
-		counts, err := replaceSQLiteStoreContents(ctx, db, conversations, transcripts, corpus)
+		counts, err := replaceSQLiteStoreContents(
+			ctx,
+			db,
+			conversations,
+			transcripts,
+			corpus,
+			statsData,
+			dailyTokenRows,
+		)
 		if err != nil {
 			return fmt.Errorf("replaceSQLiteStoreContents: %w", err)
 		}
@@ -92,6 +104,9 @@ func configureSQLiteBulkLoadDB(ctx context.Context, db *sql.DB) error {
 
 func clearSQLiteStoreTables(ctx context.Context, tx *sql.Tx) error {
 	for _, stmt := range []string{
+		`DELETE FROM stats_performance_sequence`,
+		`DELETE FROM stats_turn_metrics`,
+		`DELETE FROM stats_daily_tokens`,
 		`DELETE FROM conversation_sessions`,
 		`DELETE FROM search_chunks`,
 		`DELETE FROM conversations`,

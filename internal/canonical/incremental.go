@@ -56,13 +56,14 @@ func tryIncrementalRebuildWithSources(
 	results, err := parseConversationsParallelResultsWithSources(
 		ctx,
 		store.sources,
+		store.collector,
 		resolution.Conversations,
 	)
 	if err != nil {
 		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
 	resolution.Conversations = conversationsFromParseResults(results)
-	parsedTranscripts, groupedUnits := buildIncrementalParseOutputs(results)
+	parsedTranscripts, groupedUnits, statsData, dailyTokenRows := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
 
 	if err := applySQLiteIncrementalRebuild(
@@ -72,6 +73,8 @@ func tryIncrementalRebuildWithSources(
 		resolution.Conversations,
 		parsedTranscripts,
 		groupedUnits,
+		statsData,
+		dailyTokenRows,
 	); err != nil {
 		return drift, fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
 	}
@@ -204,12 +207,23 @@ func appendIncrementalResolution(
 	return nil
 }
 
-func buildIncrementalParseOutputs(results []parseResult) (map[string]sessionFull, map[string][]searchUnit) {
+func buildIncrementalParseOutputs(
+	results []parseResult,
+) (
+	map[string]sessionFull,
+	map[string][]searchUnit,
+	map[string][]conv.SessionStatsData,
+	map[string][]conv.DailyTokenRow,
+) {
 	transcripts := make(map[string]sessionFull, len(results))
 	groupedUnits := make(map[string][]searchUnit, len(results))
+	statsData := make(map[string][]conv.SessionStatsData, len(results))
+	dailyTokenRows := make(map[string][]conv.DailyTokenRow, len(results))
 	for _, result := range results {
 		transcripts[result.key] = result.session
 		groupedUnits[result.key] = result.units
+		statsData[result.key] = result.statsData
+		dailyTokenRows[result.key] = result.dailyTokenRows
 	}
-	return transcripts, groupedUnits
+	return transcripts, groupedUnits, statsData, dailyTokenRows
 }

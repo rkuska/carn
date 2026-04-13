@@ -11,7 +11,7 @@ type performanceSession struct {
 	meta     *conv.SessionMeta
 }
 
-func (s performanceSession) sessionTimestamp() time.Time {
+func performanceSessionTimestamp(s performanceSession) time.Time {
 	if s.meta == nil {
 		return time.Time{}
 	}

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	storeSchemaVersion       = 8
+	storeSchemaVersion       = 9
 	storeProjectionVersion   = 10
 	storeSearchCorpusVersion = 3
 )
@@ -32,10 +32,12 @@ type searchCorpus struct {
 }
 
 type parseResult struct {
-	key          string
-	conversation conversation
-	session      sessionFull
-	units        []searchUnit
+	key            string
+	conversation   conversation
+	session        sessionFull
+	units          []searchUnit
+	statsData      []conv.SessionStatsData
+	dailyTokenRows []conv.DailyTokenRow
 }
 
 func (c searchCorpus) Len() int {
@@ -71,13 +73,14 @@ func rebuildCanonicalStore(
 		return drift, fmt.Errorf("scanRegisteredConversations: %w", err)
 	}
 
-	results, err := parseConversationsParallelResultsWithSources(ctx, store.sources, conversations)
+	results, err := parseConversationsParallelResultsWithSources(ctx, store.sources, store.collector, conversations)
 	if err != nil {
 		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
 
 	parsedConversations := conversationsFromParseResults(results)
 	transcripts, corpus := buildParseOutputs(results)
+	statsData, dailyTokenRows := buildParseStatsOutputs(results)
 	setPlanCounts(parsedConversations, transcripts)
 
 	if err := writeCanonicalStoreAtomically(
@@ -86,6 +89,8 @@ func rebuildCanonicalStore(
 		parsedConversations,
 		transcripts,
 		corpus,
+		statsData,
+		dailyTokenRows,
 	); err != nil {
 		return drift, fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
 	}
@@ -134,7 +139,7 @@ func parseConversationsParallelWithSources(
 	sources sourceRegistry,
 	conversations []conversation,
 ) (map[string]sessionFull, searchCorpus, error) {
-	results, err := parseConversationsParallelResultsWithSources(ctx, sources, conversations)
+	results, err := parseConversationsParallelResultsWithSources(ctx, sources, nil, conversations)
 	if err != nil {
 		return nil, searchCorpus{}, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
 	}
@@ -145,6 +150,7 @@ func parseConversationsParallelWithSources(
 func parseConversationsParallelResultsWithSources(
 	ctx context.Context,
 	sources sourceRegistry,
+	collector StatsCollector,
 	conversations []conversation,
 ) ([]parseResult, error) {
 	if len(conversations) == 0 {
@@ -177,13 +183,24 @@ func parseConversationsParallelResultsWithSources(
 			if err != nil {
 				return fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
 			}
+			statsData, dailyTokenRows, err := collectConversationStatsData(
+				groupCtx,
+				sources,
+				collector,
+				conv,
+			)
+			if err != nil {
+				return fmt.Errorf("collectConversationStatsData_%s: %w", conv.CacheKey(), err)
+			}
 
 			key := conv.CacheKey()
 			results[index] = parseResult{
-				key:          key,
-				conversation: enrichedConv,
-				session:      enrichedSession,
-				units:        buildSearchUnits(key, enrichedSession),
+				key:            key,
+				conversation:   enrichedConv,
+				session:        enrichedSession,
+				units:          buildSearchUnits(key, enrichedSession),
+				statsData:      statsData,
+				dailyTokenRows: dailyTokenRows,
 			}
 			return nil
 		})
@@ -193,6 +210,18 @@ func parseConversationsParallelResultsWithSources(
 		return nil, fmt.Errorf("errgroup.Wait: %w", err)
 	}
 	return results, nil
+}
+
+func buildParseStatsOutputs(
+	results []parseResult,
+) (map[string][]conv.SessionStatsData, map[string][]conv.DailyTokenRow) {
+	statsData := make(map[string][]conv.SessionStatsData, len(results))
+	dailyTokenRows := make(map[string][]conv.DailyTokenRow, len(results))
+	for _, result := range results {
+		statsData[result.key] = result.statsData
+		dailyTokenRows[result.key] = result.dailyTokenRows
+	}
+	return statsData, dailyTokenRows
 }
 
 func buildParseOutputs(results []parseResult) (map[string]sessionFull, searchCorpus) {
