@@ -197,6 +197,31 @@ func TestComputeOverviewOrdersTiedTopSessionsByTimestampThenName(t *testing.T) {
 	})
 }
 
+func TestComputeOverviewLimitsTiedTopSessionsByNewestFirst(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta("s1", time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s2", time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s3", time.Date(2026, 1, 3, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s4", time.Date(2026, 1, 4, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s5", time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s6", time.Date(2026, 1, 6, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+		testMeta("s7", time.Date(2026, 1, 7, 9, 0, 0, 0, time.UTC), withUsage(100, 0, 0, 0)),
+	}
+
+	got := ComputeOverview(sessions)
+
+	require.Len(t, got.TopSessions, 5)
+	assert.Equal(t, []string{"s7", "s6", "s5", "s4", "s3"}, []string{
+		got.TopSessions[0].Slug,
+		got.TopSessions[1].Slug,
+		got.TopSessions[2].Slug,
+		got.TopSessions[3].Slug,
+		got.TopSessions[4].Slug,
+	})
+}
+
 func TestComputeOverviewSkipsZeroTokenGroupsAndSessions(t *testing.T) {
 	t.Parallel()
 

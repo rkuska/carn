@@ -217,30 +217,12 @@ func renderBorderTop(title string, width int, fg, bg color.Color) string {
 
 func renderFramedPane(title string, width, bodyHeight int, borderColor color.Color, content string) string {
 	topBorder := renderBorderTop(title, width, borderColor, borderColor)
-	innerWidth := max(width-2, 1)
-	bodyContent := lipgloss.NewStyle().
-		Width(innerWidth).
-		Height(bodyHeight).
-		MaxHeight(bodyHeight).
-		Render(content)
-	body := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderTop(false).
-		BorderForeground(borderColor).
-		Width(width).
-		Render(bodyContent)
-	return topBorder + "\n" + body
+	return topBorder + "\n" + renderFramedBody(width, bodyHeight, borderColor, content)
 }
 
 func renderFramedBox(title string, width int, borderColor color.Color, content string) string {
 	topBorder := renderBorderTop(title, width, borderColor, borderColor)
-	body := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderTop(false).
-		BorderForeground(borderColor).
-		Width(width).
-		Render(content)
-	return topBorder + "\n" + body
+	return topBorder + "\n" + renderFramedBody(width, 0, borderColor, content)
 }
 
 func renderInsetBox(width int, borderColor color.Color, content string) string {
@@ -250,4 +232,41 @@ func renderInsetBox(width int, borderColor color.Color, content string) string {
 		Padding(0, 1).
 		Width(width).
 		Render(content)
+}
+
+func renderFramedBody(width, bodyHeight int, borderColor color.Color, content string) string {
+	innerWidth := max(width-2, 1)
+	lines := splitAndFitLines(content, innerWidth)
+	if len(lines) == 0 {
+		lines = []string{strings.Repeat(" ", innerWidth)}
+	}
+	if bodyHeight > 0 {
+		switch {
+		case len(lines) < bodyHeight:
+			for len(lines) < bodyHeight {
+				lines = append(lines, strings.Repeat(" ", innerWidth))
+			}
+		case len(lines) > bodyHeight:
+			lines = lines[:bodyHeight]
+		}
+	}
+
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+	leftBorder := borderStyle.Render("│")
+	rightBorder := leftBorder
+	bottomBorder := borderStyle.Render("╰" + strings.Repeat("─", innerWidth) + "╯")
+
+	var body strings.Builder
+	body.Grow((len(lines)+1)*(innerWidth+8) + len(bottomBorder))
+	for i, line := range lines {
+		if i > 0 {
+			body.WriteByte('\n')
+		}
+		body.WriteString(leftBorder)
+		body.WriteString(line)
+		body.WriteString(rightBorder)
+	}
+	body.WriteByte('\n')
+	body.WriteString(bottomBorder)
+	return body.String()
 }

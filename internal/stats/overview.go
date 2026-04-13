@@ -7,6 +7,8 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
+const overviewTopSessionLimit = 5
+
 func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	overview := Overview{
 		ByModel:   make([]ModelTokens, 0),
@@ -18,7 +20,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 
 	modelTotals := make(map[string]int)
 	projectTotals := make(map[string]int)
-	topSessions := make([]SessionSummary, 0, len(sessions))
+	topSessions := make([]SessionSummary, 0, min(len(sessions), overviewTopSessionLimit))
 
 	for _, session := range sessions {
 		summary, ok := accumulateOverviewSession(
@@ -28,7 +30,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 			session,
 		)
 		if ok {
-			topSessions = append(topSessions, summary)
+			topSessions = appendOverviewTopSession(topSessions, summary)
 		}
 	}
 
@@ -38,10 +40,6 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	overview.ByProject = sortTokenGroups(projectTotals, func(name string, tokens int) ProjectTokens {
 		return ProjectTokens{Project: name, Tokens: tokens}
 	})
-	sortSessionSummaries(topSessions)
-	if len(topSessions) > 5 {
-		topSessions = topSessions[:5]
-	}
 	overview.TopSessions = topSessions
 	return overview
 }
@@ -113,27 +111,53 @@ func sortTokenGroups[T any](totals map[string]int, build func(string, int) T) []
 	return items
 }
 
-func sortSessionSummaries(summaries []SessionSummary) {
-	slices.SortFunc(summaries, func(left, right SessionSummary) int {
-		switch {
-		case left.Tokens != right.Tokens:
-			return right.Tokens - left.Tokens
-		case !left.Timestamp.Equal(right.Timestamp):
-			if left.Timestamp.After(right.Timestamp) {
-				return -1
-			}
-			return 1
-		case left.Project != right.Project:
-			if left.Project < right.Project {
-				return -1
-			}
-			return 1
-		case left.Slug < right.Slug:
-			return -1
-		case left.Slug > right.Slug:
-			return 1
-		default:
-			return 0
+func appendOverviewTopSession(topSessions []SessionSummary, summary SessionSummary) []SessionSummary {
+	insertAt := len(topSessions)
+	for i, existing := range topSessions {
+		if compareSessionSummaryOrder(summary, existing) < 0 {
+			insertAt = i
+			break
 		}
-	})
+	}
+	if insertAt == len(topSessions) {
+		if len(topSessions) < overviewTopSessionLimit {
+			return append(topSessions, summary)
+		}
+		return topSessions
+	}
+
+	if len(topSessions) < overviewTopSessionLimit {
+		topSessions = append(topSessions, SessionSummary{})
+	} else {
+		topSessions = append(topSessions[:overviewTopSessionLimit-1], SessionSummary{})
+	}
+	copy(topSessions[insertAt+1:], topSessions[insertAt:])
+	topSessions[insertAt] = summary
+	if len(topSessions) > overviewTopSessionLimit {
+		topSessions = topSessions[:overviewTopSessionLimit]
+	}
+	return topSessions
+}
+
+func compareSessionSummaryOrder(left, right SessionSummary) int {
+	switch {
+	case left.Tokens != right.Tokens:
+		return right.Tokens - left.Tokens
+	case !left.Timestamp.Equal(right.Timestamp):
+		if left.Timestamp.After(right.Timestamp) {
+			return -1
+		}
+		return 1
+	case left.Project != right.Project:
+		if left.Project < right.Project {
+			return -1
+		}
+		return 1
+	case left.Slug < right.Slug:
+		return -1
+	case left.Slug > right.Slug:
+		return 1
+	default:
+		return 0
+	}
 }

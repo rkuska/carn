@@ -66,7 +66,7 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 }
 
 func collectSessionTurns(messages []conv.Message) []TurnTokens {
-	turns := make([]TurnTokens, 0)
+	turns := make([]TurnTokens, 0, estimatedTurnCapacity(messages))
 	current := TurnTokens{}
 	hasUsage := false
 
@@ -102,6 +102,13 @@ func collectSessionTurns(messages []conv.Message) []TurnTokens {
 
 	flush()
 	return turns
+}
+
+func estimatedTurnCapacity(messages []conv.Message) int {
+	if len(messages) == 0 {
+		return 0
+	}
+	return max(len(messages)/2, 1)
 }
 
 func isTurnBoundary(message conv.Message) bool {

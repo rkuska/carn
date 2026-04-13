@@ -1,6 +1,10 @@
 # Performance Baseline
 
-Captured on April 9, 2026.
+Refreshed on April 13, 2026.
+
+The stats and stats-render rows below were rerun on Apple M4 Pro,
+darwin/arm64. Unchanged rows remain from the April 9, 2026 full-suite capture
+on the same machine.
 
 ## Workflow
 
@@ -38,28 +42,28 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/app` | BenchmarkBrowserDeepSearchWarm | 1,477,817 | 9,499 | 235 |
 | `User-Facing` | `internal/app` | BenchmarkViewerRenderContent | 1,872 | 0 | 0 |
 | `User-Facing` | `internal/app` | BenchmarkViewerSearch | 515.1 | 0 | 0 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 11,053 | 12,624 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 161,867 | 115,024 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 2,015,019 | 1,122,668 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeActivity/1000 | 121,042 | 66,368 | 61 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/100 | 56,606 | 56,744 | 507 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 558,745 | 547,432 | 5,007 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 8,540 | 2,304 | 1 |
-| `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 88,677 | 384 | 5 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeCache/100 | — | 36,928 | 35 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeCache/1000 | — | 36,928 | 35 |
-| `User-Facing` | `internal/stats` | BenchmarkComputeCache/10000 | — | 36,928 | 35 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 64,535 | 33,511 | 139 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 552,754 | 55,432 | 139 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 73,103 | 51,541 | 175 |
-| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 594,263 | 73,457 | 175 |
-| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 29,235 | 41,296 | 433 |
-| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 294,165 | 414,353 | 4,333 |
-| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 42,517 | 11,239 | 361 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 72,662 | 20,184 | 385 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 59,725 | 13,864 | 326 |
-| `User-Facing` | `internal/app` | BenchmarkStatsCacheRender | — | 59,061 | 1,711 |
-| `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 118,323 | 37,690 | 478 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 10,443 | 912 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 107,463 | 912 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 1,084,374 | 912 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeActivity/1000 | 130,302 | 66,368 | 61 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/100 | 56,128 | 31,144 | 107 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeTokenGrowth/1000 | 545,633 | 291,434 | 1,007 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeStreaks/1000 | 9,223 | 2,304 | 1 |
+| `User-Facing` | `internal/stats` | BenchmarkToolAggregation/1000 | 90,666 | 384 | 5 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/100 | 10,965 | 10,832 | 7 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/1000 | 86,621 | 10,832 | 7 |
+| `User-Facing` | `internal/stats` | BenchmarkComputeCache/10000 | 833,219 | 10,832 | 7 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/100 | 60,320 | 33,511 | 139 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformance/1000 | 548,113 | 55,428 | 139 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/100 | 69,400 | 51,540 | 175 |
+| `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 578,661 | 73,457 | 175 |
+| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 29,604 | 41,296 | 433 |
+| `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 299,236 | 414,353 | 4,333 |
+| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 115,480 | 37,638 | 513 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 81,217 | 20,184 | 385 |
+| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 63,481 | 14,840 | 324 |
+| `User-Facing` | `internal/app` | BenchmarkStatsCacheRender | 139,379 | 39,296 | 488 |
+| `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 223,128 | 103,804 | 837 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,104,437 | 3,373,698 | 29,960 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,907,520 | 1,056,389 | 16,825 |
 | `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 6,343,932 | 6,859,248 | 88,373 |
@@ -119,7 +123,7 @@ Notes:
   `BenchmarkCanonicalStoreFullRebuild`,
   `BenchmarkCanonicalStoreParseConversations`,
   `BenchmarkScanRollouts`,
-  `BenchmarkBrowserLoadSessionsCold`, and `BenchmarkComputeOverview/10000`.
+  `BenchmarkBrowserLoadSessionsCold`, and `BenchmarkCanonicalStoreListCold`.
 - Use `go test -memprofile -memprofilerate=1` followed by
   `go tool pprof -top -sample_index=alloc_space` when a focused allocation
   profile is needed for `BenchmarkCanonicalStoreFullRebuild`.
@@ -127,8 +131,8 @@ Notes:
   functions such as `benchSessionJSONLLongConversation`,
   `makeBenchRawArchive`, `benchRolloutJSONL`, `makeBenchRawCodexCorpus`, and
   `newViewerModel` can appear in profiles alongside product hot paths.
-- Cache benchmark entries (`BenchmarkComputeCache`, `BenchmarkStatsCacheRender`)
-  show `—` for ns/op because they were captured on a different platform than the
-  original baseline. Refresh all rows on the reference machine to fill in
-  comparable timing numbers.
+- The April 13 refresh replaced the cache placeholder rows and also captured the
+  profile-guided stats improvements: overview top-session maintenance now keeps
+  a fixed-size top five, cache aggregation uses indexed day buckets, and turn
+  token growth preallocates per-session turn slices.
 - Refresh this file whenever benchmark commands or meaningful results change.
