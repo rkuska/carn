@@ -19,7 +19,10 @@ func TestConsoleLogWriterUsesRFC3339TimestampWithOffset(t *testing.T) {
 		Msg("carn started")
 
 	logged := buf.String()
-	assert.Contains(t, logged, "2026-04-13T10:11:12+02:00")
+	// ConsoleWriter re-formats in local time, so assert the local
+	// representation rather than a fixed offset.
+	localTS := timestamp.Local().Format(time.RFC3339)
+	assert.Contains(t, logged, localTS)
 	assert.Contains(t, logged, "INF")
 	assert.Contains(t, logged, "carn started")
 }
