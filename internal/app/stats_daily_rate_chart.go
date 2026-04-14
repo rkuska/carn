@@ -49,14 +49,14 @@ func renderDailyRateColumnChart(
 		return ""
 	}
 	if len(rates) == 0 {
-		return "No data"
+		return noDataLabel
 	}
 
 	maxValue, axisLabelWidth := dailyRateChartScale(rates, yFormatter)
 	plotWidth := max(width-axisLabelWidth-3, 1)
 	buckets := bucketDailyRates(rates, plotWidth)
 	if len(buckets) == 0 {
-		return "No data"
+		return noDataLabel
 	}
 
 	slots := dailyRateBarSlots(len(buckets), plotWidth)

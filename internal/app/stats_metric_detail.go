@@ -67,15 +67,37 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 			metricDetailLine("Reading", "Longer bars mean more total tokens in the active slice."),
 		)
 	}
-	if lane.id == statsLaneOverviewProj {
+	if lane.id == statsLaneOverviewProject {
 		leader, share := leadingProjectDetail(overview)
 		return renderStatsMetricDetail(lane.title, width, []chip{
 			{Label: "leading project", Value: leader},
 			{Label: "share", Value: share},
 			{Label: "tokens", Value: statspkg.FormatNumber(overview.Tokens.Total)},
 		},
-			metricDetailLine("Question", "Which projects are consuming the most tokens?"),
+			metricDetailLine("Question", "Which projects are driving token use?"),
 			metricDetailLine("Reading", "Longer bars mean more total tokens in the active slice."),
+		)
+	}
+	if lane.id == statsLaneOverviewProviderVersion {
+		items := m.snapshot.Overview.ByProviderVersion
+		if len(items) == 0 {
+			return renderStatsMetricDetail(lane.title, width, nil, noDataLabel)
+		}
+		total := 0
+		for _, item := range items {
+			total += item.Tokens
+		}
+		return renderStatsMetricDetail(lane.title, width, []chip{
+			{Label: "providers", Value: statspkg.FormatNumber(providerVersionProviderCount(items))},
+			{Label: "entries", Value: statspkg.FormatNumber(len(items))},
+			{Label: "tokens", Value: statspkg.FormatNumber(total)},
+		},
+			metricDetailLine("Question", "Which provider/version pairs are driving tokens in the active range?"),
+			metricDetailLine(
+				"Reading",
+				"Each row shows provider, version, a proportional bar, total tokens, and share within the filtered dataset.",
+			),
+			metricDetailLine("Scope", "Use filters to narrow provider, model, and version."),
 		)
 	}
 
@@ -167,6 +189,16 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 		)
 	}
 	if lane.id == statsLaneSessionsContext {
+		if m.sessionsGrouped {
+			return renderStatsMetricDetail(lane.title, width, groupedTurnMetricDetailChips(m),
+				metricDetailLine("Question", "How does prompt growth differ across versions for the selected provider?"),
+				metricDetailLine(
+					"Reading",
+					"Each stacked bar is one main-thread user turn position, with colors splitting the total by version.",
+				),
+				metricDetailLine("Scope", groupedTurnMetricScope(m)),
+			)
+		}
 		return renderStatsMetricDetail(lane.title, width, promptMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
 			metricDetailLine("Question", "How does prompt size grow as main-thread sessions go deeper?"),
 			metricDetailLine(
@@ -177,6 +209,19 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 				"Scope",
 				"Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt.",
 			),
+		)
+	}
+	if m.sessionsGrouped {
+		return renderStatsMetricDetail(lane.title, width, groupedTurnMetricDetailChips(m),
+			metricDetailLine(
+				"Question",
+				"How does full assistant-side turn cost differ across versions for the selected provider?",
+			),
+			metricDetailLine(
+				"Reading",
+				"Each stacked bar is one main-thread user turn position, with colors splitting the total by version.",
+			),
+			metricDetailLine("Scope", groupedTurnMetricScope(m)),
 		)
 	}
 	return renderStatsMetricDetail(lane.title, width, turnCostMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
@@ -275,138 +320,4 @@ func renderPerformancePreviewMetricDetail(m statsModel, width int) string {
 		metricDetailLine("Reading", "These are the metrics this lane will score once the scope is narrowed."),
 		metricDetailLine("Includes", strings.Join(card.Metrics, ", ")),
 	)
-}
-
-func leadingModelDetail(overview statspkg.Overview) (string, string) {
-	if len(overview.ByModel) == 0 {
-		return noDataLabel, "0%"
-	}
-	item := overview.ByModel[0]
-	return item.Model, formatPercent(item.Tokens, overview.Tokens.Total)
-}
-
-func leadingProjectDetail(overview statspkg.Overview) (string, string) {
-	if len(overview.ByProject) == 0 {
-		return noDataLabel, "0%"
-	}
-	item := overview.ByProject[0]
-	return item.Project, formatPercent(item.Tokens, overview.Tokens.Total)
-}
-
-func formatPercent(part, total int) string {
-	if total <= 0 || part <= 0 {
-		return "0%"
-	}
-	return fmt.Sprintf("%.0f%%", float64(part)/float64(total)*100)
-}
-
-func activityMetricName(metric activityMetric) string {
-	switch metric {
-	case metricSessions:
-		return "Sessions"
-	case metricMessages:
-		return "Messages"
-	case metricTokens:
-		return "Tokens"
-	}
-	return "Sessions"
-}
-
-func peakDailyCount(counts []statspkg.DailyCount) (string, int) {
-	if len(counts) == 0 {
-		return noDataLabel, 0
-	}
-
-	peak := counts[0]
-	for _, count := range counts[1:] {
-		if count.Count > peak.Count {
-			peak = count
-		}
-	}
-	return peak.Date.Format("2006-01-02"), peak.Count
-}
-
-func totalDailyCount(counts []statspkg.DailyCount) int {
-	total := 0
-	for _, count := range counts {
-		total += count.Count
-	}
-	return total
-}
-
-func busiestHeatmapSlot(cells [7][24]int) (string, int) {
-	dayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-	bestDay, bestHour, bestCount := 0, 0, 0
-	for day := range 7 {
-		for hour := range 24 {
-			if cells[day][hour] > bestCount {
-				bestDay = day
-				bestHour = hour
-				bestCount = cells[day][hour]
-			}
-		}
-	}
-	if bestCount == 0 {
-		return noDataLabel, 0
-	}
-	return fmt.Sprintf("%s %02d:00", dayNames[bestDay], bestHour), bestCount
-}
-
-func dominantHistogramBucket(buckets []statspkg.HistogramBucket) (string, int) {
-	if len(buckets) == 0 {
-		return noDataLabel, 0
-	}
-	best := buckets[0]
-	for _, bucket := range buckets[1:] {
-		if bucket.Count > best.Count {
-			best = bucket
-		}
-	}
-	return best.Label, best.Count
-}
-
-func leadingTool(tools []statspkg.ToolStat) (string, int) {
-	if len(tools) == 0 {
-		return noDataLabel, 0
-	}
-	return tools[0].Name, tools[0].Count
-}
-
-func topToolRate(rates []statspkg.ToolRateStat) (string, string) {
-	if len(rates) == 0 {
-		return noDataLabel, "0.0%"
-	}
-	return rates[0].Name, formatToolRatePercent(rates[0].Rate)
-}
-
-func formatRatio(value float64) string {
-	return fmt.Sprintf("%.1f:1", value)
-}
-
-func promptMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
-	early := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AveragePromptTokens
-	})
-	late := averageTurnMetricRange(metrics, 20, 999, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AveragePromptTokens
-	})
-	return []chip{
-		{Label: statsClaudePromptEarlyLabel, Value: formatFloat(early)},
-		{Label: statsClaudePromptLateLabel, Value: formatFloat(late)},
-		{Label: statsClaudePromptFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
-	}
-}
-
-func turnCostMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
-	early := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageTurnTokens
-	})
-	late := averageTurnMetricRange(metrics, 20, 999, func(metric statspkg.PositionTokenMetrics) float64 {
-		return metric.AverageTurnTokens
-	})
-	return []chip{
-		{Label: statsClaudeTurnCostEarlyLabel, Value: formatFloat(early)},
-		{Label: statsClaudeTurnCostLateLabel, Value: formatFloat(late)},
-		{Label: statsClaudeTurnCostFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
-	}
 }

@@ -20,7 +20,17 @@ func TestStatsRenderOverviewIncludesSelectedLaneMetricDetail(t *testing.T) {
 	assert.Contains(t, body, "Tokens by Model")
 	assert.Contains(t, body, "leading model")
 
+	m.overviewLaneCursor = 1
+	body = ansi.Strip(m.renderOverviewTab(120))
+	assert.Contains(t, body, "Tokens by Project")
+	assert.Contains(t, body, "leading project")
+
 	m.overviewLaneCursor = 2
+	body = ansi.Strip(m.renderOverviewTab(120))
+	assert.Contains(t, body, "Tokens by (Provider, Version)")
+	assert.Contains(t, body, "provider/version")
+
+	m.overviewLaneCursor = 3
 	body = ansi.Strip(m.renderOverviewTab(120))
 	assert.Contains(t, body, "Most Token-Heavy Sessions")
 	assert.Contains(t, body, "Enter opens the selected session")

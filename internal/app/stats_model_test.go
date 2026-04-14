@@ -448,6 +448,60 @@ func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) 
 	assert.Contains(t, view, statsDegradedHintText)
 }
 
+func TestStatsSessionsTurnMetricsKeepLateTurnsWhenProviderFiltered(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	codexConversation := testStatsConversationWithProviderAndSessions(
+		conv.ProviderCodex,
+		"codex-1",
+		"alpha",
+		testStatsSessionMeta("codex-1", "alpha", now, func(meta *conv.SessionMeta) {
+			meta.Provider = conv.ProviderCodex
+		}),
+	)
+	claudeConversation := testStatsConversationWithProviderAndSessions(
+		conv.ProviderClaude,
+		"claude-1",
+		"beta",
+		testStatsSessionMeta("claude-1", "beta", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+			meta.Provider = conv.ProviderClaude
+		}),
+	)
+
+	store := &fakeBrowserStore{
+		turnMetricRowsByKey: map[string][]conv.SessionTurnMetrics{
+			codexConversation.CacheKey(): {
+				testTurnMetricRowWithLength(now, conv.ProviderCodex, "2.0.0", 12),
+				testTurnMetricRowWithLength(now.Add(-time.Minute), conv.ProviderCodex, "2.0.0", 12),
+			},
+			claudeConversation.CacheKey(): {
+				testTurnMetricRowWithLength(now.Add(-2*time.Minute), conv.ProviderClaude, "1.0.0", 12),
+			},
+		},
+	}
+
+	filter := newBrowserFilterState()
+	filter.dimensions[filterDimProvider] = dimensionFilter{
+		selected: map[string]bool{conv.ProviderCodex.Label(): true},
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{codexConversation, claudeConversation},
+		store,
+		120,
+		32,
+		filter,
+	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 12)
+	assert.Equal(t, 1, m.snapshot.Sessions.ClaudeTurnMetrics[0].Position)
+	assert.Equal(t, 12, m.snapshot.Sessions.ClaudeTurnMetrics[len(m.snapshot.Sessions.ClaudeTurnMetrics)-1].Position)
+	assert.Equal(t, 2, m.snapshot.Sessions.ClaudeTurnMetrics[11].SampleCount)
+}
+
 func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
@@ -633,7 +687,7 @@ func TestStatsOverviewSelectedSessionOpensHeavySessionAndBackReturnsToStats(t *t
 	)
 	m.glamourStyle = "dark"
 	m.timestampFormat = "2006-01-02 15:04"
-	m.overviewLaneCursor = 2
+	m.overviewLaneCursor = 3
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
@@ -678,7 +732,7 @@ func TestStatsOverviewMetricKeyCyclesSelectedSessionRow(t *testing.T) {
 		32,
 		newBrowserFilterState(),
 	)
-	m.overviewLaneCursor = 2
+	m.overviewLaneCursor = 3
 
 	assert.Equal(t, 0, m.overviewSessionCursor)
 

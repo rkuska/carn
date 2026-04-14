@@ -18,6 +18,12 @@ type histogramBucketRender struct {
 	labelInside  bool
 }
 
+type histogramLayout struct {
+	bucketWidths []int
+	gapWidth     int
+	graphWidth   int
+}
+
 func renderVerticalHistogram(title string, buckets []histBucket, width, maxHeight int) string {
 	return renderVerticalHistogramWithColor(title, buckets, width, maxHeight, colorChartBar)
 }
@@ -54,10 +60,8 @@ func renderVerticalHistogramBody(
 	maxCount := histogramMaxCount(buckets)
 	renderBuckets := histogramBucketRenders(buckets, maxCount, maxHeight)
 	axisLabelWidth := max(lipgloss.Width(statspkg.FormatNumber(maxCount)), 1)
-	gapWidth := 1
 	graphWidth := max(width-axisLabelWidth-3, 1)
-	bucketWidth := max((graphWidth-gapWidth*(len(buckets)-1))/len(buckets), 3)
-	graphWidth = bucketWidth*len(buckets) + gapWidth*(len(buckets)-1)
+	layout := resolveHistogramLayout(graphWidth, len(buckets))
 	barStyle := lipgloss.NewStyle().Foreground(barColor)
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
 
@@ -68,16 +72,16 @@ func renderVerticalHistogramBody(
 			maxCount,
 			maxHeight,
 			axisLabelWidth,
-			bucketWidth,
-			gapWidth,
+			layout.bucketWidths,
+			layout.gapWidth,
 			width,
 			barStyle,
 			labelStyle,
 		))
 	}
 
-	lines = append(lines, renderHistogramAxis(axisLabelWidth, graphWidth, width))
-	lines = append(lines, renderHistogramLabels(buckets, axisLabelWidth, bucketWidth, gapWidth, width))
+	lines = append(lines, renderHistogramAxis(axisLabelWidth, layout.graphWidth, width))
+	lines = append(lines, renderHistogramLabels(buckets, axisLabelWidth, layout.bucketWidths, layout.gapWidth, width))
 
 	return strings.Join(lines, "\n")
 }
@@ -128,12 +132,14 @@ func histogramValueLabelPlacement(scaledHeight, maxHeight int) (int, bool) {
 
 func renderHistogramLevel(
 	buckets []histogramBucketRender,
-	level, maxCount, maxHeight, axisLabelWidth, bucketWidth, gapWidth, width int,
+	level, maxCount, maxHeight, axisLabelWidth int,
+	bucketWidths []int,
+	gapWidth, width int,
 	barStyle, labelStyle lipgloss.Style,
 ) string {
 	parts := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		parts = append(parts, renderHistogramCell(bucket, level, bucketWidth, barStyle, labelStyle))
+	for i, bucket := range buckets {
+		parts = append(parts, renderHistogramCell(bucket, level, bucketWidths[i], barStyle, labelStyle))
 	}
 	prefix := fitToWidth(histogramAxisLabel(histogramLevelLabel(level, maxHeight, maxCount)), axisLabelWidth) +
 		" " + histogramAxisLine("│") + " "
@@ -145,6 +151,9 @@ func renderHistogramCell(
 	level, bucketWidth int,
 	barStyle, labelStyle lipgloss.Style,
 ) string {
+	if bucketWidth <= 0 {
+		return ""
+	}
 	if bucket.labelLevel == level {
 		return renderHistogramValueLabel(bucket.label, bucketWidth, labelStyle)
 	}
@@ -155,6 +164,9 @@ func renderHistogramCell(
 }
 
 func renderHistogramValueLabel(label string, bucketWidth int, labelStyle lipgloss.Style) string {
+	if bucketWidth <= 0 {
+		return ""
+	}
 	text := fitToWidth(ansi.Truncate(label, bucketWidth, "…"), bucketWidth)
 	return lipgloss.PlaceHorizontal(bucketWidth, lipgloss.Center, labelStyle.Render(text))
 }
@@ -177,18 +189,56 @@ func renderHistogramAxis(axisLabelWidth, graphWidth, width int) string {
 
 func renderHistogramLabels(
 	buckets []histBucket,
-	axisLabelWidth, bucketWidth, gapWidth, width int,
+	axisLabelWidth int,
+	bucketWidths []int,
+	gapWidth, width int,
 ) string {
 	labels := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		label := ansi.Truncate(bucket.Label, bucketWidth, "…")
-		labels = append(labels, lipgloss.PlaceHorizontal(bucketWidth, lipgloss.Center, histogramAxisLabel(label)))
+	for i, bucket := range buckets {
+		if bucketWidths[i] <= 0 {
+			labels = append(labels, "")
+			continue
+		}
+		label := ansi.Truncate(bucket.Label, bucketWidths[i], "…")
+		labels = append(labels, lipgloss.PlaceHorizontal(bucketWidths[i], lipgloss.Center, histogramAxisLabel(label)))
 	}
 	return ansi.Truncate(
 		strings.Repeat(" ", axisLabelWidth+3)+strings.Join(labels, strings.Repeat(" ", gapWidth)),
 		width,
 		"…",
 	)
+}
+
+func resolveHistogramLayout(graphWidth, bucketCount int) histogramLayout {
+	if graphWidth <= 0 || bucketCount <= 0 {
+		return histogramLayout{}
+	}
+
+	gapWidth := 1
+	if graphWidth < bucketCount*2-1 {
+		gapWidth = 0
+	}
+	bucketSpace := max(graphWidth-gapWidth*(bucketCount-1), 0)
+	baseWidth := 0
+	remainder := 0
+	if bucketCount > 0 {
+		baseWidth = bucketSpace / bucketCount
+		remainder = bucketSpace % bucketCount
+	}
+
+	widths := make([]int, bucketCount)
+	for i := range bucketCount {
+		widths[i] = baseWidth
+		if i < remainder {
+			widths[i]++
+		}
+	}
+
+	return histogramLayout{
+		bucketWidths: widths,
+		gapWidth:     gapWidth,
+		graphWidth:   bucketSpace + gapWidth*(bucketCount-1),
+	}
 }
 
 func histogramAxisLabel(text string) string {

@@ -12,14 +12,16 @@ import (
 
 func (m statsModel) renderPerformanceTab(width int) string {
 	performance := m.snapshot.Performance
+	sections := make([]string, 0, 8)
 	if !m.performanceScopeAllowsScorecard() {
-		return strings.Join([]string{
+		sections = append(sections,
 			renderPerformanceScopeGate(m, width),
 			m.renderActiveMetricDetail(width),
-		}, "\n\n")
+		)
+		return strings.Join(sections, "\n\n")
 	}
 
-	sections := []string{renderPerformanceHeadline(performance, width)}
+	sections = append(sections, renderPerformanceHeadline(performance, width))
 
 	sections = append(sections,
 		renderSummaryChips(performanceScoreChips(performance), width),

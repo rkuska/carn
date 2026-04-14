@@ -13,9 +13,10 @@ type statsLane struct {
 }
 
 const (
-	statsLaneOverviewModel statsLaneID = "overview_model"
-	statsLaneOverviewProj  statsLaneID = "overview_project"
-	statsLaneOverviewTop   statsLaneID = "overview_top_sessions"
+	statsLaneOverviewModel           statsLaneID = "overview_model"
+	statsLaneOverviewProject         statsLaneID = "overview_project"
+	statsLaneOverviewProviderVersion statsLaneID = "overview_provider_version"
+	statsLaneOverviewTop             statsLaneID = "overview_top_sessions"
 
 	statsLaneActivityDaily   statsLaneID = "activity_daily"
 	statsLaneActivityHeatmap statsLaneID = "activity_heatmap"
@@ -44,7 +45,8 @@ const (
 func overviewStatsLanes() []statsLane {
 	return []statsLane{
 		{id: statsLaneOverviewModel, title: "Tokens by Model"},
-		{id: statsLaneOverviewProj, title: "Tokens by Project"},
+		{id: statsLaneOverviewProject, title: "Tokens by Project"},
+		{id: statsLaneOverviewProviderVersion, title: "Tokens by (Provider, Version)"},
 		{
 			id:             statsLaneOverviewTop,
 			title:          "Most Token-Heavy Sessions",
@@ -106,7 +108,7 @@ func (m statsModel) normalizeStatsSelection() statsModel {
 	m.cacheLaneCursor = clampCursor(m.cacheLaneCursor, len(cacheStatsLanes()))
 	m = m.normalizePerformanceSelection()
 
-	if m.tab != statsTabOverview || m.overviewLaneCursor != 2 {
+	if m.tab != statsTabOverview || m.overviewLaneCursor != 3 {
 		m.overviewSessionCursor = 0
 		return m
 	}

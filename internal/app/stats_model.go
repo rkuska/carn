@@ -51,6 +51,13 @@ type statsModel struct {
 	timeRange               stats.TimeRange
 	snapshot                stats.Snapshot
 	filter                  browserFilterState
+	versionFilter           dimensionFilter
+	versionValues           []string
+	statsSessions           []conv.SessionMeta
+	statsTurnMetrics        []conv.SessionTurnMetrics
+	statsActivityBuckets    []conv.ActivityBucketRow
+	groupScope              statsGroupScopeState
+	sessionsGrouped         bool
 	viewer                  viewerModel
 	viewerOpen              bool
 	notification            notification
@@ -144,6 +151,9 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if m.helpOpen {
 			return m.handleHelpKey(keyMsg)
+		}
+		if m.groupScope.active {
+			return m.handleGroupScopeKey(keyMsg)
 		}
 		if m.filter.active {
 			return m.handleFilterKey(keyMsg)
@@ -251,12 +261,23 @@ func (m statsModel) recomputeSnapshot() statsModel {
 	cacheKeys := filteredConversationCacheKeys(conversations)
 	rows := m.loadPrecomputedStatsRows(cacheKeys)
 	m = m.applyStatsQueryFailures(rows.queryFailure)
+	filteredConversations, filteredSessions := filterStatsConversationsByVersion(conversations, m.versionFilter)
+	filteredTurnMetrics := filterTurnMetricsByVersion(rows.turnMetrics, m.versionFilter)
+	filteredActivityBuckets := filterActivityBucketsByVersion(rows.activityBuckets, m.versionFilter)
+	m.versionValues = extractStatsVersionValues(conversations)
+	m.statsSessions = filteredSessions
+	m.statsTurnMetrics = filteredTurnMetrics
+	m.statsActivityBuckets = filteredActivityBuckets
+	sequence := rows.sequence
+	if m.versionFilter.isActive() {
+		sequence = nil
+	}
 	m.snapshot = stats.ComputeSnapshotWithPrecomputed(
-		conversations,
+		filteredConversations,
 		m.timeRange,
-		rows.sequence,
-		rows.turnMetrics,
-		rows.activityBuckets,
+		sequence,
+		filteredTurnMetrics,
+		filteredActivityBuckets,
 	)
 	m = m.normalizeStatsSelection()
 	return m
@@ -301,6 +322,9 @@ func (m statsModel) footerStatusParts() []string {
 	parts := make([]string, 0, 2+len(filterBadges(m.filter.dimensions)))
 	for _, badge := range filterBadges(m.filter.dimensions) {
 		parts = append(parts, styleToolCall.Render("["+badge+"]"))
+	}
+	if m.versionFilter.isActive() {
+		parts = append(parts, renderStatsVersionFilterBadge(m.versionFilter))
 	}
 	if m.statsQueryFailures.degraded() {
 		parts = append(parts, renderStatsDegradedBadge())

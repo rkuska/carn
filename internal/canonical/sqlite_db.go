@@ -110,6 +110,8 @@ var sqliteSchemaStatements = []string{
 	`CREATE TABLE IF NOT EXISTS stats_turn_metrics (
 		conversation_cache_key TEXT NOT NULL,
 		session_ordinal INTEGER NOT NULL,
+		provider TEXT NOT NULL,
+		version TEXT NOT NULL,
 		timestamp_ns INTEGER NOT NULL,
 		turns_json TEXT NOT NULL DEFAULT '[]',
 		PRIMARY KEY (conversation_cache_key, session_ordinal)
@@ -118,6 +120,7 @@ var sqliteSchemaStatements = []string{
 		conversation_cache_key TEXT NOT NULL,
 		bucket_start_ns INTEGER NOT NULL,
 		provider TEXT NOT NULL,
+		version TEXT NOT NULL,
 		model TEXT NOT NULL,
 		project TEXT NOT NULL,
 		session_count INTEGER NOT NULL DEFAULT 0,
@@ -133,6 +136,7 @@ var sqliteSchemaStatements = []string{
 			conversation_cache_key,
 			bucket_start_ns,
 			provider,
+			version,
 			model,
 			project
 		)

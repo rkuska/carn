@@ -36,21 +36,31 @@ func TestScenarioStatsViewScrollBehavior(t *testing.T) {
 }
 
 func TestScenarioStatsViewSideBySideLayout(t *testing.T) {
-	wideHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 80, 22)
+	wideHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 80, 32)
 	wideView := wideHarness.currentView()
 	assert.Equal(
 		t,
 		lineIndexContaining(t, wideView, "Tokens by Model"),
 		lineIndexContaining(t, wideView, "Tokens by Project"),
 	)
+	assert.Equal(
+		t,
+		lineIndexContaining(t, wideView, "Tokens by (Provider, Version)"),
+		lineIndexContaining(t, wideView, "Most Token-Heavy Sessions"),
+	)
 	wideHarness.quit(t)
 
-	narrowHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 60, 22)
+	narrowHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 60, 32)
 	narrowView := narrowHarness.currentView()
 	require.NotEqual(
 		t,
 		lineIndexContaining(t, narrowView, "Tokens by Model"),
 		lineIndexContaining(t, narrowView, "Tokens by Project"),
+	)
+	require.NotEqual(
+		t,
+		lineIndexContaining(t, narrowView, "Tokens by (Provider, Version)"),
+		lineIndexContaining(t, narrowView, "Most Token-Heavy Sessions"),
 	)
 	narrowHarness.quit(t)
 }

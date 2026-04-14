@@ -18,6 +18,8 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 			"s1",
 			time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
 			withProject("alpha"),
+			withProvider(conv.ProviderClaude),
+			withVersion("1.0.0"),
 			withModel("claude-sonnet-4"),
 			withMainMessages(10),
 			withLastTimestamp(time.Date(2026, 1, 10, 9, 30, 0, 0, time.UTC)),
@@ -27,6 +29,8 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 			"s2",
 			time.Date(2026, 1, 11, 9, 0, 0, 0, time.UTC),
 			withProject("beta"),
+			withProvider(conv.ProviderCodex),
+			withVersion("2.1.0"),
 			withModel("claude-opus-4"),
 			withMainMessages(20),
 			withLastTimestamp(time.Date(2026, 1, 11, 10, 0, 0, 0, time.UTC)),
@@ -36,6 +40,7 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 			"s3",
 			time.Date(2026, 1, 12, 9, 0, 0, 0, time.UTC),
 			withProject("alpha"),
+			withProvider(conv.ProviderClaude),
 			withModel("claude-sonnet-4"),
 			withMainMessages(5),
 			withLastTimestamp(time.Date(2026, 1, 12, 9, 10, 0, 0, time.UTC)),
@@ -49,7 +54,7 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 	assert.Equal(t, 35, got.MessageCount)
 	assert.Equal(
 		t,
-		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 100},
+		TokenTotals{Total: 4650, Input: 3300, Output: 1000, CacheRead: 250, CacheWrite: 2100},
 		got.Tokens,
 	)
 	assert.Equal(
@@ -67,6 +72,15 @@ func TestComputeOverviewAggregatesTotalsAndGroups(t *testing.T) {
 			{Project: "alpha", Tokens: 1850},
 		},
 		got.ByProject,
+	)
+	assert.Equal(
+		t,
+		[]ProviderVersionTokens{
+			{Provider: conv.ProviderCodex, Version: "2.1.0", Tokens: 2800},
+			{Provider: conv.ProviderClaude, Version: "1.0.0", Tokens: 1450},
+			{Provider: conv.ProviderClaude, Version: UnknownVersionLabel, Tokens: 400},
+		},
+		got.ByProviderVersion,
 	)
 	require.Len(t, got.TopSessions, 3)
 	assert.Equal(t, "s2", got.TopSessions[0].Slug)

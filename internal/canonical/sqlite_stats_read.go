@@ -94,7 +94,7 @@ func readStatsTurnMetrics(
 		ctx,
 		db,
 		cacheKeys,
-		`SELECT timestamp_ns, turns_json
+		`SELECT provider, version, timestamp_ns, turns_json
 		   FROM stats_turn_metrics
 		  WHERE conversation_cache_key IN (%s)
 		  ORDER BY timestamp_ns, conversation_cache_key, session_ordinal`,
@@ -110,12 +110,16 @@ func readStatsTurnMetrics(
 
 	result := make([]conv.SessionTurnMetrics, 0)
 	for rows.Next() {
+		var provider string
+		var version string
 		var timestampNS int64
 		var turnsJSON string
 		row := conv.SessionTurnMetrics{}
-		if err := rows.Scan(&timestampNS, &turnsJSON); err != nil {
+		if err := rows.Scan(&provider, &version, &timestampNS, &turnsJSON); err != nil {
 			return nil, fmt.Errorf("rows.Scan: %w", err)
 		}
+		row.Provider = conv.Provider(provider)
+		row.Version = version
 		if timestampNS != 0 {
 			row.Timestamp = unixTime(timestampNS)
 		}
@@ -141,7 +145,7 @@ func readStatsActivityBuckets(
 		ctx,
 		db,
 		cacheKeys,
-		`SELECT bucket_start_ns, provider, model, project,
+		`SELECT bucket_start_ns, provider, version, model, project,
 		        SUM(session_count), SUM(message_count),
 		        SUM(user_message_count), SUM(assistant_message_count),
 		        SUM(input_tokens), SUM(cache_creation_tokens),
@@ -149,8 +153,8 @@ func readStatsActivityBuckets(
 		        SUM(reasoning_output_tokens)
 		   FROM stats_activity_buckets
 		  WHERE conversation_cache_key IN (%s)
-		  GROUP BY bucket_start_ns, provider, model, project
-		  ORDER BY bucket_start_ns, provider, model, project`,
+		  GROUP BY bucket_start_ns, provider, version, model, project
+		  ORDER BY bucket_start_ns, provider, version, model, project`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("queryStatsRows: %w", err)
@@ -168,6 +172,7 @@ func readStatsActivityBuckets(
 		if err := rows.Scan(
 			&bucketStartNS,
 			&row.Provider,
+			&row.Version,
 			&row.Model,
 			&row.Project,
 			&row.SessionCount,

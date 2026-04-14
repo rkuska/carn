@@ -37,9 +37,25 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
 		},
 		{
-			name: "overview top sessions lane",
+			name: "overview project lane",
+			mut: func(m statsModel) statsModel {
+				m.overviewLaneCursor = 1
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+		},
+		{
+			name: "overview provider version lane",
 			mut: func(m statsModel) statsModel {
 				m.overviewLaneCursor = 2
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+		},
+		{
+			name: "overview top sessions lane",
+			mut: func(m statsModel) statsModel {
+				m.overviewLaneCursor = 3
 				return m
 			},
 			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "enter", "?", "q/esc"},
@@ -67,7 +83,16 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.tab = statsTabSessions
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
+		},
+		{
+			name: "sessions grouped lane",
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabSessions
+				m.sessionsLaneCursor = 2
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
 		},
 		{
 			name: "tools",

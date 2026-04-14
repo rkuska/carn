@@ -310,9 +310,13 @@ func TestCollectSessionTurnMetricsCapturesUserTurnsPerSession(t *testing.T) {
 			userMessage(),
 		}),
 	}
+	sessions[0].Meta.Provider = conv.ProviderClaude
+	sessions[0].Meta.Version = "1.0.0"
 
 	got := CollectSessionTurnMetrics(sessions)
 	require.Len(t, got, 1)
+	assert.Equal(t, conv.ProviderClaude, got[0].Provider)
+	assert.Equal(t, "1.0.0", got[0].Version)
 	assert.Equal(t, sessions[0].Meta.Timestamp, got[0].Timestamp)
 	assert.Equal(t, []TurnTokens{
 		{PromptTokens: 200, TurnTokens: 330},
@@ -405,7 +409,7 @@ func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t
 	assert.InDelta(t, 45, allTime[1].AverageTurnTokens, 0.0001)
 }
 
-func TestComputeTurnTokenMetricsSkipsSparsePositions(t *testing.T) {
+func TestComputeTurnTokenMetricsKeepsSparsePositions(t *testing.T) {
 	t.Parallel()
 
 	sessions := []session{
@@ -427,7 +431,9 @@ func TestComputeTurnTokenMetricsSkipsSparsePositions(t *testing.T) {
 
 	got := ComputeTurnTokenMetrics(sessions)
 
-	require.Len(t, got, 1)
+	require.Len(t, got, 2)
 	assert.Equal(t, 1, got[0].Position)
 	assert.Equal(t, 3, got[0].SampleCount)
+	assert.Equal(t, 2, got[1].Position)
+	assert.Equal(t, 1, got[1].SampleCount)
 }

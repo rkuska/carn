@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -113,6 +114,66 @@ func TestRenderVerticalHistogramShowsValueLabelsAboveBars(t *testing.T) {
 
 	assert.Contains(t, got, "5")
 	assert.Contains(t, got, "2")
+}
+
+func TestResolveHistogramLayoutFillsAvailableWidthExactly(t *testing.T) {
+	t.Parallel()
+
+	layout := resolveHistogramLayout(17, 5)
+
+	total := 0
+	for _, width := range layout.bucketWidths {
+		total += width
+	}
+	total += layout.gapWidth * (len(layout.bucketWidths) - 1)
+
+	assert.Equal(t, 17, total)
+	assert.Equal(t, 17, layout.graphWidth)
+	assert.LessOrEqual(t, math.Abs(float64(layout.bucketWidths[0]-layout.bucketWidths[len(layout.bucketWidths)-1])), 1.0)
+}
+
+func TestResolveHistogramLayoutDropsGapsBeforeLeavingSlack(t *testing.T) {
+	t.Parallel()
+
+	layout := resolveHistogramLayout(6, 5)
+
+	total := 0
+	for _, width := range layout.bucketWidths {
+		total += width
+	}
+	total += layout.gapWidth * (len(layout.bucketWidths) - 1)
+
+	assert.Equal(t, 0, layout.gapWidth)
+	assert.Equal(t, 6, total)
+	assert.Equal(t, 6, layout.graphWidth)
+}
+
+func TestResolveStackedBarWidthsFillsAvailableWidthExactly(t *testing.T) {
+	t.Parallel()
+
+	widths := resolveStackedBarWidths(17, []int{7, 5, 3, 2})
+
+	total := 0
+	for _, width := range widths {
+		total += width
+	}
+
+	assert.Equal(t, 17, total)
+	assert.Len(t, widths, 4)
+}
+
+func TestResolveFloatSegmentHeightsFillsRequestedHeightExactly(t *testing.T) {
+	t.Parallel()
+
+	heights := resolveFloatSegmentHeights(9, []float64{7, 5, 3, 2})
+
+	total := 0
+	for _, height := range heights {
+		total += height
+	}
+
+	assert.Equal(t, 9, total)
+	assert.Len(t, heights, 4)
 }
 
 func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
@@ -329,39 +390,45 @@ func TestClaudeTurnChartRangeExpandsSinglePoint(t *testing.T) {
 	assert.Equal(t, 8.0, maxX)
 }
 
-func TestRenderClaudeTurnChartRespectsActualTurnGapSpacing(t *testing.T) {
+func TestTurnBarColumnsLeaveGapsWhenWidthAllows(t *testing.T) {
 	t.Parallel()
 
-	compact := ansi.Strip(renderClaudeTurnChart(
-		"Prompt Growth",
+	columns := turnBarColumns(
 		[]statspkg.PositionTokenMetrics{
 			{Position: 1, AveragePromptTokens: 10},
 			{Position: 2, AveragePromptTokens: 20},
 			{Position: 10, AveragePromptTokens: 30},
 		},
-		40,
 		8,
-		colorChartToken,
+		30,
+		30,
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
-	))
-	wideGap := ansi.Strip(renderClaudeTurnChart(
-		"Prompt Growth",
-		[]statspkg.PositionTokenMetrics{
-			{Position: 1, AveragePromptTokens: 10},
-			{Position: 6, AveragePromptTokens: 20},
-			{Position: 10, AveragePromptTokens: 30},
-		},
-		40,
-		8,
-		colorChartToken,
-		func(metric statspkg.PositionTokenMetrics) float64 {
-			return metric.AveragePromptTokens
-		},
-	))
+	)
 
-	assert.NotEqual(t, compact, wideGap)
+	require.Len(t, columns, 3)
+	assert.Less(t, columns[0].End, columns[1].Start)
+	assert.Less(t, columns[1].End, columns[2].Start)
+	assert.Equal(t, columns[0].End-columns[0].Start, columns[1].End-columns[1].Start)
+	assert.Equal(t, columns[1].End-columns[1].Start, columns[2].End-columns[2].Start)
+}
+
+func TestLayoutStackedTurnColumnsUsesUniformWidthsWhenSpaceAllows(t *testing.T) {
+	t.Parallel()
+
+	columns := layoutStackedTurnColumns([]stackedTurnBarColumn{
+		{turnBarColumn: turnBarColumn{Position: 1, Height: 3}},
+		{turnBarColumn: turnBarColumn{Position: 2, Height: 4}},
+		{turnBarColumn: turnBarColumn{Position: 3, Height: 5}},
+		{turnBarColumn: turnBarColumn{Position: 4, Height: 6}},
+	}, 20)
+
+	require.Len(t, columns, 4)
+	width := columns[0].End - columns[0].Start
+	for _, column := range columns[1:] {
+		assert.Equal(t, width, column.End-column.Start)
+	}
 }
 
 func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
@@ -446,4 +513,42 @@ func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T)
 
 	lastRune, _ := utf8.DecodeLastRuneInString(lastLine)
 	assert.Equal(t, ' ', lastRune)
+}
+
+func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
+	t.Parallel()
+
+	rendered := ansi.Strip(renderVersionedTurnChartBody(
+		[]statspkg.VersionTurnSeries{
+			{
+				Version: "1.0.0",
+				Metrics: []statspkg.PositionTokenMetrics{
+					{Position: 1, AveragePromptTokens: 120},
+					{Position: 2, AveragePromptTokens: 180},
+					{Position: 3, AveragePromptTokens: 240},
+				},
+			},
+			{
+				Version: statspkg.UnknownVersionLabel,
+				Metrics: []statspkg.PositionTokenMetrics{
+					{Position: 1, AveragePromptTokens: 90},
+					{Position: 2, AveragePromptTokens: 110},
+					{Position: 3, AveragePromptTokens: 130},
+				},
+			},
+		},
+		80,
+		8,
+		versionColorMap([]string{"1.0.0", statspkg.UnknownVersionLabel}),
+		func(metric statspkg.PositionTokenMetrics) float64 {
+			return metric.AveragePromptTokens
+		},
+	))
+
+	assert.Contains(t, rendered, "1.0.0")
+	assert.Contains(t, rendered, statspkg.UnknownVersionLabel)
+	assert.Contains(t, rendered, "1")
+	assert.Contains(t, rendered, "2")
+	assert.Contains(t, rendered, "3")
+	assert.Contains(t, rendered, "█")
 }

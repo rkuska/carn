@@ -61,6 +61,8 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 			continue
 		}
 		series = append(series, SessionTurnMetrics{
+			Provider:  session.Meta.Provider,
+			Version:   session.Meta.Version,
 			Timestamp: session.Meta.Timestamp,
 			Turns:     turns,
 		})
@@ -163,9 +165,6 @@ func ComputeTurnTokenMetricsForRange(
 	}
 	metrics := make([]PositionTokenMetrics, 0, len(totals))
 	for position, total := range totals {
-		if total.samples < 3 {
-			continue
-		}
 		metrics = append(metrics, PositionTokenMetrics{
 			Position:            position,
 			AveragePromptTokens: total.prompt / float64(total.samples),

@@ -70,6 +70,12 @@ func withProvider(provider conv.Provider) func(*conv.SessionMeta) {
 	}
 }
 
+func withVersion(version string) func(*conv.SessionMeta) {
+	return func(meta *conv.SessionMeta) {
+		meta.Version = version
+	}
+}
+
 func withMainMessages(count int) func(*conv.SessionMeta) {
 	return func(meta *conv.SessionMeta) {
 		meta.MainMessageCount = count

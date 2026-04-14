@@ -64,6 +64,10 @@ func (m statsModel) statsNavigationHelpItems() []helpItem {
 			priority: helpPriorityHigh,
 		})
 	}
+	if item := m.activeTabGroupHelpItem(); item.key != "" {
+		item.priority = helpPriorityHigh
+		items = append(items, item)
+	}
 	if item := m.activeLaneMetricHelpItem(); item.key != "" {
 		item.detail = m.activeLaneMetricHelpDetail()
 		item.priority = helpPriorityHigh
@@ -111,4 +115,24 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 		return "cycle the selected lane metric shown in the detail inspector"
 	}
 	return ""
+}
+
+func (m statsModel) activeTabGroupHelpItem() helpItem {
+	switch m.tab {
+	case statsTabSessions:
+		return helpItem{
+			key:      "v",
+			desc:     "versions",
+			detail:   "toggle grouped version bars and open the provider/version scope when needed",
+			glow:     m.sessionsGrouped,
+			priority: helpPriorityNormal,
+		}
+	case statsTabOverview,
+		statsTabActivity,
+		statsTabTools,
+		statsTabCache,
+		statsTabPerformance:
+		return helpItem{}
+	}
+	return helpItem{}
 }

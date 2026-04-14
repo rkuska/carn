@@ -1,6 +1,7 @@
 package canonical
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -74,10 +75,12 @@ func writeStatsTurnMetrics(
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO stats_turn_metrics(
-			conversation_cache_key, session_ordinal, timestamp_ns, turns_json
-		) VALUES (?, ?, ?, ?)`,
+			conversation_cache_key, session_ordinal, provider, version, timestamp_ns, turns_json
+		) VALUES (?, ?, ?, ?, ?, ?)`,
 		cacheKey,
 		ordinal,
+		row.Provider,
+		row.Version,
 		timeToUnixNano(row.Timestamp),
 		turnsJSON,
 	); err != nil {
@@ -99,14 +102,15 @@ func writeStatsActivityBuckets(
 		if _, err := tx.ExecContext(
 			ctx,
 			`INSERT INTO stats_activity_buckets(
-				conversation_cache_key, bucket_start_ns, provider, model, project,
+				conversation_cache_key, bucket_start_ns, provider, version, model, project,
 				session_count, message_count, user_message_count,
 				assistant_message_count, input_tokens, cache_creation_tokens,
 				cache_read_tokens, output_tokens, reasoning_output_tokens
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			cacheKey,
 			timeToUnixNano(row.BucketStart),
 			row.Provider,
+			row.Version,
 			row.Model,
 			row.Project,
 			row.SessionCount,
@@ -180,6 +184,7 @@ func unmarshalTurnTokens(raw string) ([]conv.TurnTokens, error) {
 type activityBucketRowKey struct {
 	bucketStartNS int64
 	provider      string
+	version       string
 	model         string
 	project       string
 }
@@ -310,38 +315,36 @@ func aggregateSessionMessageTokens(rows map[activityBucketRowKey]conv.ActivityBu
 func activityBucketBaseRow(meta sessionMeta, bucketStart time.Time, row conv.ActivityBucketRow) conv.ActivityBucketRow {
 	row.BucketStart = bucketStart
 	row.Provider = string(meta.Provider)
+	row.Version = meta.Version
 	row.Model = meta.Model
 	row.Project = meta.Project.DisplayName
 	return row
 }
 
 func compareActivityBucketRow(left, right conv.ActivityBucketRow) int {
-	switch {
-	case left.BucketStart.Before(right.BucketStart):
-		return -1
-	case left.BucketStart.After(right.BucketStart):
-		return 1
-	case left.Provider < right.Provider:
-		return -1
-	case left.Provider > right.Provider:
-		return 1
-	case left.Model < right.Model:
-		return -1
-	case left.Model > right.Model:
-		return 1
-	case left.Project < right.Project:
-		return -1
-	case left.Project > right.Project:
-		return 1
-	default:
-		return 0
+	return firstCompare(
+		cmp.Compare(left.BucketStart.UnixNano(), right.BucketStart.UnixNano()),
+		cmp.Compare(left.Provider, right.Provider),
+		cmp.Compare(left.Version, right.Version),
+		cmp.Compare(left.Model, right.Model),
+		cmp.Compare(left.Project, right.Project),
+	)
+}
+
+func firstCompare(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
 	}
+	return 0
 }
 
 func activityBucketKeyForMeta(meta sessionMeta, bucketStart time.Time) activityBucketRowKey {
 	return activityBucketRowKey{
 		bucketStartNS: bucketStart.UnixNano(),
 		provider:      string(meta.Provider),
+		version:       meta.Version,
 		model:         meta.Model,
 		project:       meta.Project.DisplayName,
 	}

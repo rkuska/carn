@@ -21,13 +21,14 @@ type Snapshot struct {
 }
 
 type Overview struct {
-	SessionCount int
-	MessageCount int
-	Tokens       TokenTotals
-	TokenTrend   TokenTrend
-	ByModel      []ModelTokens
-	ByProject    []ProjectTokens
-	TopSessions  []SessionSummary
+	SessionCount      int
+	MessageCount      int
+	Tokens            TokenTotals
+	TokenTrend        TokenTrend
+	ByModel           []ModelTokens
+	ByProject         []ProjectTokens
+	ByProviderVersion []ProviderVersionTokens
+	TopSessions       []SessionSummary
 }
 
 type Activity struct {
@@ -90,6 +91,12 @@ type ProjectTokens struct {
 	Tokens  int
 }
 
+type ProviderVersionTokens struct {
+	Provider conv.Provider
+	Version  string
+	Tokens   int
+}
+
 type SessionSummary struct {
 	Project      string
 	Slug         string
@@ -116,6 +123,11 @@ type PositionTokenMetrics struct {
 	AveragePromptTokens float64
 	AverageTurnTokens   float64
 	SampleCount         int
+}
+
+type VersionTurnSeries struct {
+	Version string
+	Metrics []PositionTokenMetrics
 }
 
 type SessionToolMetrics struct {

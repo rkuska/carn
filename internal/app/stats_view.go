@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 
@@ -20,13 +21,10 @@ func (m statsModel) View() string {
 	switch {
 	case m.helpOpen:
 		content = renderHelpOverlay(m.contentWidth(), m.contentHeight()+framedFooterRows, "Stats Help", m.helpSections())
+	case m.groupScope.active:
+		content = m.renderGroupScopeOverlay()
 	case m.filter.active:
-		content = renderFilterOverlayWithConversations(
-			m.conversations,
-			m.filter,
-			m.contentWidth(),
-			m.contentHeight()+framedFooterRows,
-		)
+		content = m.renderStatsFilterOverlay()
 	}
 
 	lines := []string{
@@ -61,7 +59,19 @@ func (m statsModel) renderTabBar() string {
 		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "90d", "90d"),
 		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "All", "All"),
 	}
-	right := strings.Join(ranges, " ")
+	activeRange := renderStatsRange(true, statsTimeRangeLabel(m.timeRange))
+	candidates := []string{
+		strings.Join(ranges, " "),
+		activeRange,
+	}
+	right := candidates[len(candidates)-1]
+	contentWidth := framedFooterContentWidth(m.width)
+	for _, candidate := range candidates {
+		if lipgloss.Width(left)+1+lipgloss.Width(candidate) <= contentWidth {
+			right = candidate
+			break
+		}
+	}
 	return composeFooterRow(m.width, left, right)
 }
 
@@ -138,8 +148,12 @@ func (m statsModel) footerHelpRow() string {
 		return composeFooterRow(m.width, renderFittedHelpItems(items, leftWidth), right)
 	}
 
+	if m.groupScope.active {
+		return composeFooterRow(m.width, renderHelpItems(m.groupScopeFooterItems()), "")
+	}
+
 	if m.filter.active {
-		return composeFooterRow(m.width, renderHelpItems(filterFooterItems(m.filter)), m.footerHelpRight())
+		return composeFooterRow(m.width, renderHelpItems(m.statsFilterFooterItems()), m.footerHelpRight())
 	}
 
 	right := m.footerHelpRight()
@@ -162,7 +176,9 @@ func (m statsModel) footerHelpRight() string {
 
 func (m statsModel) footerStatusRow() string {
 	status := joinNonEmpty(m.footerStatusParts(), "  ")
-	if m.filter.active {
+	if m.groupScope.active {
+		status = joinNonEmpty([]string{fmt.Sprintf("%d sessions in scope", m.groupScopeSessionCount())}, "  ")
+	} else if m.filter.active {
 		status = joinNonEmpty(m.filterFooterStatusParts(), "  ")
 	}
 	if m.notification.text != "" {
@@ -172,7 +188,7 @@ func (m statsModel) footerStatusRow() string {
 }
 
 func (m statsModel) filterFooterStatusParts() []string {
-	parts := filterFooterStatusParts(m.conversations, m.filter)
+	parts := m.statsFilterFooterStatusParts()
 	if m.statsQueryFailures.degraded() {
 		parts = append(parts, renderStatsDegradedBadge())
 	}

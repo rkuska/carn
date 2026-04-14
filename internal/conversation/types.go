@@ -280,6 +280,8 @@ type PerformanceSequenceSession struct {
 }
 
 type SessionTurnMetrics struct {
+	Provider  Provider
+	Version   string
 	Timestamp time.Time
 	Turns     []TurnTokens
 }
@@ -292,6 +294,7 @@ type TurnTokens struct {
 type ActivityBucketRow struct {
 	BucketStart           time.Time
 	Provider              string
+	Version               string
 	Model                 string
 	Project               string
 	SessionCount          int

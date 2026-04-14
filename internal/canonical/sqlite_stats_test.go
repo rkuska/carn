@@ -377,6 +377,8 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 					MutationCount: 2,
 				},
 				TurnMetrics: conv.SessionTurnMetrics{
+					Provider:  conv.ProviderClaude,
+					Version:   "1.0.0",
 					Timestamp: first.Sessions[0].Timestamp,
 					Turns: []conv.TurnTokens{{
 						PromptTokens: 120,
@@ -390,6 +392,8 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 					MutationCount: 1,
 				},
 				TurnMetrics: conv.SessionTurnMetrics{
+					Provider:  conv.ProviderClaude,
+					Version:   "1.0.0",
 					Timestamp: second.Sessions[0].Timestamp.Add(time.Minute),
 					Turns: []conv.TurnTokens{{
 						PromptTokens: 90,
@@ -402,6 +406,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 			first.CacheKey(): {{
 				BucketStart:           day,
 				Provider:              "claude",
+				Version:               "1.0.0",
 				Model:                 "claude-sonnet-4",
 				Project:               "claude",
 				SessionCount:          1,
@@ -414,6 +419,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 			second.CacheKey(): {{
 				BucketStart:           day,
 				Provider:              "claude",
+				Version:               "1.0.0",
 				Model:                 "claude-sonnet-4",
 				Project:               "claude",
 				SessionCount:          1,
@@ -435,6 +441,8 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 	turnMetrics, err := store.QueryTurnMetrics(context.Background(), archiveDir, []string{first.CacheKey()})
 	require.NoError(t, err)
 	require.Len(t, turnMetrics, 1)
+	assert.Equal(t, conv.ProviderClaude, turnMetrics[0].Provider)
+	assert.Equal(t, "1.0.0", turnMetrics[0].Version)
 	assert.Equal(t, []conv.TurnTokens{{PromptTokens: 120, TurnTokens: 180}}, turnMetrics[0].Turns)
 
 	daily, err := store.QueryActivityBuckets(
@@ -444,6 +452,7 @@ func TestStoreQueryStatsFiltersByCacheKeyAndAggregatesDailyTokens(t *testing.T) 
 	)
 	require.NoError(t, err)
 	require.Len(t, daily, 1)
+	assert.Equal(t, "1.0.0", daily[0].Version)
 	assert.Equal(t, 2, daily[0].SessionCount)
 	assert.Equal(t, 10, daily[0].MessageCount)
 	assert.Equal(t, 30, daily[0].InputTokens)

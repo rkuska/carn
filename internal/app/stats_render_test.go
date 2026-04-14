@@ -189,6 +189,84 @@ func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
 	assert.NotContains(t, body, "~")
 }
 
+func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"claude-1",
+				"alpha",
+				testStatsSessionMeta("claude-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "1.0.0"
+					meta.TotalUsage.InputTokens = 200
+				}),
+			),
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderCodex,
+				"codex-1",
+				"beta",
+				testStatsSessionMeta("codex-1", "beta", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderCodex
+					meta.TotalUsage.InputTokens = 120
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+
+	body := m.renderProviderVersionOverviewBody(60)
+
+	assert.Contains(t, ansi.Strip(body), "Claude 1.0.0")
+	assert.Contains(t, ansi.Strip(body), "Codex unknown")
+	assert.Contains(t, body, "█")
+	assert.NotContains(t, ansi.Strip(body), "Select a provider")
+}
+
+func TestStatsRenderSessionsGroupedTurnChartsShowVersionLegend(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserStore{
+		turnMetricRows: testClaudeVersionTurnMetricRows(now, 220, 270),
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now),
+			),
+		},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+	m.tab = statsTabSessions
+	m.sessionsLaneCursor = 2
+	m.sessionsGrouped = true
+	m.groupScope.provider = conv.ProviderClaude
+	m.groupScope.versions = map[string]bool{"1.0.0": true, statspkg.UnknownVersionLabel: true}
+
+	body := ansi.Strip(m.renderSessionsTab(120))
+
+	assert.Contains(t, body, "Prompt Growth (Claude)")
+	assert.Contains(t, body, "Turn Cost (Claude)")
+	assert.Contains(t, body, "1.0.0")
+	assert.Contains(t, body, statspkg.UnknownVersionLabel)
+}
+
 func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 	t.Parallel()
 
@@ -429,10 +507,16 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 
 	row := ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "h/l lane")
+	assert.NotContains(t, row, "v scope")
 	assert.NotContains(t, row, "m metric")
 	assert.NotContains(t, row, "enter open")
 
 	m.overviewLaneCursor = 2
+	row = ansi.Strip(m.footerHelpRow())
+	assert.NotContains(t, row, "v scope")
+	assert.NotContains(t, row, "m session")
+
+	m.overviewLaneCursor = 3
 	row = ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "m session")
 	assert.Contains(t, row, "enter open")
@@ -441,7 +525,12 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	row = ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "m metric")
 
+	m.tab = statsTabSessions
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "v versions")
+
 	m.activityLaneCursor = 1
+	m.tab = statsTabActivity
 	row = ansi.Strip(m.footerHelpRow())
 	assert.NotContains(t, row, "m metric")
 }
@@ -562,13 +651,17 @@ func TestStatsRenderOverviewUsesBorderedLaneCards(t *testing.T) {
 	m := newStatsRenderModel(120, 32)
 
 	body := ansi.Strip(m.renderOverviewTab(120))
-	titleLine := findRenderedLine(t, body, "Tokens by Model")
+	modelLine := findRenderedLine(t, body, "Tokens by Model")
+	projectLine := findRenderedLine(t, body, "Tokens by Project")
+	providerVersionLine := findRenderedLine(t, body, "Tokens by (Provider, Version)")
 	tableLine := findRenderedLine(t, body, "Most Token-Heavy Sessions")
 
-	assert.Contains(t, titleLine, "▸ Tokens by Model")
-	assert.Contains(t, titleLine, "Tokens by Project")
-	assert.Contains(t, titleLine, "╭")
-	assert.Contains(t, titleLine, "│")
+	assert.Contains(t, modelLine, "▸ Tokens by Model")
+	assert.Contains(t, projectLine, "Tokens by Project")
+	assert.Contains(t, modelLine, "╭")
+	assert.Contains(t, modelLine, "│")
+	assert.True(t, strings.HasPrefix(strings.TrimSpace(providerVersionLine), "╭"))
+	assert.Contains(t, providerVersionLine, "Tokens by (Provider, Version)")
 	assert.True(t, strings.HasPrefix(strings.TrimSpace(tableLine), "╭"))
 }
 
@@ -602,12 +695,13 @@ func TestStatsRenderSessionsShowsBorderedTurnMetricCards(t *testing.T) {
 
 	body := ansi.Strip(m.renderSessionsTab(120))
 	histogramLine := findRenderedLine(t, body, "Session Duration")
-	turnMetricLine := findRenderedLine(t, body, statsClaudePromptGrowthTitle)
+	promptGrowthLine := findRenderedLine(t, body, statsClaudePromptGrowthTitle)
+	turnCostLine := findRenderedLine(t, body, statsClaudeTurnCostTitle)
 
 	assert.Contains(t, histogramLine, "╭")
 	assert.Contains(t, histogramLine, "Messages per Session")
-	assert.Contains(t, turnMetricLine, "▸ "+statsClaudePromptGrowthTitle)
-	assert.Contains(t, turnMetricLine, statsClaudeTurnCostTitle)
+	assert.Contains(t, promptGrowthLine, "▸ "+statsClaudePromptGrowthTitle)
+	assert.Contains(t, turnCostLine, statsClaudeTurnCostTitle)
 	assert.NotContains(t, body, "Computing turn charts...")
 }
 

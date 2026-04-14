@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 type activityBucketKey struct {
 	bucketStartNS int64
 	provider      string
+	version       string
 	model         string
 	project       string
 }
@@ -37,6 +39,7 @@ func AggregateActivityBuckets(sessions []conv.Session) []conv.ActivityBucketRow 
 			row := rows[key]
 			row.BucketStart = bucketStart
 			row.Provider = string(session.Meta.Provider)
+			row.Version = session.Meta.Version
 			row.Model = session.Meta.Model
 			row.Project = session.Meta.Project.DisplayName
 			row.InputTokens += msg.Usage.InputTokens
@@ -55,6 +58,7 @@ func activityBucketKeyForSession(session conv.Session, bucketStart time.Time) ac
 	return activityBucketKey{
 		bucketStartNS: bucketStart.UnixNano(),
 		provider:      string(session.Meta.Provider),
+		version:       session.Meta.Version,
 		model:         session.Meta.Model,
 		project:       session.Meta.Project.DisplayName,
 	}
@@ -81,6 +85,7 @@ func mergeSessionActivityCounts(
 ) conv.ActivityBucketRow {
 	row.BucketStart = bucketStart
 	row.Provider = string(meta.Provider)
+	row.Version = meta.Version
 	row.Model = meta.Model
 	row.Project = meta.Project.DisplayName
 	row.SessionCount++
@@ -104,24 +109,20 @@ func sortActivityBucketRows(rows map[activityBucketKey]conv.ActivityBucketRow) [
 }
 
 func compareActivityBucketRows(left, right conv.ActivityBucketRow) int {
-	switch {
-	case left.BucketStart.Before(right.BucketStart):
-		return -1
-	case left.BucketStart.After(right.BucketStart):
-		return 1
-	case left.Provider < right.Provider:
-		return -1
-	case left.Provider > right.Provider:
-		return 1
-	case left.Model < right.Model:
-		return -1
-	case left.Model > right.Model:
-		return 1
-	case left.Project < right.Project:
-		return -1
-	case left.Project > right.Project:
-		return 1
-	default:
-		return 0
+	return firstCompare(
+		cmp.Compare(left.BucketStart.UnixNano(), right.BucketStart.UnixNano()),
+		cmp.Compare(left.Provider, right.Provider),
+		cmp.Compare(left.Version, right.Version),
+		cmp.Compare(left.Model, right.Model),
+		cmp.Compare(left.Project, right.Project),
+	)
+}
+
+func firstCompare(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
 	}
+	return 0
 }

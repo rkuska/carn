@@ -11,8 +11,9 @@ const overviewTopSessionLimit = 5
 
 func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	overview := Overview{
-		ByModel:   make([]ModelTokens, 0),
-		ByProject: make([]ProjectTokens, 0),
+		ByModel:           make([]ModelTokens, 0),
+		ByProject:         make([]ProjectTokens, 0),
+		ByProviderVersion: make([]ProviderVersionTokens, 0),
 	}
 	if len(sessions) == 0 {
 		return overview
@@ -20,6 +21,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 
 	modelTotals := make(map[string]int)
 	projectTotals := make(map[string]int)
+	providerVersionTotals := make(map[providerVersionKey]int)
 	topSessions := make([]SessionSummary, 0, min(len(sessions), overviewTopSessionLimit))
 
 	for _, session := range sessions {
@@ -27,6 +29,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 			&overview,
 			modelTotals,
 			projectTotals,
+			providerVersionTotals,
 			session,
 		)
 		if ok {
@@ -40,14 +43,21 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	overview.ByProject = sortTokenGroups(projectTotals, func(name string, tokens int) ProjectTokens {
 		return ProjectTokens{Project: name, Tokens: tokens}
 	})
+	overview.ByProviderVersion = sortProviderVersionTotals(providerVersionTotals)
 	overview.TopSessions = topSessions
 	return overview
+}
+
+type providerVersionKey struct {
+	provider conv.Provider
+	version  string
 }
 
 func accumulateOverviewSession(
 	overview *Overview,
 	modelTotals map[string]int,
 	projectTotals map[string]int,
+	providerVersionTotals map[providerVersionKey]int,
 	session conv.SessionMeta,
 ) (SessionSummary, bool) {
 	totalTokens := session.TotalUsage.TotalTokens()
@@ -60,6 +70,7 @@ func accumulateOverviewSession(
 	overview.Tokens.CacheWrite += cacheWriteProxy(session)
 	addTokenGroupTotal(modelTotals, session.Model, totalTokens)
 	addTokenGroupTotal(projectTotals, session.Project.DisplayName, totalTokens)
+	addProviderVersionTotal(providerVersionTotals, session.Provider, session.Version, totalTokens)
 	return SessionSummary{
 		Project:      session.Project.DisplayName,
 		Slug:         session.DisplaySlug(),
@@ -77,6 +88,55 @@ func addTokenGroupTotal(totals map[string]int, name string, tokens int) {
 		return
 	}
 	totals[name] += tokens
+}
+
+func addProviderVersionTotal(
+	totals map[providerVersionKey]int,
+	provider conv.Provider,
+	version string,
+	tokens int,
+) {
+	if tokens <= 0 {
+		return
+	}
+	totals[providerVersionKey{
+		provider: provider,
+		version:  NormalizeVersionLabel(version),
+	}] += tokens
+}
+
+func sortProviderVersionTotals(totals map[providerVersionKey]int) []ProviderVersionTokens {
+	keys := make([]providerVersionKey, 0, len(totals))
+	for key := range totals {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(left, right providerVersionKey) int {
+		switch {
+		case totals[left] != totals[right]:
+			return totals[right] - totals[left]
+		case left.provider != right.provider:
+			if left.provider < right.provider {
+				return -1
+			}
+			return 1
+		case left.version < right.version:
+			return -1
+		case left.version > right.version:
+			return 1
+		default:
+			return 0
+		}
+	})
+
+	items := make([]ProviderVersionTokens, 0, len(keys))
+	for _, key := range keys {
+		items = append(items, ProviderVersionTokens{
+			Provider: key.provider,
+			Version:  key.version,
+			Tokens:   totals[key],
+		})
+	}
+	return items
 }
 
 func sessionMessageCount(session conv.SessionMeta) int {

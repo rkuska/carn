@@ -1,0 +1,76 @@
+package app
+
+import (
+	"image/color"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+
+	statspkg "github.com/rkuska/carn/internal/stats"
+)
+
+func (m statsModel) renderVersionedTurnMetricLaneBody(
+	width, height int,
+	value func(statspkg.PositionTokenMetrics) float64,
+) string {
+	if !m.groupScope.hasProvider() {
+		return "Select a provider with v."
+	}
+
+	series := m.groupedTurnSeries()
+	if len(series) == 0 {
+		return "No turn metrics for the selected provider/version scope."
+	}
+	return renderVersionedTurnChartBody(series, width, height, m.groupScopeColorMap(), value)
+}
+
+func renderVersionedTurnChartBody(
+	series []statspkg.VersionTurnSeries,
+	width, height int,
+	colorByVersion map[string]color.Color,
+	value func(statspkg.PositionTokenMetrics) float64,
+) string {
+	if len(series) == 0 {
+		return statsNoClaudeTurnMetricsData
+	}
+
+	chartWidth, legendWidth, sideLegend := versionedTurnChartWidths(width, series)
+	columns := buildStackedTurnBars(series, height, colorByVersion, value)
+	chartBody := renderStackedTurnBarsChartBody(columns, chartWidth)
+	legendBody := renderVersionLegend(series, legendWidth, colorByVersion)
+	if !sideLegend {
+		return chartBody + "\n" + legendBody
+	}
+	return renderColumns(chartBody, legendBody, chartWidth, legendWidth, false)
+}
+
+func versionedTurnChartWidths(
+	width int,
+	series []statspkg.VersionTurnSeries,
+) (chartWidth int, legendWidth int, sideLegend bool) {
+	longestLabel := 0
+	for _, item := range series {
+		longestLabel = max(longestLabel, lipgloss.Width(item.Version))
+	}
+
+	legendWidth = min(max(longestLabel+4, 18), max(width/4, 18))
+	chartWidth = width - legendWidth - 3
+	if chartWidth < 40 {
+		return width, width, false
+	}
+	return chartWidth, legendWidth, true
+}
+
+func renderVersionLegend(
+	series []statspkg.VersionTurnSeries,
+	width int,
+	colorByVersion map[string]color.Color,
+) string {
+	lines := make([]string, 0, len(series))
+	for _, item := range series {
+		line := lipgloss.NewStyle().Foreground(colorByVersion[item.Version]).Render("██") +
+			" " + item.Version
+		lines = append(lines, fitToWidth(line, width))
+	}
+	return strings.Join(lines, "\n")
+}
