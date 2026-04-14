@@ -80,7 +80,8 @@ func TestStatsSessionsVersionToggleClearsSharedScope(t *testing.T) {
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
 	assert.True(t, m.sessionsGrouped)
-	assert.True(t, m.groupScope.active)
+	assert.False(t, m.groupScope.active)
+	assert.Equal(t, conv.ProviderClaude, m.groupScope.provider)
 
 	m.groupScope.active = false
 	m.groupScope.provider = conv.ProviderClaude
@@ -109,7 +110,8 @@ func TestStatsSessionsVersionToggleWorksWithoutSelectingTurnLane(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
 
 	assert.True(t, m.sessionsGrouped)
-	assert.True(t, m.groupScope.active)
+	assert.False(t, m.groupScope.active)
+	assert.Equal(t, conv.ProviderClaude, m.groupScope.provider)
 }
 
 func TestStatsSessionsVersionScopeSelectionRefreshesRenderedContent(t *testing.T) {
@@ -141,14 +143,222 @@ func TestStatsSessionsVersionScopeSelectionRefreshesRenderedContent(t *testing.T
 	m.sessionsLaneCursor = 0
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
-	require.True(t, m.groupScope.active)
-
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m, _ = m.Update(tea.KeyPressMsg{Text: "q"})
 
 	assert.False(t, m.groupScope.active)
 	assert.Contains(t, ansi.Strip(m.renderedTabContent), "1.0.0")
+}
+
+func TestStatsVersionToggleSupportsToolsAndCacheTabs(t *testing.T) {
+	t.Parallel()
+
+	const versionOne = "1.0.0"
+
+	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	conversation := testStatsConversationWithProviderAndSessions(
+		conv.ProviderClaude,
+		"stats-1",
+		"alpha",
+		testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+			meta.Provider = conv.ProviderClaude
+			meta.Version = versionOne
+		}),
+		testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+			meta.Provider = conv.ProviderClaude
+			meta.Version = "1.1.0"
+		}),
+	)
+
+	testCases := []struct {
+		name     string
+		tab      statsTab
+		assertOn func(t *testing.T, model statsModel)
+	}{
+		{
+			name: "tools",
+			tab:  statsTabTools,
+			assertOn: func(t *testing.T, model statsModel) {
+				t.Helper()
+				assert.True(t, model.sessionsGrouped)
+				assert.True(t, model.toolsGrouped)
+				assert.True(t, model.cacheGrouped)
+			},
+		},
+		{
+			name: "cache",
+			tab:  statsTabCache,
+			assertOn: func(t *testing.T, model statsModel) {
+				t.Helper()
+				assert.True(t, model.sessionsGrouped)
+				assert.True(t, model.toolsGrouped)
+				assert.True(t, model.cacheGrouped)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := newStatsModel(
+				[]conv.Conversation{conversation},
+				&fakeBrowserStore{},
+				120,
+				32,
+				newBrowserFilterState(),
+			)
+			m.tab = testCase.tab
+
+			m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+
+			testCase.assertOn(t, m)
+			assert.False(t, m.groupScope.active)
+			assert.Equal(t, conv.ProviderClaude, m.groupScope.provider)
+		})
+	}
+}
+
+func TestStatsVersionToggleAutoSeedsSingleProviderScopeAcrossSupportedTabs(t *testing.T) {
+	t.Parallel()
+
+	const versionOne = "1.0.0"
+
+	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionOne
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabTools
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+
+	assert.True(t, m.sessionsGrouped)
+	assert.True(t, m.toolsGrouped)
+	assert.True(t, m.cacheGrouped)
+	assert.False(t, m.groupScope.active)
+	assert.Equal(t, conv.ProviderClaude, m.groupScope.provider)
+	assert.Empty(t, m.groupScope.versions)
+}
+
+func TestStatsVersionToggleSharesScopeAcrossSupportedTabs(t *testing.T) {
+	t.Parallel()
+
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
+
+	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionOne
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "1.1.0"
+				}),
+			),
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderCodex,
+				"stats-3",
+				"beta",
+				testStatsSessionMeta("stats-3", "beta", now.Add(-2*time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderCodex
+					meta.Version = versionTwo
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabSessions
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+	require.True(t, m.sessionsGrouped)
+	require.True(t, m.toolsGrouped)
+	require.True(t, m.cacheGrouped)
+	require.True(t, m.groupScope.active)
+
+	m.groupScope.active = false
+	m.groupScope.provider = conv.ProviderClaude
+	m.groupScope.versions = map[string]bool{versionOne: true}
+
+	m.tab = statsTabTools
+	assert.True(t, m.versionGroupingActive())
+	assert.True(t, m.toolsGrouped)
+	assert.True(t, m.sessionsGrouped)
+	assert.True(t, m.cacheGrouped)
+	assert.Equal(t, conv.ProviderClaude, m.groupScope.provider)
+	assert.Equal(t, map[string]bool{versionOne: true}, m.groupScope.versions)
+
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+	assert.False(t, m.sessionsGrouped)
+	assert.False(t, m.toolsGrouped)
+	assert.False(t, m.cacheGrouped)
+	assert.False(t, m.groupScope.active)
+	assert.Equal(t, conv.Provider(""), m.groupScope.provider)
+	assert.Empty(t, m.groupScope.versions)
+}
+
+func TestStatsVersionToggleStaysActiveWhenNavigatingSupportedTabs(t *testing.T) {
+	t.Parallel()
+
+	const versionOne = "1.0.0"
+
+	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderCodex,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderCodex
+					meta.Version = versionOne
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+
+	m.tab = statsTabTools
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+
+	assert.True(t, m.sessionsGrouped)
+	assert.True(t, m.toolsGrouped)
+	assert.True(t, m.cacheGrouped)
+	assert.Equal(t, conv.ProviderCodex, m.groupScope.provider)
+
+	m.tab = statsTabSessions
+	assert.True(t, m.versionGroupingActive())
+	assert.True(t, m.sessionsGrouped)
+
+	m.tab = statsTabCache
+	assert.True(t, m.versionGroupingActive())
+	assert.True(t, m.cacheGrouped)
 }
 
 func TestStatsSessionsGroupedTurnSeriesKeepLateTurnsForSelectedProvider(t *testing.T) {
@@ -208,6 +418,8 @@ func TestStatsSessionsGroupedTurnSeriesKeepLateTurnsForSelectedProvider(t *testi
 }
 
 func TestStatsVersionFilterScopesOverviewTrendActivityAndTurnMetrics(t *testing.T) {
+	const versionOne = "1.0.0"
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	restoreNow := setStatsNowForTest(func() time.Time {
 		return now
@@ -225,7 +437,7 @@ func TestStatsVersionFilterScopesOverviewTrendActivityAndTurnMetrics(t *testing.
 		"alpha",
 		testStatsSessionMeta("v1", "alpha", time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC), func(meta *conv.SessionMeta) {
 			meta.Provider = conv.ProviderClaude
-			meta.Version = "1.0.0"
+			meta.Version = versionOne
 			meta.TotalUsage.InputTokens = 1200
 			meta.TotalUsage.OutputTokens = 0
 		}),
@@ -242,7 +454,7 @@ func TestStatsVersionFilterScopesOverviewTrendActivityAndTurnMetrics(t *testing.
 		{
 			BucketStart:           time.Date(2026, 3, 13, 0, 0, 0, 0, time.UTC),
 			Provider:              "claude",
-			Version:               "1.0.0",
+			Version:               versionOne,
 			SessionCount:          1,
 			MessageCount:          4,
 			UserMessageCount:      2,
@@ -252,7 +464,7 @@ func TestStatsVersionFilterScopesOverviewTrendActivityAndTurnMetrics(t *testing.
 		{
 			BucketStart:           time.Date(2026, 3, 20, 0, 0, 0, 0, time.UTC),
 			Provider:              "claude",
-			Version:               "1.0.0",
+			Version:               versionOne,
 			SessionCount:          1,
 			MessageCount:          4,
 			UserMessageCount:      2,
@@ -280,7 +492,7 @@ func TestStatsVersionFilterScopesOverviewTrendActivityAndTurnMetrics(t *testing.
 	)
 	m.archiveDir = t.TempDir()
 	m.timeRange = statsRange7d()
-	m.versionFilter.selected = map[string]bool{"1.0.0": true}
+	m.versionFilter.selected = map[string]bool{versionOne: true}
 	m = m.applyFilterChange()
 
 	assert.Equal(t, 1, m.snapshot.Overview.SessionCount)

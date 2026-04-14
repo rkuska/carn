@@ -25,7 +25,7 @@ None.
 
 | File | Kind | Code | Complexity | Lines |
 | --- | --- | ---: | ---: | ---: |
-| internal/app/stats_filter_keys.go | source | 304 | 77 | 330 |
+| internal/app/stats_filter_keys.go | source | 300 | 78 | 327 |
 | internal/conversation/conversation_display.go | source | 261 | 73 | 289 |
 | internal/config/config.go | source | 310 | 71 | 367 |
 | internal/source/claude/scanner_record_fast.go | source | 191 | 70 | 211 |
@@ -45,23 +45,23 @@ None.
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser_filter_keys.go | source | 228 | 60 | 252 |
+| internal/app/stats_tab_cache.go | source | 331 | 58 | 364 |
 | internal/canonical/rebuild.go | source | 316 | 57 | 359 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
-| internal/app/stats_tab_cache.go | source | 325 | 56 | 358 |
 | internal/canonical/sqlite_stats.go | source | 338 | 55 | 372 |
 | internal/app/stats_tab_sessions_stacked_chart.go | source | 328 | 54 | 366 |
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/stats_metric_detail.go | source | 302 | 37 | 323 |
+| internal/app/stats_metric_detail.go | source | 305 | 38 | 326 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
-| internal/app/stats_model.go | source | 303 | 25 | 342 |
+| internal/app/stats_model.go | source | 305 | 25 | 344 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/stats/performance_lane.go | source | 340 | 10 | 347 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats_render_test.go | test | 651 | 9 | 777 |
+| internal/app/stats_render_test.go | test | 743 | 9 | 880 |
 | internal/app/stats_tab_performance_test.go | test | 637 | 4 | 703 |
 | internal/app/stats_model_test.go | test | 735 | 3 | 847 |
 

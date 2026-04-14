@@ -552,3 +552,62 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 	assert.Contains(t, rendered, "3")
 	assert.Contains(t, rendered, "█")
 }
+
+func TestRenderVerticalStackedHistogramBodyShowsSingleZeroAxisLabel(t *testing.T) {
+	t.Parallel()
+
+	rendered := ansi.Strip(renderVerticalStackedHistogramBody(
+		[]stackedHistBucket{
+			{
+				Label: "0-20",
+				Total: 6,
+				Segments: []stackedHistSegment{
+					{Value: 2, Color: colorChartBar},
+					{Value: 4, Color: colorPrimary},
+				},
+			},
+			{
+				Label: "21-50",
+				Total: 12,
+				Segments: []stackedHistSegment{
+					{Value: 5, Color: colorChartBar},
+					{Value: 7, Color: colorPrimary},
+				},
+			},
+		},
+		32,
+		4,
+		statspkg.FormatNumber,
+	))
+
+	lines := strings.Split(rendered, "\n")
+	zeroLines := 0
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "0 ") ||
+			strings.HasPrefix(strings.TrimSpace(line), "0└") {
+			zeroLines++
+		}
+	}
+	assert.Equal(t, 1, zeroLines)
+}
+
+func TestRenderChartWithVersionLegendBuildsChartAtReducedWidth(t *testing.T) {
+	t.Parallel()
+
+	versionLabels := []string{"1.0.0", "2.0.0"}
+	var builtWidth int
+
+	rendered := renderChartWithVersionLegend(
+		64,
+		versionLabels,
+		versionColorMap(versionLabels),
+		24,
+		func(chartWidth int) string {
+			builtWidth = chartWidth
+			return strings.Repeat("X", chartWidth)
+		},
+	)
+
+	assert.Less(t, builtWidth, 64)
+	assert.NotContains(t, ansi.Strip(rendered), "…")
+}

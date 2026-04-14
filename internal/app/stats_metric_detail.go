@@ -245,6 +245,9 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 	if !ok {
 		return renderStatsMetricDetail("Tools", width, nil, noDataLabel)
 	}
+	if m.toolsGrouped {
+		return m.renderGroupedToolsMetricDetail(width, lane)
+	}
 
 	tools := m.snapshot.Tools
 	if lane.id == statsLaneToolsCalls {

@@ -106,6 +106,9 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 		return "cycle the daily chart between sessions, messages, and tokens"
 	}
 	if lane.id == statsLaneCacheDaily {
+		if m.cacheGrouped {
+			return "cycle between daily cache read share and write share"
+		}
 		return "cycle between daily hit rate and reuse ratio"
 	}
 	if lane.id == statsLanePerformanceOutcome ||
@@ -118,21 +121,14 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 }
 
 func (m statsModel) activeTabGroupHelpItem() helpItem {
-	switch m.tab {
-	case statsTabSessions:
-		return helpItem{
-			key:      "v",
-			desc:     "versions",
-			detail:   "toggle grouped version bars and open the provider/version scope when needed",
-			glow:     m.sessionsGrouped,
-			priority: helpPriorityNormal,
-		}
-	case statsTabOverview,
-		statsTabActivity,
-		statsTabTools,
-		statsTabCache,
-		statsTabPerformance:
+	if !m.versionGroupingSupportedTab() {
 		return helpItem{}
 	}
-	return helpItem{}
+	return helpItem{
+		key:      "v",
+		desc:     "versions",
+		detail:   "toggle grouped version bars and open the provider/version scope when needed",
+		glow:     m.versionGroupingActive(),
+		priority: helpPriorityNormal,
+	}
 }

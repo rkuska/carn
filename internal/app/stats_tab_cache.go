@@ -12,6 +12,9 @@ import (
 
 func (m statsModel) renderCacheTab(width, height int) string {
 	cache := m.snapshot.Cache
+	if m.cacheGrouped {
+		return m.renderGroupedCacheTab(width, cache)
+	}
 	chips := renderSummaryChips(m.cacheSummaryChips(cache), width)
 
 	chartTitle, rates, chartColor, yFmt := m.cacheDailySeries()
@@ -158,6 +161,9 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
 		return renderStatsMetricDetail("Cache", width, nil, noDataLabel)
+	}
+	if m.cacheGrouped {
+		return m.renderGroupedCacheMetricDetail(width, lane)
 	}
 
 	cache := m.snapshot.Cache

@@ -58,6 +58,8 @@ type statsModel struct {
 	statsActivityBuckets    []conv.ActivityBucketRow
 	groupScope              statsGroupScopeState
 	sessionsGrouped         bool
+	toolsGrouped            bool
+	cacheGrouped            bool
 	viewer                  viewerModel
 	viewerOpen              bool
 	notification            notification

@@ -100,7 +100,15 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.tab = statsTabTools
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
+		},
+		{
+			name: "cache",
+			mut: func(m statsModel) statsModel {
+				m.tab = statsTabCache
+				return m
+			},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "m", "?", "q/esc"},
 		},
 		{
 			name: "performance",

@@ -192,6 +192,8 @@ func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
 func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection(t *testing.T) {
 	t.Parallel()
 
+	const version = "1.0.0"
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -201,7 +203,7 @@ func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection
 				"alpha",
 				testStatsSessionMeta("claude-1", "alpha", now, func(meta *conv.SessionMeta) {
 					meta.Provider = conv.ProviderClaude
-					meta.Version = "1.0.0"
+					meta.Version = version
 					meta.TotalUsage.InputTokens = 200
 				}),
 			),
@@ -223,7 +225,7 @@ func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection
 
 	body := m.renderProviderVersionOverviewBody(60)
 
-	assert.Contains(t, ansi.Strip(body), "Claude 1.0.0")
+	assert.Contains(t, ansi.Strip(body), "Claude "+version)
 	assert.Contains(t, ansi.Strip(body), "Codex unknown")
 	assert.Contains(t, body, "█")
 	assert.NotContains(t, ansi.Strip(body), "Select a provider")
@@ -353,6 +355,98 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 	require.NotEqual(t, -1, qualitySeparator)
 	assert.GreaterOrEqual(t, lipgloss.Width(qualityRow[:qualitySeparator]), 55)
 	assert.LessOrEqual(t, lipgloss.Width(qualityRow[:qualitySeparator]), 65)
+}
+
+func TestStatsRenderGroupedToolsShowsProviderTitlesAndVersionLegend(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "1.0.0"
+					meta.ToolCounts = map[string]int{"Read": 10, "Write": 5}
+					meta.ToolErrorCounts = map[string]int{"Read": 3}
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "2.0.0"
+					meta.ToolCounts = map[string]int{"Read": 5, "Bash": 5}
+					meta.ToolRejectCounts = map[string]int{"Bash": 2}
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabTools
+	m.toolsGrouped = true
+	m.groupScope.provider = conv.ProviderClaude
+
+	body := ansi.Strip(m.renderToolsTab(120))
+
+	assert.Contains(t, body, "Tool Calls/Session (Claude)")
+	assert.Contains(t, body, "Top Tools (Claude)")
+	assert.Contains(t, body, "Tool Error Rate (Claude)")
+	assert.Contains(t, body, "Rejected Suggestions (Claude)")
+	assert.Contains(t, body, "1.0.0")
+	assert.Contains(t, body, "2.0.0")
+}
+
+func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "1.0.0"
+					meta.TotalUsage = conv.TokenUsage{
+						InputTokens:              100,
+						CacheCreationInputTokens: 100,
+						CacheReadInputTokens:     800,
+					}
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = "2.0.0"
+					meta.TotalUsage = conv.TokenUsage{
+						InputTokens:              250,
+						CacheCreationInputTokens: 50,
+						CacheReadInputTokens:     200,
+					}
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabCache
+	m.cacheGrouped = true
+	m.groupScope.provider = conv.ProviderClaude
+
+	body := ansi.Strip(m.renderCacheTab(120, 32))
+
+	assert.Contains(t, body, "Daily Cache Read Share (Claude)")
+	assert.Contains(t, body, "Main vs Subagent (Claude)")
+	assert.Contains(t, body, "Cache Write by Duration (Claude)")
+	assert.Contains(t, body, "Cache Read by Duration (Claude)")
+	assert.Contains(t, body, "1.0.0")
+	assert.Contains(t, body, "2.0.0")
 }
 
 func TestRenderToolsHistogramKeepsVisibleBarsWhenErrorRatesAreSparse(t *testing.T) {
@@ -528,6 +622,15 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	m.tab = statsTabSessions
 	row = ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "v versions")
+
+	m.tab = statsTabTools
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "v versions")
+
+	m.tab = statsTabCache
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "v versions")
+	assert.Contains(t, row, "m metric")
 
 	m.activityLaneCursor = 1
 	m.tab = statsTabActivity

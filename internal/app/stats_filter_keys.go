@@ -307,24 +307,21 @@ func (m statsModel) toggleVersionFilterValue() (statsModel, tea.Cmd) {
 }
 
 func (m statsModel) handleStatsGroupAction() (statsModel, tea.Cmd, bool) {
-	switch m.tab {
-	case statsTabSessions:
-		if m.sessionsGrouped {
-			m.sessionsGrouped = false
-			m = m.clearGroupScope()
-			return m.renderViewportContent(true), nil, true
-		}
-		m.sessionsGrouped = true
-		if !m.groupScope.hasProvider() {
-			return m.openGroupScopeOverlay(), nil, true
-		}
-		return m.renderViewportContent(true), nil, true
-	case statsTabOverview,
-		statsTabActivity,
-		statsTabTools,
-		statsTabCache,
-		statsTabPerformance:
+	if !m.versionGroupingSupportedTab() {
 		return m, nil, false
 	}
-	return m, nil, false
+	if m.versionGroupingActive() {
+		m = m.setVersionGrouping(false)
+		if !m.anyVersionGroupingActive() {
+			m = m.clearGroupScope()
+		}
+		return m.renderViewportContent(true), nil, true
+	}
+
+	m = m.setVersionGrouping(true)
+	m = m.seedSingleProviderGroupScope()
+	if !m.groupScope.hasProvider() {
+		return m.openGroupScopeOverlay(), nil, true
+	}
+	return m.renderViewportContent(true), nil, true
 }

@@ -16,6 +16,9 @@ const statsRejectedSuggestionsTitle = "Rejected Suggestions"
 
 func (m statsModel) renderToolsTab(width int) string {
 	tools := m.snapshot.Tools
+	if m.toolsGrouped {
+		return m.renderGroupedToolsTab(width, tools)
+	}
 	chips := renderSummaryChips([]chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},
 		{Label: "avg/session", Value: formatFloat(tools.AverageCallsPerSession)},

@@ -14,7 +14,7 @@ func (m statsModel) renderVersionedTurnMetricLaneBody(
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
 	if !m.groupScope.hasProvider() {
-		return "Select a provider with v."
+		return selectProviderWithVersionsPrompt
 	}
 
 	series := m.groupedTurnSeries()
@@ -66,10 +66,22 @@ func renderVersionLegend(
 	width int,
 	colorByVersion map[string]color.Color,
 ) string {
-	lines := make([]string, 0, len(series))
+	versions := make([]string, 0, len(series))
 	for _, item := range series {
-		line := lipgloss.NewStyle().Foreground(colorByVersion[item.Version]).Render("██") +
-			" " + item.Version
+		versions = append(versions, item.Version)
+	}
+	return renderVersionLegendLabels(versions, width, colorByVersion)
+}
+
+func renderVersionLegendLabels(
+	versions []string,
+	width int,
+	colorByVersion map[string]color.Color,
+) string {
+	lines := make([]string, 0, len(versions))
+	for _, version := range versions {
+		line := lipgloss.NewStyle().Foreground(colorByVersion[version]).Render("██") +
+			" " + version
 		lines = append(lines, fitToWidth(line, width))
 	}
 	return strings.Join(lines, "\n")
