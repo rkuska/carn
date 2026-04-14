@@ -236,15 +236,16 @@ func renderInsetBox(width int, borderColor color.Color, content string) string {
 
 func renderFramedBody(width, bodyHeight int, borderColor color.Color, content string) string {
 	innerWidth := max(width-2, 1)
+	blankLine := strings.Repeat(" ", innerWidth)
 	lines := splitAndFitLines(content, innerWidth)
 	if len(lines) == 0 {
-		lines = []string{strings.Repeat(" ", innerWidth)}
+		lines = []string{blankLine}
 	}
 	if bodyHeight > 0 {
 		switch {
 		case len(lines) < bodyHeight:
 			for len(lines) < bodyHeight {
-				lines = append(lines, strings.Repeat(" ", innerWidth))
+				lines = append(lines, blankLine)
 			}
 		case len(lines) > bodyHeight:
 			lines = lines[:bodyHeight]

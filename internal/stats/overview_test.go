@@ -152,6 +152,25 @@ func TestComputeOverviewSingleSession(t *testing.T) {
 	assert.Equal(t, 4, got.TopSessions[0].MessageCount)
 }
 
+func TestComputeOverviewSkipsProviderVersionWithoutProviderOrVersion(t *testing.T) {
+	t.Parallel()
+
+	session := testMeta(
+		"single",
+		time.Date(2026, 2, 3, 9, 0, 0, 0, time.UTC),
+		withProvider(""),
+		withProject("alpha"),
+		withModel("gpt-5"),
+		withMainMessages(4),
+		withLastTimestamp(time.Date(2026, 2, 3, 9, 5, 0, 0, time.UTC)),
+		withUsage(500, 20, 10, 90),
+	)
+
+	got := ComputeOverview([]sessionMeta{session})
+
+	assert.Empty(t, got.ByProviderVersion)
+}
+
 func TestComputeOverviewLimitsTopSessionsToFive(t *testing.T) {
 	t.Parallel()
 

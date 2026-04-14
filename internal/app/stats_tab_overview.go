@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -36,7 +36,7 @@ func (m statsModel) renderOverviewTab(width int) string {
 		{Columns: []string{"#", "Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
 	}
 	for i, session := range overview.TopSessions {
-		rank := fmt.Sprintf("%d", i+1)
+		rank := strconv.Itoa(i + 1)
 		if i == m.overviewSessionCursor && m.overviewLaneCursor == 3 {
 			rank = ">" + rank
 		}
@@ -52,7 +52,7 @@ func (m statsModel) renderOverviewTab(width int) string {
 	}
 
 	content := m.renderOverviewGrid(width, modelBars, projectBars, rows)
-	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, content, m.renderActiveMetricDetail(width))
+	return joinSections(chips, content, m.renderActiveMetricDetail(width))
 }
 
 func (m statsModel) renderOverviewGrid(
@@ -103,14 +103,14 @@ func (m statsModel) renderOverviewGrid(
 		lipgloss.Height(topSessionsBody),
 	)
 
-	top := renderColumns(
+	top := renderPreformattedColumns(
 		renderStatsLanePane("Tokens by Model", m.overviewLaneCursor == 0, leftWidth, bodyHeight, modelBody),
 		renderStatsLanePane("Tokens by Project", m.overviewLaneCursor == 1, rightWidth, bodyHeight, projectBody),
 		leftWidth,
 		rightWidth,
 		false,
 	)
-	bottom := renderColumns(
+	bottom := renderPreformattedColumns(
 		renderStatsLanePane(
 			"Tokens by (Provider, Version)",
 			m.overviewLaneCursor == 2,
@@ -216,11 +216,11 @@ func renderOverviewTokenValue(overview statspkg.Overview) string {
 	case statspkg.TrendDirectionUp:
 		return value + " " + lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#e3b341")).
-			Render(fmt.Sprintf("%+d%%", overview.TokenTrend.PercentChange))
+			Render(formatSignedPercent(overview.TokenTrend.PercentChange))
 	case statspkg.TrendDirectionDown:
 		return value + " " + lipgloss.NewStyle().
 			Foreground(colorChartBar).
-			Render(fmt.Sprintf("%+d%%", overview.TokenTrend.PercentChange))
+			Render(formatSignedPercent(overview.TokenTrend.PercentChange))
 	case statspkg.TrendDirectionFlat:
 		return value + " " + lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666")).

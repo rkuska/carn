@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"slices"
 	"strings"
 	"time"
 
@@ -43,7 +42,22 @@ func ComputeSessions(sessions []conv.SessionMeta) Sessions {
 }
 
 func ComputeTurnTokenMetrics(sessions []conv.Session) []PositionTokenMetrics {
-	return ComputeTurnTokenMetricsForRange(CollectSessionTurnMetrics(sessions), TimeRange{})
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	totals := make([]turnTotals, 0, 8)
+	for _, session := range sessions {
+		if session.Meta.IsSubagent {
+			continue
+		}
+		turns := collectSessionTurns(session.Messages)
+		if len(turns) == 0 {
+			continue
+		}
+		totals = accumulateTurnTotals(totals, turns)
+	}
+	return positionMetricsFromTotals(totals)
 }
 
 func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
@@ -143,38 +157,49 @@ func ComputeTurnTokenMetricsForRange(
 		return nil
 	}
 
-	type turnTotals struct {
-		prompt  float64
-		turn    float64
-		samples int
-	}
-
-	totals := make(map[int]turnTotals)
+	totals := make([]turnTotals, 0, 8)
 	for _, session := range sessions {
 		if !timeRangeContains(timeRange, session.Timestamp) {
 			continue
 		}
-		for index, turn := range session.Turns {
-			position := index + 1
-			total := totals[position]
-			total.prompt += float64(turn.PromptTokens)
-			total.turn += float64(turn.TurnTokens)
-			total.samples++
-			totals[position] = total
-		}
+		totals = accumulateTurnTotals(totals, session.Turns)
 	}
+	return positionMetricsFromTotals(totals)
+}
+
+type turnTotals struct {
+	prompt  float64
+	turn    float64
+	samples int
+}
+
+func accumulateTurnTotals(totals []turnTotals, turns []TurnTokens) []turnTotals {
+	if len(turns) > len(totals) {
+		totals = append(totals, make([]turnTotals, len(turns)-len(totals))...)
+	}
+	for index, turn := range turns {
+		total := totals[index]
+		total.prompt += float64(turn.PromptTokens)
+		total.turn += float64(turn.TurnTokens)
+		total.samples++
+		totals[index] = total
+	}
+	return totals
+}
+
+func positionMetricsFromTotals(totals []turnTotals) []PositionTokenMetrics {
 	metrics := make([]PositionTokenMetrics, 0, len(totals))
-	for position, total := range totals {
+	for index, total := range totals {
+		if total.samples == 0 {
+			continue
+		}
 		metrics = append(metrics, PositionTokenMetrics{
-			Position:            position,
+			Position:            index + 1,
 			AveragePromptTokens: total.prompt / float64(total.samples),
 			AverageTurnTokens:   total.turn / float64(total.samples),
 			SampleCount:         total.samples,
 		})
 	}
-	slices.SortFunc(metrics, func(left, right PositionTokenMetrics) int {
-		return left.Position - right.Position
-	})
 	return metrics
 }
 

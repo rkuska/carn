@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"image/color"
 
 	statspkg "github.com/rkuska/carn/internal/stats"
@@ -22,7 +21,7 @@ func (m statsModel) renderGroupedCacheTab(width int, cache statspkg.Cache) strin
 	if m.groupScope.hasProvider() {
 		body = m.renderGroupedCacheBody(width)
 	}
-	return fmt.Sprintf("%s\n\n%s\n\n%s", chips, body, m.renderActiveMetricDetail(width))
+	return joinSections(chips, body, m.renderActiveMetricDetail(width))
 }
 
 func (m statsModel) groupedCacheSummaryChips(cache statspkg.Cache) []chip {

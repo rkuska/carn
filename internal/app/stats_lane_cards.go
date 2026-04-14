@@ -57,7 +57,7 @@ func renderStatsLanePair(
 	rightBody := rightContent(statsLaneBodyWidth(rightWidth))
 	bodyHeight := max(lipgloss.Height(leftBody), lipgloss.Height(rightBody))
 
-	return renderColumns(
+	return renderPreformattedColumns(
 		renderStatsLanePane(leftTitle, leftSelected, leftWidth, bodyHeight, leftBody),
 		renderStatsLanePane(rightTitle, rightSelected, rightWidth, bodyHeight, rightBody),
 		leftWidth,
@@ -82,14 +82,14 @@ func renderStatsLaneGrid(
 		return strings.Join(parts, "\n\n")
 	}
 
-	top := renderColumns(
+	top := renderPreformattedColumns(
 		render(0, leftWidth, selectedIndex == 0),
 		render(1, rightWidth, selectedIndex == 1),
 		leftWidth,
 		rightWidth,
 		false,
 	)
-	bottom := renderColumns(
+	bottom := renderPreformattedColumns(
 		render(2, leftWidth, selectedIndex == 2),
 		render(3, rightWidth, selectedIndex == 3),
 		leftWidth,

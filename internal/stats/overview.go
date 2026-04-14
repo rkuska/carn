@@ -21,7 +21,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 
 	modelTotals := make(map[string]int)
 	projectTotals := make(map[string]int)
-	providerVersionTotals := make(map[providerVersionKey]int)
+	var providerVersionTotals map[providerVersionKey]int
 	topSessions := make([]SessionSummary, 0, min(len(sessions), overviewTopSessionLimit))
 
 	for _, session := range sessions {
@@ -29,7 +29,7 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 			&overview,
 			modelTotals,
 			projectTotals,
-			providerVersionTotals,
+			&providerVersionTotals,
 			session,
 		)
 		if ok {
@@ -43,7 +43,9 @@ func ComputeOverview(sessions []conv.SessionMeta) Overview {
 	overview.ByProject = sortTokenGroups(projectTotals, func(name string, tokens int) ProjectTokens {
 		return ProjectTokens{Project: name, Tokens: tokens}
 	})
-	overview.ByProviderVersion = sortProviderVersionTotals(providerVersionTotals)
+	if len(providerVersionTotals) > 0 {
+		overview.ByProviderVersion = sortProviderVersionTotals(providerVersionTotals)
+	}
 	overview.TopSessions = topSessions
 	return overview
 }
@@ -57,7 +59,7 @@ func accumulateOverviewSession(
 	overview *Overview,
 	modelTotals map[string]int,
 	projectTotals map[string]int,
-	providerVersionTotals map[providerVersionKey]int,
+	providerVersionTotals *map[providerVersionKey]int,
 	session conv.SessionMeta,
 ) (SessionSummary, bool) {
 	totalTokens := session.TotalUsage.TotalTokens()
@@ -91,7 +93,7 @@ func addTokenGroupTotal(totals map[string]int, name string, tokens int) {
 }
 
 func addProviderVersionTotal(
-	totals map[providerVersionKey]int,
+	totals *map[providerVersionKey]int,
 	provider conv.Provider,
 	version string,
 	tokens int,
@@ -99,9 +101,19 @@ func addProviderVersionTotal(
 	if tokens <= 0 {
 		return
 	}
-	totals[providerVersionKey{
+	version = strings.TrimSpace(version)
+	if provider == "" && version == "" {
+		return
+	}
+	if version == "" {
+		version = UnknownVersionLabel
+	}
+	if *totals == nil {
+		*totals = make(map[providerVersionKey]int)
+	}
+	(*totals)[providerVersionKey{
 		provider: provider,
-		version:  NormalizeVersionLabel(version),
+		version:  version,
 	}] += tokens
 }
 

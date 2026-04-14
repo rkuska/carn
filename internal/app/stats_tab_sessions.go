@@ -85,8 +85,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 			},
 		),
 	)
-	return fmt.Sprintf(
-		"%s\n\n%s\n\n%s\n\n%s\n\n%s\n\n%s",
+	return joinSections(
 		chips,
 		histograms,
 		growthChips,

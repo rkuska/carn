@@ -51,7 +51,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 		},
 	)
 
-	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, topPair, bottomPair, m.renderActiveMetricDetail(width))
+	return joinSections(chips, topPair, bottomPair, m.renderActiveMetricDetail(width))
 }
 
 func (m statsModel) cacheSummaryChips(cache statspkg.Cache) []chip {

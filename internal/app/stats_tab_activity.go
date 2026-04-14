@@ -44,7 +44,7 @@ func (m statsModel) renderActivityTab(width, height int) string {
 		width,
 		renderActivityHeatmapBody(activity.Heatmap, statsLaneBodyWidth(width)),
 	)
-	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, lineChart, heatmap, m.renderActiveMetricDetail(width))
+	return joinSections(chips, lineChart, heatmap, m.renderActiveMetricDetail(width))
 }
 
 func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {

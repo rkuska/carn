@@ -111,7 +111,7 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 		)
 	}
 	return renderStatsMetricDetail(lane.title, width, []chip{
-		{Label: "session", Value: fmt.Sprintf("%d/%d", index+1, len(overview.TopSessions))},
+		{Label: "session", Value: formatFractionInt(index+1, len(overview.TopSessions))},
 		{Label: "project", Value: session.Project},
 		{Label: "tokens", Value: statspkg.FormatNumber(session.Tokens)},
 	},

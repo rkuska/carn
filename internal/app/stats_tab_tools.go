@@ -73,7 +73,7 @@ func (m statsModel) renderToolsTab(width int) string {
 			return renderToolRateChartBody(tools.ToolRejectRates, bodyWidth, colorPrimary, false)
 		},
 	)
-	return fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s", chips, usageCharts, qualityCharts, m.renderActiveMetricDetail(width))
+	return joinSections(chips, usageCharts, qualityCharts, m.renderActiveMetricDetail(width))
 }
 
 func toolCallsChartHeight(errorRateCount int) int {
