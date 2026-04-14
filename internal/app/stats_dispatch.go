@@ -1,46 +1,36 @@
 package app
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
 
-type openStatsMsg struct{}
-
-type closeStatsMsg struct{}
-
-func updateOpenStatsCmd() tea.Cmd {
-	return func() tea.Msg {
-		return openStatsMsg{}
-	}
-}
-
-func updateCloseStatsCmd() tea.Cmd {
-	return func() tea.Msg {
-		return closeStatsMsg{}
-	}
-}
+	appbrowser "github.com/rkuska/carn/internal/app/browser"
+	appstats "github.com/rkuska/carn/internal/app/stats"
+)
 
 func (m appModel) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case openStatsMsg:
+	switch msg := msg.(type) {
+	case appbrowser.OpenStatsRequestedMsg:
 		if m.state != viewBrowser {
 			return m, nil
 		}
-		stats := newStatsModel(
-			m.browser.allConversations,
+		m.stats = appstats.NewModel(
+			m.ctx,
+			m.cfg.ArchiveDir,
+			m.browser.AllConversations(),
 			m.store,
 			m.width,
 			m.height,
-			m.browser.filter,
+			m.browser.FilterState(),
 		)
-		stats.ctx = m.ctx
-		stats.archiveDir = m.cfg.ArchiveDir
-		stats.glamourStyle = m.glamourStyle
-		stats.timestampFormat = m.browser.timestampFormat
-		stats.launcher = m.launcher
-		stats = stats.applyFilterChange()
-		m.stats = stats
 		m.state = viewStats
 		return m, nil
-	case closeStatsMsg:
+	case appstats.CloseRequestedMsg:
+		m.state = viewBrowser
+		return m, nil
+	case appstats.OpenSessionRequestedMsg:
+		return m, loadStatsSessionCmd(m.ctx, m.store, msg.Conversation, msg.SessionMeta)
+	case statsSessionLoadedMsg:
+		m.browser = m.browser.OpenLoadedSession(msg.conversation, msg.session)
 		m.state = viewBrowser
 		return m, nil
 	}

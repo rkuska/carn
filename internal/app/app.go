@@ -5,6 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	appbrowser "github.com/rkuska/carn/internal/app/browser"
+	appstats "github.com/rkuska/carn/internal/app/stats"
 	arch "github.com/rkuska/carn/internal/archive"
 )
 
@@ -23,12 +25,12 @@ type appModel struct {
 	logFilePath     string
 	pipeline        importPipeline
 	pipelineFactory func(arch.Config) importPipeline
-	store           browserStore
-	launcher        sessionLauncher
+	store           appbrowser.Store
+	launcher        appbrowser.SessionLauncher
 	state           viewState
 	importOverview  importOverviewModel
-	browser         browserModel
-	stats           statsModel
+	browser         appbrowser.Model
+	stats           appstats.Model
 	width           int
 	height          int
 	resyncEvents    <-chan tea.Msg
@@ -38,9 +40,9 @@ func newAppModelWithDeps(
 	ctx context.Context,
 	cfg arch.Config,
 	appCfg Config,
-	store browserStore,
+	store appbrowser.Store,
 	pipeline importPipeline,
-	launchers ...sessionLauncher,
+	launchers ...appbrowser.SessionLauncher,
 ) appModel {
 	model := appModel{
 		ctx:             ctx,
@@ -50,8 +52,10 @@ func newAppModelWithDeps(
 		pipeline:        pipeline,
 		pipelineFactory: func(nextCfg arch.Config) importPipeline { return pipeline },
 		store:           store,
-		launcher:        resolveSessionLauncher(launchers...),
 		state:           viewImportOverview,
+	}
+	if len(launchers) > 0 && launchers[0] != nil {
+		model.launcher = launchers[0]
 	}
 
 	model = model.rebuildRuntime(resolveRuntimeConfig(appCfg))
@@ -72,7 +76,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewImportOverview:
 		return m.updateImportOverview(msg)
 	case viewBrowser:
-		if _, ok := msg.(openStatsMsg); ok {
+		if _, ok := msg.(appbrowser.OpenStatsRequestedMsg); ok {
 			return m.updateStats(msg)
 		}
 		return m.updateBrowser(msg)
@@ -99,7 +103,9 @@ func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
 		})
 		if n, ok := driftNotification(m.importOverview.result.Drift); ok {
-			m.browser = m.browser.setNotification(n, &cmds)
+			var notify tea.Cmd
+			m.browser, notify = m.browser.SetNotification(n)
+			appendCmd(&cmds, notify)
 		}
 		return m, tea.Batch(cmds...)
 	}

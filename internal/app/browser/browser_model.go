@@ -1,0 +1,209 @@
+package browser
+
+import (
+	"context"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	conv "github.com/rkuska/carn/internal/conversation"
+)
+
+type focusArea int
+
+const (
+	focusList focusArea = iota
+	focusTranscript
+)
+
+type transcriptMode int
+
+const (
+	transcriptClosed transcriptMode = iota
+	transcriptSplit
+	transcriptFullscreen
+)
+
+type browserModel struct {
+	ctx                       context.Context
+	archiveDir                string
+	store                     browserStore
+	launcher                  sessionLauncher
+	glamourStyle              string
+	timestampFormat           string
+	browserCacheSize          int
+	deepSearchDebounceMs      int
+	list                      list.Model
+	delegate                  conversationDelegate
+	focus                     focusArea
+	transcriptMode            transcriptMode
+	allConversations          []conv.Conversation
+	mainConversations         []conv.Conversation
+	width                     int
+	height                    int
+	notification              notification
+	searchInput               textinput.Model
+	search                    browserSearchState
+	sessionCache              map[string]conv.Session
+	searchCancel              context.CancelFunc
+	openConversationID        string
+	loadingConversationID     string
+	filter                    browserFilterState
+	helpOpen                  bool
+	pendingListGotoTopKey     bool
+	cacheOrder                []string
+	viewer                    viewerModel
+	resync                    browserResyncState
+	resyncSpinner             spinner.Model
+	pendingResyncTranscriptID string
+	logFilePath               string
+}
+
+func newBrowserModelWithStore(
+	ctx context.Context,
+	archiveDir string,
+	logFilePath string,
+	glamourStyle string,
+	timestampFormat string,
+	cacheSize int,
+	debounceMs int,
+	store browserStore,
+	launchers ...sessionLauncher,
+) browserModel {
+	syncPaletteFromElements()
+	delegate := newDelegate()
+	l := list.New(nil, delegate, 0, 0)
+	l.SetShowTitle(false)
+	l.SetShowStatusBar(true)
+	l.SetFilteringEnabled(false)
+	l.SetShowHelp(false)
+	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
+		Background(colorHighlight).
+		Bold(true)
+	l.DisableQuitKeybindings()
+
+	keyMap := l.KeyMap
+	keyMap.GoToStart = key.NewBinding(
+		key.WithKeys("home"),
+		key.WithHelp("home", "go to start"),
+	)
+	keyMap.GoToEnd = key.NewBinding(
+		key.WithKeys("end", "G"),
+		key.WithHelp("G/end", "go to end"),
+	)
+	keyMap.NextPage = key.NewBinding(
+		key.WithKeys("pgdown", "ctrl+f"),
+		key.WithHelp("ctrl+f/pgdn", "next page"),
+	)
+	keyMap.PrevPage = key.NewBinding(
+		key.WithKeys("pgup", "ctrl+b"),
+		key.WithHelp("ctrl+b/pgup", "prev page"),
+	)
+	keyMap.ShowFullHelp.SetEnabled(false)
+	keyMap.CloseFullHelp.SetEnabled(false)
+	l.KeyMap = keyMap
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
+
+	return browserModel{
+		ctx:                  ctx,
+		archiveDir:           archiveDir,
+		logFilePath:          logFilePath,
+		store:                store,
+		launcher:             resolveSessionLauncher(launchers...),
+		glamourStyle:         glamourStyle,
+		timestampFormat:      timestampFormat,
+		browserCacheSize:     cacheSize,
+		deepSearchDebounceMs: debounceMs,
+		list:                 l,
+		delegate:             delegate,
+		focus:                focusList,
+		transcriptMode:       transcriptClosed,
+		searchInput:          newBrowserSearchInput(),
+		search: browserSearchState{
+			status: searchStatusIdle,
+		},
+		filter:        newBrowserFilterState(),
+		sessionCache:  make(map[string]conv.Session, cacheSize),
+		resyncSpinner: s,
+	}
+}
+
+func newBrowserModel(
+	ctx context.Context,
+	archiveDir, glamourStyle, timestampFormat string,
+	cacheSize, debounceMs int,
+) browserModel {
+	return newBrowserModelWithStore(
+		ctx,
+		archiveDir,
+		"",
+		glamourStyle,
+		timestampFormat,
+		cacheSize,
+		debounceMs,
+		newDefaultBrowserStore(),
+	)
+}
+
+func (m browserModel) Init() tea.Cmd {
+	return loadSessionsCmdWithStore(m.ctx, m.archiveDir, m.store)
+}
+
+func (m browserModel) Update(msg tea.Msg) (browserModel, tea.Cmd) {
+	var cmds []tea.Cmd
+	m = m.handleMsg(msg, &cmds)
+
+	_, isKey := msg.(tea.KeyPressMsg)
+	m = m.updateChildModels(msg, isKey, &cmds)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m browserModel) applyOpenViewer(msg openViewerMsg) browserModel {
+	if msg.conversationID == m.loadingConversationID && msg.conversationID != "" {
+		return m.installViewer(msg.session, msg.conversation)
+	}
+	return m
+}
+
+func (m browserModel) clearNotifications() browserModel {
+	m.notification = notification{}
+	if m.viewer.notification.Text != "" {
+		m.viewer.notification = notification{}
+	}
+	return m
+}
+
+func (m browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cmd) browserModel {
+	if m.shouldUpdateList(isKey) {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		appendCmd(cmds, cmd)
+		m = m.updateSelectedConversationID()
+		m = m.syncTranscriptSelection(cmds)
+	}
+
+	if m.shouldUpdateViewer(isKey) {
+		var cmd tea.Cmd
+		previousNotification := m.viewer.notification
+		m.viewer, cmd = m.viewer.Update(msg)
+		appendCmd(cmds, cmd)
+		if m.viewer.notification != previousNotification {
+			m.notification = m.viewer.notification
+		}
+	}
+	return m
+}
+
+func appendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {
+	if cmd != nil {
+		*cmds = append(*cmds, cmd)
+	}
+}

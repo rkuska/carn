@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	appbrowser "github.com/rkuska/carn/internal/app/browser"
 	arch "github.com/rkuska/carn/internal/archive"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -33,7 +33,7 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	cfg := testImportOverviewConfig(t)
 	ts := time.Now()
 	store := &fakeBrowserStore{
-		listResult: []conv.Conversation{singleSessionConversation(conv.SessionMeta{
+		listResult: []conv.Conversation{appbrowser.SingleSessionConversation(conv.SessionMeta{
 			ID:        "session-1",
 			Timestamp: ts,
 			Project:   conv.Project{DisplayName: "proj"},
@@ -51,18 +51,12 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(
-		context.Background(), cfg.ArchiveDir, "", "dark",
-		"2006-01-02 15:04", 20, 200, store,
-	)
-	m.browser.width = 120
-	m.browser.height = 40
-	m.browser = m.browser.updateLayout()
+	m.browser = newTestBrowserModel(context.Background(), cfg.ArchiveDir, store)
 
-	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
+	nextModel, cmd := m.Update(appbrowser.ResyncRequestedMsg{})
 	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
-	assert.True(t, updated.browser.resync.active)
+	assert.True(t, updated.browser.ResyncActive())
 	startBatch := requireMsgType[tea.BatchMsg](t, cmd())
 	assert.Len(t, startBatch, 2)
 
@@ -75,8 +69,8 @@ func TestAppBrowserResyncNoopCompletesWithoutSync(t *testing.T) {
 	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
-	assert.False(t, updated.browser.resync.active)
-	assert.Contains(t, updated.browser.notification.text, "archive already current")
+	assert.False(t, updated.browser.ResyncActive())
+	assert.Contains(t, updated.browser.Notification().Text, "archive already current")
 }
 
 func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
@@ -94,15 +88,9 @@ func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(
-		context.Background(), cfg.ArchiveDir, "", "dark",
-		"2006-01-02 15:04", 20, 200, store,
-	)
-	m.browser.width = 120
-	m.browser.height = 40
-	m.browser = m.browser.updateLayout()
+	m.browser = newTestBrowserModel(context.Background(), cfg.ArchiveDir, store)
 
-	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
+	nextModel, cmd := m.Update(appbrowser.ResyncRequestedMsg{})
 	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
@@ -115,8 +103,8 @@ func TestAppBrowserResyncErrorSchedulesNotificationClear(t *testing.T) {
 	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
-	assert.False(t, updated.browser.resync.active)
-	assert.Contains(t, updated.browser.notification.text, "resync failed")
+	assert.False(t, updated.browser.ResyncActive())
+	assert.Contains(t, updated.browser.Notification().Text, "resync failed")
 }
 
 func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
@@ -172,50 +160,34 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(
-		context.Background(), cfg.ArchiveDir, "", "dark",
-		"2006-01-02 15:04", 20, 200, store,
-	)
-	m.browser.width = 120
-	m.browser.height = 40
-	m.browser = m.browser.updateLayout()
-	m.browser.transcriptMode = transcriptFullscreen
-	m.browser.focus = focusTranscript
-	m.browser.openConversationID = "session-1"
-	m.browser.search.selectedConversationID = "session-1"
-	m.browser.viewer = newViewerModel(
-		conv.Session{
-			Meta: conv.SessionMeta{
-				ID:        "session-1",
-				Timestamp: ts,
-				Project:   conv.Project{DisplayName: "proj"},
-				FilePath:  oldPath,
-			},
-			Messages: []conv.Message{
-				{Role: conv.RoleUser, Text: "old"},
-				{Role: conv.RoleAssistant, Text: "content"},
-			},
+	oldConversation := conv.Conversation{
+		Name:    "reload",
+		Project: conv.Project{DisplayName: "proj"},
+		Sessions: []conv.SessionMeta{{
+			ID:        "session-1",
+			Slug:      "reload",
+			Timestamp: ts,
+			Project:   conv.Project{DisplayName: "proj"},
+			FilePath:  oldPath,
+		}},
+	}
+	oldSession := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "session-1",
+			Timestamp: ts,
+			Project:   conv.Project{DisplayName: "proj"},
+			FilePath:  oldPath,
 		},
-		conv.Conversation{
-			Name:    "reload",
-			Project: conv.Project{DisplayName: "proj"},
-			Sessions: []conv.SessionMeta{
-				{
-					ID:        "session-1",
-					Slug:      "reload",
-					Timestamp: ts,
-					Project:   conv.Project{DisplayName: "proj"},
-					FilePath:  oldPath,
-				},
-			},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "old"},
+			{Role: conv.RoleAssistant, Text: "content"},
 		},
-		"dark",
-		"2006-01-02 15:04",
-		60,
-		40,
-	)
+	}
+	m.browser = newTestBrowserModel(context.Background(), cfg.ArchiveDir, store).
+		OpenLoadedSession(oldConversation, oldSession).
+		SetSearchState("", nil, nil, "session-1")
 
-	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
+	nextModel, cmd := m.Update(appbrowser.ResyncRequestedMsg{})
 	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	startBatch := requireMsgType[tea.BatchMsg](t, cmd())
@@ -248,10 +220,10 @@ func TestAppBrowserResyncSuccessReloadsBrowserData(t *testing.T) {
 	nextModel, _ = updated.Update(cmd())
 	updated = requireAs[appModel](t, nextModel)
 
-	assert.False(t, updated.browser.resync.active)
+	assert.False(t, updated.browser.ResyncActive())
 	assert.Equal(t, 1, store.loadCalls)
-	assert.Equal(t, newPath, updated.browser.viewer.session.Meta.FilePath)
-	assert.Contains(t, updated.browser.notification.text, "resync finished")
+	assert.Equal(t, newPath, updated.browser.ViewerSession().Meta.FilePath)
+	assert.Contains(t, updated.browser.Notification().Text, "resync finished")
 }
 
 func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t *testing.T) {
@@ -316,47 +288,26 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(
-		context.Background(), cfg.ArchiveDir, "", "dark",
-		"2006-01-02 15:04", 20, 200, store,
-	)
-	m.browser.width = 120
-	m.browser.height = 40
-	m.browser = m.browser.updateLayout()
-	m.browser.search.baseConversations = []conv.Conversation{alpha, beta}
-	m.browser.mainConversations = []conv.Conversation{alpha, beta}
-	m.browser.transcriptMode = transcriptFullscreen
-	m.browser.focus = focusTranscript
-	m.browser.search.visibleConversations = []conv.Conversation{alpha, beta}
-	m.browser.search.selectedConversationID = beta.CacheKey()
-	m.browser.list.SetItems([]list.Item{
-		conversationListItem{conversation: alpha},
-		conversationListItem{conversation: beta},
-	})
-	m.browser.list.Select(1)
-	m.browser.openConversationID = alpha.CacheKey()
-	m.browser.viewer = newViewerModel(
-		conv.Session{
-			Meta: conv.SessionMeta{
-				ID:        "session-alpha",
-				Slug:      "alpha",
-				Timestamp: ts,
-				Project:   conv.Project{DisplayName: "proj"},
-				FilePath:  filepath.Join(t.TempDir(), "alpha-old.jsonl"),
-			},
-			Messages: []conv.Message{
-				{Role: conv.RoleUser, Text: "alpha"},
-				{Role: conv.RoleAssistant, Text: "old"},
-			},
+	oldAlphaSession := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "session-alpha",
+			Slug:      "alpha",
+			Timestamp: ts,
+			Project:   conv.Project{DisplayName: "proj"},
+			FilePath:  filepath.Join(t.TempDir(), "alpha-old.jsonl"),
 		},
-		alpha,
-		"dark",
-		"2006-01-02 15:04",
-		60,
-		40,
-	)
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "alpha"},
+			{Role: conv.RoleAssistant, Text: "old"},
+		},
+	}
+	m.browser = newTestBrowserModel(context.Background(), cfg.ArchiveDir, store).
+		OpenLoadedSession(alpha, oldAlphaSession).
+		SetConversationLists([]conv.Conversation{alpha, beta}, []conv.Conversation{alpha, beta}, appbrowser.NewFilterState()).
+		SetSearchState("", []conv.Conversation{alpha, beta}, []conv.Conversation{alpha, beta}, beta.CacheKey()).
+		SetListConversations([]conv.Conversation{alpha, beta}, 1)
 
-	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
+	nextModel, cmd := m.Update(appbrowser.ResyncRequestedMsg{})
 	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
@@ -388,8 +339,8 @@ func TestAppBrowserResyncReopensVisibleTranscriptInsteadOfSelectedConversation(t
 	updated = requireAs[appModel](t, nextModel)
 
 	assert.Equal(t, 1, store.loadCalls)
-	assert.Equal(t, alphaPath, updated.browser.viewer.session.Meta.FilePath)
-	assert.Equal(t, alpha.CacheKey(), updated.browser.openConversationID)
+	assert.Equal(t, alphaPath, updated.browser.ViewerSession().Meta.FilePath)
+	assert.Equal(t, alpha.CacheKey(), updated.browser.OpenConversationID())
 }
 
 func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t *testing.T) {
@@ -444,43 +395,26 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	m.state = viewBrowser
 	m.width = 120
 	m.height = 40
-	m.browser = newBrowserModelWithStore(
-		context.Background(), cfg.ArchiveDir, "", "dark",
-		"2006-01-02 15:04", 20, 200, store,
-	)
-	m.browser.width = 120
-	m.browser.height = 40
-	m.browser = m.browser.updateLayout()
-	m.browser.transcriptMode = transcriptFullscreen
-	m.browser.focus = focusTranscript
-	m.browser.search.query = testResyncBetaSlug
-	m.browser.search.visibleConversations = []conv.Conversation{beta}
-	m.browser.search.selectedConversationID = beta.CacheKey()
-	m.browser.list.SetItems([]list.Item{conversationListItem{conversation: beta}})
-	m.browser.list.Select(0)
-	m.browser.openConversationID = alpha.CacheKey()
-	m.browser.viewer = newViewerModel(
-		conv.Session{
-			Meta: conv.SessionMeta{
-				ID:        "session-alpha",
-				Slug:      "alpha",
-				Timestamp: ts,
-				Project:   conv.Project{DisplayName: "proj"},
-				FilePath:  filepath.Join(t.TempDir(), "alpha-old.jsonl"),
-			},
-			Messages: []conv.Message{
-				{Role: conv.RoleUser, Text: "alpha"},
-				{Role: conv.RoleAssistant, Text: "old"},
-			},
+	oldAlphaSession := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "session-alpha",
+			Slug:      "alpha",
+			Timestamp: ts,
+			Project:   conv.Project{DisplayName: "proj"},
+			FilePath:  filepath.Join(t.TempDir(), "alpha-old.jsonl"),
 		},
-		alpha,
-		"dark",
-		"2006-01-02 15:04",
-		60,
-		40,
-	)
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "alpha"},
+			{Role: conv.RoleAssistant, Text: "old"},
+		},
+	}
+	m.browser = newTestBrowserModel(context.Background(), cfg.ArchiveDir, store).
+		OpenLoadedSession(alpha, oldAlphaSession).
+		SetConversationLists([]conv.Conversation{alpha, beta}, []conv.Conversation{alpha, beta}, appbrowser.NewFilterState()).
+		SetSearchState(testResyncBetaSlug, []conv.Conversation{alpha, beta}, []conv.Conversation{beta}, beta.CacheKey()).
+		SetListConversations([]conv.Conversation{beta}, 0)
 
-	nextModel, cmd := m.Update(browserResyncRequestedMsg{})
+	nextModel, cmd := m.Update(appbrowser.ResyncRequestedMsg{})
 	updated := requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 	started := requireMsgType[importAnalysisStartedMsg](t, requireMsgType[tea.BatchMsg](t, cmd())[0]())
@@ -508,18 +442,17 @@ func TestAppBrowserResyncClosesTranscriptWhenVisibleConversationIsFilteredOut(t 
 	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
-	nextModel, cmd = updated.Update(deepSearchDebounceMsg{
-		revision: updated.browser.search.revision,
-		query:    updated.browser.search.query,
-	})
+	nextModel, cmd = updated.Update(appbrowser.NewDeepSearchDebounceMsg(
+		updated.browser.SearchRevision(),
+		updated.browser.SearchQuery(),
+	))
 	updated = requireAs[appModel](t, nextModel)
 	require.NotNil(t, cmd)
 
-	nextModel, _ = updated.Update(requireMsgType[deepSearchResultMsg](t, cmd()))
+	nextModel, _ = updated.Update(requireMsgType[appbrowser.DeepSearchResultMsg](t, cmd()))
 	updated = requireAs[appModel](t, nextModel)
 
 	assert.Zero(t, store.loadCalls)
-	assert.Equal(t, transcriptClosed, updated.browser.transcriptMode)
-	assert.Empty(t, updated.browser.openConversationID)
-	assert.Equal(t, beta.CacheKey(), updated.browser.search.selectedConversationID)
+	assert.Empty(t, updated.browser.OpenConversationID())
+	assert.Equal(t, beta.CacheKey(), updated.browser.SearchSelectedConversationID())
 }

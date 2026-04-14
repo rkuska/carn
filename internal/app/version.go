@@ -1,6 +1,6 @@
 package app
 
-import "fmt"
+import el "github.com/rkuska/carn/internal/app/elements"
 
 var (
 	version = "dev"
@@ -8,7 +8,11 @@ var (
 	date    = "unknown"
 )
 
-// VersionInfo returns a formatted version string for CLI output.
 func VersionInfo() string {
-	return fmt.Sprintf("carn %s (%s, %s)", version, commit, date)
+	syncVersionInfo()
+	return el.VersionInfo()
+}
+
+func syncVersionInfo() {
+	el.SetVersionDetails(version, commit, date)
 }

@@ -19,7 +19,7 @@ func driftNotification(reports src.ProviderDriftReports) (notification, bool) {
 			"format drift: %d unknown fields/types detected in %s source (check logs)",
 			reports.Report(provider).Count(),
 			provider,
-		)).notification, true
+		)).Notification, true
 	}
 
 	parts := make([]string, 0, len(providers))
@@ -29,5 +29,5 @@ func driftNotification(reports src.ProviderDriftReports) (notification, bool) {
 	return infoNotification(fmt.Sprintf(
 		"format drift: %s unknown fields/types detected (check logs)",
 		strings.Join(parts, ", "),
-	)).notification, true
+	)).Notification, true
 }

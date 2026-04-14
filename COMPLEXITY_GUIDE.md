@@ -3,15 +3,19 @@
 ## Hardline
 
 - `TestFileComplexityGuard` is the hard gate for every Go file under `internal/`.
+- `TestModuleComplexityGuard` is the hard gate for every ownership module under `internal/`.
 - Source files must stay at `<=80` complexity and `<=400` code lines.
+- Modules must stay at `<=1200` source complexity and `<=6000` source code lines.
 - Test files must stay at `<=800` code lines.
+- Module test totals are reported for visibility but do not fail the guard.
 - Do not add exemptions and do not raise the limits to make a change pass.
 
 ## When the Guard Fails
 
-1. Read the failing file and label each block with repo vocabulary from `VOCABULARY.md`.
-2. Split the file by one responsibility before changing behavior.
-3. Re-run the guard after each split so the next move is based on the current hotspot.
+1. Read the failing file or module and label each block with repo vocabulary from `VOCABULARY.md`.
+2. Split the failing file by one responsibility before changing behavior.
+3. If the module still fails, move a stable responsibility into a vocabulary-named ownership module under `internal/`.
+4. Re-run the guard after each split so the next move is based on the current hotspot.
 
 ## Preferred Split Order
 
@@ -48,6 +52,7 @@
 ```bash
 gofmt -w <changed-files>
 go test ./internal/app -run TestFileComplexityGuard -count=1
+go test ./internal/app -run TestModuleComplexityGuard -count=1
 go test ./...
 golangci-lint run ./...
 go test -race ./...

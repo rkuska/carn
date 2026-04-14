@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	appbrowser "github.com/rkuska/carn/internal/app/browser"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
 	"github.com/rkuska/carn/internal/config"
@@ -42,6 +43,8 @@ type Config struct {
 
 // Run starts the CLI application with config-file-derived configuration.
 func Run() error {
+	syncVersionInfo()
+
 	state, err := config.LoadState()
 	if err != nil {
 		return fmt.Errorf("config.LoadState: %w", err)
@@ -107,6 +110,8 @@ func Run() error {
 
 // NewModel builds the root model with deterministic inputs for callers.
 func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
+	syncVersionInfo()
+
 	if len(nonEmptySourceProviders(cfg.SourceDirs)) == 0 {
 		return nil, errors.New("newModel: at least one source dir is required")
 	}
@@ -128,7 +133,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
 	store := canonical.New(statsCollectorImpl{}, claudeBackend, codexBackend)
-	storeAdapter := newBrowserStore(store)
+	storeAdapter := appbrowser.NewStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{
 			SourceDirs: cfg.SourceDirs,
@@ -138,7 +143,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 		claudeBackend,
 		codexBackend,
 	)
-	launcher := newSessionLauncher(claudeBackend, codexBackend)
+	launcher := appbrowser.NewSessionLauncher(claudeBackend, codexBackend)
 
 	model := newAppModelWithDeps(
 		ctx,

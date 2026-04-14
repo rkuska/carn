@@ -101,10 +101,10 @@ func TestAppConfigReloadRebuildsRuntimeAndRestartsAnalysis(t *testing.T) {
 	assert.Equal(t, reloaded.Paths.ArchiveDir, m.cfg.ArchiveDir)
 	assert.Equal(t, reloaded.Paths.ClaudeSourceDir, m.cfg.SourceDirs[conv.ProviderClaude])
 	assert.Equal(t, reloaded.Paths.CodexSourceDir, m.cfg.SourceDirs[conv.ProviderCodex])
-	assert.Equal(t, reloaded.Paths.ArchiveDir, m.browser.archiveDir)
-	assert.Equal(t, reloaded.Display.TimestampFormat, m.browser.timestampFormat)
-	assert.Equal(t, reloaded.Display.BrowserCacheSize, m.browser.browserCacheSize)
-	assert.Equal(t, reloaded.Search.DeepSearchDebounceMs, m.browser.deepSearchDebounceMs)
+	assert.Equal(t, reloaded.Paths.ArchiveDir, m.browser.ArchiveDir())
+	assert.Equal(t, reloaded.Display.TimestampFormat, m.browser.TimestampFormat())
+	assert.Equal(t, reloaded.Display.BrowserCacheSize, m.browser.BrowserCacheSize())
+	assert.Equal(t, reloaded.Search.DeepSearchDebounceMs, m.browser.DeepSearchDebounceMs())
 	assert.Equal(t, phaseAnalyzing, m.importOverview.phase)
 
 	started := requireBatchMsgType[importAnalysisStartedMsg](t, cmd())
@@ -217,9 +217,9 @@ func TestAppConfigReloadWithUnchangedPathsStillRerunsAnalysis(t *testing.T) {
 	m = requireAs[appModel](t, nextModel)
 
 	require.NotNil(t, cmd)
-	assert.Equal(t, "3:04PM", m.browser.timestampFormat)
-	assert.Equal(t, 7, m.browser.browserCacheSize)
-	assert.Equal(t, 10, m.browser.deepSearchDebounceMs)
+	assert.Equal(t, "3:04PM", m.browser.TimestampFormat())
+	assert.Equal(t, 7, m.browser.BrowserCacheSize())
+	assert.Equal(t, 10, m.browser.DeepSearchDebounceMs())
 
 	started := requireBatchMsgType[importAnalysisStartedMsg](t, cmd())
 	nextModel, cmd = m.Update(started)

@@ -20,8 +20,8 @@ func TestDriftNotificationSingleProvider(t *testing.T) {
 
 	got, ok := driftNotification(reports)
 	require.True(t, ok)
-	assert.Equal(t, notificationInfo, got.kind)
-	assert.Equal(t, "format drift: 1 unknown fields/types detected in claude source (check logs)", got.text)
+	assert.Equal(t, notificationInfo, got.Kind)
+	assert.Equal(t, "format drift: 1 unknown fields/types detected in claude source (check logs)", got.Text)
 }
 
 func TestDriftNotificationMultipleProviders(t *testing.T) {
@@ -40,6 +40,6 @@ func TestDriftNotificationMultipleProviders(t *testing.T) {
 
 	got, ok := driftNotification(reports)
 	require.True(t, ok)
-	assert.Equal(t, notificationInfo, got.kind)
-	assert.Equal(t, "format drift: claude 1, codex 2 unknown fields/types detected (check logs)", got.text)
+	assert.Equal(t, notificationInfo, got.Kind)
+	assert.Equal(t, "format drift: claude 1, codex 2 unknown fields/types detected (check logs)", got.Text)
 }

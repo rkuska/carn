@@ -36,3 +36,41 @@ func TestFileComplexityGuard(t *testing.T) {
 		assertFileMetrics(t, metric)
 	}
 }
+
+func assertModuleMetrics(t *testing.T, metric complexityModuleMetrics) {
+	t.Helper()
+
+	if metric.thresholds.maxSourceComplexity > 0 &&
+		metric.sourceComplexity > metric.thresholds.maxSourceComplexity {
+		t.Errorf(
+			"%s source complexity %d exceeds limit %d",
+			metric.relPath,
+			metric.sourceComplexity,
+			metric.thresholds.maxSourceComplexity,
+		)
+	}
+
+	if metric.thresholds.maxSourceCodeLines > 0 &&
+		metric.sourceCodeLines > metric.thresholds.maxSourceCodeLines {
+		t.Errorf(
+			"%s source code lines %d exceeds limit %d",
+			metric.relPath,
+			metric.sourceCodeLines,
+			metric.thresholds.maxSourceCodeLines,
+		)
+	}
+}
+
+func TestModuleComplexityGuard(t *testing.T) {
+	t.Parallel()
+
+	fileMetrics, err := collectComplexityMetrics(repoRoot(t))
+	if err != nil {
+		t.Fatalf("collectComplexityMetrics: %v", err)
+	}
+
+	moduleMetrics := collectModuleComplexityMetrics(fileMetrics)
+	for _, metric := range moduleMetrics {
+		assertModuleMetrics(t, metric)
+	}
+}

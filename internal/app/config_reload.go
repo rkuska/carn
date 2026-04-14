@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	appbrowser "github.com/rkuska/carn/internal/app/browser"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -119,7 +120,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 	m.importOverview.width = m.width
 	m.importOverview.height = m.height
 	m.importOverview.progress.SetWidth(m.width / 3)
-	m.browser = newBrowserModelWithStore(
+	m.browser = appbrowser.NewModelWithStore(
 		m.ctx,
 		appCfg.ArchiveDir,
 		appCfg.LogFile,
@@ -130,9 +131,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 		m.store,
 		m.launcher,
 	)
-	m.browser.width = m.width
-	m.browser.height = m.height
-	m.browser = m.browser.updateLayout()
+	m.browser = m.browser.SetSize(m.width, m.height)
 	return m
 }
 
@@ -145,11 +144,11 @@ func (m appModel) currentConfig() config.Config {
 			LogFile:         m.logFilePath,
 		},
 		Display: config.DisplayConfig{
-			TimestampFormat:  m.browser.timestampFormat,
-			BrowserCacheSize: m.browser.browserCacheSize,
+			TimestampFormat:  m.browser.TimestampFormat(),
+			BrowserCacheSize: m.browser.BrowserCacheSize(),
 		},
 		Search: config.SearchConfig{
-			DeepSearchDebounceMs: m.browser.deepSearchDebounceMs,
+			DeepSearchDebounceMs: m.browser.DeepSearchDebounceMs(),
 		},
 	}
 }

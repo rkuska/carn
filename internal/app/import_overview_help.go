@@ -13,8 +13,8 @@ func (m importOverviewModel) footerView() string {
 		return renderHelpFooter(
 			m.width,
 			[]helpItem{
-				{key: "?", desc: "close help", priority: helpPriorityEssential},
-				{key: "q/esc", desc: "close help", priority: helpPriorityHigh},
+				{Key: "?", Desc: "close help", Priority: helpPriorityEssential},
+				{Key: "q/esc", Desc: "close help", Priority: helpPriorityHigh},
 			},
 			nil,
 			notification{},
@@ -28,35 +28,35 @@ func (m importOverviewModel) footerItems() []helpItem {
 	switch m.phase {
 	case phaseAnalyzing:
 		return []helpItem{
-			{key: "c", desc: "configure", detail: "open the import configuration in $EDITOR", priority: helpPriorityHigh},
-			{key: "?", desc: "help", detail: "show or hide the import help overlay", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", detail: "exit carn before importing", priority: helpPriorityHigh},
+			{Key: "c", Desc: "configure", Detail: "open the import configuration in $EDITOR", Priority: helpPriorityHigh},
+			{Key: "?", Desc: "help", Detail: "show or hide the import help overlay", Priority: helpPriorityEssential},
+			{Key: "q", Desc: "quit", Detail: "exit carn before importing", Priority: helpPriorityHigh},
 		}
 	case phaseReady:
 		if m.importBlocked() {
 			return []helpItem{
-				{key: "c", desc: "configure", detail: "open the import configuration in $EDITOR", priority: helpPriorityHigh},
-				{key: "?", desc: "help", detail: "show or hide the import help overlay", priority: helpPriorityEssential},
-				{key: "q", desc: "quit", detail: "exit carn before importing", priority: helpPriorityHigh},
+				{Key: "c", Desc: "configure", Detail: "open the import configuration in $EDITOR", Priority: helpPriorityHigh},
+				{Key: "?", Desc: "help", Detail: "show or hide the import help overlay", Priority: helpPriorityEssential},
+				{Key: "q", Desc: "quit", Detail: "exit carn before importing", Priority: helpPriorityHigh},
 			}
 		}
 		action, detail := m.readyFooterAction()
 		return []helpItem{
-			{key: "enter", desc: action, detail: detail},
-			{key: "c", desc: "configure", detail: "open the import configuration in $EDITOR", priority: helpPriorityHigh},
-			{key: "?", desc: "help", detail: "show or hide the import help overlay", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", detail: "exit carn before importing", priority: helpPriorityHigh},
+			{Key: "enter", Desc: action, Detail: detail},
+			{Key: "c", Desc: "configure", Detail: "open the import configuration in $EDITOR", Priority: helpPriorityHigh},
+			{Key: "?", Desc: "help", Detail: "show or hide the import help overlay", Priority: helpPriorityEssential},
+			{Key: "q", Desc: "quit", Detail: "exit carn before importing", Priority: helpPriorityHigh},
 		}
 	case phaseSyncing:
 		return []helpItem{
-			{key: "?", desc: "help", detail: "show or hide the import help overlay", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", detail: "exit carn while import work is running", priority: helpPriorityHigh},
+			{Key: "?", Desc: "help", Detail: "show or hide the import help overlay", Priority: helpPriorityEssential},
+			{Key: "q", Desc: "quit", Detail: "exit carn while import work is running", Priority: helpPriorityHigh},
 		}
 	case phaseDone:
 		return []helpItem{
-			{key: "enter", desc: "continue", detail: "open the browser with the refreshed local store"},
-			{key: "?", desc: "help", detail: "show or hide the import help overlay", priority: helpPriorityEssential},
-			{key: "q", desc: "quit", detail: "exit carn after import", priority: helpPriorityHigh},
+			{Key: "enter", Desc: "continue", Detail: "open the browser with the refreshed local store"},
+			{Key: "?", Desc: "help", Detail: "show or hide the import help overlay", Priority: helpPriorityEssential},
+			{Key: "q", Desc: "quit", Detail: "exit carn after import", Priority: helpPriorityHigh},
 		}
 	default:
 		return nil
@@ -90,8 +90,8 @@ func (m importOverviewModel) readyFooterAction() (string, string) {
 func (m importOverviewModel) helpSections() []helpSection {
 	return []helpSection{
 		{
-			title: "Actions",
-			items: m.footerItems(),
+			Title: "Actions",
+			Items: m.footerItems(),
 		},
 		logInfoSection(m.logFilePath),
 		versionInfoSection(),

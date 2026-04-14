@@ -320,16 +320,17 @@ Keep benchmarks with the package that owns the runtime path and update
 `PERF_BASELINE.md` with the full benchmark suite when benchmark commands or
 results change in a meaningful way.
 
-File-level complexity thresholds are enforced by `TestFileComplexityGuard` in
-`internal/app/complexity_guard_test.go` (runs with `go test ./...`) across
-`internal/**/*.go`.
+Complexity thresholds are enforced by `TestFileComplexityGuard` and
+`TestModuleComplexityGuard` in `internal/app/complexity_guard_test.go`
+(runs with `go test ./...`) across `internal/**/*.go`.
 
 Hard limits:
 
 * source files: complexity `<=80`, code lines `<=400`
 * test files: code lines `<=800`
+* modules: source complexity `<=1200`, source code lines `<=6000`
 
-There are no file-level exceptions. When the guard fails, use
+There are no file-level or module-level exceptions. When the guard fails, use
 `COMPLEXITY_GUIDE.md` and refresh `COMPLEXITY_BASELINE.md` with:
 
 ```bash
