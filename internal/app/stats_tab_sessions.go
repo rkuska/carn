@@ -59,27 +59,34 @@ func (m statsModel) renderSessionsTab(width int) string {
 		turnChartHeight = 14
 	}
 
+	promptMetrics := sessionStats.ClaudeTurnMetrics
+	turnCostMetrics := sessionStats.ClaudeTurnMetrics
+	if !m.sessionsGrouped {
+		promptMetrics = m.sessionTurnMetricsForMode(m.sessionsPromptMode)
+		turnCostMetrics = m.sessionTurnMetricsForMode(m.sessionsTurnCostMode)
+	}
+
 	promptGrowth := renderStatsLaneBox(
-		m.sessionTurnLaneTitle(statsClaudePromptGrowthTitle),
+		m.sessionTurnLaneTitle(statsClaudePromptGrowthTitle, m.sessionsPromptMode),
 		m.sessionsLaneCursor == 2,
 		width,
 		m.renderSessionTurnMetricBody(
 			width,
 			turnChartHeight,
-			sessionStats.ClaudeTurnMetrics,
+			promptMetrics,
 			func(metric statspkg.PositionTokenMetrics) float64 {
 				return metric.AveragePromptTokens
 			},
 		),
 	)
 	turnCost := renderStatsLaneBox(
-		m.sessionTurnLaneTitle(statsClaudeTurnCostTitle),
+		m.sessionTurnLaneTitle(statsClaudeTurnCostTitle, m.sessionsTurnCostMode),
 		m.sessionsLaneCursor == 3,
 		width,
 		m.renderSessionTurnMetricBody(
 			width,
 			turnChartHeight,
-			sessionStats.ClaudeTurnMetrics,
+			turnCostMetrics,
 			func(metric statspkg.PositionTokenMetrics) float64 {
 				return metric.AverageTurnTokens
 			},
@@ -107,11 +114,12 @@ func (m statsModel) renderSessionTurnMetricBody(
 	return m.renderClaudeTurnMetricLaneBody(bodyWidth, height, metrics, value)
 }
 
-func (m statsModel) sessionTurnLaneTitle(base string) string {
-	if !m.sessionsGrouped || !m.groupScope.hasProvider() {
-		return base
+func (m statsModel) sessionTurnLaneTitle(base string, mode statspkg.StatisticMode) string {
+	providerLabel := ""
+	if m.sessionsGrouped && m.groupScope.hasProvider() {
+		providerLabel = m.groupScope.provider.Label()
 	}
-	return base + " (" + m.groupScope.provider.Label() + ")"
+	return buildSessionTurnLaneTitle(base, m.sessionsGrouped, providerLabel, mode)
 }
 
 func (m statsModel) sessionTurnSummaryChips() []chip {

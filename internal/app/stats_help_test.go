@@ -86,13 +86,13 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
 		},
 		{
-			name: "sessions grouped lane",
+			name: "sessions turn lane",
 			mut: func(m statsModel) statsModel {
 				m.tab = statsTabSessions
 				m.sessionsLaneCursor = 2
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "m", "?", "q/esc"},
 		},
 		{
 			name: "tools",

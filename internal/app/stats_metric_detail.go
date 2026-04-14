@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -34,7 +36,7 @@ func renderStatsMetricDetail(title string, width int, chips []chip, lines ...str
 	if len(chips) > 0 {
 		parts = append(parts, renderSummaryChips(chips, innerWidth))
 	}
-	parts = append(parts, lines...)
+	parts = append(parts, wrapStatsMetricDetailLines(lines, innerWidth)...)
 	return renderFramedBox("Metric detail", width, colorPrimary, strings.Join(parts, "\n"))
 }
 
@@ -47,6 +49,22 @@ func selectedStatsTitle(title string, selected bool) string {
 		return "▸ " + title
 	}
 	return title
+}
+
+func wrapStatsMetricDetailLines(lines []string, width int) []string {
+	if len(lines) == 0 || width <= 0 {
+		return lines
+	}
+
+	wrapped := make([]string, 0, len(lines))
+	for _, line := range lines {
+		for segment := range strings.SplitSeq(line, "\n") {
+			for wrappedLine := range strings.SplitSeq(ansi.Wordwrap(segment, width, ""), "\n") {
+				wrapped = append(wrapped, wrappedLine)
+			}
+		}
+	}
+	return wrapped
 }
 
 func (m statsModel) renderOverviewMetricDetail(width int) string {
@@ -199,11 +217,18 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 				metricDetailLine("Scope", groupedTurnMetricScope(m)),
 			)
 		}
-		return renderStatsMetricDetail(lane.title, width, promptMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
+		mode := m.sessionsPromptMode
+		metrics := m.sessionTurnMetricsForMode(mode)
+		return renderStatsMetricDetail(lane.title, width, append([]chip{
+			{Label: "stat", Value: mode.ShortLabel()},
+		}, promptMetricDetailChips(metrics, mode)...),
 			metricDetailLine("Question", "How does prompt size grow as main-thread sessions go deeper?"),
 			metricDetailLine(
 				"Reading",
-				"The X-axis is main-thread user turn number and the Y-axis is average prompt-side tokens.",
+				fmt.Sprintf(
+					"The X-axis is main-thread user turn number and the Y-axis is %s prompt-side tokens.",
+					mode.TextLabel(),
+				),
 			),
 			metricDetailLine(
 				"Scope",
@@ -224,14 +249,21 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 			metricDetailLine("Scope", groupedTurnMetricScope(m)),
 		)
 	}
-	return renderStatsMetricDetail(lane.title, width, turnCostMetricDetailChips(m.snapshot.Sessions.ClaudeTurnMetrics),
+	mode := m.sessionsTurnCostMode
+	metrics := m.sessionTurnMetricsForMode(mode)
+	return renderStatsMetricDetail(lane.title, width, append([]chip{
+		{Label: "stat", Value: mode.ShortLabel()},
+	}, turnCostMetricDetailChips(metrics, mode)...),
 		metricDetailLine(
 			"Question",
 			"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
 		),
 		metricDetailLine(
 			"Reading",
-			"The X-axis is main-thread user turn number and the Y-axis is average total assistant tokens per turn.",
+			fmt.Sprintf(
+				"The X-axis is main-thread user turn number and the Y-axis is %s total assistant tokens per turn.",
+				mode.TextLabel(),
+			),
 		),
 		metricDetailLine(
 			"Scope",

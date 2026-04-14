@@ -114,7 +114,10 @@ func formatRatio(value float64) string {
 	return fmt.Sprintf("%.1f:1", value)
 }
 
-func promptMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
+func promptMetricDetailChips(
+	metrics []statspkg.PositionTokenMetrics,
+	mode statspkg.StatisticMode,
+) []chip {
 	early := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
 		return metric.AveragePromptTokens
 	})
@@ -122,13 +125,16 @@ func promptMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
 		return metric.AveragePromptTokens
 	})
 	return []chip{
-		{Label: statsClaudePromptEarlyLabel, Value: formatFloat(early)},
-		{Label: statsClaudePromptLateLabel, Value: formatFloat(late)},
-		{Label: statsClaudePromptFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
+		{Label: turnMetricRangeLabel("prompt", "1-5", mode), Value: formatFloat(early)},
+		{Label: turnMetricRangeLabel("prompt", "20+", mode), Value: formatFloat(late)},
+		{Label: turnMetricFactorLabel("prompt", mode), Value: formatTurnMetricMultiplier(early, late)},
 	}
 }
 
-func turnCostMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
+func turnCostMetricDetailChips(
+	metrics []statspkg.PositionTokenMetrics,
+	mode statspkg.StatisticMode,
+) []chip {
 	early := averageTurnMetricRange(metrics, 1, 5, func(metric statspkg.PositionTokenMetrics) float64 {
 		return metric.AverageTurnTokens
 	})
@@ -136,10 +142,21 @@ func turnCostMetricDetailChips(metrics []statspkg.PositionTokenMetrics) []chip {
 		return metric.AverageTurnTokens
 	})
 	return []chip{
-		{Label: statsClaudeTurnCostEarlyLabel, Value: formatFloat(early)},
-		{Label: statsClaudeTurnCostLateLabel, Value: formatFloat(late)},
-		{Label: statsClaudeTurnCostFactorLabel, Value: formatTurnMetricMultiplier(early, late)},
+		{Label: turnMetricRangeLabel("turn cost", "1-5", mode), Value: formatFloat(early)},
+		{Label: turnMetricRangeLabel("turn cost", "20+", mode), Value: formatFloat(late)},
+		{Label: turnMetricFactorLabel("turn cost", mode), Value: formatTurnMetricMultiplier(early, late)},
 	}
+}
+
+func turnMetricRangeLabel(prefix, window string, mode statspkg.StatisticMode) string {
+	return prefix + " " + window + " " + mode.ShortLabel()
+}
+
+func turnMetricFactorLabel(prefix string, mode statspkg.StatisticMode) string {
+	if mode == statspkg.StatisticModeAverage {
+		return prefix + " multiplier"
+	}
+	return prefix + " " + mode.ShortLabel() + " multiplier"
 }
 
 func groupedTurnMetricDetailChips(m statsModel) []chip {

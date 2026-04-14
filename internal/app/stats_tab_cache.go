@@ -201,7 +201,7 @@ func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title st
 		metricDetailLine(
 			"Reading",
 			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
-				"and baseline marks mean worked but hit 0%. Press m to toggle to reuse ratio.",
+				"and baseline marks mean worked but hit 0%.",
 		),
 	)
 }
@@ -217,7 +217,7 @@ func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title stri
 		metricDetailLine(
 			"Reading",
 			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
-				"and baseline marks mean worked but got no cache reuse. Press m to toggle.",
+				"and baseline marks mean worked but got no cache reuse.",
 		),
 	)
 }

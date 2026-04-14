@@ -98,7 +98,10 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 	if !ok {
 		return ""
 	}
+	return laneMetricHelpDetail(m, lane)
+}
 
+func laneMetricHelpDetail(m statsModel, lane statsLane) string {
 	if lane.id == statsLaneOverviewTop {
 		return "cycle the selected token-heavy session row"
 	}
@@ -106,18 +109,36 @@ func (m statsModel) activeLaneMetricHelpDetail() string {
 		return "cycle the daily chart between sessions, messages, and tokens"
 	}
 	if lane.id == statsLaneCacheDaily {
-		if m.cacheGrouped {
-			return "cycle between daily cache read share and write share"
-		}
-		return "cycle between daily hit rate and reuse ratio"
+		return cacheLaneMetricHelpDetail(m.cacheGrouped)
 	}
-	if lane.id == statsLanePerformanceOutcome ||
-		lane.id == statsLanePerformanceDiscipline ||
-		lane.id == statsLanePerformanceEfficiency ||
-		lane.id == statsLanePerformanceRobustness {
+	if detail := sessionLaneMetricHelpDetail(lane.id); detail != "" {
+		return detail
+	}
+	if isPerformanceMetricLane(lane.id) {
 		return "cycle the selected lane metric shown in the detail inspector"
 	}
 	return ""
+}
+
+func cacheLaneMetricHelpDetail(grouped bool) string {
+	if grouped {
+		return "cycle between daily cache read share and write share"
+	}
+	return "cycle between daily hit rate and reuse ratio"
+}
+
+func sessionLaneMetricHelpDetail(id statsLaneID) string {
+	if id == statsLaneSessionsContext || id == statsLaneSessionsTurnCost {
+		return "cycle the selected statistic used by the chart and detail inspector"
+	}
+	return ""
+}
+
+func isPerformanceMetricLane(id statsLaneID) bool {
+	return id == statsLanePerformanceOutcome ||
+		id == statsLanePerformanceDiscipline ||
+		id == statsLanePerformanceEfficiency ||
+		id == statsLanePerformanceRobustness
 }
 
 func (m statsModel) activeTabGroupHelpItem() helpItem {

@@ -622,10 +622,16 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 	m.tab = statsTabSessions
 	row = ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "v versions")
+	assert.NotContains(t, row, "m metric")
+
+	m.sessionsLaneCursor = 2
+	row = ansi.Strip(m.footerHelpRow())
+	assert.Contains(t, row, "m metric")
 
 	m.tab = statsTabTools
 	row = ansi.Strip(m.footerHelpRow())
 	assert.Contains(t, row, "v versions")
+	assert.NotContains(t, row, "m metric")
 
 	m.tab = statsTabCache
 	row = ansi.Strip(m.footerHelpRow())
@@ -798,12 +804,12 @@ func TestStatsRenderSessionsShowsBorderedTurnMetricCards(t *testing.T) {
 
 	body := ansi.Strip(m.renderSessionsTab(120))
 	histogramLine := findRenderedLine(t, body, "Session Duration")
-	promptGrowthLine := findRenderedLine(t, body, statsClaudePromptGrowthTitle)
+	promptGrowthLine := findRenderedLine(t, body, "Prompt Growth")
 	turnCostLine := findRenderedLine(t, body, statsClaudeTurnCostTitle)
 
 	assert.Contains(t, histogramLine, "╭")
 	assert.Contains(t, histogramLine, "Messages per Session")
-	assert.Contains(t, promptGrowthLine, "▸ "+statsClaudePromptGrowthTitle)
+	assert.Contains(t, promptGrowthLine, "▸ Avg "+statsClaudePromptGrowthTitle)
 	assert.Contains(t, turnCostLine, statsClaudeTurnCostTitle)
 	assert.NotContains(t, body, "Computing turn charts...")
 }

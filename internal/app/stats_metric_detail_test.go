@@ -86,6 +86,36 @@ func TestStatsRenderToolsMetricDetailFollowsSelectedLane(t *testing.T) {
 	assert.Contains(t, body, "top rate")
 }
 
+func TestStatsRenderMetricDetailWrapsLongReadingText(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(72, 32)
+	m.tab = statsTabSessions
+	m.sessionsLaneCursor = 2
+	m.snapshot.Sessions.ClaudeTurnMetrics = []statspkg.PositionTokenMetrics{{
+		Position:            1,
+		AveragePromptTokens: 120,
+		AverageTurnTokens:   180,
+		SampleCount:         3,
+	}}
+
+	body := ansi.Strip(m.renderSessionsTab(72))
+
+	assert.Contains(t, body, "main-thread user turn")
+	assert.NotContains(t, body, "...")
+}
+
+func TestStatsRenderCacheDailyMetricDetailOmitsToggleCopy(t *testing.T) {
+	t.Parallel()
+
+	m := newStatsRenderModel(120, 32)
+	m.tab = statsTabCache
+
+	body := ansi.Strip(m.renderCacheTab(120, 32))
+
+	assert.NotContains(t, body, "Press m to toggle")
+}
+
 func TestStatsRenderPerformanceScopeGateIncludesMetricDetail(t *testing.T) {
 	t.Parallel()
 

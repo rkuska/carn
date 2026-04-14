@@ -189,9 +189,7 @@ func (m statsModel) moveStatsLane(delta int) statsModel {
 		return m
 	}
 
-	cursor := m.activeStatsLaneCursor()
-	cursor = (cursor + delta + len(lanes)) % len(lanes)
-	m = m.setActiveStatsLaneCursor(cursor)
+	m = m.moveStatsLaneWithinLanes(len(lanes), delta)
 	if m.tab == statsTabPerformance && m.performanceScopeAllowsScorecard() {
 		m.performanceMetricCursor = 0
 	}
@@ -201,17 +199,54 @@ func (m statsModel) moveStatsLane(delta int) statsModel {
 	return m.normalizeStatsSelection()
 }
 
+func (m statsModel) moveStatsLaneWithinLanes(laneCount, delta int) statsModel {
+	cursor := m.activeStatsLaneCursor()
+	cursor = (cursor + delta + laneCount) % laneCount
+	return m.setActiveStatsLaneCursor(cursor)
+}
+
 func (m statsModel) activeLaneSupportsMetric() bool {
 	lane, _, ok := m.selectedStatsLane()
-	return ok && lane.supportsMetric
+	if !ok {
+		return false
+	}
+
+	switch lane.id { //nolint:exhaustive // only metric-enabled lanes handled here
+	case statsLaneOverviewTop, statsLaneActivityDaily, statsLaneCacheDaily:
+		return true
+	case statsLaneSessionsContext, statsLaneSessionsTurnCost:
+		return !m.sessionsGrouped
+	case statsLanePerformanceOutcome,
+		statsLanePerformanceDiscipline,
+		statsLanePerformanceEfficiency,
+		statsLanePerformanceRobustness:
+		return m.performanceScopeAllowsScorecard()
+	default:
+		return false
+	}
 }
 
 func (m statsModel) activeLaneMetricHelpItem() helpItem {
-	lane, _, ok := m.selectedStatsLane()
-	if !ok || !lane.supportsMetric {
+	if !m.activeLaneSupportsMetric() {
 		return helpItem{}
 	}
-	return helpItem{key: "m", desc: lane.metricHelpDesc}
+
+	lane, _, ok := m.selectedStatsLane()
+	if !ok {
+		return helpItem{}
+	}
+
+	if lane.id == statsLaneOverviewTop {
+		return helpItem{key: "m", desc: "session"}
+	}
+	switch lane.id { //nolint:exhaustive // only metric-enabled lanes handled here
+	case statsLaneActivityDaily, statsLaneCacheDaily,
+		statsLaneSessionsContext, statsLaneSessionsTurnCost,
+		statsLanePerformanceOutcome, statsLanePerformanceDiscipline,
+		statsLanePerformanceEfficiency, statsLanePerformanceRobustness:
+		return helpItem{key: "m", desc: "metric"}
+	}
+	return helpItem{}
 }
 
 func (m statsModel) activeLaneSupportsOpen() bool {

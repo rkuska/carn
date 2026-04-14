@@ -53,15 +53,15 @@ None.
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
+| internal/app/stats_metric_detail.go | source | 334 | 44 | 358 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/stats_metric_detail.go | source | 305 | 38 | 326 |
 | internal/app/viewer_model.go | source | 335 | 35 | 368 |
-| internal/app/stats_model.go | source | 305 | 25 | 344 |
+| internal/app/stats_model.go | source | 308 | 25 | 347 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |
 | internal/app/import_overview_test.go | test | 612 | 12 | 708 |
 | internal/stats/performance_lane.go | source | 340 | 10 | 347 |
 | internal/app/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats_render_test.go | test | 743 | 9 | 880 |
+| internal/app/stats_render_test.go | test | 748 | 9 | 886 |
 | internal/app/stats_tab_performance_test.go | test | 637 | 4 | 703 |
 | internal/app/stats_model_test.go | test | 735 | 3 | 847 |
 

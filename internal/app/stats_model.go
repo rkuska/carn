@@ -72,6 +72,8 @@ type statsModel struct {
 	activityMetric          activityMetric
 	activityLaneCursor      int
 	sessionsLaneCursor      int
+	sessionsPromptMode      stats.StatisticMode
+	sessionsTurnCostMode    stats.StatisticMode
 	toolsLaneCursor         int
 	cacheLaneCursor         int
 	cacheMetric             cacheMetric
@@ -213,6 +215,7 @@ func (m statsModel) applyFilterChangeAndMaybeLoad() (statsModel, tea.Cmd) {
 }
 
 func (m statsModel) renderViewportContent(resetScroll bool) statsModel {
+	m = m.normalizeStatsSelection()
 	content := m.renderActiveTab()
 	m.viewport.SetWidth(m.contentWidth())
 	m.viewport.SetHeight(m.contentHeight())
