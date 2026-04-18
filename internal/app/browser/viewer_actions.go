@@ -65,8 +65,21 @@ func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
 	case m.actionMode != viewerActionNone:
 		return m.actionHelpSections(extraActions)
 	default:
-		return transcriptHelpSections(m.opts, m.content, extraActions)
+		sections := transcriptHelpSections(m.opts, m.content, extraActions)
+		return addSelectionToToggles(sections, m.selectionMode)
 	}
+}
+
+func addSelectionToToggles(sections []helpSection, selectionMode bool) []helpSection {
+	selectionItem := selectionHelpItem(selectionMode, true)
+	for i, section := range sections {
+		if section.Title != "Toggles" {
+			continue
+		}
+		sections[i].Items = append(sections[i].Items, selectionItem)
+		return sections
+	}
+	return append(sections, helpSection{Title: "Toggles", Items: []helpItem{selectionItem}})
 }
 
 func (m viewerModel) actionHelpSections(extraActions []helpItem) []helpSection {

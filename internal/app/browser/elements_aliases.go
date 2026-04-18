@@ -53,6 +53,7 @@ var (
 	renderFramedPane                     = (*el.Theme).RenderFramedPane
 	renderInsetBox                       = el.RenderInsetBox
 	framedBodyHeight                     = el.FramedBodyHeight
+	framedFooterRows                     = el.FramedFooterRows
 	appendCmd                            = el.AppendCmd
 	infoNotification                     = el.InfoNotification
 	successNotification                  = el.SuccessNotification

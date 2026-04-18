@@ -72,7 +72,8 @@ func (m viewerModel) resetForOpen(
 	m.launcher = resolveSessionLauncher(launcher)
 	m.content = scanContentFlags(session.Messages)
 	m.height = height
-	m.viewport.SetHeight(framedBodyHeight(height))
+	m.selectionMode = false
+	m = m.applySelectionMode()
 	m.viewport.GotoTop()
 	m.viewport.ClearHighlights()
 

@@ -36,5 +36,5 @@
 │                                                         │ │                                                          │
 │                                                         │ │                                                          │
 ╰─────────────────────────────────────────────────────────╯ ╰──────────────────────────────────────────────────────────╯
- -m system  y copy  e export  tab focus list  O fullscreen  ? help  q/esc back            L1-30/30  [thinking]  [split] 
+ -m system  -v select  y copy  e export  tab focus list  O fullscreen  ? help  q/esc back L1-30/30  [thinking]  [split] 
  thinking: on                                                                                                           

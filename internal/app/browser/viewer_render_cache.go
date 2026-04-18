@@ -15,6 +15,7 @@ type viewerRenderKey struct {
 	wrapWidth             int
 	opts                  transcriptOptions
 	planExpanded          bool
+	selectionMode         bool
 	glamourStyle          string
 	timestampFormat       string
 }
@@ -39,6 +40,7 @@ func (m viewerModel) renderKey() viewerRenderKey {
 		wrapWidth:             m.markdownWrapWidth(),
 		opts:                  m.opts,
 		planExpanded:          m.planExpanded,
+		selectionMode:         m.selectionMode,
 		glamourStyle:          m.glamourStyle,
 		timestampFormat:       m.timestampFormat,
 	}

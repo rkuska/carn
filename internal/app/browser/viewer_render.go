@@ -25,11 +25,14 @@ func (m viewerModel) paneTitle() string {
 }
 
 func (m viewerModel) paneView(borderColor color.Color) string {
+	if m.selectionMode {
+		return m.paneContent()
+	}
 	return renderFramedPane(
 		m.theme,
 		m.paneTitle(),
 		m.width,
-		framedBodyHeight(m.height),
+		m.bodyHeight(),
 		borderColor,
 		m.paneContent(),
 	)
@@ -50,6 +53,7 @@ func (m viewerModel) footerItems() []helpItem {
 		return m.actionFooterItems()
 	}
 	items := transcriptFooterItems(m.opts, m.content)
+	items = insertAfterLastToggle(items, selectionHelpItem(m.selectionMode, false))
 	if !m.content.hasPlans {
 		return items
 	}
@@ -57,6 +61,10 @@ func (m viewerModel) footerItems() []helpItem {
 		Key: "p", Desc: "plan", Toggle: true,
 		On: m.planExpanded, Glow: !m.planExpanded && m.content.hasPlans,
 	}
+	return insertAfterLastToggle(items, planItem)
+}
+
+func insertAfterLastToggle(items []helpItem, item helpItem) []helpItem {
 	insertAt := len(items)
 	for i := len(items) - 1; i >= 0; i-- {
 		if items[i].Toggle {
@@ -64,7 +72,21 @@ func (m viewerModel) footerItems() []helpItem {
 			break
 		}
 	}
-	return append(items[:insertAt], append([]helpItem{planItem}, items[insertAt:]...)...)
+	out := make([]helpItem, 0, len(items)+1)
+	out = append(out, items[:insertAt]...)
+	out = append(out, item)
+	out = append(out, items[insertAt:]...)
+	return out
+}
+
+func selectionHelpItem(selectionMode, withDetail bool) helpItem {
+	item := helpItem{
+		Key: "v", Desc: "select", Toggle: true, On: selectionMode,
+	}
+	if withDetail {
+		item.Detail = "toggle selection mode — hide borders so terminal mouse drag copies clean text"
+	}
+	return item
 }
 
 func (m viewerModel) footerStatusParts() []string {
@@ -75,6 +97,9 @@ func (m viewerModel) footerStatusParts() []string {
 	rightParts = appendToggleStatusParts(rightParts, m.theme, m.opts, m.content)
 	if m.planExpanded && m.content.hasPlans {
 		rightParts = append(rightParts, m.theme.StyleToolCall.Render("[plan]"))
+	}
+	if m.selectionMode {
+		rightParts = append(rightParts, m.theme.StyleToolCall.Render("[selection]"))
 	}
 	if m.actionMode != viewerActionNone {
 		rightParts = append(rightParts, m.theme.StyleToolCall.Render("["+m.actionMode.String()+"]"))
@@ -123,6 +148,10 @@ func (m viewerModel) renderContent() viewerModel {
 		return m.applyRenderedContent(cached.rawContent, cached.baseContent, cached.searchLines)
 	}
 
+	if m.selectionMode {
+		return m.renderSelectionContent(key)
+	}
+
 	segments := renderTranscriptSegmented(m.session, m.opts)
 	var renderer *glamour.TermRenderer
 	var rendererErr error
@@ -156,6 +185,17 @@ func (m viewerModel) renderContent() viewerModel {
 		searchLines: searchLines,
 	})
 	return m.applyRenderedContent(rawContent, baseContent, searchLines)
+}
+
+func (m viewerModel) renderSelectionContent(key viewerRenderKey) viewerModel {
+	content := renderVisibleConversation(m.session, m.opts, m.planExpanded)
+	searchLines := buildSearchIndex(content)
+	m = m.storeRenderCache(key, viewerRenderValue{
+		rawContent:  content,
+		baseContent: content,
+		searchLines: searchLines,
+	})
+	return m.applyRenderedContent(content, content, searchLines)
 }
 
 func renderSegmentCached(

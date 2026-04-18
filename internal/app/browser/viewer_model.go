@@ -61,6 +61,7 @@ type viewerModel struct {
 	renderCache          map[viewerRenderKey]viewerRenderValue
 	pendingGotoTopKey    bool
 	planExpanded         bool
+	selectionMode        bool
 	actionMode           viewerActionMode
 	planPicker           viewerPlanPickerState
 }
@@ -128,8 +129,11 @@ func newViewerModelWithLauncher(
 	if theme == nil {
 		theme = el.NewTheme(glamourStyle != GlamourStyleLight)
 	}
-	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
-	vp.Style = lipgloss.NewStyle().Padding(0, 1)
+	vp := viewport.New(
+		viewport.WithWidth(viewportWidthFor(width, false)),
+		viewport.WithHeight(viewerBodyHeight(height, false)),
+	)
+	vp.Style = viewportStyle(false)
 	vp.HighlightStyle = theme.StyleSearchMatch
 	vp.SelectedHighlightStyle = theme.StyleCurrentMatch
 	vp.KeyMap.PageDown = key.NewBinding(
@@ -322,8 +326,27 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 			cmds,
 		)
 		return m, true
+	case key.Matches(msg, viewerKeys.SelectionMode):
+		m = m.toggleSelectionMode()
+		m = m.setNotification(
+			infoNotification(fmt.Sprintf("selection mode: %s", toggleLabel(m.selectionMode))).Notification,
+			cmds,
+		)
+		return m, true
 	}
 	return m, false
+}
+
+func (m viewerModel) toggleSelectionMode() viewerModel {
+	m.selectionMode = !m.selectionMode
+	return m.applySelectionMode().renderContent()
+}
+
+func (m viewerModel) applySelectionMode() viewerModel {
+	m.viewport.Style = viewportStyle(m.selectionMode)
+	m.viewport.SetWidth(m.viewportWidth())
+	m.viewport.SetHeight(m.bodyHeight())
+	return m
 }
 
 func (m viewerModel) editorFilePath() string {
@@ -346,23 +369,54 @@ func (m viewerModel) resumeTarget() conv.ResumeTarget {
 }
 
 func (m viewerModel) viewportWidth() int {
-	return max(m.width-viewerBorderH, 1)
+	return viewportWidthFor(m.width, m.selectionMode)
 }
 
 func (m viewerModel) contentWidth() int {
+	if m.selectionMode {
+		return max(m.width, 1)
+	}
 	return max(m.width-viewerBorderH-viewerPaddingH, 1)
 }
 
 func (m viewerModel) markdownWrapWidth() int {
+	if m.selectionMode {
+		return max(m.width, 1)
+	}
 	return max(m.width-viewerBorderH-viewerPaddingH-viewerMarginH, 1)
+}
+
+func (m viewerModel) bodyHeight() int {
+	return viewerBodyHeight(m.height, m.selectionMode)
 }
 
 func (m viewerModel) SetSize(width, height int) viewerModel {
 	m.width = width
 	m.height = height
 	m.viewport.SetWidth(m.viewportWidth())
-	m.viewport.SetHeight(framedBodyHeight(m.height))
+	m.viewport.SetHeight(m.bodyHeight())
 	return m.renderContent()
+}
+
+func viewportWidthFor(width int, selectionMode bool) int {
+	if selectionMode {
+		return max(width, 1)
+	}
+	return max(width-viewerBorderH, 1)
+}
+
+func viewerBodyHeight(totalHeight int, selectionMode bool) int {
+	if selectionMode {
+		return max(totalHeight-framedFooterRows, 1)
+	}
+	return framedBodyHeight(totalHeight)
+}
+
+func viewportStyle(selectionMode bool) lipgloss.Style {
+	if selectionMode {
+		return lipgloss.NewStyle()
+	}
+	return lipgloss.NewStyle().Padding(0, 1)
 }
 
 func (m viewerModel) setNotification(n notification, cmds *[]tea.Cmd) viewerModel {

@@ -353,7 +353,7 @@ func TestViewerFooterOrdersItemsByWorkflow(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"/", "n/N", "t", "T", "R", "s", "m", "y", "e", "?", "q/esc"},
+		[]string{"/", "n/N", "t", "T", "R", "s", "m", "v", "y", "e", "?", "q/esc"},
 		helpItemKeys(m.footerItems()),
 	)
 }

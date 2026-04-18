@@ -186,11 +186,23 @@ Press `?` at any time to open the help overlay.
 | `p` | Toggle **p**lans |
 | `s` | Toggle **s**idechain messages |
 | `m` | Toggle syste**m** messages |
+| `v` | Toggle selection mode — hide borders for clean mouse copy |
 | `y` | Cop**y** — choose target: conversation, plan, or raw |
 | `o` | **o**pen — choose target: conversation, plan, or raw |
 | `e` | **e**xport as Markdown |
 | `r` | **r**esume session |
 | `q` / `esc` | Back to browser |
+
+#### Copying text from the transcript
+
+- `y` copies the visible conversation, a selected plan, or the raw source
+  files to the clipboard.
+- `v` toggles selection mode — hides pane borders and line padding so you
+  can drag with the mouse to select clean text. Press `v` again to restore
+  the framed view.
+- Native terminal selection is also available as a fallback: hold **Option**
+  while dragging on macOS Terminal and iTerm2, or **Shift** while dragging
+  on most Linux terminals, to bypass the TUI and select directly.
 
 ### Stats view
 

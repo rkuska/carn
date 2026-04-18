@@ -13,7 +13,7 @@ func (m viewerModel) paneContent() string {
 	if m.planPicker.active {
 		return m.renderPlanPickerOverlay()
 	}
-	return highlightViewportMatches(
+	content := highlightViewportMatches(
 		m.theme,
 		m.viewport.View(),
 		m.searchQuery,
@@ -21,6 +21,24 @@ func (m viewerModel) paneContent() string {
 		m.currentMatch,
 		m.viewport.YOffset(),
 	)
+	if m.selectionMode {
+		content = stripRowTrailingSpaces(content)
+	}
+	return content
+}
+
+func stripRowTrailingSpaces(content string) string {
+	var sb strings.Builder
+	sb.Grow(len(content))
+	first := true
+	for line := range strings.SplitSeq(content, "\n") {
+		if !first {
+			sb.WriteByte('\n')
+		}
+		first = false
+		sb.WriteString(strings.TrimRight(line, " "))
+	}
+	return sb.String()
 }
 
 func (m viewerModel) renderPlanPickerOverlay() string {
