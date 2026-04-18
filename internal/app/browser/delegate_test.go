@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -75,7 +76,7 @@ func renderConversationItem(
 ) string {
 	t.Helper()
 
-	d := newDelegate(testTheme())
+	d := newDelegate(testutil.NewTestTheme())
 	d.SetHeight(height)
 
 	items := []list.Item{

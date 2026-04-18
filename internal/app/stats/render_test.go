@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
@@ -32,7 +33,7 @@ func TestStatsRenderTabBarShowsActiveTabAndRangeWithinWidth(t *testing.T) {
 func TestStatsRenderSummaryChipsWrapAndUseAbbreviatedValues(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderSummaryChips(testTheme(), []chip{
+	got := ansi.Strip(renderSummaryChips(testutil.NewTestTheme(), []chip{
 		{Label: "messages", Value: statspkg.FormatNumber(99999)},
 		{Label: "tokens", Value: statspkg.FormatNumber(8200000)},
 	}, 24))
@@ -97,7 +98,7 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 
 	body := m.renderOverviewTab(120)
 
-	assert.Contains(t, body, renderTokenValue(testTheme(), statspkg.FormatNumber(1235457)))
+	assert.Contains(t, body, renderTokenValue(testutil.NewTestTheme(), statspkg.FormatNumber(1235457)))
 }
 
 func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
@@ -460,7 +461,7 @@ func TestRenderToolsHistogramKeepsVisibleBarsWhenErrorRatesAreSparse(t *testing.
 		{Label: "201+", Count: 48},
 	}
 
-	got := ansi.Strip(renderVerticalHistogram(testTheme(),
+	got := ansi.Strip(renderVerticalHistogram(testutil.NewTestTheme(),
 		"Tool Calls/Session",
 		buckets,
 		56,
@@ -696,13 +697,13 @@ func TestStatsFooterHelpRowPrefersRebuildHintOverScopeGateWhenDegraded(t *testin
 func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {
 	t.Parallel()
 
-	border := lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("│")
+	border := lipgloss.NewStyle().Foreground(testutil.NewTestTheme().ColorPrimary).Render("│")
 
-	line := renderBodyLine("tabs", 8, testTheme().ColorPrimary)
+	line := renderBodyLine("tabs", 8, testutil.NewTestTheme().ColorPrimary)
 	assert.True(t, strings.HasPrefix(line, border))
 	assert.True(t, strings.HasSuffix(line, border))
 
-	rows := renderBodyContent("alpha\nbeta", 8, 3, testTheme().ColorPrimary)
+	rows := renderBodyContent("alpha\nbeta", 8, 3, testutil.NewTestTheme().ColorPrimary)
 	assert.Len(t, rows, 3)
 	for _, row := range rows {
 		assert.True(t, strings.HasPrefix(row, border))
@@ -713,7 +714,7 @@ func TestStatsBodyRowsUseStyledSideBorders(t *testing.T) {
 func TestRenderStatsTitleUsesPrimaryStyle(t *testing.T) {
 	t.Parallel()
 
-	title := renderStatsTitle(testTheme(), "Tokens by Model")
+	title := renderStatsTitle(testutil.NewTestTheme(), "Tokens by Model")
 
 	assert.Equal(t, "Tokens by Model", ansi.Strip(title))
 	assert.NotEqual(t, "Tokens by Model", title)
@@ -722,7 +723,7 @@ func TestRenderStatsTitleUsesPrimaryStyle(t *testing.T) {
 func TestRenderStatsLanePairUsesBorderedCardsAndAlignedHeights(t *testing.T) {
 	t.Parallel()
 
-	rendered := renderStatsLanePair(testTheme(),
+	rendered := renderStatsLanePair(testutil.NewTestTheme(),
 		80,
 		30,
 		"Left Lane",

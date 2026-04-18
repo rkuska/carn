@@ -33,11 +33,11 @@ func (m statsModel) View() string {
 	lines := []string{
 		renderBorderTop(m.theme, "Stats", m.width, m.theme.ColorPrimary, m.theme.ColorPrimary),
 		renderBodyLine(m.renderTabBar(), m.contentWidth(), m.theme.ColorPrimary),
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
+		renderBodyLine(m.renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
 	}
 	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight(), m.theme.ColorPrimary)...)
 	lines = append(lines,
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
+		renderBodyLine(m.renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
 		renderBodyLine(m.footerHelpRow(), m.contentWidth(), m.theme.ColorPrimary),
 		renderBodyLine(m.footerStatusRow(), m.contentWidth(), m.theme.ColorPrimary),
 		renderBorderBottom(m.contentWidth(), m.theme.ColorPrimary),
@@ -78,11 +78,11 @@ func (m statsModel) renderTabBar() string {
 	return composeFooterRow(m.width, left, right)
 }
 
-func renderStatsSeparator(width int) string {
+func (m statsModel) renderStatsSeparator(width int) string {
 	if width <= 0 {
 		return ""
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Render(strings.Repeat("─", width))
+	return m.theme.StyleRuleHR.Render(strings.Repeat("─", width))
 }
 
 func (m statsModel) renderTab(tab statsTab, title string) string {

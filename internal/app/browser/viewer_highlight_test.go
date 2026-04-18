@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/rkuska/carn/internal/app/testutil"
 )
 
 const testViewportAlphaBeta = "alpha\nbeta"
@@ -79,7 +81,7 @@ func TestCollectSearchOccurrencesMultipleMatchesOnOneLine(t *testing.T) {
 func TestHighlightLineOccurrences(t *testing.T) {
 	t.Parallel()
 
-	result := highlightLineOccurrences(testTheme(),
+	result := highlightLineOccurrences(testutil.NewTestTheme(),
 		"foo bar foo",
 		"foo",
 		[]lineOccurrence{
@@ -96,14 +98,14 @@ func TestHighlightLineOccurrencesNoOccurrencesReturnsOriginal(t *testing.T) {
 	t.Parallel()
 
 	line := "foo bar baz"
-	assert.Equal(t, line, highlightLineOccurrences(testTheme(), line, "foo", nil))
+	assert.Equal(t, line, highlightLineOccurrences(testutil.NewTestTheme(), line, "foo", nil))
 }
 
 func TestHighlightLineOccurrencesEmptyQueryReturnsOriginal(t *testing.T) {
 	t.Parallel()
 
 	line := "foo bar baz"
-	assert.Equal(t, line, highlightLineOccurrences(testTheme(), line, "", []lineOccurrence{{}}))
+	assert.Equal(t, line, highlightLineOccurrences(testutil.NewTestTheme(), line, "", []lineOccurrence{{}}))
 }
 
 func TestHighlightViewportMatchesHighlightsOnlyVisibleLines(t *testing.T) {
@@ -115,7 +117,7 @@ func TestHighlightViewportMatchesHighlightsOnlyVisibleLines(t *testing.T) {
 		{line: 3, byteStart: 4},
 	}
 
-	result := highlightViewportMatches(testTheme(), content, "hello", matches, 1, 2)
+	result := highlightViewportMatches(testutil.NewTestTheme(), content, "hello", matches, 1, 2)
 	lines := strings.Split(result, "\n")
 	require.Len(t, lines, 3)
 
@@ -130,7 +132,7 @@ func TestHighlightViewportMatchesEmptyQueryReturnsOriginal(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, testViewportAlphaBeta, highlightViewportMatches(
-		testTheme(),
+		testutil.NewTestTheme(),
 		testViewportAlphaBeta,
 		"",
 		[]searchOccurrence{{line: 0, byteStart: 0}},
@@ -143,7 +145,7 @@ func TestHighlightViewportMatchesNoMatchesReturnsOriginal(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, testViewportAlphaBeta, highlightViewportMatches(
-		testTheme(),
+		testutil.NewTestTheme(),
 		testViewportAlphaBeta,
 		"hello",
 		nil,
@@ -161,7 +163,7 @@ func TestHighlightViewportMatchesAllMatchesOutOfViewport(t *testing.T) {
 	}
 
 	assert.Equal(t, testViewportAlphaBeta, highlightViewportMatches(
-		testTheme(),
+		testutil.NewTestTheme(),
 		testViewportAlphaBeta,
 		"alpha",
 		matches,

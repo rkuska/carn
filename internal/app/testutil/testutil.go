@@ -40,3 +40,7 @@ func RequireMsgType[T any](t testing.TB, msg any) T {
 	require.Truef(t, ok, "unexpected msg type: %T", msg)
 	return typed
 }
+
+func NewTestTheme() *el.Theme {
+	return el.NewTheme(true)
+}

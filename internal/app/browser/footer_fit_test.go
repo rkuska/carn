@@ -6,12 +6,14 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/rkuska/carn/internal/app/testutil"
 )
 
 func TestRenderHelpFooterKeepsHelpVisibleWhenNarrow(t *testing.T) {
 	t.Parallel()
 
-	footer := renderHelpFooter(testTheme(),
+	footer := renderHelpFooter(testutil.NewTestTheme(),
 		44,
 		[]helpItem{
 			{Key: "j/k", Desc: "move"},
@@ -36,7 +38,13 @@ func TestViewerFooterStatusShowsLineRange(t *testing.T) {
 	m := newTestViewer(testSessionLong("viewer-lines", "KEYWORD"), 120, 12)
 	m.viewport.SetYOffset(5)
 
-	status := ansi.Strip(renderHelpFooter(testTheme(), m.width, m.footerItems(), m.footerStatusParts(), notification{}))
+	status := ansi.Strip(renderHelpFooter(
+		testutil.NewTestTheme(),
+		m.width,
+		m.footerItems(),
+		m.footerStatusParts(),
+		notification{},
+	))
 
 	assert.Contains(t, status, viewerLineRangeStatus(m.viewport))
 	assert.NotContains(t, status, "%")

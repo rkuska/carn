@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -204,7 +205,7 @@ func TestNewModelLoadsPrecomputedStatsWithArchiveDir(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
-		testTheme(),
+		testutil.NewTestTheme(),
 	)
 
 	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)

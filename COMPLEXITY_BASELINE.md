@@ -49,7 +49,6 @@ None.
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
 | internal/source/claude/scanner.go | source | 271 | 62 | 308 |
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
-| internal/app/browser/browser_transcript.go | source | 227 | 61 | 263 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/app/stats/tab_cache.go | source | 333 | 58 | 366 |
@@ -61,16 +60,16 @@ None.
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/app/stats/metric_detail.go | source | 333 | 44 | 356 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/browser/viewer_model.go | source | 343 | 38 | 376 |
+| internal/app/browser/viewer_model.go | source | 339 | 34 | 372 |
 | internal/app/stats/model.go | source | 311 | 26 | 350 |
-| internal/app/browser/browser_test.go | test | 614 | 25 | 747 |
+| internal/app/browser/browser_test.go | test | 615 | 25 | 748 |
 | internal/source/codex/records.go | source | 335 | 16 | 348 |
 | internal/app/import_overview_test.go | test | 613 | 12 | 709 |
 | internal/stats/performance_lane.go | source | 340 | 10 | 347 |
-| internal/app/browser/transcript_test.go | test | 775 | 9 | 892 |
-| internal/app/stats/render_test.go | test | 748 | 9 | 886 |
-| internal/app/stats/model_test.go | test | 749 | 4 | 857 |
-| internal/app/stats/tab_performance_test.go | test | 637 | 4 | 703 |
+| internal/app/browser/transcript_test.go | test | 776 | 9 | 893 |
+| internal/app/stats/render_test.go | test | 749 | 9 | 887 |
+| internal/app/stats/model_test.go | test | 750 | 4 | 858 |
+| internal/app/stats/tab_performance_test.go | test | 638 | 4 | 704 |
 
 ## Failing modules
 
@@ -82,9 +81,9 @@ None.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | internal/source/claude | 33 | 4788 | 1072 | 5314 | 18 | 2423 | 72 | 2725 |
 | internal/canonical | 29 | 4562 | 946 | 5013 | 14 | 3968 | 164 | 4549 |
-| internal/app/browser | 39 | 5343 | 904 | 6055 | 25 | 4905 | 143 | 5949 |
+| internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
 | internal/source/codex | 35 | 4781 | 891 | 5348 | 9 | 2177 | 74 | 2408 |
-| internal/app/stats | 46 | 5808 | 855 | 6452 | 15 | 3851 | 55 | 4495 |
+| internal/app/stats | 46 | 5808 | 855 | 6452 | 15 | 3866 | 55 | 4508 |
 
 ## Notes
 

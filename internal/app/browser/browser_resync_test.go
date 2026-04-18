@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	arch "github.com/rkuska/carn/internal/archive"
 )
 
@@ -61,7 +62,7 @@ func TestBrowserListFooterShowsResyncProgressStatus(t *testing.T) {
 	b.resync.total = 5
 
 	footer := ansi.Strip(b.footerView())
-	help := renderHelpItems(testTheme(), b.listFooterItems())
+	help := renderHelpItems(testutil.NewTestTheme(), b.listFooterItems())
 
 	assert.Contains(t, footer, "[resync]")
 	assert.Contains(t, footer, "2/5")
@@ -106,9 +107,9 @@ func TestBrowserResyncHelpItemUsesActionKeyWithoutTogglePrefix(t *testing.T) {
 	item := testBrowser(t).resyncHelpItem()
 
 	assert.False(t, item.Toggle)
-	assert.Contains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "R resync")
-	assert.NotContains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "+R")
-	assert.NotContains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "-R")
+	assert.Contains(t, ansi.Strip(renderHelpItem(testutil.NewTestTheme(), item)), "R resync")
+	assert.NotContains(t, ansi.Strip(renderHelpItem(testutil.NewTestTheme(), item)), "+R")
+	assert.NotContains(t, ansi.Strip(renderHelpItem(testutil.NewTestTheme(), item)), "-R")
 }
 
 func TestBrowserListHelpShowsResyncAction(t *testing.T) {

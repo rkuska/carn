@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conversation "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -58,7 +59,7 @@ func TestRenderConversationHeaderUsesConversationAggregates(t *testing.T) {
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(testTheme(), conv, 90, "2006-01-02 15:04"))
+	got := ansi.Strip(renderConversationHeader(testutil.NewTestTheme(), conv, 90, "2006-01-02 15:04"))
 
 	assertContainsAll(t, got,
 		"provider Codex",
@@ -98,7 +99,7 @@ func TestRenderConversationHeaderOmitsEmptyFields(t *testing.T) {
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(testTheme(), conv, 80, "2006-01-02 15:04"))
+	got := ansi.Strip(renderConversationHeader(testutil.NewTestTheme(), conv, 80, "2006-01-02 15:04"))
 
 	require.NotEmpty(t, got)
 	gotLower := strings.ToLower(got)
@@ -145,7 +146,7 @@ func TestRenderConversationHeaderWrapsWithinWidth(t *testing.T) {
 	}
 
 	const width = 46
-	got := ansi.Strip(renderConversationHeader(testTheme(), conv, width, "2006-01-02 15:04"))
+	got := ansi.Strip(renderConversationHeader(testutil.NewTestTheme(), conv, width, "2006-01-02 15:04"))
 
 	for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
 		assert.LessOrEqual(t, lipgloss.Width(line), width)
@@ -264,7 +265,7 @@ func TestRenderConversationHeaderDoesNotCountGroupedSubagentAsPart(t *testing.T)
 		},
 	}
 
-	got := ansi.Strip(renderConversationHeader(testTheme(), conv, 90, "2006-01-02 15:04"))
+	got := ansi.Strip(renderConversationHeader(testutil.NewTestTheme(), conv, 90, "2006-01-02 15:04"))
 
 	assert.NotContains(t, got, "2 parts")
 	assert.NotContains(t, got, "resume child-id")

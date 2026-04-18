@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -332,7 +333,7 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 		session:        testSession(testConversationIDPrimary),
 	})
 
-	helpLine := ansi.Strip(renderHelpItems(testTheme(), b.viewer.footerItems()))
+	helpLine := ansi.Strip(renderHelpItems(testutil.NewTestTheme(), b.viewer.footerItems()))
 	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking")
 	assert.NotContains(t, helpLine, " open")
 }
@@ -348,19 +349,19 @@ func TestRenderHelpItemUsesGlowForPurpleToggleHighlight(t *testing.T) {
 		{
 			name:     "glowing toggle uses primary",
 			item:     helpItem{Key: "t", Desc: "thinking", Toggle: true, Glow: true},
-			expected: lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("-t"),
+			expected: lipgloss.NewStyle().Foreground(testutil.NewTestTheme().ColorPrimary).Render("-t"),
 		},
 		{
 			name:     "glowing action uses primary",
 			item:     helpItem{Key: "ctrl+l", Desc: "clear", Glow: true},
-			expected: lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("ctrl+l"),
+			expected: lipgloss.NewStyle().Foreground(testutil.NewTestTheme().ColorPrimary).Render("ctrl+l"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Contains(t, renderHelpItem(testTheme(), tt.item), tt.expected)
+			assert.Contains(t, renderHelpItem(testutil.NewTestTheme(), tt.item), tt.expected)
 		})
 	}
 }

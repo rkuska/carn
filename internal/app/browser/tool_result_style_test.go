@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -80,7 +81,7 @@ func TestRenderStyledToolResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := renderStyledToolResult(testTheme(), tt.tr, tt.width)
+			got := renderStyledToolResult(testutil.NewTestTheme(), tt.tr, tt.width)
 			stripped := ansi.Strip(got)
 
 			assertContainsAll(t, stripped, tt.contains...)
@@ -98,7 +99,7 @@ func TestRenderStyledToolResultMultipleHunksCount(t *testing.T) {
 			{OldStart: 20, OldLines: 1, NewStart: 21, NewLines: 2, Lines: []string{"+b"}},
 		},
 	}
-	got := renderStyledToolResult(testTheme(), tr, 80)
+	got := renderStyledToolResult(testutil.NewTestTheme(), tr, 80)
 	stripped := ansi.Strip(got)
 
 	count := strings.Count(stripped, "@@")
@@ -175,7 +176,7 @@ func TestRenderContentAreaConsistentWidth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var sb strings.Builder
-			renderContentArea(testTheme(), &sb, tt.lines, false, tt.width, testTheme().ColorPrimary)
+			renderContentArea(testutil.NewTestTheme(), &sb, tt.lines, false, tt.width, testutil.NewTestTheme().ColorPrimary)
 			output := sb.String()
 
 			rendered := strings.Split(strings.TrimRight(output, "\n"), "\n")
@@ -197,7 +198,7 @@ func TestRenderContentAreaWrapsLongLines(t *testing.T) {
 	width := 30
 	longLine := strings.Repeat("a", 50)
 	var sb strings.Builder
-	renderContentArea(testTheme(), &sb, []string{longLine}, false, width, testTheme().ColorPrimary)
+	renderContentArea(testutil.NewTestTheme(), &sb, []string{longLine}, false, width, testutil.NewTestTheme().ColorPrimary)
 
 	output := sb.String()
 	rendered := strings.Split(strings.TrimRight(output, "\n"), "\n")
@@ -229,8 +230,8 @@ func TestRenderStyledToolResultErrorStyling(t *testing.T) {
 			Content:  "command succeeded",
 			IsError:  false,
 		}
-		errOutput := renderStyledToolResult(testTheme(), errTR, 80)
-		okOutput := renderStyledToolResult(testTheme(), okTR, 80)
+		errOutput := renderStyledToolResult(testutil.NewTestTheme(), errTR, 80)
+		okOutput := renderStyledToolResult(testutil.NewTestTheme(), okTR, 80)
 		// Both should contain the tool name
 		assert.Contains(t, ansi.Strip(errOutput), "Bash")
 		// The raw ANSI output should differ (different colors)
@@ -245,7 +246,7 @@ func TestRenderStyledToolResultLineCount(t *testing.T) {
 		ToolName: "Read",
 		Content:  "line1\nline2\nline3",
 	}
-	got := renderStyledToolResult(testTheme(), tr, 80)
+	got := renderStyledToolResult(testutil.NewTestTheme(), tr, 80)
 	stripped := ansi.Strip(got)
 	assert.Contains(t, stripped, "3 lines")
 }
@@ -256,7 +257,7 @@ func TestRenderStyledToolResultContentFallbackSummary(t *testing.T) {
 	tr := conv.ToolResult{
 		Content: "first line of output\nsecond line",
 	}
-	got := renderStyledToolResult(testTheme(), tr, 80)
+	got := renderStyledToolResult(testutil.NewTestTheme(), tr, 80)
 	stripped := ansi.Strip(got)
 	assert.Contains(t, stripped, "first line of output")
 }

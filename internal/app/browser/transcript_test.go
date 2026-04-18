@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -115,7 +116,7 @@ func TestRenderPreview(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := renderPreview(testTheme(), session, tt.maxMessages, 80, "2006-01-02 15:04")
+			result := renderPreview(testutil.NewTestTheme(), session, tt.maxMessages, 80, "2006-01-02 15:04")
 			assertContainsAll(t, result, tt.contains...)
 			assertNotContainsAll(t, result, tt.excludes...)
 		})
@@ -161,7 +162,7 @@ func TestRenderPreviewSkipsHiddenSystemMessages(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 	assert.Contains(t, result, "Actual prompt")
 	assert.NotContains(t, result, "bootstrap context")
 }
@@ -344,7 +345,7 @@ func TestRenderPreviewAgentDivider(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 	assertContainsAll(t, result, "--- Subagent ---", "Explore files")
 	// Main question goes to prompt section, not as ▶ You
 	assert.Contains(t, result, "▎")
@@ -396,7 +397,7 @@ func TestRenderPreviewSkipsEmptyUser(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 	youCount := strings.Count(result, "▶ You")
 	assert.Zero(t, youCount)
 }
@@ -413,7 +414,7 @@ func TestRenderPreviewToolOnlyAssistant(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 	assert.Contains(t, result, "[Bash: ls -la]")
 }
 
@@ -704,7 +705,7 @@ func TestRenderPreviewHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := renderPreviewHeader(testTheme(), tt.meta, "2006-01-02 15:04")
+			result := renderPreviewHeader(testutil.NewTestTheme(), tt.meta, "2006-01-02 15:04")
 			assertContainsAll(t, result, tt.contains...)
 			assertNotContainsAll(t, result, tt.excludes...)
 		})
@@ -795,7 +796,7 @@ func TestRenderPreviewWithHeader(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 
 	// First user message appears in prompt section with ▎, not as ▶ You
 	assertContainsAll(t, result, "▎", "Help me with auth")
@@ -853,7 +854,7 @@ func TestRenderPreviewSkipsInterruptMessages(t *testing.T) {
 		},
 	}
 
-	result := renderPreview(testTheme(), session, 10, 80, "2006-01-02 15:04")
+	result := renderPreview(testutil.NewTestTheme(), session, 10, 80, "2006-01-02 15:04")
 
 	assertNotContainsAll(t, result, "[Request interrupted")
 	assertContainsAll(t, result, "Hello", "Continue")

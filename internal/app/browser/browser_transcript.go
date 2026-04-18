@@ -148,9 +148,7 @@ func (m browserModel) syncTranscriptSelection(cmds *[]tea.Cmd) browserModel {
 
 	var cmd tea.Cmd
 	m, cmd = m.openTranscript(conversation)
-	if cmd != nil {
-		*cmds = append(*cmds, cmd)
-	}
+	appendCmd(cmds, cmd)
 	return m
 }
 
@@ -177,9 +175,7 @@ func (m browserModel) reloadTranscriptAfterResync(cmds *[]tea.Cmd) browserModel 
 
 	var cmd tea.Cmd
 	m, cmd = m.openTranscript(conversation)
-	if cmd != nil {
-		*cmds = append(*cmds, cmd)
-	}
+	appendCmd(cmds, cmd)
 	return m
 }
 

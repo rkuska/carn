@@ -179,9 +179,7 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 		skipViewportUpdate = m.hasActiveOverlay()
 		var cmd tea.Cmd
 		m, cmd = m.handleKey(msg, &cmds)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+		appendCmd(&cmds, cmd)
 	case tea.WindowSizeMsg:
 		m = m.SetSize(msg.Width, msg.Height)
 	case notificationMsg:
@@ -193,9 +191,7 @@ func (m viewerModel) Update(msg tea.Msg) (viewerModel, tea.Cmd) {
 	if !skipViewportUpdate {
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+		appendCmd(&cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
