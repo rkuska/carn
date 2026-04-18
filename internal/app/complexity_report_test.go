@@ -46,7 +46,11 @@ func TestCollectModuleComplexityMetricsGroupsByPackageDirectory(t *testing.T) {
 		filepath.Join(internalRoot, "source", "source_test.go"),
 		"package source\n\nfunc TestSource() {}\n",
 	)
-	writeComplexityTestFile(t, filepath.Join(internalRoot, "source", "claude", "scan.go"), "package claude\n\nfunc Scan() {}\n")
+	writeComplexityTestFile(
+		t,
+		filepath.Join(internalRoot, "source", "claude", "scan.go"),
+		"package claude\n\nfunc Scan() {}\n",
+	)
 	writeComplexityTestFile(
 		t,
 		filepath.Join(internalRoot, "source", "claude", "scan_test.go"),

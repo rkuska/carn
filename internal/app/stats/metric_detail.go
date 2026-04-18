@@ -9,8 +9,6 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-const noDataLabel = "No data"
-
 func (m statsModel) renderActiveMetricDetail(width int) string {
 	switch m.tab {
 	case statsTabOverview:

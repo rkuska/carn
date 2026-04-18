@@ -265,10 +265,7 @@ func applyStatisticModeFloats(values []float64, mode StatisticMode) float64 {
 func nearestRank[T cmp.Ordered](values []T, percentile float64) T {
 	sorted := slices.Clone(values)
 	slices.Sort(sorted)
-	rank := int(math.Ceil(percentile / 100 * float64(len(sorted))))
-	if rank < 1 {
-		rank = 1
-	}
+	rank := max(int(math.Ceil(percentile/100*float64(len(sorted)))), 1)
 	return sorted[rank-1]
 }
 

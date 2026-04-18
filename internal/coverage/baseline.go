@@ -3,6 +3,7 @@ package coverage
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 )
 
@@ -53,9 +54,7 @@ func clonePackages(packages map[string]Ratio) map[string]Ratio {
 	}
 
 	cloned := make(map[string]Ratio, len(packages))
-	for pkg, ratio := range packages {
-		cloned[pkg] = ratio
-	}
+	maps.Copy(cloned, packages)
 
 	return cloned
 }

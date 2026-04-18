@@ -23,13 +23,6 @@ func importSyncActivityLabel(activity arch.SyncActivity) string {
 	}
 }
 
-func resyncSyncActivityLabel(activity arch.SyncActivity) string {
-	if activity == arch.SyncActivityRebuildingStore {
-		return "rebuilding local store"
-	}
-	return ""
-}
-
 func syncActivityShowsCurrentFile(activity arch.SyncActivity) bool {
 	return activity == arch.SyncActivitySyncingFiles
 }

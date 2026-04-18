@@ -15,14 +15,6 @@ func assertContainsAll(t testing.TB, got string, wants ...string) {
 	}
 }
 
-func assertNotContainsAll(t testing.TB, got string, unwanted ...string) {
-	t.Helper()
-
-	for _, item := range unwanted {
-		assert.NotContains(t, got, item)
-	}
-}
-
 func requireMsgType[T any](t testing.TB, msg any) T {
 	t.Helper()
 

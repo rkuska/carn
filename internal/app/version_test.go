@@ -4,8 +4,9 @@ import (
 	"sync"
 	"testing"
 
-	el "github.com/rkuska/carn/internal/app/elements"
 	"github.com/stretchr/testify/assert"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
 var versionStateMu sync.Mutex

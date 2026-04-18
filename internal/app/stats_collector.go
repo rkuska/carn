@@ -6,11 +6,11 @@ import (
 	"github.com/rkuska/carn/internal/stats"
 )
 
-type statsCollectorImpl struct{}
+var _ canonical.StatsCollector = StatsCollector{}
 
-var _ canonical.StatsCollector = statsCollectorImpl{}
+type StatsCollector struct{}
 
-func (statsCollectorImpl) CollectSessionStats(session conv.Session) conv.SessionStatsData {
+func (StatsCollector) CollectSessionStats(session conv.Session) conv.SessionStatsData {
 	sequences := stats.CollectPerformanceSequenceSessions([]conv.Session{session})
 	turns := stats.CollectSessionTurnMetrics([]conv.Session{session})
 

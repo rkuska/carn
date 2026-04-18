@@ -211,7 +211,7 @@ func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error
 	}
 
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStyles(subduedMarkdownStyleConfig(m.glamourStyle != glamourStyleLight)),
+		glamour.WithStyles(subduedMarkdownStyleConfig(m.glamourStyle != GlamourStyleLight)),
 		glamour.WithWordWrap(wrapWidth),
 	)
 	if err != nil {

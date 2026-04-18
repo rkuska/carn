@@ -53,23 +53,19 @@ by `internal/config`.
 
 **Entry and composition**: `internal/app/run.go`, `internal/app/app.go`
 
-**TUI core**: `internal/app/browser_*.go`, `internal/app/viewer_*.go`,
-`internal/app/transcript_*.go`, `internal/app/import_overview*.go`,
-`internal/app/import_sync_activity.go`, `internal/app/stats_*.go`
+**TUI core**: `internal/app/import_overview*.go`,
+`internal/app/browser/*.go`, `internal/app/stats/*.go`
 
-**TUI support**: `internal/app/commands.go`, `internal/app/config_reload.go`,
-`internal/app/delegate.go`, `internal/app/export_names.go`,
-`internal/app/footer.go`, `internal/app/help.go`,
-`internal/app/help_overlay.go`, `internal/app/help_fit.go`,
-`internal/app/keys.go`, `internal/app/markdown_style.go`,
-`internal/app/notifications.go`, `internal/app/provider_display.go`,
-`internal/app/resync.go`, `internal/app/search_preview.go`,
-`internal/app/session_launcher.go`, `internal/app/styles.go`,
-`internal/app/tool_result_style.go`,
-`internal/app/conversation_header.go`, `internal/app/browser_store.go`,
-`internal/app/import_pipeline_binding.go`,
-`internal/app/drift_notification.go`, `internal/app/logging.go`,
-`internal/app/version.go`
+**TUI shared elements**: `internal/app/elements/*.go`,
+`internal/app/elements_aliases.go`
+
+**TUI support**: `internal/app/append_cmd.go`,
+`internal/app/config_reload.go`, `internal/app/drift_notification.go`,
+`internal/app/editor_cmd.go`, `internal/app/import_pipeline_binding.go`,
+`internal/app/import_sync_activity.go`, `internal/app/keys.go`,
+`internal/app/logging.go`, `internal/app/resync.go`,
+`internal/app/session_launcher.go`, `internal/app/stats_collector.go`,
+`internal/app/stats_viewer.go`, `internal/app/version.go`
 
 **Shared conversation model**: `internal/conversation/*.go`
 
@@ -316,8 +312,8 @@ go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem .
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
 go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputeCache|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
-go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
-go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app/browser
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app/stats
 ```
 
 Run these benchmark commands one at a time. Do not execute multiple

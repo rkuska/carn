@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	glamourStyleDark  = "dark"
-	glamourStyleLight = "light"
+	glamourStyleDark = "dark"
 )
 
 // Config defines the minimal app inputs needed to build the UI model.
@@ -92,7 +91,7 @@ func Run() error {
 	hasDarkBG := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 	glamourStyle := glamourStyleDark
 	if !hasDarkBG {
-		glamourStyle = glamourStyleLight
+		glamourStyle = appbrowser.GlamourStyleLight
 	}
 
 	model, err := NewModel(ctx, configStateToAppConfig(state, glamourStyle))
@@ -128,11 +127,11 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 		glamourStyle = glamourStyleDark
 	}
 
-	initPalette(glamourStyle != glamourStyleLight)
+	initPalette(glamourStyle != appbrowser.GlamourStyleLight)
 
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
-	store := canonical.New(statsCollectorImpl{}, claudeBackend, codexBackend)
+	store := canonical.New(StatsCollector{}, claudeBackend, codexBackend)
 	storeAdapter := appbrowser.NewStore(store)
 	pipeline := newImportPipeline(
 		arch.Config{

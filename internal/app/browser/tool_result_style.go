@@ -122,11 +122,3 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 		}
 	}
 }
-
-func fitToWidth(s string, width int) string {
-	sw := lipgloss.Width(s)
-	if sw >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-sw)
-}

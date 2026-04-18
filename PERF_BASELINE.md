@@ -30,8 +30,8 @@ go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem .
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
 go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputeCache|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
-go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app
-go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app
+go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app/browser
+go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app/stats
 ```
 
 ## Delta Summary
@@ -60,12 +60,12 @@ Results (Apple M4 Pro, darwin/arm64):
 
 | Category | Package | Benchmark | ns/op | B/op | allocs/op |
 | --- | --- | --- | ---: | ---: | ---: |
-| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsCold | 1,395,236 | 1,296,204 | 25,565 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserLoadSessionsWarm | 34,521 | 4,977 | 85 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserOpenConversationWarm | 217,297 | 668,856 | 638 |
-| `User-Facing` | `internal/app` | BenchmarkBrowserDeepSearchWarm | 1,443,596 | 9,515 | 237 |
-| `User-Facing` | `internal/app` | BenchmarkViewerRenderContent | 1,909 | 0 | 0 |
-| `User-Facing` | `internal/app` | BenchmarkViewerSearch | 543.6 | 0 | 0 |
+| `User-Facing` | `internal/app/browser` | BenchmarkBrowserLoadSessionsCold | 1,395,236 | 1,296,204 | 25,565 |
+| `User-Facing` | `internal/app/browser` | BenchmarkBrowserLoadSessionsWarm | 34,521 | 4,977 | 85 |
+| `User-Facing` | `internal/app/browser` | BenchmarkBrowserOpenConversationWarm | 217,297 | 668,856 | 638 |
+| `User-Facing` | `internal/app/browser` | BenchmarkBrowserDeepSearchWarm | 1,443,596 | 9,515 | 237 |
+| `User-Facing` | `internal/app/browser` | BenchmarkViewerRenderContent | 1,909 | 0 | 0 |
+| `User-Facing` | `internal/app/browser` | BenchmarkViewerSearch | 543.6 | 0 | 0 |
 | `User-Facing` | `internal/stats` | BenchmarkComputeOverview/100 | 11,215 | 912 | 5 |
 | `User-Facing` | `internal/stats` | BenchmarkComputeOverview/1000 | 116,591 | 912 | 5 |
 | `User-Facing` | `internal/stats` | BenchmarkComputeOverview/10000 | 1,178,022 | 912 | 5 |
@@ -83,11 +83,11 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 589,916 | 73,458 | 175 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 31,271 | 41,296 | 433 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 314,848 | 414,353 | 4,333 |
-| `User-Facing` | `internal/app` | BenchmarkStatsOverviewRender | 109,054 | 44,297 | 463 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHeatmapRender | 72,878 | 20,184 | 385 |
-| `User-Facing` | `internal/app` | BenchmarkStatsHistogramRender | 61,960 | 14,928 | 326 |
-| `User-Facing` | `internal/app` | BenchmarkStatsCacheRender | 103,174 | 42,051 | 456 |
-| `User-Facing` | `internal/app` | BenchmarkStatsPerformanceRender | 179,946 | 103,363 | 768 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsOverviewRender | 109,054 | 44,297 | 463 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsHeatmapRender | 72,878 | 20,184 | 385 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsHistogramRender | 61,960 | 14,928 | 326 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsCacheRender | 103,174 | 42,051 | 456 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsPerformanceRender | 179,946 | 103,363 | 768 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,064,592 | 3,367,771 | 29,980 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,928,582 | 1,108,173 | 16,823 |
 | `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 6,450,880 | 6,932,642 | 88,009 |

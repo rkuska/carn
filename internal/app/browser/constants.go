@@ -1,3 +1,3 @@
 package browser
 
-const glamourStyleLight = "light"
+const GlamourStyleLight = "light"

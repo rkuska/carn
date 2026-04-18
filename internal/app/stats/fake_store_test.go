@@ -7,19 +7,7 @@ import (
 )
 
 type fakeBrowserStore struct {
-	listResult              []conv.Conversation
-	listErr                 error
-	loadResult              conv.Session
-	loadErr                 error
-	loadCalls               int
-	loadSessionResult       conv.Session
-	loadSessionResults      map[string]conv.Session
-	loadSessionErr          error
 	loadSessionCalls        int
-	loadSessionIDs          []string
-	deepSearchCalls         int
-	deepSearchResults       map[string][]conv.Conversation
-	deepSearchErr           error
 	sequenceErr             error
 	sequenceRows            []conv.PerformanceSequenceSession
 	sequenceRowsByKey       map[string][]conv.PerformanceSequenceSession

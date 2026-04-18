@@ -148,7 +148,7 @@ func newBrowserModel(
 		timestampFormat,
 		cacheSize,
 		debounceMs,
-		newDefaultBrowserStore(),
+		newDefaultBrowserStore(nil),
 	)
 }
 

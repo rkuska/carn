@@ -43,11 +43,11 @@ type canonicalBrowserStore struct {
 	sources map[conv.Provider]sessionTranscriptSource
 }
 
-func newDefaultBrowserStore() browserStore {
+func newDefaultBrowserStore(collector canonical.StatsCollector) browserStore {
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
 	return newBrowserStore(
-		canonical.New(statsCollector{}, claudeBackend, codexBackend),
+		canonical.New(collector, claudeBackend, codexBackend),
 		claudeBackend,
 		codexBackend,
 	)

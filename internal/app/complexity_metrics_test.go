@@ -412,9 +412,8 @@ func renderModuleMetricTable(
 		return
 	}
 
-	sb.WriteString(
-		"| Module | Source Files | Source Code | Source Complexity | Source Lines | Test Files | Test Code | Test Complexity | Test Lines |\n",
-	)
+	sb.WriteString("| Module | Source Files | Source Code | Source Complexity | " +
+		"Source Lines | Test Files | Test Code | Test Complexity | Test Lines |\n")
 	sb.WriteString(
 		"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
 	)

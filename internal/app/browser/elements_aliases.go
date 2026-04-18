@@ -8,7 +8,6 @@ import (
 
 type helpItem = el.HelpItem
 type helpSection = el.HelpSection
-type helpPriority = el.HelpPriority
 
 const (
 	helpPriorityLow       = el.HelpPriorityLow
@@ -42,9 +41,6 @@ const (
 	filterDimMultiPart = el.FilterDimMultiPart
 	filterDimCount     = el.FilterDimCount
 
-	boolValueYes = el.BoolValueYes
-	boolValueNo  = el.BoolValueNo
-
 	boolFilterAny = el.BoolFilterAny
 	boolFilterYes = el.BoolFilterYes
 	boolFilterNo  = el.BoolFilterNo
@@ -54,7 +50,6 @@ var (
 	renderHelpFooter                     = el.RenderHelpFooter
 	renderSearchFooter                   = el.RenderSearchFooter
 	renderHelpItems                      = el.RenderHelpItems
-	renderFittedHelpItems                = el.RenderFittedHelpItems
 	renderHelpItem                       = el.RenderHelpItem
 	renderHelpOverlay                    = el.RenderHelpOverlay
 	joinNonEmpty                         = el.JoinNonEmpty
@@ -64,12 +59,6 @@ var (
 	renderFramedPane                     = el.RenderFramedPane
 	renderInsetBox                       = el.RenderInsetBox
 	framedBodyHeight                     = el.FramedBodyHeight
-	framedFooterContentWidth             = el.FramedFooterContentWidth
-	renderFramedFooter                   = el.RenderFramedFooter
-	composeFooterRow                     = el.ComposeFooterRow
-	trimFooterRow                        = el.TrimFooterRow
-	truncateFooterText                   = el.TruncateFooterText
-	renderNotification                   = el.RenderNotification
 	infoNotification                     = el.InfoNotification
 	successNotification                  = el.SuccessNotification
 	errorNotification                    = el.ErrorNotification
@@ -84,14 +73,10 @@ var (
 	filterBadges                         = el.FilterBadges
 	cycleBoolFilter                      = el.CycleBoolFilter
 	renderFilterOverlayWithConversations = el.RenderFilterOverlayWithConversations
-	renderFilterDimensionRow             = el.RenderFilterDimensionRow
-	renderFilterExpandedValues           = el.RenderFilterExpandedValues
-	renderSelectionSummary               = el.RenderSelectionSummary
-	renderBoolSummary                    = el.RenderBoolSummary
 	filterFooterStatusParts              = el.FilterFooterStatusParts
 	filterFooterItems                    = el.FilterFooterItems
-	filterDimensionFooterItems           = el.FilterDimensionFooterItems
 	copyBrowserFilterState               = el.CopyFilterState
+	fitToWidth                           = el.FitToWidth
 )
 
 func resumeErrorNotification(err error, cwd string) notificationMsg {
@@ -99,28 +84,14 @@ func resumeErrorNotification(err error, cwd string) notificationMsg {
 }
 
 var (
-	colorPrimary     color.Color
-	colorSecondary   color.Color
-	colorAccent      color.Color
-	colorHighlight   color.Color
-	colorSelectedFg  color.Color
-	colorDiffRemove  color.Color
-	colorDiffHunk    color.Color
-	colorToolBg      color.Color
-	colorFgOnBg      color.Color
-	colorStatusFg    color.Color
-	colorNormalTitle color.Color
-	colorNormalDesc  color.Color
-	colorTitleFg     color.Color
-	colorChartBar    color.Color
-	colorChartToken  color.Color
-	colorChartTime   color.Color
-	colorChartError  color.Color
-	colorHeatmap0    color.Color
-	colorHeatmap1    color.Color
-	colorHeatmap2    color.Color
-	colorHeatmap3    color.Color
-	colorHeatmap4    color.Color
+	colorPrimary    color.Color
+	colorSecondary  color.Color
+	colorAccent     color.Color
+	colorHighlight  color.Color
+	colorSelectedFg color.Color
+	colorDiffRemove color.Color
+	colorStatusFg   color.Color
+	colorNormalDesc color.Color
 
 	styleSubtitle             = el.StyleSubtitle
 	styleToolCall             = el.StyleToolCall
@@ -145,7 +116,6 @@ var (
 	styleDiffHunkLine         = el.StyleDiffHunkLine
 	styleToolResultBadge      = el.StyleToolResultBadge
 	styleToolResultErrorBadge = el.StyleToolResultErrorBadge
-	stylePaneTitle            = el.StylePaneTitle
 )
 
 func syncPaletteFromElements() {
@@ -158,22 +128,8 @@ func syncPaletteFromElements() {
 	colorHighlight = el.ColorHighlight
 	colorSelectedFg = el.ColorSelectedFg
 	colorDiffRemove = el.ColorDiffRemove
-	colorDiffHunk = el.ColorDiffHunk
-	colorToolBg = el.ColorToolBg
-	colorFgOnBg = el.ColorFgOnBg
 	colorStatusFg = el.ColorStatusFg
-	colorNormalTitle = el.ColorNormalTitle
 	colorNormalDesc = el.ColorNormalDesc
-	colorTitleFg = el.ColorTitleFg
-	colorChartBar = el.ColorChartBar
-	colorChartToken = el.ColorChartToken
-	colorChartTime = el.ColorChartTime
-	colorChartError = el.ColorChartError
-	colorHeatmap0 = el.ColorHeatmap0
-	colorHeatmap1 = el.ColorHeatmap1
-	colorHeatmap2 = el.ColorHeatmap2
-	colorHeatmap3 = el.ColorHeatmap3
-	colorHeatmap4 = el.ColorHeatmap4
 
 	styleSubtitle = el.StyleSubtitle
 	styleToolCall = el.StyleToolCall
@@ -198,5 +154,4 @@ func syncPaletteFromElements() {
 	styleDiffHunkLine = el.StyleDiffHunkLine
 	styleToolResultBadge = el.StyleToolResultBadge
 	styleToolResultErrorBadge = el.StyleToolResultErrorBadge
-	stylePaneTitle = el.StylePaneTitle
 }

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "module_path": "github.com/rkuska/carn",
   "total": {
-    "covered": 12443,
-    "statements": 15620
+    "covered": 12355,
+    "statements": 15522
   },
   "packages": {
     "github.com/rkuska/carn": {
@@ -15,20 +15,20 @@
       "statements": 119
     },
     "github.com/rkuska/carn/internal/app": {
-      "covered": 571,
-      "statements": 703
+      "covered": 533,
+      "statements": 662
     },
     "github.com/rkuska/carn/internal/app/browser": {
-      "covered": 1747,
-      "statements": 2204
+      "covered": 1728,
+      "statements": 2176
     },
     "github.com/rkuska/carn/internal/app/elements": {
-      "covered": 1244,
+      "covered": 1243,
       "statements": 1452
     },
     "github.com/rkuska/carn/internal/app/stats": {
-      "covered": 1572,
-      "statements": 2259
+      "covered": 1543,
+      "statements": 2230
     },
     "github.com/rkuska/carn/internal/archive": {
       "covered": 141,
@@ -43,12 +43,12 @@
       "statements": 124
     },
     "github.com/rkuska/carn/internal/conversation": {
-      "covered": 344,
+      "covered": 343,
       "statements": 354
     },
     "github.com/rkuska/carn/internal/coverage": {
-      "covered": 83,
-      "statements": 101
+      "covered": 85,
+      "statements": 103
     },
     "github.com/rkuska/carn/internal/source": {
       "covered": 118,
@@ -63,8 +63,8 @@
       "statements": 2069
     },
     "github.com/rkuska/carn/internal/stats": {
-      "covered": 1503,
-      "statements": 1650
+      "covered": 1501,
+      "statements": 1648
     },
     "github.com/rkuska/carn/scenarios/helpers": {
       "covered": 71,

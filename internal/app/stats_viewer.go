@@ -6,7 +6,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	appbrowser "github.com/rkuska/carn/internal/app/browser"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -15,9 +14,13 @@ type statsSessionLoadedMsg struct {
 	session      conv.Session
 }
 
+type statsSessionStore interface {
+	LoadSession(ctx context.Context, conversation conv.Conversation, sessionMeta conv.SessionMeta) (conv.Session, error)
+}
+
 func loadStatsSessionCmd(
 	ctx context.Context,
-	store appbrowser.Store,
+	store statsSessionStore,
 	conversation conv.Conversation,
 	sessionMeta conv.SessionMeta,
 ) tea.Cmd {
