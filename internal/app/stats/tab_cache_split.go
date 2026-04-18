@@ -26,8 +26,8 @@ func (m statsModel) splitCacheSummaryChips(cache statspkg.Cache) []chip {
 }
 
 func (m statsModel) renderSplitCacheBody(width int) string {
-	grouped := m.splitCache()
-	colorByKey := m.splitColorMap()
+	grouped := m.splitCacheResult
+	colorByKey := m.splitColors
 	dailyTitle, dailyShares := m.splitCacheDailyData(grouped)
 	dailyKeys := presentSplitKeys(dailyShares, dailyShareSplits)
 	segmentKeys := presentSplitKeys(grouped.SegmentRows, namedStatSplits)

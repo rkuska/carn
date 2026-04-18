@@ -20,7 +20,7 @@ func (m statsModel) renderSplitTurnMetricLaneBody(
 	if len(series) == 0 {
 		return statsNoClaudeTurnMetricsData
 	}
-	return renderSplitTurnChartBody(m.theme, series, width, height, m.splitColorMap(), value)
+	return renderSplitTurnChartBody(m.theme, series, width, height, m.splitColors, value)
 }
 
 func splitTurnMetricsUnsupportedMessage(dim statspkg.SplitDimension) string {

@@ -63,7 +63,7 @@ None.
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/stats/model.go | source | 344 | 36 | 389 |
+| internal/app/stats/model.go | source | 361 | 37 | 407 |
 | internal/app/browser/viewer_model.go | source | 339 | 34 | 372 |
 | internal/canonical/store_integration_test.go | test | 661 | 29 | 792 |
 | internal/app/browser/browser_test.go | test | 615 | 25 | 748 |
@@ -87,7 +87,7 @@ None.
 | internal/canonical | 30 | 4688 | 964 | 5151 | 14 | 4045 | 164 | 4644 |
 | internal/source/codex | 35 | 4894 | 904 | 5465 | 9 | 2197 | 74 | 2431 |
 | internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
-| internal/app/stats | 44 | 5387 | 739 | 6005 | 15 | 3841 | 58 | 4496 |
+| internal/app/stats | 44 | 5401 | 740 | 6013 | 15 | 3841 | 58 | 4496 |
 
 ## Notes
 

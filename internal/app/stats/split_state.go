@@ -136,7 +136,7 @@ func (m statsModel) splitTurnSeries(mode statspkg.StatisticMode) []statspkg.Spli
 	)
 }
 
-func (m statsModel) splitTools() statspkg.ToolsBySplit {
+func (m statsModel) computeSplitTools() statspkg.ToolsBySplit {
 	return statspkg.ComputeToolsBySplit(
 		m.statsSessions,
 		m.timeRange,
@@ -145,7 +145,7 @@ func (m statsModel) splitTools() statspkg.ToolsBySplit {
 	)
 }
 
-func (m statsModel) splitCache() statspkg.CacheBySplit {
+func (m statsModel) computeSplitCache() statspkg.CacheBySplit {
 	return statspkg.ComputeCacheBySplit(
 		m.statsSessions,
 		m.timeRange,

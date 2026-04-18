@@ -26,8 +26,8 @@ func (m statsModel) splitToolsSummaryChips(tools statspkg.Tools) []chip {
 }
 
 func (m statsModel) renderSplitToolsBody(width int) string {
-	grouped := m.splitTools()
-	colorByKey := m.splitColorMap()
+	grouped := m.splitToolsResult
+	colorByKey := m.splitColors
 	callsKeys := presentSplitKeys(grouped.CallsPerSession, histBucketSplits)
 	topKeys := presentSplitKeys(grouped.TopTools, namedStatSplits)
 	errorKeys := presentSplitKeys(grouped.ToolErrorRates, rateStatSplits)

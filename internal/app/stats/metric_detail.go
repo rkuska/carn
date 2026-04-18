@@ -246,7 +246,7 @@ func (m statsModel) renderSessionTurnLaneDetail(
 		yAxisDescription,
 	)
 	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
-		reading += " Colors stack each bar by " + m.splitBy.Label() + "."
+		reading += " " + m.colorsStackSuffix()
 	}
 
 	scope := "Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt."

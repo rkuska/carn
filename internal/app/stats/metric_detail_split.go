@@ -13,7 +13,7 @@ func splitDetailChips(splitChips []chip, extra ...chip) []chip {
 }
 
 func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) string {
-	grouped := m.splitTools()
+	grouped := m.splitToolsResult
 	splitChips := splitTurnMetricDetailChips(m)
 	switch lane.id { //nolint:exhaustive // split tools detail only handles tool lanes
 	case statsLaneToolsCalls:
@@ -26,7 +26,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine("Question", "Is tool use light and frequent or concentrated in a few heavy sessions?"),
 			m.metricDetailLine(
 				"Reading",
-				"The X-axis is call-count bucket and the Y-axis is session count. "+m.colorsStackPrefix()+".",
+				"The X-axis is call-count bucket and the Y-axis is session count. "+m.colorsStackSuffix(),
 			),
 		)
 	case statsLaneToolsTop:
@@ -39,7 +39,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine("Question", "Which tools dominate the workflow?"),
 			m.metricDetailLine(
 				"Reading",
-				"Longer bars mean more total calls in the active slice. "+m.colorsSplitPrefix("each bar")+".",
+				"Longer bars mean more total calls in the active slice. "+m.colorsSplitSuffix("each bar"),
 			),
 		)
 	case statsLaneToolsErrors:
@@ -53,7 +53,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"Rates exclude user-declined suggestions and show absolute failures alongside percentage. "+
-					m.colorsSplitPrefix("failing calls")+".",
+					m.colorsSplitSuffix("failing calls"),
 			),
 		)
 	default:
@@ -67,14 +67,14 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"Higher rates mean stronger user resistance to the suggested tool choice. "+
-					m.colorsSplitPrefix("rejected calls")+".",
+					m.colorsSplitSuffix("rejected calls"),
 			),
 		)
 	}
 }
 
 func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) string {
-	grouped := m.splitCache()
+	grouped := m.splitCacheResult
 	splitChips := splitTurnMetricDetailChips(m)
 	switch lane.id { //nolint:exhaustive // split cache detail only handles cache lanes
 	case statsLaneCacheDaily:
@@ -89,7 +89,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"Columns are daily buckets and the Y-axis is the cache token share of prompt traffic. "+
-					m.colorsSplitPrefix("each daily bar")+".",
+					m.colorsSplitSuffix("each daily bar"),
 			),
 		)
 	case statsLaneCacheSegment:
@@ -103,7 +103,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"Rows compare main vs subagent cache components and the X-axis is total tokens. "+
-					m.colorsSplitPrefix("each row")+".",
+					m.colorsSplitSuffix("each row"),
 			),
 		)
 	case statsLaneCacheReuse:
@@ -117,7 +117,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"The X-axis is session duration bucket and the Y-axis is cache-write token count. "+
-					m.colorsStackPrefix()+".",
+					m.colorsStackSuffix(),
 			),
 		)
 	default:
@@ -131,24 +131,18 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			m.metricDetailLine(
 				"Reading",
 				"The X-axis is session duration bucket and the Y-axis is cache-read token count. "+
-					m.colorsStackPrefix()+".",
+					m.colorsStackSuffix(),
 			),
 		)
 	}
 }
 
-// colorsStackPrefix returns the standard suffix sentence describing how
-// colors stack the bar by the active split dimension. Used to keep split
-// reading lines consistent.
-func (m statsModel) colorsStackPrefix() string {
-	return "Colors stack each bar by " + m.splitBy.Label()
+func (m statsModel) colorsStackSuffix() string {
+	return "Colors stack each bar by " + m.splitBy.Label() + "."
 }
 
-// colorsSplitPrefix returns the standard suffix sentence describing how
-// colors split a target by the active split dimension. The target name is
-// substituted into the sentence (for example "each bar", "failing calls").
-func (m statsModel) colorsSplitPrefix(target string) string {
-	return "Colors split " + target + " by " + m.splitBy.Label()
+func (m statsModel) colorsSplitSuffix(target string) string {
+	return "Colors split " + target + " by " + m.splitBy.Label() + "."
 }
 
 func dominantSplitHistogramBucket(buckets []statspkg.SplitHistogramBucket) (string, int) {

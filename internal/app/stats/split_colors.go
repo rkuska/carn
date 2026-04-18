@@ -2,7 +2,6 @@ package stats
 
 import (
 	"image/color"
-	"slices"
 
 	el "github.com/rkuska/carn/internal/app/elements"
 )
@@ -18,17 +17,14 @@ func buildSplitColorMap(theme *el.Theme, keys []string) map[string]color.Color {
 		theme.ColorDiffRemove,
 	}
 
-	sorted := slices.Clone(keys)
-	slices.Sort(sorted)
-
-	colors := make(map[string]color.Color, len(sorted))
-	for i, key := range sorted {
+	colors := make(map[string]color.Color, len(keys))
+	for i, key := range keys {
 		colors[key] = palette[i%len(palette)]
 	}
 	return colors
 }
 
-func (m statsModel) splitColorMap() map[string]color.Color {
+func (m statsModel) buildSplitColors() map[string]color.Color {
 	keys := m.splitKeys()
 	if len(keys) == 0 {
 		return nil

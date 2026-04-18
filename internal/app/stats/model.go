@@ -3,6 +3,7 @@ package stats
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"math"
 	"sync"
 	"time"
@@ -58,6 +59,9 @@ type statsModel struct {
 	statsActivityBuckets    []conv.ActivityBucketRow
 	splitBy                 stats.SplitDimension
 	splitValues             []string
+	splitToolsResult        stats.ToolsBySplit
+	splitCacheResult        stats.CacheBySplit
+	splitColors             map[string]color.Color
 	splitExpanded           bool
 	splitExpandedCursor     int
 	notification            notification
@@ -298,7 +302,21 @@ func (m statsModel) recomputeSnapshot() statsModel {
 		m.statsTurnMetrics,
 		m.statsActivityBuckets,
 	)
+	m = m.refreshSplitCaches()
 	m = m.normalizeStatsSelection()
+	return m
+}
+
+func (m statsModel) refreshSplitCaches() statsModel {
+	if !m.splitBy.IsActive() {
+		m.splitToolsResult = stats.ToolsBySplit{}
+		m.splitCacheResult = stats.CacheBySplit{}
+		m.splitColors = nil
+		return m
+	}
+	m.splitToolsResult = m.computeSplitTools()
+	m.splitCacheResult = m.computeSplitCache()
+	m.splitColors = m.buildSplitColors()
 	return m
 }
 
