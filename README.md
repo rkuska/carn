@@ -78,7 +78,7 @@ configuration status, and file counts. Press `enter` to import, or
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew install rkuska/carn/carn
+brew install --cask rkuska/carn/carn
 ```
 
 ### Binary download
