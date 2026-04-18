@@ -27,7 +27,7 @@ func classifyCommand(raw string) commandClassification {
 	case isSearchCommand(words):
 		return commandClassification{
 			actionType: conv.NormalizedActionSearch,
-			targets:    extractSearchTargets(words, command),
+			targets:    extractSearchTargets(words),
 		}
 	case isReadCommand(words):
 		return commandClassification{
@@ -142,7 +142,7 @@ func hasCommandVerb(words []string, verb string) bool {
 	return len(words) > 1 && words[1] == verb
 }
 
-func extractSearchTargets(words []string, command string) []conv.ActionTarget {
+func extractSearchTargets(words []string) []conv.ActionTarget {
 	switch filepath.Base(words[0]) {
 	case "find":
 		return appendTargets(

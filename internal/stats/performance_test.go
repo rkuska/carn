@@ -107,7 +107,6 @@ func TestComputePerformanceMarksMixedProviderAndModelScopeAsNonComparable(t *tes
 		testPerformanceConversation(
 			conv.ProviderClaude,
 			"claude-current",
-			"alpha",
 			testPerformanceSessionMeta(
 				"claude-current",
 				"alpha",
@@ -120,7 +119,6 @@ func TestComputePerformanceMarksMixedProviderAndModelScopeAsNonComparable(t *tes
 		testPerformanceConversation(
 			conv.ProviderCodex,
 			"codex-current",
-			"beta",
 			testPerformanceSessionMeta(
 				"codex-current",
 				"beta",
@@ -397,7 +395,7 @@ func makeSequenceSessions(start time.Time, count int, resolved bool) []Performan
 
 func testPerformanceConversation(
 	provider conv.Provider,
-	id, project string,
+	id string,
 	session conv.SessionMeta,
 ) conv.Conversation {
 	return testConversation(provider, id, session)

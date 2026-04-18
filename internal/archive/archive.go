@@ -61,7 +61,7 @@ func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) 
 	}
 	analysis.QueuedFiles = src.Dedupe(analysis.QueuedFiles)
 
-	storeNeedsBuild, err := p.storeNeedsBuild(ctx, analysis)
+	storeNeedsBuild, err := p.storeNeedsBuild(ctx)
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
@@ -123,7 +123,7 @@ func formatProgressUnit(provider conv.Provider, unit string) string {
 	return string(provider) + " / " + unit
 }
 
-func (p Pipeline) storeNeedsBuild(ctx context.Context, analysis ImportAnalysis) (bool, error) {
+func (p Pipeline) storeNeedsBuild(ctx context.Context) (bool, error) {
 	storeNeedsBuild, err := p.store.NeedsRebuild(ctx, p.cfg.ArchiveDir)
 	if err != nil {
 		return false, fmt.Errorf("analyze_store.NeedsRebuild: %w", err)

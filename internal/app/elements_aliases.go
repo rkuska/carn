@@ -10,8 +10,6 @@ type helpItem = el.HelpItem
 type helpSection = el.HelpSection
 
 const (
-	helpPriorityLow       = el.HelpPriorityLow
-	helpPriorityNormal    = el.HelpPriorityNormal
 	helpPriorityHigh      = el.HelpPriorityHigh
 	helpPriorityEssential = el.HelpPriorityEssential
 
@@ -21,9 +19,7 @@ const (
 type notification = el.Notification
 
 const (
-	notificationInfo    = el.NotificationInfo
-	notificationSuccess = el.NotificationSuccess
-	notificationError   = el.NotificationError
+	notificationInfo = el.NotificationInfo
 )
 
 var (

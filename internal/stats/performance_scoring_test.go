@@ -233,7 +233,7 @@ func TestPerformanceTimeWindowUsesImmediatelyPreviousEqualDurationBaseline(t *te
 		End:   time.Date(2026, 2, 14, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC),
 	}
 
-	window := performanceTimeWindow[performanceSession](current, nil, performanceSessionTimestamp)
+	window := performanceTimeWindow(current, nil, performanceSessionTimestamp)
 
 	assert.Equal(t, current, window.current)
 	assert.Equal(t, TimeRange{

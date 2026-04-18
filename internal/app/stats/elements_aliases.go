@@ -20,28 +20,20 @@ type notification = el.Notification
 type notificationMsg = el.NotificationMsg
 type clearNotificationMsg = el.ClearNotificationMsg
 
-const (
-	notificationInfo    = el.NotificationInfo
-	notificationSuccess = el.NotificationSuccess
-	notificationError   = el.NotificationError
-)
+const notificationError = el.NotificationError
 
 type browserFilterState = el.FilterState
 type filterDimension = el.FilterDimension
 type dimensionFilter = el.DimensionFilter
 
 const (
-	filterDimProvider  = el.FilterDimProvider
-	filterDimProject   = el.FilterDimProject
-	filterDimModel     = el.FilterDimModel
-	filterDimGitBranch = el.FilterDimGitBranch
-	filterDimHasPlans  = el.FilterDimHasPlans
-	filterDimMultiPart = el.FilterDimMultiPart
-	filterDimCount     = el.FilterDimCount
+	filterDimProvider = el.FilterDimProvider
+	filterDimProject  = el.FilterDimProject
+	filterDimModel    = el.FilterDimModel
+	filterDimHasPlans = el.FilterDimHasPlans
+	filterDimCount    = el.FilterDimCount
 
-	boolFilterAny = el.BoolFilterAny
 	boolFilterYes = el.BoolFilterYes
-	boolFilterNo  = el.BoolFilterNo
 
 	framedFooterRows       = el.FramedFooterRows
 	filterOverlayIndent    = el.FilterOverlayIndent

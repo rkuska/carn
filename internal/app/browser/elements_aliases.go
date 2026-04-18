@@ -10,8 +10,6 @@ type helpItem = el.HelpItem
 type helpSection = el.HelpSection
 
 const (
-	helpPriorityLow       = el.HelpPriorityLow
-	helpPriorityNormal    = el.HelpPriorityNormal
 	helpPriorityHigh      = el.HelpPriorityHigh
 	helpPriorityEssential = el.HelpPriorityEssential
 )

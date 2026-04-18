@@ -1,0 +1,66 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# command line arguments. PATH is compulsory and QUIET is optional
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+	echo "Usage: $0 <PATH> [QUIET]" >&2
+	exit 1
+fi
+
+root="$1"
+if [ ! -d "$root" ]; then
+	echo "$root' is not a directory" >&2
+	exit 1
+fi
+
+quiet=false
+if [ $# -eq 2 ]; then
+	case "$2" in
+		[Qq][Uu][Ii][Ee][Tt])
+		quiet=true
+		;;
+	*)
+		echo "Usage: $0 <PATH> [QUIET]" >&2
+		exit 1
+		;;
+	esac
+fi
+
+# create sorted list of directory names
+dirs=()
+while IFS= read -r -d '' file; do
+	dir=$(dirname "$file")
+	dirs+=("$dir")
+done < <(find "$root" -type f -name "*.go" -print0)
+dirs=($(printf "%s\n" "${dirs[@]}" | sort -u))
+
+# check is called in parallel
+check() {
+	pkgdir="$1"
+	quiet="$2"
+
+	pkgfiles=("$pkgdir"/*.go)
+	if [ -e "${pkgfiles[0]}" ]; then
+		if [ "$quiet" = "false" ]; then
+			echo "Checking $pkgdir"
+		fi
+		output=$(gopls check -severity=info "${pkgfiles[@]}" 2>&1)
+		if [ -n "$output" ]; then
+			printf '%s\n' "$output" >&2
+			return 1
+		fi
+	fi
+}
+export -f check
+
+maxchildren() {
+	if command -v nproc >/dev/null 2>&1; then
+		nproc
+		return
+	fi
+	sysctl -n hw.ncpu
+}
+
+# run check in parallel. xargs mediates the maximum number of children
+printf "%s\n" "${dirs[@]}" | xargs -P "$(maxchildren)" -I {} bash -c 'check "$@"' _ {} "$quiet"
