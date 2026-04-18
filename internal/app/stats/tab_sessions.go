@@ -9,15 +9,15 @@ import (
 
 const (
 	statsClaudePromptGrowthTitle   = "Prompt Growth"
-	statsClaudeTurnCostTitle       = "Turn Cost"
+	statsClaudeTurnCostTitle       = "Billed Tokens per Turn"
 	statsNoClaudeTurnMetricsData   = "No main-thread turn metrics"
 	statsClaudeMetricsNoDataLabel  = "turn metrics"
 	statsClaudePromptEarlyLabel    = "prompt 1-5 avg"
 	statsClaudePromptLateLabel     = "prompt 20+ avg"
 	statsClaudePromptFactorLabel   = "prompt multiplier"
-	statsClaudeTurnCostEarlyLabel  = "turn cost 1-5 avg"
-	statsClaudeTurnCostLateLabel   = "turn cost 20+ avg"
-	statsClaudeTurnCostFactorLabel = "turn cost multiplier"
+	statsClaudeTurnCostEarlyLabel  = "billed 1-5 avg"
+	statsClaudeTurnCostLateLabel   = "billed 20+ avg"
+	statsClaudeTurnCostFactorLabel = "billed multiplier"
 )
 
 func (m statsModel) renderSessionsTab(width int) string {

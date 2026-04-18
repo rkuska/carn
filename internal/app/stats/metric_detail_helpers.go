@@ -144,9 +144,9 @@ func turnCostMetricDetailChips(
 		return metric.AverageTurnTokens
 	})
 	return []chip{
-		{Label: turnMetricRangeLabel("turn cost", "1-5", mode), Value: formatFloat(early)},
-		{Label: turnMetricRangeLabel("turn cost", "20+", mode), Value: formatFloat(late)},
-		{Label: turnMetricFactorLabel("turn cost", mode), Value: formatTurnMetricMultiplier(early, late)},
+		{Label: turnMetricRangeLabel("billed", "1-5", mode), Value: formatFloat(early)},
+		{Label: turnMetricRangeLabel("billed", "20+", mode), Value: formatFloat(late)},
+		{Label: turnMetricFactorLabel("billed", mode), Value: formatTurnMetricMultiplier(early, late)},
 	}
 }
 

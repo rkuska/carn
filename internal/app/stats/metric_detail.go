@@ -211,6 +211,7 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 			m.sessionsPromptMode,
 			"How does prompt size grow as main-thread sessions go deeper?",
 			"prompt-side tokens",
+			"",
 			promptMetricDetailChips,
 		)
 	}
@@ -220,6 +221,8 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 		m.sessionsTurnCostMode,
 		"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
 		"total assistant tokens per turn",
+		"Sum across every assistant API call in the turn; cached prompts are counted in full,"+
+			" so long tool loops can exceed the model's context window.",
 		turnCostMetricDetailChips,
 	)
 }
@@ -228,7 +231,7 @@ func (m statsModel) renderSessionTurnLaneDetail(
 	lane statsLane,
 	width int,
 	mode statspkg.StatisticMode,
-	question, yAxisDescription string,
+	question, yAxisDescription, note string,
 	metricChips func([]statspkg.PositionTokenMetrics, statspkg.StatisticMode) []chip,
 ) string {
 	metrics := m.sessionTurnMetricsForMode(mode)
@@ -251,11 +254,15 @@ func (m statsModel) renderSessionTurnLaneDetail(
 		scope += " " + splitTurnMetricScope(m)
 	}
 
-	return m.renderStatsMetricDetail(lane.title, width, chips,
+	lines := []string{
 		m.metricDetailLine("Question", question),
 		m.metricDetailLine("Reading", reading),
 		m.metricDetailLine("Scope", scope),
-	)
+	}
+	if note != "" {
+		lines = append(lines, m.metricDetailLine("Note", note))
+	}
+	return m.renderStatsMetricDetail(lane.title, width, chips, lines...)
 }
 
 func (m statsModel) renderToolsMetricDetail(width int) string {

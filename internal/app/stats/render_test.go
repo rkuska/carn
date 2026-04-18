@@ -267,7 +267,7 @@ func TestStatsRenderSessionsGroupedTurnChartsShowVersionLegend(t *testing.T) {
 	body := ansi.Strip(m.renderSessionsTab(120))
 
 	assert.Contains(t, body, "Avg Prompt Growth (by Version)")
-	assert.Contains(t, body, "Avg Turn Cost (by Version)")
+	assert.Contains(t, body, "Avg Billed Tokens per Turn (by Version)")
 	assert.Contains(t, body, "1.0.0")
 	assert.Contains(t, body, statspkg.UnknownVersionLabel)
 }

@@ -58,8 +58,8 @@ None.
 | internal/app/stats/tab_cache.go | source | 333 | 58 | 366 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
 | internal/canonical/sqlite_stats.go | source | 338 | 55 | 372 |
+| internal/app/stats/metric_detail.go | source | 324 | 50 | 351 |
 | internal/source/claude/scanner_metadata.go | source | 380 | 48 | 409 |
-| internal/app/stats/metric_detail.go | source | 317 | 48 | 344 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
@@ -87,7 +87,7 @@ None.
 | internal/canonical | 30 | 4688 | 964 | 5151 | 14 | 4045 | 164 | 4644 |
 | internal/source/codex | 35 | 4894 | 904 | 5465 | 9 | 2197 | 74 | 2431 |
 | internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
-| internal/app/stats | 44 | 5380 | 737 | 5998 | 15 | 3841 | 58 | 4496 |
+| internal/app/stats | 44 | 5387 | 739 | 6005 | 15 | 3841 | 58 | 4496 |
 
 ## Notes
 
