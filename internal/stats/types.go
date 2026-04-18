@@ -260,18 +260,27 @@ type TurnTokens = conv.TurnTokens
 type ActivityBucketRow = conv.ActivityBucketRow
 
 type Cache struct {
-	TotalCacheRead  int
-	TotalCacheWrite int
-	TotalPrompt     int
-	HitRate         float64
-	WriteRate       float64
-	MissRate        float64
-	ReuseRatio      float64
-	Main            CacheSegment
-	Subagent        CacheSegment
-	DailyHitRate    []DailyRate
-	DailyReuseRatio []DailyRate
-	DurationBuckets []CacheDurationBucket
+	TotalCacheRead     int
+	TotalCacheWrite    int
+	TotalPrompt        int
+	HitRate            float64
+	WriteRate          float64
+	MissRate           float64
+	ReuseRatio         float64
+	Main               CacheSegment
+	Subagent           CacheSegment
+	DailyHitRate       []DailyRate
+	DailyReuseRatio    []DailyRate
+	DurationBuckets    []CacheDurationBucket
+	FirstTurnByVersion []CacheFirstTurnVersionStat
+}
+
+type CacheFirstTurnVersionStat struct {
+	Version         string
+	SessionCount    int
+	ZeroCount       int
+	ZeroReadRate    float64
+	MedianFirstRead int
 }
 
 type CacheSegment struct {

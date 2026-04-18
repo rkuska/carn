@@ -120,6 +120,8 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 					m.colorsStackSuffix(),
 			),
 		)
+	case statsLaneCacheFirstTurn:
+		return m.renderCacheFirstTurnMetricDetail(m.snapshot.Cache, width)
 	default:
 		name, total := leadingSplitHistogram(grouped.ReadDuration)
 		chips := splitDetailChips(splitChips,

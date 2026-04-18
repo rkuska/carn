@@ -287,8 +287,11 @@ type SessionTurnMetrics struct {
 }
 
 type TurnTokens struct {
-	PromptTokens int `json:"prompt_tokens"`
-	TurnTokens   int `json:"turn_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	TurnTokens          int `json:"turn_tokens"`
+	CacheReadTokens     int `json:"cache_read_tokens,omitempty"`
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
+	MemoryWriteCount    int `json:"memory_write_count,omitempty"`
 }
 
 type ActivityBucketRow struct {

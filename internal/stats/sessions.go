@@ -85,57 +85,92 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 }
 
 func collectSessionTurns(messages []conv.Message) []TurnTokens {
-	turns := make([]TurnTokens, 0, estimatedTurnCapacity(messages))
-	current := TurnTokens{}
-	turnActive := false
-	hasUsage := false
-
-	flush := func() {
-		if !hasUsage {
-			turnActive = false
-			return
-		}
-		turns = append(turns, current)
-		current = TurnTokens{}
-		turnActive = false
-		hasUsage = false
-	}
-
+	builder := newTurnBuilder(estimatedTurnCapacity(messages))
 	for _, message := range messages {
-		if message.IsSidechain {
-			continue
-		}
-		if message.IsAgentDivider {
-			flush()
-			continue
-		}
-		if isTurnBoundary(message) {
-			flush()
-			turnActive = true
-			continue
-		}
-		if !turnActive {
-			continue
-		}
-		if message.Role != conv.RoleAssistant {
-			continue
-		}
-
-		turnTokens := message.Usage.TotalTokens()
-		if turnTokens <= 0 {
-			continue
-		}
-
-		// A single main-thread user prompt can fan out into multiple
-		// assistant/tool steps. Track the deepest prompt reached in the turn
-		// and the total assistant-side token cost.
-		current.PromptTokens = max(current.PromptTokens, message.Usage.PromptTokens())
-		current.TurnTokens += turnTokens
-		hasUsage = true
+		builder.consume(message)
 	}
+	return builder.result()
+}
 
-	flush()
-	return turns
+type turnBuilder struct {
+	turns      []TurnTokens
+	current    TurnTokens
+	turnActive bool
+	hasUsage   bool
+}
+
+func newTurnBuilder(capacity int) *turnBuilder {
+	return &turnBuilder{turns: make([]TurnTokens, 0, capacity)}
+}
+
+func (b *turnBuilder) consume(message conv.Message) {
+	if message.IsSidechain {
+		return
+	}
+	// A divider can also carry the user-text prompt that resumes the main
+	// thread. Flush once, then treat it as a turn boundary when it has text
+	// so the next turn activates instead of discarding all post-divider work.
+	if message.IsAgentDivider {
+		b.flush()
+		if isTurnBoundary(message) {
+			b.turnActive = true
+		}
+		return
+	}
+	if isTurnBoundary(message) {
+		b.flush()
+		b.turnActive = true
+		return
+	}
+	if !b.turnActive {
+		return
+	}
+	for _, call := range message.ToolCalls {
+		if IsMemoryWriteCall(call) {
+			b.current.MemoryWriteCount++
+		}
+	}
+	if message.Role != conv.RoleAssistant {
+		return
+	}
+	b.applyAssistantUsage(message.Usage)
+}
+
+func (b *turnBuilder) applyAssistantUsage(usage conv.TokenUsage) {
+	turnTokens := usage.TotalTokens()
+	if turnTokens <= 0 {
+		return
+	}
+	// A single main-thread user prompt can fan out into multiple
+	// assistant/tool steps. Track the deepest prompt reached in the turn
+	// and the total assistant-side token cost.
+	b.current.PromptTokens = max(b.current.PromptTokens, usage.PromptTokens())
+	b.current.TurnTokens += turnTokens
+	// Cache tokens track the turn's *entry* state — the first assistant
+	// message's values. Max-within-turn would mask cold starts because
+	// follow-up messages within the turn read from the cache the first
+	// message just created.
+	if !b.hasUsage {
+		b.current.CacheReadTokens = usage.CacheReadInputTokens
+		b.current.CacheCreationTokens = usage.CacheCreationInputTokens
+	}
+	b.hasUsage = true
+}
+
+func (b *turnBuilder) flush() {
+	if !b.hasUsage {
+		b.turnActive = false
+		return
+	}
+	b.turns = append(b.turns, b.current)
+	b.current = TurnTokens{}
+	b.turnActive = false
+	b.hasUsage = false
+}
+
+func (b *turnBuilder) result() []TurnTokens {
+	b.flush()
+	return b.turns
 }
 
 func estimatedTurnCapacity(messages []conv.Message) int {

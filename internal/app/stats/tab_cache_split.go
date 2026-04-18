@@ -33,13 +33,14 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 	segmentKeys := presentSplitKeys(grouped.SegmentRows, namedStatSplits)
 	writeKeys := presentSplitKeys(grouped.WriteDuration, histBucketSplits)
 	readKeys := presentSplitKeys(grouped.ReadDuration, histBucketSplits)
+	selected, _, _ := m.selectedStatsLane()
 
 	topPair := renderStatsLanePair(
 		m.theme,
 		width,
 		30,
 		m.splitTitle(dailyTitle),
-		m.cacheLaneCursor == 0,
+		selected.id == statsLaneCacheDaily,
 		func(bodyWidth int) string {
 			return renderChartWithSplitLegend(
 				m.theme,
@@ -59,7 +60,7 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 			)
 		},
 		m.splitTitle("Main vs Subagent"),
-		m.cacheLaneCursor == 1,
+		selected.id == statsLaneCacheSegment,
 		func(bodyWidth int) string {
 			return renderChartWithSplitLegend(
 				m.theme,
@@ -82,7 +83,7 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 		width,
 		30,
 		m.splitTitle("Cache Write by Duration"),
-		m.cacheLaneCursor == 2,
+		selected.id == statsLaneCacheReuse,
 		func(bodyWidth int) string {
 			return renderChartWithSplitLegend(
 				m.theme,
@@ -102,7 +103,7 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 			)
 		},
 		m.splitTitle("Cache Read by Duration"),
-		m.cacheLaneCursor == 3,
+		selected.id == statsLaneCacheHitDur,
 		func(bodyWidth int) string {
 			return renderChartWithSplitLegend(
 				m.theme,
@@ -122,7 +123,8 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 			)
 		},
 	)
-	return topPair + "\n\n" + bottomPair
+	firstTurnLane := m.renderCacheFirstTurnLane(m.snapshot.Cache, width, selected.id == statsLaneCacheFirstTurn)
+	return topPair + "\n\n" + bottomPair + "\n\n" + firstTurnLane
 }
 
 func (m statsModel) splitCacheDailyData(grouped statspkg.CacheBySplit) (string, []statspkg.SplitDailyShare) {

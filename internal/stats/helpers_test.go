@@ -186,3 +186,18 @@ func subagentSession(id string, messages []conv.Message) conv.Session {
 	s.Meta.IsSubagent = true
 	return s
 }
+
+func assistantMemoryWrite(path string) conv.Message {
+	return conv.Message{
+		Role: conv.RoleAssistant,
+		ToolCalls: []conv.ToolCall{{
+			Name: "Write",
+			Action: conv.NormalizedAction{
+				Type: conv.NormalizedActionRewrite,
+				Targets: []conv.ActionTarget{
+					{Type: conv.ActionTargetFilePath, Value: path},
+				},
+			},
+		}},
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -169,4 +170,68 @@ func TestComputeSnapshotWithPrecomputedUsesDailyTokensAndTurnMetrics(t *testing.
 	assert.Len(t, got.Sessions.ClaudeTurnMetrics, 1)
 	assert.Equal(t, 1, got.Activity.ActiveDays)
 	assert.True(t, got.Performance.Scope.SequenceLoaded)
+}
+
+func TestComputeSnapshotWithPrecomputedPopulatesCacheTurnStats(t *testing.T) {
+	t.Parallel()
+
+	currentTime := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	conversations := []conversation{
+		testConversation(
+			conv.ProviderClaude,
+			"current",
+			testMeta(
+				"current",
+				currentTime,
+				withMainMessages(5),
+				withUsage(100, 0, 0, 50),
+			),
+		),
+	}
+
+	turnMetrics := []conv.SessionTurnMetrics{
+		{
+			Provider:  conv.ProviderClaude,
+			Version:   "1.0.0",
+			Timestamp: currentTime,
+			Turns: []conv.TurnTokens{
+				{CacheReadTokens: 0},
+				{CacheReadTokens: 20_000},
+				{CacheReadTokens: 15_000, MemoryWriteCount: 1},
+				{CacheReadTokens: 200},
+			},
+		},
+		{
+			Provider:  conv.ProviderClaude,
+			Version:   "1.0.0",
+			Timestamp: currentTime.Add(time.Hour),
+			Turns: []conv.TurnTokens{
+				{CacheReadTokens: 0},
+				{CacheReadTokens: 25_000},
+			},
+		},
+		{
+			Provider:  conv.ProviderClaude,
+			Version:   "1.0.0",
+			Timestamp: currentTime.Add(2 * time.Hour),
+			Turns: []conv.TurnTokens{
+				{CacheReadTokens: 1_000},
+			},
+		},
+	}
+
+	got := ComputeSnapshotWithPrecomputed(
+		conversations,
+		TimeRange{
+			Start: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			End:   time.Date(2026, 3, 31, 23, 59, 59, 0, time.UTC),
+		},
+		nil,
+		turnMetrics,
+		nil,
+	)
+
+	require.Len(t, got.Cache.FirstTurnByVersion, 1)
+	assert.Equal(t, "1.0.0", got.Cache.FirstTurnByVersion[0].Version)
+	assert.Equal(t, 3, got.Cache.FirstTurnByVersion[0].SessionCount)
 }

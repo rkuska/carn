@@ -31,10 +31,11 @@ const (
 	statsLaneToolsErrors   statsLaneID = "tools_errors"
 	statsLaneToolsRejected statsLaneID = "tools_rejected"
 
-	statsLaneCacheDaily   statsLaneID = "cache_daily"
-	statsLaneCacheSegment statsLaneID = "cache_segment"
-	statsLaneCacheReuse   statsLaneID = "cache_reuse"
-	statsLaneCacheHitDur  statsLaneID = "cache_hit_dur"
+	statsLaneCacheDaily     statsLaneID = "cache_daily"
+	statsLaneCacheSegment   statsLaneID = "cache_segment"
+	statsLaneCacheReuse     statsLaneID = "cache_reuse"
+	statsLaneCacheHitDur    statsLaneID = "cache_hit_dur"
+	statsLaneCacheFirstTurn statsLaneID = "cache_first_turn"
 
 	statsLanePerformanceOutcome    statsLaneID = "performance_outcome"
 	statsLanePerformanceDiscipline statsLaneID = "performance_discipline"
@@ -88,6 +89,7 @@ func cacheStatsLanes() []statsLane {
 		{id: statsLaneCacheSegment, title: "Main vs Subagent"},
 		{id: statsLaneCacheReuse, title: "Cache Reuse by Duration"},
 		{id: statsLaneCacheHitDur, title: "Cache Hit Rate by Duration"},
+		{id: statsLaneCacheFirstTurn, title: "First-Turn Cold Cache by Version (Claude)"},
 	}
 }
 

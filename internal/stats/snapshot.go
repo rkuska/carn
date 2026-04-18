@@ -32,17 +32,38 @@ func ComputeSnapshotWithPrecomputed(
 	filtered := FilterByTimeRange(sessions, timeRange)
 	overview := ComputeOverview(filtered)
 	overview.TokenTrend = ComputeTokenTrendFromBuckets(dailyTokens, timeRange)
+	turnMetricsInRange := filterTurnMetricsByRange(turnMetrics, timeRange)
 	sessionStats := ComputeSessions(filtered)
-	sessionStats.ClaudeTurnMetrics = ComputeTurnTokenMetricsForRange(turnMetrics, timeRange)
+	sessionStats.ClaudeTurnMetrics = ComputeTurnTokenMetricsForRange(turnMetricsInRange, TimeRange{})
+
+	cache := ComputeCache(filtered, timeRange)
+	cache.FirstTurnByVersion = ComputeCacheFirstTurnByVersion(turnMetricsInRange)
 
 	return Snapshot{
 		Overview:    overview,
 		Activity:    ComputeActivityFromBuckets(filtered, dailyTokens, timeRange),
 		Sessions:    sessionStats,
 		Tools:       ComputeTools(filtered),
-		Cache:       ComputeCache(filtered, timeRange),
+		Cache:       cache,
 		Performance: ComputePerformance(conversations, timeRange, sequence),
 	}
+}
+
+func filterTurnMetricsByRange(
+	series []conv.SessionTurnMetrics,
+	timeRange TimeRange,
+) []conv.SessionTurnMetrics {
+	if len(series) == 0 {
+		return nil
+	}
+	filtered := make([]conv.SessionTurnMetrics, 0, len(series))
+	for _, session := range series {
+		if !timeRangeContains(timeRange, session.Timestamp) {
+			continue
+		}
+		filtered = append(filtered, session)
+	}
+	return filtered
 }
 
 func flattenConversationSessions(conversations []conv.Conversation) []conv.SessionMeta {

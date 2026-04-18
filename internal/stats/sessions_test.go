@@ -409,6 +409,174 @@ func TestComputeTurnTokenMetricsForRangeReusesCollectedSessionsAcrossDurations(t
 	assert.InDelta(t, 45, allTime[1].AverageTurnTokens, 0.0001)
 }
 
+func TestCollectSessionTurnMetricsCapturesCacheAndMemoryWrites(t *testing.T) {
+	t.Parallel()
+
+	memoryWrite := assistantMemoryWrite("/u/proj/memory/notes.md")
+	nonMemoryWrite := conv.Message{
+		Role: conv.RoleAssistant,
+		ToolCalls: []conv.ToolCall{{
+			Name: "Write",
+			Action: conv.NormalizedAction{
+				Type: conv.NormalizedActionRewrite,
+				Targets: []conv.ActionTarget{
+					{Type: conv.ActionTargetFilePath, Value: "/u/proj/src/foo.go"},
+				},
+			},
+		}},
+	}
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              10,
+				CacheReadInputTokens:     4000,
+				CacheCreationInputTokens: 1200,
+				OutputTokens:             3,
+			}),
+			memoryWrite,
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              5,
+				CacheReadInputTokens:     5000,
+				CacheCreationInputTokens: 900,
+				OutputTokens:             2,
+			}),
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:          20,
+				CacheReadInputTokens: 1000,
+				OutputTokens:         5,
+			}),
+			nonMemoryWrite,
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Turns, 2)
+
+	// First-within-turn semantics: the first assistant message's cache state
+	// is what defines the turn's entry, not max across messages.
+	assert.Equal(t, 4000, got[0].Turns[0].CacheReadTokens)
+	assert.Equal(t, 1200, got[0].Turns[0].CacheCreationTokens)
+	assert.Equal(t, 1, got[0].Turns[0].MemoryWriteCount)
+
+	assert.Equal(t, 1000, got[0].Turns[1].CacheReadTokens)
+	assert.Equal(t, 0, got[0].Turns[1].CacheCreationTokens)
+	assert.Equal(t, 0, got[0].Turns[1].MemoryWriteCount)
+}
+
+func TestCollectSessionTurnMetricsCacheTokensCaptureTurnEntryEvenWhenFirstMessageIsCold(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              100,
+				CacheReadInputTokens:     0,
+				CacheCreationInputTokens: 50_000,
+				OutputTokens:             5,
+			}),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:          20,
+				CacheReadInputTokens: 50_000,
+				OutputTokens:         3,
+			}),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Turns, 1)
+	// A cold-started turn stays cold even if later messages read from the
+	// cache the first message just created.
+	assert.Zero(t, got[0].Turns[0].CacheReadTokens)
+	assert.Equal(t, 50_000, got[0].Turns[0].CacheCreationTokens)
+}
+
+func TestCollectSessionTurnMetricsActivatesTurnWhenDividerCarriesUserText(t *testing.T) {
+	t.Parallel()
+
+	dividerWithText := conv.Message{
+		Role:           conv.RoleUser,
+		Text:           "Quick exploration",
+		IsAgentDivider: true,
+	}
+	memoryWrite := assistantMemoryWrite("/u/proj/memory/notes.md")
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessage(10, 5),
+			dividerWithText,
+			memoryWrite,
+			assistantUsageMessage(40, 20),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Turns, 2)
+	// First turn closed at the divider with no memory writes.
+	assert.Zero(t, got[0].Turns[0].MemoryWriteCount)
+	// Post-divider turn picks up the memory write that previously was lost.
+	assert.Equal(t, 1, got[0].Turns[1].MemoryWriteCount)
+}
+
+func TestCollectSessionTurnMetricsFlushesOnTextlessDivider(t *testing.T) {
+	t.Parallel()
+
+	memoryWrite := assistantMemoryWrite("/u/proj/memory/notes.md")
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessage(10, 5),
+			agentDividerMessage(),
+			memoryWrite,
+			assistantUsageMessage(20, 10),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	// Only the first turn is recorded — nothing after a textless divider
+	// attaches until the next user-text boundary arrives.
+	require.Len(t, got[0].Turns, 1)
+	assert.Zero(t, got[0].Turns[0].MemoryWriteCount)
+}
+
+func TestCollectSessionTurnMetricsCountsMemoryWritesFromUserToolCalls(t *testing.T) {
+	t.Parallel()
+
+	userMemoryWrite := conv.Message{
+		Role: conv.RoleUser,
+		ToolCalls: []conv.ToolCall{{
+			Name: "Write",
+			Action: conv.NormalizedAction{
+				Type: conv.NormalizedActionRewrite,
+				Targets: []conv.ActionTarget{
+					{Type: conv.ActionTargetFilePath, Value: "/u/proj/memory/MEMORY.md"},
+				},
+			},
+		}},
+	}
+
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			userMemoryWrite,
+			assistantUsageMessage(10, 5),
+		}),
+	}
+
+	got := CollectSessionTurnMetrics(sessions)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Turns, 1)
+	assert.Equal(t, 1, got[0].Turns[0].MemoryWriteCount)
+}
+
 func TestComputeTurnTokenMetricsKeepsSparsePositions(t *testing.T) {
 	t.Parallel()
 

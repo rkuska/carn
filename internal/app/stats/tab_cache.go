@@ -15,6 +15,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	if m.splitActive() {
 		return m.renderSplitCacheTab(width, cache)
 	}
+	selected, _, _ := m.selectedStatsLane()
 	chips := renderSummaryChips(m.theme, m.cacheSummaryChips(cache), width)
 
 	chartTitle, rates, chartColor, yFmt := m.cacheDailySeries()
@@ -26,11 +27,11 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	topPair := renderStatsLanePair(
 		m.theme,
 		width, 30,
-		chartTitle, m.cacheLaneCursor == 0,
+		chartTitle, selected.id == statsLaneCacheDaily,
 		func(bodyWidth int) string {
 			return renderDailyRateChartBody(m.theme, rates, max(bodyWidth, 10), chartHeight, chartColor, yFmt)
 		},
-		"Main vs Subagent", m.cacheLaneCursor == 1,
+		"Main vs Subagent", selected.id == statsLaneCacheSegment,
 		func(bodyWidth int) string {
 			return renderHorizontalBarsBody(m.theme, cacheSegmentBars(cache), bodyWidth, m.theme.ColorChartToken)
 		},
@@ -43,17 +44,19 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	bottomPair := renderStatsLanePair(
 		m.theme,
 		width, 30,
-		"Cache Reuse by Duration", m.cacheLaneCursor == 2,
+		"Cache Reuse by Duration", selected.id == statsLaneCacheReuse,
 		func(bodyWidth int) string {
 			return renderVerticalHistogramBody(m.theme, reuseBuckets, bodyWidth, histHeight, m.theme.ColorChartToken)
 		},
-		"Cache Hit Rate by Duration", m.cacheLaneCursor == 3,
+		"Cache Hit Rate by Duration", selected.id == statsLaneCacheHitDur,
 		func(bodyWidth int) string {
 			return renderVerticalHistogramBody(m.theme, hitBuckets, bodyWidth, histHeight, m.theme.ColorChartBar)
 		},
 	)
 
-	return joinSections(chips, topPair, bottomPair)
+	firstTurnLane := m.renderCacheFirstTurnLane(cache, width, selected.id == statsLaneCacheFirstTurn)
+
+	return joinSections(chips, topPair, bottomPair, firstTurnLane)
 }
 
 func (m statsModel) cacheSummaryChips(cache statspkg.Cache) []chip {
@@ -178,6 +181,8 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 		return m.renderCacheReuseMetricDetail(cache, width)
 	case statsLaneCacheHitDur:
 		return m.renderCacheHitDurMetricDetail(cache, width)
+	case statsLaneCacheFirstTurn:
+		return m.renderCacheFirstTurnMetricDetail(cache, width)
 	default:
 		return m.renderStatsMetricDetailBody("Cache", width, nil, noDataLabel)
 	}

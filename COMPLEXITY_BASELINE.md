@@ -56,7 +56,7 @@ None.
 | internal/app/elements/stats_charts.go | source | 275 | 61 | 326 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
 | internal/app/browser/browser_filter_keys.go | source | 228 | 60 | 252 |
-| internal/app/stats/tab_cache.go | source | 333 | 58 | 366 |
+| internal/app/stats/tab_cache.go | source | 337 | 59 | 371 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
 | internal/canonical/sqlite_stats.go | source | 338 | 55 | 372 |
 | internal/app/stats/metric_detail.go | source | 324 | 50 | 351 |
@@ -85,10 +85,11 @@ None.
 | Module | Source Files | Source Code | Source Complexity | Source Lines | Test Files | Test Code | Test Complexity | Test Lines |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | internal/source/claude | 33 | 4927 | 1096 | 5463 | 19 | 2541 | 74 | 2873 |
-| internal/canonical | 30 | 4688 | 964 | 5151 | 14 | 4060 | 164 | 4663 |
+| internal/canonical | 30 | 4688 | 964 | 5151 | 15 | 4099 | 164 | 4714 |
 | internal/app/browser | 39 | 5457 | 911 | 6181 | 26 | 5051 | 152 | 6129 |
 | internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
-| internal/app/stats | 45 | 5458 | 753 | 6078 | 15 | 3844 | 58 | 4499 |
+| internal/app/stats | 46 | 5537 | 762 | 6166 | 16 | 3897 | 58 | 4567 |
+| internal/stats | 32 | 4570 | 633 | 5039 | 25 | 4845 | 116 | 5545 |
 
 ## Notes
 
