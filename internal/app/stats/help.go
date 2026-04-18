@@ -7,11 +7,23 @@ func (m statsModel) helpSections() []helpSection {
 func (m statsModel) navigationHelpSection() helpSection {
 	return helpSection{
 		Title: "Navigation",
-		Items: m.statsNavigationHelpItems(),
+		Items: m.statsFullHelpItems(),
 	}
 }
 
+// statsNavigationHelpItems returns the footer help items. Scroll keys are
+// surfaced via the Metric detail lane rule and intentionally omitted here.
 func (m statsModel) statsNavigationHelpItems() []helpItem {
+	return m.buildStatsNavigationItems(false)
+}
+
+// statsFullHelpItems returns the full help overlay items, including scroll
+// keys when the active tab's content is scrollable.
+func (m statsModel) statsFullHelpItems() []helpItem {
+	return m.buildStatsNavigationItems(true)
+}
+
+func (m statsModel) buildStatsNavigationItems(includeScroll bool) []helpItem {
 	filterDesc := "filter"
 	filterDetail := "open the filter overlay and narrow the stats dataset"
 	if m.performanceScopeGateActive() {
@@ -40,7 +52,7 @@ func (m statsModel) statsNavigationHelpItems() []helpItem {
 			Priority: helpPriorityNormal,
 		},
 	}
-	if m.statsContentScrollable() {
+	if includeScroll && m.statsContentScrollable() {
 		items = append(items,
 			helpItem{
 				Key:      "j/k",

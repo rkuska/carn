@@ -240,9 +240,13 @@ func (t *Theme) RenderFramedBox(title string, width int, borderColor color.Color
 }
 
 // RenderInlineTitledRule renders a horizontal rule with an inline title, like
-// "─── Title ────────────". The title is foregrounded in titleColor, and the
-// dashes use the theme's StyleRuleHR styling.
-func (t *Theme) RenderInlineTitledRule(title string, width int, titleColor color.Color) string {
+// "─── Title ────────────". When rightMeta is non-empty it is embedded on the
+// right side, like "─── Title ─── rightMeta ───"; the caller owns its
+// styling. If the width cannot fit the full layout with rightMeta, the meta
+// segment is dropped and the rule falls back to a title-only render. The
+// title is foregrounded in titleColor, and the dashes use the theme's
+// StyleRuleHR styling.
+func (t *Theme) RenderInlineTitledRule(title, rightMeta string, width int, titleColor color.Color) string {
 	if width <= 0 {
 		return ""
 	}
@@ -255,6 +259,18 @@ func (t *Theme) RenderInlineTitledRule(title string, width int, titleColor color
 	titleW := lipgloss.Width(titleRendered)
 
 	const leadDashes = 3
+	if rightMeta != "" {
+		rightMetaW := lipgloss.Width(rightMeta)
+		// Full layout: lead + " " + title + " " + middle(≥1) + " " + meta + " " + trail
+		//            = 2*leadDashes + titleW + rightMetaW + 4 + middleDashes
+		if middle := width - 2*leadDashes - titleW - rightMetaW - 4; middle >= 1 {
+			lead := t.StyleRuleHR.Render(strings.Repeat("─", leadDashes))
+			mid := t.StyleRuleHR.Render(strings.Repeat("─", middle))
+			trail := t.StyleRuleHR.Render(strings.Repeat("─", leadDashes))
+			return lead + " " + titleRendered + " " + mid + " " + rightMeta + " " + trail
+		}
+	}
+
 	if width <= leadDashes+2+titleW {
 		if width <= titleW {
 			return FitToWidth(titleStyle.Render(title), width)
