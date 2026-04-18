@@ -84,7 +84,7 @@ func (s *Store) Rebuild(
 	archiveDir string,
 	provider conv.Provider,
 	changedRawPaths []string,
-) (src.ProviderDriftReports, error) {
+) (RebuildResult, error) {
 	if provider == "" {
 		return s.RebuildAll(ctx, archiveDir, nil)
 	}
@@ -95,7 +95,7 @@ func (s *Store) RebuildAll(
 	ctx context.Context,
 	archiveDir string,
 	changedRawPaths map[conv.Provider][]string,
-) (src.ProviderDriftReports, error) {
+) (RebuildResult, error) {
 	s.invalidateCatalog(archiveDir)
 	return rebuildCanonicalStore(ctx, archiveDir, s, changedRawPaths)
 }

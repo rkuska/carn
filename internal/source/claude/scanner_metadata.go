@@ -173,7 +173,7 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return scannedSession{}, fmt.Errorf("os.Open: %w", err)
+		return scannedSession{}, src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -205,7 +205,7 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 
 	if result.meta.ID == "" {
-		return scannedSession{}, fmt.Errorf("no session metadata found in %s", filePath)
+		return scannedSession{}, src.MarkMalformedRawData(fmt.Errorf("no session metadata found in %s", filePath))
 	}
 
 	applyMetadataScanStats(&result.meta, state.stats)

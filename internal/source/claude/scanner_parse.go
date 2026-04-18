@@ -13,6 +13,8 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 // parseRecord is a flat struct that merges the outer JSONL record with the
@@ -112,7 +114,7 @@ func visitSessionMessages(
 ) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("os.Open: %w", err)
+		return src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -153,7 +155,7 @@ func visitSessionReaderMessages(
 
 		pc.reset()
 		if err := parseRecordLine(line, &pc.rec); err != nil {
-			return fmt.Errorf("visitSessionReaderMessages_parseRecordLine: %w", err)
+			return src.MarkMalformedRawData(fmt.Errorf("visitSessionReaderMessages_parseRecordLine: %w", err))
 		}
 		if msg, ok := parseAndIndexLine(ctx, pc); ok {
 			visit(msg)
@@ -175,7 +177,9 @@ func readNextSessionLine(
 
 	line, nextOverflow, err := readJSONLLine(br, overflow)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, nextOverflow, false, fmt.Errorf("readNextSessionLine_readJSONLLine: %w", err)
+		return nil, nextOverflow, false, src.MarkMalformedRawData(
+			fmt.Errorf("readNextSessionLine_readJSONLLine: %w", err),
+		)
 	}
 	return line, nextOverflow, errors.Is(err, io.EOF), nil
 }

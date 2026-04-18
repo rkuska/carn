@@ -63,11 +63,11 @@ func rebuildCanonicalStore(
 	archiveDir string,
 	store *Store,
 	changedRawPaths map[conversationProvider][]string,
-) (src.ProviderDriftReports, error) {
+) (RebuildResult, error) {
 	if hasChangedRawPaths(changedRawPaths) {
-		drift, err := tryIncrementalRebuildWithSources(ctx, archiveDir, store, changedRawPaths)
+		result, err := tryIncrementalRebuildWithSources(ctx, archiveDir, store, changedRawPaths)
 		if err == nil {
-			return drift, nil
+			return result, nil
 		}
 		zerolog.Ctx(ctx).Debug().Err(err).Msgf("incremental rebuild failed, falling back to full rebuild")
 	}
@@ -75,18 +75,31 @@ func rebuildCanonicalStore(
 	zerolog.Ctx(ctx).Info().Msg("starting full canonical rebuild")
 
 	if err := store.invalidateDB(archiveDir); err != nil {
-		return src.ProviderDriftReports{}, fmt.Errorf("invalidateDB: %w", err)
+		return RebuildResult{}, fmt.Errorf("invalidateDB: %w", err)
 	}
 
-	conversations, drift, err := scanRegisteredConversations(ctx, archiveDir, store.sources)
+	conversations, drift, malformedData, err := scanRegisteredConversations(ctx, archiveDir, store.sources)
 	if err != nil {
-		return drift, fmt.Errorf("scanRegisteredConversations: %w", err)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"scanRegisteredConversations: %w",
+			err,
+		)
 	}
 
-	results, err := parseConversationsParallelResultsWithSources(ctx, store.sources, store.collector, conversations)
+	results, parseMalformedData, err := parseConversationsParallelResultsWithSources(
+		ctx,
+		store.sources,
+		store.collector,
+		conversations,
+	)
 	if err != nil {
-		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
+		malformedData.Merge(parseMalformedData)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"parseConversationsParallelResultsWithSources: %w",
+			err,
+		)
 	}
+	malformedData.Merge(parseMalformedData)
 
 	parsedConversations := conversationsFromParseResults(results)
 	transcripts, corpus := buildParseOutputs(results)
@@ -102,20 +115,24 @@ func rebuildCanonicalStore(
 		statsData,
 		activityBucketRows,
 	); err != nil {
-		return drift, fmt.Errorf("writeCanonicalStoreAtomically: %w", err)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"writeCanonicalStoreAtomically: %w",
+			err,
+		)
 	}
 
 	zerolog.Ctx(ctx).Info().Int("conversations", len(parsedConversations)).Msg("canonical rebuild completed")
-	return drift, nil
+	return RebuildResult{Drift: drift, MalformedData: malformedData}, nil
 }
 
 func scanRegisteredConversations(
 	ctx context.Context,
 	archiveDir string,
 	sources sourceRegistry,
-) ([]conversation, src.ProviderDriftReports, error) {
+) ([]conversation, src.ProviderDriftReports, src.ProviderMalformedDataReports, error) {
 	conversations := make([]conversation, 0)
 	drift := src.NewProviderDriftReports()
+	malformedData := src.NewProviderMalformedDataReports()
 	for _, source := range sources.providers() {
 		provider := conversationProvider(source.Provider())
 		rawDir := src.ProviderRawDir(archiveDir, provider)
@@ -123,17 +140,22 @@ func scanRegisteredConversations(
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			return nil, drift, fmt.Errorf("statDir_%s: %w", provider, fmt.Errorf("os.Stat: %w", err))
+			return nil, drift, malformedData, fmt.Errorf(
+				"statDir_%s: %w",
+				provider,
+				fmt.Errorf("os.Stat: %w", err),
+			)
 		}
 
 		scanned, err := source.Scan(ctx, rawDir)
 		if err != nil {
-			return nil, drift, fmt.Errorf("source.Scan_%s: %w", provider, err)
+			return nil, drift, malformedData, fmt.Errorf("source.Scan_%s: %w", provider, err)
 		}
 		drift.MergeProvider(conv.Provider(provider), scanned.Drift)
+		malformedData.MergeProvider(conv.Provider(provider), scanned.MalformedData)
 		conversations = append(conversations, scanned.Conversations...)
 	}
-	return conversations, drift, nil
+	return conversations, drift, malformedData, nil
 }
 
 func parseConversationsParallel(
@@ -205,14 +227,17 @@ func parseConversationsParallelResultsWithSources(
 	sources sourceRegistry,
 	collector StatsCollector,
 	conversations []conversation,
-) ([]parseResult, error) {
+) ([]parseResult, src.ProviderMalformedDataReports, error) {
 	if len(conversations) == 0 {
-		return nil, nil
+		return nil, src.ProviderMalformedDataReports{}, nil
 	}
 
 	results := make([]parseResult, len(conversations))
+	valid := make([]bool, len(conversations))
+	warnings := make([]string, len(conversations))
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
 	group, groupCtx := errgroup.WithContext(ctx)
+	log := zerolog.Ctx(ctx)
 
 	for i := range conversations {
 		index := i
@@ -223,48 +248,95 @@ func parseConversationsParallelResultsWithSources(
 			}
 			defer sem.Release(1)
 
-			session, loadedSessions, err := loadConversationBundle(groupCtx, sources, conv)
+			result, err := parseConversationResult(groupCtx, sources, collector, conv)
 			if err != nil {
-				return fmt.Errorf("loadConversationBundle_%s: %w", conv.CacheKey(), err)
-			}
-			enrichedConv, enrichedSession, err := enrichConversationToolOutcomes(
-				groupCtx,
-				sources,
-				conv,
-				session,
-				loadedSessions,
-			)
-			if err != nil {
-				return fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
-			}
-			statsData, activityBucketRows, err := collectConversationStatsData(
-				groupCtx,
-				sources,
-				collector,
-				conv,
-				loadedSessions,
-			)
-			if err != nil {
-				return fmt.Errorf("collectConversationStatsData_%s: %w", conv.CacheKey(), err)
+				if shouldSkipMalformedConversation(log, conv, err) {
+					warnings[index] = conv.CacheKey()
+					return nil
+				}
+				return err
 			}
 
-			key := conv.CacheKey()
-			results[index] = parseResult{
-				key:                key,
-				conversation:       enrichedConv,
-				session:            enrichedSession,
-				units:              buildSearchUnits(key, enrichedSession),
-				statsData:          statsData,
-				activityBucketRows: activityBucketRows,
-			}
+			results[index] = result
+			valid[index] = true
 			return nil
 		})
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, fmt.Errorf("errgroup.Wait: %w", err)
+		return nil, src.ProviderMalformedDataReports{}, fmt.Errorf("errgroup.Wait: %w", err)
 	}
-	return results, nil
+
+	filtered := make([]parseResult, 0, len(conversations))
+	malformedData := src.NewProviderMalformedDataReports()
+	for i, ok := range valid {
+		if ok {
+			filtered = append(filtered, results[i])
+		}
+		if warnings[i] != "" {
+			report := src.NewMalformedDataReport()
+			report.Record(warnings[i])
+			malformedData.MergeProvider(conversations[i].Ref.Provider, report)
+		}
+	}
+	return filtered, malformedData, nil
+}
+
+func parseConversationResult(
+	ctx context.Context,
+	sources sourceRegistry,
+	collector StatsCollector,
+	conv conversation,
+) (parseResult, error) {
+	session, loadedSessions, err := loadConversationBundle(ctx, sources, conv)
+	if err != nil {
+		return parseResult{}, fmt.Errorf("loadConversationBundle_%s: %w", conv.CacheKey(), err)
+	}
+
+	enrichedConv, enrichedSession, err := enrichConversationToolOutcomes(
+		ctx,
+		sources,
+		conv,
+		session,
+		loadedSessions,
+	)
+	if err != nil {
+		return parseResult{}, fmt.Errorf("enrichConversationToolOutcomes_%s: %w", conv.CacheKey(), err)
+	}
+
+	statsData, activityBucketRows, err := collectConversationStatsData(
+		ctx,
+		sources,
+		collector,
+		conv,
+		loadedSessions,
+	)
+	if err != nil {
+		return parseResult{}, fmt.Errorf("collectConversationStatsData_%s: %w", conv.CacheKey(), err)
+	}
+
+	key := conv.CacheKey()
+	return parseResult{
+		key:                key,
+		conversation:       enrichedConv,
+		session:            enrichedSession,
+		units:              buildSearchUnits(key, enrichedSession),
+		statsData:          statsData,
+		activityBucketRows: activityBucketRows,
+	}, nil
+}
+
+func shouldSkipMalformedConversation(log *zerolog.Logger, conv conversation, err error) bool {
+	if !errors.Is(err, src.ErrMalformedRawData) {
+		return false
+	}
+
+	log.Warn().
+		Err(err).
+		Str("provider", string(conv.Ref.Provider)).
+		Str("cache_key", conv.CacheKey()).
+		Msg("skipping malformed conversation during rebuild")
+	return true
 }
 
 func buildParseStatsOutputs(

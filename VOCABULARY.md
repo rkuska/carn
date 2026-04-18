@@ -49,6 +49,8 @@ Use these terms when referring to different parts of the project in prompts.
 | **Module** | An ownership package under `internal/`, measured as one directory with direct Go files. Used by the complexity guard to track package-level source totals separately from file-level hotspots. |
 | **Format Drift** | A raw-source schema change detected during scan, such as an unknown field, record type, or content block type. Logged as a warning and surfaced to the UI after import. |
 | **Drift Report** | The deduplicated set of **format drift** findings collected during one provider scan or rebuild pass. |
+| **Malformed Raw Data** | A provider-owned raw session or rollout file that cannot be scanned or parsed reliably, for example truncated JSON or missing required metadata. Rebuild records a warning, skips the affected item, and keeps processing the rest of the store. |
+| **Rebuild Warning** | A non-fatal issue surfaced after import or resync, such as **format drift** or skipped **malformed raw data**. Rebuild warnings are shown in notifications instead of failing the whole rebuild. |
 | **Known Schema** | The provider-owned compile-time set of fields and type values considered expected by drift detection. |
 | **Known Schema Extras** | A provider-owned documented catalog of observed raw-source fields or type values that are intentionally tolerated by drift detection even though the app does not yet model them. Each entry includes a description, future-use note, and example. |
 

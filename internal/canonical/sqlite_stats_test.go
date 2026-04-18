@@ -165,7 +165,7 @@ func TestParseConversationsParallelResultsReusesLoadedSingleSessionForStats(t *t
 		}
 	})
 
-	results, err := parseConversationsParallelResultsWithSources(
+	results, _, err := parseConversationsParallelResultsWithSources(
 		context.Background(),
 		newSourceRegistry(source),
 		collector,
@@ -246,7 +246,7 @@ func TestParseConversationsParallelResultsLoadsEachSessionForMultiSessionStats(t
 		}
 	})
 
-	results, err := parseConversationsParallelResultsWithSources(
+	results, _, err := parseConversationsParallelResultsWithSources(
 		context.Background(),
 		newSourceRegistry(source),
 		collector,
@@ -333,7 +333,7 @@ func TestParseConversationsParallelResultsUsesBundleLoaderForMultiSessionStats(t
 		}
 	})
 
-	results, err := parseConversationsParallelResultsWithSources(
+	results, _, err := parseConversationsParallelResultsWithSources(
 		context.Background(),
 		newSourceRegistry(source),
 		collector,

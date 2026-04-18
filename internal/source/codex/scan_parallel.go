@@ -2,11 +2,13 @@ package codex
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
 	"sort"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
@@ -32,15 +34,20 @@ func listJSONLPaths(root string) ([]string, error) {
 	return paths, nil
 }
 
-func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout, src.DriftReport, error) {
+func scanRolloutsParallel(
+	ctx context.Context,
+	paths []string,
+) ([]scannedRollout, src.DriftReport, src.MalformedDataReport, error) {
 	if len(paths) == 0 {
-		return nil, src.DriftReport{}, nil
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, nil
 	}
 
 	results := make([]scannedRollout, len(paths))
 	valid := make([]bool, len(paths))
+	malformedValues := make([]string, len(paths))
 	sem := semaphore.NewWeighted(int64(codexScanParallelism(len(paths))))
 	group, groupCtx := errgroup.WithContext(ctx)
+	log := zerolog.Ctx(ctx)
 
 	for i := range paths {
 		index := i
@@ -54,6 +61,11 @@ func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout
 
 			rollout, ok, err := scanRollout(path)
 			if err != nil {
+				if errors.Is(err, src.ErrMalformedRawData) {
+					malformedValues[index] = path
+					log.Debug().Err(err).Msgf("skipping %s", path)
+					return nil
+				}
 				return fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 			}
 			results[index] = rollout
@@ -63,16 +75,20 @@ func scanRolloutsParallel(ctx context.Context, paths []string) ([]scannedRollout
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("errgroup.Wait: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("errgroup.Wait: %w", err)
 	}
 
 	rollouts := make([]scannedRollout, 0, len(paths))
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 	for i, ok := range valid {
 		drift.Merge(results[i].drift)
 		if ok {
 			rollouts = append(rollouts, results[i])
 		}
 	}
-	return rollouts, drift, nil
+	for _, value := range malformedValues {
+		malformedData.Record(value)
+	}
+	return rollouts, drift, malformedData, nil
 }

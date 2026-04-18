@@ -8,6 +8,8 @@ import (
 	"io"
 
 	"github.com/rs/zerolog"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func visitRolloutRecords(
@@ -64,7 +66,9 @@ func readNextRolloutLine(
 
 	line, nextOverflow, err := readScanLine(br, overflow)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, nextOverflow, false, fmt.Errorf("readNextRolloutLine_readScanLine: %w", err)
+		return nil, nextOverflow, false, src.MarkMalformedRawData(
+			fmt.Errorf("readNextRolloutLine_readScanLine: %w", err),
+		)
 	}
 	return line, nextOverflow, errors.Is(err, io.EOF), nil
 }

@@ -208,7 +208,7 @@ func makeBenchCodexConversations(
 	b.Helper()
 
 	rawDir := makeBenchRawCodexCorpus(b, rolloutCount, assistantTurns, subagentRatio)
-	conversations, _, err := scanRollouts(context.Background(), rawDir)
+	conversations, _, _, err := scanRollouts(context.Background(), rawDir)
 	if err != nil {
 		b.Fatalf("scanRollouts: %v", err)
 	}
@@ -220,7 +220,7 @@ func BenchmarkScanRollouts(b *testing.B) {
 	rawDir := makeBenchRawCodexCorpus(b, 360, 12, 6)
 
 	for b.Loop() {
-		conversations, _, err := scanRollouts(ctx, rawDir)
+		conversations, _, _, err := scanRollouts(ctx, rawDir)
 		if err != nil {
 			b.Fatalf("scanRollouts: %v", err)
 		}

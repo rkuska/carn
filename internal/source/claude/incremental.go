@@ -19,7 +19,7 @@ func (Source) ResolveIncremental(
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
 ) (src.IncrementalResolution, error) {
-	targetsByProject, replaceKeys, drift, err := resolveIncrementalTargets(
+	targetsByProject, drift, malformedData, err := resolveIncrementalTargets(
 		ctx,
 		rawDir,
 		changedRawPaths,
@@ -29,27 +29,35 @@ func (Source) ResolveIncremental(
 		return src.IncrementalResolution{}, fmt.Errorf("resolveIncrementalTargets: %w", err)
 	}
 
-	conversations, projectDrift, err := collectIncrementalProjectConversations(
+	conversations,
+		replaceKeysByConversation,
+		projectDrift,
+		projectMalformedData,
+		err := collectIncrementalProjectConversations(
 		ctx,
 		rawDir,
 		targetsByProject,
-		replaceKeys,
+		lookup,
 	)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("collectIncrementalProjectConversations: %w", err)
 	}
 	drift.Merge(projectDrift)
+	malformedData.Merge(projectMalformedData)
 
 	return src.IncrementalResolution{
-		Conversations:    conversations,
-		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
-		Drift:            drift,
+		Conversations:                  conversations,
+		ReplaceCacheKeysByConversation: replaceKeysByConversation,
+		Drift:                          drift,
+		MalformedData:                  malformedData,
 	}, nil
 }
 
 type incrementalProjectTarget struct {
-	project         project
-	targetCacheKeys map[string]struct{}
+	project                    project
+	targetCacheKeys            map[string]struct{}
+	replaceKeysByConversation  map[string]map[string]struct{}
+	blockedStoredConversations map[string]struct{}
 }
 
 func resolveIncrementalTargets(
@@ -57,31 +65,41 @@ func resolveIncrementalTargets(
 	rawDir string,
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
-) (map[string]incrementalProjectTarget, map[string]struct{}, src.DriftReport, error) {
+) (map[string]incrementalProjectTarget, src.DriftReport, src.MalformedDataReport, error) {
 	targetsByProject := make(map[string]incrementalProjectTarget)
-	replaceKeys := make(map[string]struct{})
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 
 	for _, path := range src.DedupeAndSort(changedRawPaths) {
-		target, replaceKey, pathDrift, err := resolveIncrementalPath(ctx, rawDir, path, lookup)
+		file, err := incrementalSessionFile(rawDir, path)
+		if err != nil {
+			return nil, drift, malformedData, fmt.Errorf("incrementalSessionFile: %w", err)
+		}
+		replaceKey, err := lookupIncrementalReplaceKey(ctx, path, lookup)
+		if err != nil {
+			return nil, drift, malformedData, fmt.Errorf("lookupIncrementalReplaceKey: %w", err)
+		}
+
+		state := targetsByProject[file.groupDirName]
+		state.project = file.project
+
+		target, pathDrift, err := resolveIncrementalPath(ctx, file)
 		drift.Merge(pathDrift)
 		if err != nil {
-			return nil, nil, drift, fmt.Errorf("resolveIncrementalPath: %w", err)
-		}
-		if replaceKey != "" {
-			replaceKeys[replaceKey] = struct{}{}
+			if errors.Is(err, src.ErrMalformedRawData) {
+				malformedData.Record(path)
+				blockIncrementalProjectTarget(&state, replaceKey)
+				targetsByProject[file.groupDirName] = state
+				continue
+			}
+			return nil, drift, malformedData, fmt.Errorf("resolveIncrementalPath: %w", err)
 		}
 
-		state := targetsByProject[target.groupDirName]
-		if state.targetCacheKeys == nil {
-			state.targetCacheKeys = make(map[string]struct{})
-		}
-		state.project = target.project
-		state.targetCacheKeys[target.cacheKey] = struct{}{}
-		targetsByProject[target.groupDirName] = state
+		recordIncrementalProjectTarget(&state, target.cacheKey, replaceKey)
+		targetsByProject[file.groupDirName] = state
 	}
 
-	return targetsByProject, replaceKeys, drift, nil
+	return targetsByProject, drift, malformedData, nil
 }
 
 type incrementalResolvedPath struct {
@@ -92,40 +110,29 @@ type incrementalResolvedPath struct {
 
 func resolveIncrementalPath(
 	ctx context.Context,
-	rawDir string,
-	path string,
-	lookup src.IncrementalLookup,
-) (incrementalResolvedPath, string, src.DriftReport, error) {
+	file sessionFile,
+) (incrementalResolvedPath, src.DriftReport, error) {
 	if err := ctx.Err(); err != nil {
-		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("resolveIncrementalPath_ctx: %w", err)
+		return incrementalResolvedPath{}, src.DriftReport{}, fmt.Errorf("resolveIncrementalPath_ctx: %w", err)
 	}
-	if _, err := os.Stat(path); err != nil {
-		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf(
+	if _, err := os.Stat(file.path); err != nil {
+		return incrementalResolvedPath{}, src.DriftReport{}, fmt.Errorf(
 			"resolveIncrementalPath_osStat_%s: %w",
-			filepath.Base(path),
+			filepath.Base(file.path),
 			err,
 		)
 	}
 
-	replaceKey, err := lookupIncrementalReplaceKey(ctx, path, lookup)
-	if err != nil {
-		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("lookupIncrementalReplaceKey: %w", err)
-	}
-
-	file, err := incrementalSessionFile(rawDir, path)
-	if err != nil {
-		return incrementalResolvedPath{}, "", src.DriftReport{}, fmt.Errorf("incrementalSessionFile: %w", err)
-	}
 	scanned, err := scanSessionFile(ctx, file)
 	if err != nil {
-		return incrementalResolvedPath{}, "", scanned.drift, fmt.Errorf("scanSessionFile: %w", err)
+		return incrementalResolvedPath{}, scanned.drift, fmt.Errorf("scanSessionFile: %w", err)
 	}
 
 	return incrementalResolvedPath{
 		groupDirName: file.groupDirName,
 		project:      file.project,
 		cacheKey:     incrementalConversationCacheKey(scanned),
-	}, replaceKey, scanned.drift, nil
+	}, scanned.drift, nil
 }
 
 func lookupIncrementalReplaceKey(
@@ -147,11 +154,13 @@ func collectIncrementalProjectConversations(
 	ctx context.Context,
 	rawDir string,
 	targetsByProject map[string]incrementalProjectTarget,
-	replaceKeys map[string]struct{},
-) ([]conversation, src.DriftReport, error) {
+	lookup src.IncrementalLookup,
+) ([]conversation, map[string][]string, src.DriftReport, src.MalformedDataReport, error) {
 	conversations := make([]conversation, 0)
+	replaceKeysByConversation := make(map[string][]string)
 	currentKeys := make(map[string]struct{})
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 	projectNames := make([]string, 0, len(targetsByProject))
 	for projectDirName := range targetsByProject {
 		projectNames = append(projectNames, projectDirName)
@@ -159,15 +168,21 @@ func collectIncrementalProjectConversations(
 	sort.Strings(projectNames)
 
 	for _, projectDirName := range projectNames {
-		projectConversations, projectDrift, err := scanIncrementalProjectConversations(
+		projectConversations,
+			projectReplaceKeys,
+			projectDrift,
+			projectMalformedData,
+			err := scanIncrementalProjectConversations(
 			ctx,
 			rawDir,
 			projectDirName,
 			targetsByProject[projectDirName],
+			lookup,
 		)
 		drift.Merge(projectDrift)
+		malformedData.Merge(projectMalformedData)
 		if err != nil {
-			return nil, drift, fmt.Errorf("scanIncrementalProjectConversations: %w", err)
+			return nil, nil, drift, malformedData, fmt.Errorf("scanIncrementalProjectConversations: %w", err)
 		}
 		for _, conversation := range projectConversations {
 			cacheKey := conversation.CacheKey()
@@ -175,12 +190,15 @@ func collectIncrementalProjectConversations(
 				continue
 			}
 			currentKeys[cacheKey] = struct{}{}
-			replaceKeys[cacheKey] = struct{}{}
 			conversations = append(conversations, conversation)
+			replaceKeysByConversation[cacheKey] = append(
+				[]string(nil),
+				projectReplaceKeys[cacheKey]...,
+			)
 		}
 	}
 
-	return conversations, drift, nil
+	return conversations, replaceKeysByConversation, drift, malformedData, nil
 }
 
 func scanIncrementalProjectConversations(
@@ -188,7 +206,8 @@ func scanIncrementalProjectConversations(
 	rawDir string,
 	projectDirName string,
 	target incrementalProjectTarget,
-) ([]conversation, src.DriftReport, error) {
+	lookup src.IncrementalLookup,
+) ([]conversation, map[string][]string, src.DriftReport, src.MalformedDataReport, error) {
 	projDir := filepath.Join(rawDir, projectDirName)
 	files, err := discoverProjectSessionFiles(
 		projDir,
@@ -197,21 +216,99 @@ func scanIncrementalProjectConversations(
 		rawDir,
 	)
 	if err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("discoverProjectSessionFiles: %w", err)
+		return nil, nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("discoverProjectSessionFiles: %w", err)
 	}
-	sessions, drift, err := scanSessionFilesParallel(ctx, files)
+	sessions, drift, malformedData, err := scanSessionFilesParallel(ctx, files)
 	if err != nil {
-		return nil, drift, fmt.Errorf("scanSessionFilesParallel: %w", err)
+		return nil, nil, drift, malformedData, fmt.Errorf("scanSessionFilesParallel: %w", err)
+	}
+	if err := markIncrementalProjectMalformedTargets(ctx, malformedData.Values(), &target, lookup); err != nil {
+		return nil, nil, drift, malformedData, fmt.Errorf("markIncrementalProjectMalformedTargets: %w", err)
 	}
 
 	filtered := make([]conversation, 0)
+	replaceKeysByConversation := make(map[string][]string)
 	for _, conversation := range groupConversations(sessions) {
-		if _, ok := target.targetCacheKeys[conversation.CacheKey()]; !ok {
+		cacheKey := conversation.CacheKey()
+		if _, ok := target.targetCacheKeys[cacheKey]; !ok {
+			continue
+		}
+		if incrementalProjectTargetBlocked(target, cacheKey) {
 			continue
 		}
 		filtered = append(filtered, conversation)
+		replaceKeysByConversation[cacheKey] = incrementalProjectTargetReplaceKeys(target, cacheKey)
 	}
-	return filtered, drift, nil
+	return filtered, replaceKeysByConversation, drift, malformedData, nil
+}
+
+func recordIncrementalProjectTarget(
+	target *incrementalProjectTarget,
+	cacheKey string,
+	replaceKey string,
+) {
+	if cacheKey == "" {
+		return
+	}
+	if target.targetCacheKeys == nil {
+		target.targetCacheKeys = make(map[string]struct{})
+	}
+	if target.replaceKeysByConversation == nil {
+		target.replaceKeysByConversation = make(map[string]map[string]struct{})
+	}
+	target.targetCacheKeys[cacheKey] = struct{}{}
+	if target.replaceKeysByConversation[cacheKey] == nil {
+		target.replaceKeysByConversation[cacheKey] = make(map[string]struct{})
+	}
+	target.replaceKeysByConversation[cacheKey][cacheKey] = struct{}{}
+	if replaceKey != "" {
+		target.replaceKeysByConversation[cacheKey][replaceKey] = struct{}{}
+	}
+}
+
+func blockIncrementalProjectTarget(target *incrementalProjectTarget, replaceKey string) {
+	if replaceKey == "" {
+		return
+	}
+	if target.blockedStoredConversations == nil {
+		target.blockedStoredConversations = make(map[string]struct{})
+	}
+	target.blockedStoredConversations[replaceKey] = struct{}{}
+}
+
+func markIncrementalProjectMalformedTargets(
+	ctx context.Context,
+	paths []string,
+	target *incrementalProjectTarget,
+	lookup src.IncrementalLookup,
+) error {
+	for _, path := range paths {
+		replaceKey, err := lookupIncrementalReplaceKey(ctx, path, lookup)
+		if err != nil {
+			return fmt.Errorf("lookupIncrementalReplaceKey: %w", err)
+		}
+		blockIncrementalProjectTarget(target, replaceKey)
+	}
+	return nil
+}
+
+func incrementalProjectTargetBlocked(target incrementalProjectTarget, cacheKey string) bool {
+	if _, ok := target.blockedStoredConversations[cacheKey]; ok {
+		return true
+	}
+	for replaceKey := range target.replaceKeysByConversation[cacheKey] {
+		if _, ok := target.blockedStoredConversations[replaceKey]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func incrementalProjectTargetReplaceKeys(
+	target incrementalProjectTarget,
+	cacheKey string,
+) []string {
+	return src.SortedKeys(target.replaceKeysByConversation[cacheKey])
 }
 
 func incrementalSessionFile(rawDir, path string) (sessionFile, error) {

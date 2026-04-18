@@ -54,6 +54,29 @@ func TestScanParsesCodexRollouts(t *testing.T) {
 	assert.NotContains(t, main.FirstMessage(), "<environment_context>")
 }
 
+func TestScanSkipsMalformedRolloutAndReportsMalformedData(t *testing.T) {
+	t.Parallel()
+
+	rawDir := copyCodexFixtureDir(t)
+	badPath := filepath.Join(rawDir, "2026", "03", "13", "rollout-malformed.jsonl")
+	require.NoError(
+		t,
+		os.WriteFile(
+			badPath,
+			[]byte(
+				`{"timestamp":"2026-03-13T10:00:00Z","type":"session_meta",`+
+					`"payload":{"id":"bad","timestamp":"2026-03-13T10:00:00Z"`,
+			),
+			0o644,
+		),
+	)
+
+	scanResult, err := New().Scan(context.Background(), rawDir)
+	require.NoError(t, err)
+	require.Len(t, scanResult.Conversations, 3)
+	assert.Equal(t, 1, scanResult.MalformedData.Count())
+}
+
 func TestScanKeepsCollidingCodexSlugsAsSeparateConversations(t *testing.T) {
 	t.Parallel()
 

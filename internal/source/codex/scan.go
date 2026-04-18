@@ -22,20 +22,23 @@ type scanState struct {
 	drift        *src.DriftReport
 }
 
-func scanRollouts(ctx context.Context, rawDir string) ([]conv.Conversation, src.DriftReport, error) {
+func scanRollouts(
+	ctx context.Context,
+	rawDir string,
+) ([]conv.Conversation, src.DriftReport, src.MalformedDataReport, error) {
 	paths, err := listJSONLPaths(rawDir)
 	if err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("listJSONLPaths: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("listJSONLPaths: %w", err)
 	}
 	if len(paths) == 0 {
-		return nil, src.DriftReport{}, nil
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, nil
 	}
 
-	rollouts, drift, err := scanRolloutsParallel(ctx, paths)
+	rollouts, drift, malformedData, err := scanRolloutsParallel(ctx, paths)
 	if err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("scanRolloutsParallel: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("scanRolloutsParallel: %w", err)
 	}
-	return groupRollouts(rollouts), drift, nil
+	return groupRollouts(rollouts), drift, malformedData, nil
 }
 
 func scanRollout(path string) (_ scannedRollout, _ bool, retErr error) {
@@ -52,7 +55,9 @@ func scanRollout(path string) (_ scannedRollout, _ bool, retErr error) {
 
 	state := newScanState(path)
 	if scanErr := scanRolloutReader(br, &state); scanErr != nil {
-		return scannedRollout{drift: derefDriftReport(state.drift)}, false, fmt.Errorf("scanRolloutReader: %w", scanErr)
+		return scannedRollout{drift: derefDriftReport(state.drift)}, false, src.MarkMalformedRawData(
+			fmt.Errorf("scanRolloutReader: %w", scanErr),
+		)
 	}
 
 	return state.rollout()

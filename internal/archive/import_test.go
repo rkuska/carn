@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,6 +192,62 @@ func TestPipelineRunBuildsStoreWhenArchiveIsEmpty(t *testing.T) {
 	needsRebuild, err := store.NeedsRebuild(context.Background(), archiveDir)
 	require.NoError(t, err)
 	assert.False(t, needsRebuild)
+}
+
+func TestPipelineRunReturnsMalformedDataWarningsWithoutFailing(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "source")
+	archiveDir := filepath.Join(dir, "archive")
+	source := claude.New()
+	store := canonical.New(nil, source)
+	pipeline := New(Config{
+		SourceDirs: map[conv.Provider]string{conv.ProviderClaude: sourceDir},
+		ArchiveDir: archiveDir,
+	}, store, source)
+
+	writeTestFile(
+		t,
+		filepath.Join(sourceDir, "proj1", "session-1.jsonl"),
+		strings.Join([]string{
+			makeJSONLRecord("user", "demo", "session-1"),
+			`{"type":"assistant","sessionId":"session-1","timestamp":"2026-03-08T10:01:00Z",` +
+				`"message":{"role":"assistant","model":"claude","content":[{"type":"text","text":"before corruption"}]}}`,
+		}, "\n"),
+	)
+
+	_, err := pipeline.Run(ctx, nil)
+	require.NoError(t, err)
+
+	writeTestFile(
+		t,
+		filepath.Join(sourceDir, "proj1", "session-1.jsonl"),
+		strings.Join([]string{
+			makeJSONLRecord("user", "demo", "session-1"),
+			`{"type":"assistant","sessionId":"session-1","timestamp":"2026-03-08T10:01:00Z",` +
+				`"message":{"role":"assistant","model":"claude","content":[{"type":"text","text":"after corruption"}}`,
+		}, "\n"),
+	)
+
+	result, err := pipeline.Run(ctx, nil)
+	require.NoError(t, err)
+	assert.True(t, result.StoreBuilt)
+	assert.Equal(t, 1, result.MalformedData.Report(conv.ProviderClaude).Count())
+
+	needsRebuild, err := store.NeedsRebuild(ctx, archiveDir)
+	require.NoError(t, err)
+	assert.False(t, needsRebuild)
+
+	conversations, err := store.List(ctx, archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+
+	session, err := store.Load(ctx, archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, "before corruption", session.Messages[1].Text)
 }
 
 func makeJSONLRecord(recordType, slug, sessionID string) string {

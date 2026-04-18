@@ -102,6 +102,46 @@ func TestStoreRebuildInvalidatesDeepSearchCache(t *testing.T) {
 	require.NotEmpty(t, results)
 }
 
+func TestStoreRebuildSkipsMalformedClaudeConversationAndKeepsDeepSearchAvailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	store := New(nil, claude.New())
+
+	writeTestConversation(t, rawDir, "project-a", "session-good", "good", []string{
+		"good answer",
+	})
+
+	badPath := filepath.Join(rawDir, "project-a", "session-bad.jsonl")
+	writeTestFile(t, badPath, strings.Join([]string{
+		makeJSONLRecord("user", "bad", "session-bad"),
+		`{"type":"assistant","sessionId":"session-bad","timestamp":"2026-03-08T10:01:00Z",` +
+			`"message":{"role":"assistant","model":"claude","content":[{"type":"text","text":"broken"}}`,
+	}, "\n"))
+
+	result, err := store.Rebuild(ctx, archiveDir, conv.ProviderClaude, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.MalformedData.Report(conv.ProviderClaude).Count())
+
+	conversations, err := store.List(ctx, archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	assert.Equal(t, "session-good", conversations[0].Sessions[0].ID)
+
+	session, err := store.Load(ctx, archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, "good answer", session.Messages[1].Text)
+
+	results, available, err := store.DeepSearch(ctx, archiveDir, "good answer", conversations)
+	require.NoError(t, err)
+	assert.True(t, available)
+	require.Len(t, results, 1)
+	assert.Equal(t, conversations[0].CacheKey(), results[0].CacheKey())
+}
+
 func TestStoreRebuildAddsClaudeSessionToExistingSlugGroup(t *testing.T) {
 	t.Parallel()
 
@@ -279,6 +319,57 @@ func TestStoreIncrementalRebuildMatchesFullRebuildForChangedClaudeConversation(t
 	require.NoError(t, err)
 	assert.True(t, available)
 	assert.Equal(t, snapshotSearchResults(fullOldResults), snapshotSearchResults(incrementalOldResults))
+}
+
+func TestStoreIncrementalRebuildKeepsPreviousConversationWhenClaudeRawTurnsMalformed(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	archiveDir := t.TempDir()
+	rawDir := src.ProviderRawDir(archiveDir, conversationProvider("claude"))
+	store := New(nil, claude.New())
+
+	convValue := writeTestConversation(t, rawDir, "project-a", "session-1", "demo", []string{
+		"before corruption",
+	})
+
+	_, err := store.Rebuild(ctx, archiveDir, conv.ProviderClaude, nil)
+	require.NoError(t, err)
+
+	writeTestFile(t, convValue.Sessions[0].FilePath, strings.Join([]string{
+		makeJSONLRecord("user", "demo", "session-1"),
+		`{"type":"assistant","sessionId":"session-1","timestamp":"2026-03-08T10:01:00Z",` +
+			`"message":{"role":"assistant","model":"claude","content":[{"type":"text","text":"after corruption"}}`,
+	}, "\n"))
+
+	result, err := store.Rebuild(
+		ctx,
+		archiveDir,
+		conv.ProviderClaude,
+		[]string{convValue.Sessions[0].FilePath},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.MalformedData.Report(conv.ProviderClaude).Count())
+
+	conversations, err := store.List(ctx, archiveDir)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	assert.Equal(t, "session-1", conversations[0].Sessions[0].ID)
+
+	session, err := store.Load(ctx, archiveDir, conversations[0])
+	require.NoError(t, err)
+	require.Len(t, session.Messages, 2)
+	assert.Equal(t, "before corruption", session.Messages[1].Text)
+
+	results, available, err := store.DeepSearch(ctx, archiveDir, "before corruption", conversations)
+	require.NoError(t, err)
+	assert.True(t, available)
+	require.Len(t, results, 1)
+
+	results, available, err = store.DeepSearch(ctx, archiveDir, "after corruption", conversations)
+	require.NoError(t, err)
+	assert.True(t, available)
+	assert.Empty(t, results)
 }
 
 func TestStoreCodexLoadPreservesHiddenSystemAndGroupedSubagents(t *testing.T) {

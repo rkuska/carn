@@ -88,21 +88,24 @@ func jsonlLines(br *bufio.Reader) iter.Seq2[[]byte, error] {
 	}
 }
 
-func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, src.DriftReport, error) {
+func scanSessions(
+	ctx context.Context,
+	baseDir string,
+) ([]scannedSession, src.DriftReport, src.MalformedDataReport, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("scanSessions_ctx: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("scanSessions_ctx: %w", err)
 	}
 
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("os.ReadDir: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("os.ReadDir: %w", err)
 	}
 
 	log := zerolog.Ctx(ctx)
 	var files []sessionFile
 	for _, entry := range entries {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, src.DriftReport{}, fmt.Errorf("scanSessions_ctx: %w", ctxErr)
+			return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("scanSessions_ctx: %w", ctxErr)
 		}
 		if !entry.IsDir() {
 			continue
@@ -123,20 +126,24 @@ func scanSessions(ctx context.Context, baseDir string) ([]scannedSession, src.Dr
 		files = append(files, projectFiles...)
 	}
 
-	sessions, drift, err := scanSessionFilesParallel(ctx, files)
+	sessions, drift, malformedData, err := scanSessionFilesParallel(ctx, files)
 	if err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("scanSessionFilesParallel: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("scanSessionFilesParallel: %w", err)
 	}
 
 	log.Info().Int("sessions", len(sessions)).Msg("claude source scan completed")
-	return sessions, drift, nil
+	return sessions, drift, malformedData, nil
 }
 
-func scanSessionFilesParallel(ctx context.Context, files []sessionFile) ([]scannedSession, src.DriftReport, error) {
+func scanSessionFilesParallel(
+	ctx context.Context,
+	files []sessionFile,
+) ([]scannedSession, src.DriftReport, src.MalformedDataReport, error) {
 	log := zerolog.Ctx(ctx)
 	results := make([]scannedSessionResult, len(files))
+	malformedValues := make([]string, len(files))
 	if len(files) == 0 {
-		return nil, src.DriftReport{}, nil
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, nil
 	}
 
 	sem := semaphore.NewWeighted(int64(claudeScanParallelism(len(files))))
@@ -152,34 +159,54 @@ func scanSessionFilesParallel(ctx context.Context, files []sessionFile) ([]scann
 			}
 			defer sem.Release(1)
 
-			scanned, err := scanSessionFile(groupCtx, file)
+			result, malformedValue, err := scanSessionFileParallelResult(groupCtx, log, file)
 			if err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("scanSessionFile_%s: %w", file.path, err)
-				}
-				log.Debug().Err(err).Msgf("skipping %s", file.path)
-				results[index] = scannedSessionResult{session: scanned}
-				return nil
+				return err
 			}
-
-			results[index] = scannedSessionResult{session: scanned, ok: true}
+			results[index] = result
+			malformedValues[index] = malformedValue
 			return nil
 		})
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, src.DriftReport{}, fmt.Errorf("errgroup.Wait: %w", err)
+		return nil, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf("errgroup.Wait: %w", err)
 	}
 
 	sessions := make([]scannedSession, 0, len(files))
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 	for _, result := range results {
 		drift.Merge(result.session.drift)
 		if result.ok {
 			sessions = append(sessions, result.session)
 		}
 	}
-	return sessions, drift, nil
+	for _, value := range malformedValues {
+		malformedData.Record(value)
+	}
+	return sessions, drift, malformedData, nil
+}
+
+func scanSessionFileParallelResult(
+	ctx context.Context,
+	log *zerolog.Logger,
+	file sessionFile,
+) (scannedSessionResult, string, error) {
+	scanned, err := scanSessionFile(ctx, file)
+	if err == nil {
+		return scannedSessionResult{session: scanned, ok: true}, "", nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return scannedSessionResult{}, "", fmt.Errorf("scanSessionFile_%s: %w", file.path, err)
+	}
+
+	malformedValue := ""
+	if errors.Is(err, src.ErrMalformedRawData) {
+		malformedValue = file.path
+	}
+	log.Debug().Err(err).Msgf("skipping %s", file.path)
+	return scannedSessionResult{session: scanned}, malformedValue, nil
 }
 
 func projectFromDirName(dirName string) scannedProject {

@@ -126,7 +126,7 @@ func makeBenchConversations(
 
 	ctx := context.Background()
 	rawDir := makeBenchRawCorpus(b, projects, sessionsPerProject, assistantTurns)
-	sessions, _, err := scanSessions(ctx, rawDir)
+	sessions, _, _, err := scanSessions(ctx, rawDir)
 	if err != nil {
 		b.Fatalf("scanSessions: %v", err)
 	}
@@ -140,7 +140,7 @@ func BenchmarkCanonicalStoreScanSessions(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sessions, _, err := scanSessions(ctx, rawDir)
+		sessions, _, _, err := scanSessions(ctx, rawDir)
 		if err != nil {
 			b.Fatalf("scanSessions: %v", err)
 		}

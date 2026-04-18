@@ -17,7 +17,7 @@ func TestScanSessionFilesParallelReturnsScannedSessions(t *testing.T) {
 	path := filepath.Join(dir, "session.jsonl")
 	require.NoError(t, os.WriteFile(path, []byte(makeTestUserRecord(t, "s1", "demo", "hello")), 0o644))
 
-	sessions, _, err := scanSessionFilesParallel(context.Background(), []sessionFile{{
+	sessions, _, _, err := scanSessionFilesParallel(context.Background(), []sessionFile{{
 		path:         path,
 		project:      project{DisplayName: "demo"},
 		groupDirName: "project-a",

@@ -49,12 +49,13 @@ type ImportProgress struct {
 }
 
 type SyncResult struct {
-	Copied     int
-	Skipped    int
-	Failed     int
-	Elapsed    time.Duration
-	StoreBuilt bool
-	Drift      src.ProviderDriftReports
+	Copied        int
+	Skipped       int
+	Failed        int
+	Elapsed       time.Duration
+	StoreBuilt    bool
+	Drift         src.ProviderDriftReports
+	MalformedData src.ProviderMalformedDataReports
 
 	files []syncFileResult
 }

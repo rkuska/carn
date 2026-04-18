@@ -10,13 +10,12 @@ const (
 	helpPriorityEssential = el.HelpPriorityEssential
 
 	framedFooterRows = el.FramedFooterRows
+
+	notificationInfo  = el.NotificationInfo
+	notificationError = el.NotificationError
 )
 
 type notification = el.Notification
-
-const (
-	notificationInfo = el.NotificationInfo
-)
 
 var (
 	appendCmd           = el.AppendCmd

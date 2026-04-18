@@ -18,7 +18,11 @@ func (Source) ResolveIncremental(
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
 ) (src.IncrementalResolution, error) {
-	changedRollouts, changedByID, drift, err := scanChangedRollouts(ctx, changedRawPaths)
+	changedRollouts, changedByID, blockedRootIDs, drift, malformedData, err := scanChangedRollouts(
+		ctx,
+		changedRawPaths,
+		lookup,
+	)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("scanChangedRollouts: %w", err)
 	}
@@ -28,16 +32,24 @@ func (Source) ResolveIncremental(
 		return src.IncrementalResolution{}, fmt.Errorf("buildIncrementalFamilies: %w", err)
 	}
 
-	conversations, replaceKeys, familyDrift, err := resolveIncrementalFamilies(ctx, rootIDs, families, lookup)
+	conversations, replaceKeysByConversation, familyDrift, familyMalformedData, err := resolveIncrementalFamilies(
+		ctx,
+		rootIDs,
+		families,
+		blockedRootIDs,
+		lookup,
+	)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("resolveIncrementalFamilies: %w", err)
 	}
 	drift.Merge(familyDrift)
+	malformedData.Merge(familyMalformedData)
 
 	return src.IncrementalResolution{
-		Conversations:    conversations,
-		ReplaceCacheKeys: src.SortedKeys(replaceKeys),
-		Drift:            drift,
+		Conversations:                  conversations,
+		ReplaceCacheKeysByConversation: replaceKeysByConversation,
+		Drift:                          drift,
+		MalformedData:                  malformedData,
 	}, nil
 }
 
@@ -69,31 +81,46 @@ func resolveIncrementalFamilies(
 	ctx context.Context,
 	rootIDs []string,
 	families map[string][]scannedRollout,
+	blockedRootIDs map[string]struct{},
 	lookup src.IncrementalLookup,
-) ([]conv.Conversation, map[string]struct{}, src.DriftReport, error) {
+) ([]conv.Conversation, map[string][]string, src.DriftReport, src.MalformedDataReport, error) {
 	conversations := make([]conv.Conversation, 0)
 	currentKeys := make(map[string]struct{})
-	replaceKeys := make(map[string]struct{})
+	replaceKeysByConversation := make(map[string][]string)
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 
 	for _, rootID := range rootIDs {
-		resolved, familyDrift, err := resolveIncrementalFamily(ctx, rootID, families[rootID], lookup)
+		if _, blocked := blockedRootIDs[rootID]; blocked {
+			continue
+		}
+
+		resolved, familyDrift, familyMalformedData, err := resolveIncrementalFamily(
+			ctx,
+			rootID,
+			families[rootID],
+			lookup,
+		)
 		drift.Merge(familyDrift)
+		malformedData.Merge(familyMalformedData)
 		if err != nil {
-			return nil, nil, drift, fmt.Errorf("resolveIncrementalFamily: %w", err)
+			return nil, nil, drift, malformedData, fmt.Errorf("resolveIncrementalFamily: %w", err)
 		}
-		appendIncrementalFamilyConversations(&conversations, currentKeys, resolved.conversations)
-		for _, cacheKey := range resolved.replaceCacheKeys {
-			replaceKeys[cacheKey] = struct{}{}
-		}
+		appendIncrementalFamilyConversations(
+			&conversations,
+			currentKeys,
+			replaceKeysByConversation,
+			resolved.conversations,
+			resolved.replaceKeysByConversation,
+		)
 	}
 
-	return conversations, replaceKeys, drift, nil
+	return conversations, replaceKeysByConversation, drift, malformedData, nil
 }
 
 type resolvedIncrementalFamily struct {
-	conversations    []conv.Conversation
-	replaceCacheKeys []string
+	conversations             []conv.Conversation
+	replaceKeysByConversation map[string][]string
 }
 
 func resolveIncrementalFamily(
@@ -101,21 +128,37 @@ func resolveIncrementalFamily(
 	rootID string,
 	changed []scannedRollout,
 	lookup src.IncrementalLookup,
-) (resolvedIncrementalFamily, src.DriftReport, error) {
+) (resolvedIncrementalFamily, src.DriftReport, src.MalformedDataReport, error) {
 	stored, ok, err := lookup.ConversationBySessionID(ctx, conv.ProviderCodex, rootID)
 	if err != nil {
-		return resolvedIncrementalFamily{}, src.DriftReport{}, fmt.Errorf("lookup.ConversationBySessionID: %w", err)
+		return resolvedIncrementalFamily{}, src.DriftReport{}, src.MalformedDataReport{}, fmt.Errorf(
+			"lookup.ConversationBySessionID: %w",
+			err,
+		)
 	}
 
-	grouped, drift, err := scanIncrementalFamily(ctx, buildIncrementalFamilyPaths(stored, ok, changed))
+	grouped, drift, malformedData, err := scanIncrementalFamily(
+		ctx,
+		buildIncrementalFamilyPaths(stored, ok, changed),
+	)
 	if err != nil {
-		return resolvedIncrementalFamily{}, drift, fmt.Errorf("scanIncrementalFamily: %w", err)
+		return resolvedIncrementalFamily{}, drift, malformedData, fmt.Errorf("scanIncrementalFamily: %w", err)
+	}
+	if !malformedData.Empty() {
+		return resolvedIncrementalFamily{}, drift, malformedData, nil
+	}
+
+	conversations := filterIncrementalFamilyConversations(grouped, rootID, ok)
+	replaceKeys := src.DedupeAndSort(incrementalFamilyReplaceKeys(grouped, stored, ok))
+	replaceKeysByConversation := make(map[string][]string, len(conversations))
+	for _, conversation := range conversations {
+		replaceKeysByConversation[conversation.CacheKey()] = append([]string(nil), replaceKeys...)
 	}
 
 	return resolvedIncrementalFamily{
-		conversations:    filterIncrementalFamilyConversations(grouped, rootID, ok),
-		replaceCacheKeys: incrementalFamilyReplaceKeys(grouped, stored, ok),
-	}, drift, nil
+		conversations:             conversations,
+		replaceKeysByConversation: replaceKeysByConversation,
+	}, drift, malformedData, nil
 }
 
 func buildIncrementalFamilyPaths(
@@ -171,7 +214,9 @@ func incrementalFamilyReplaceKeys(
 func appendIncrementalFamilyConversations(
 	conversations *[]conv.Conversation,
 	currentKeys map[string]struct{},
+	replaceKeysByConversation map[string][]string,
 	grouped []conv.Conversation,
+	familyReplaceKeys map[string][]string,
 ) {
 	for _, conversation := range grouped {
 		cacheKey := conversation.CacheKey()
@@ -180,41 +225,64 @@ func appendIncrementalFamilyConversations(
 		}
 		currentKeys[cacheKey] = struct{}{}
 		*conversations = append(*conversations, conversation)
+		replaceKeysByConversation[cacheKey] = append([]string(nil), familyReplaceKeys[cacheKey]...)
 	}
 }
 
 func scanChangedRollouts(
 	ctx context.Context,
 	changedRawPaths []string,
-) ([]scannedRollout, map[string]scannedRollout, src.DriftReport, error) {
+	lookup src.IncrementalLookup,
+) ([]scannedRollout, map[string]scannedRollout, map[string]struct{}, src.DriftReport, src.MalformedDataReport, error) {
 	rollouts := make([]scannedRollout, 0, len(changedRawPaths))
 	byID := make(map[string]scannedRollout, len(changedRawPaths))
+	blockedRootIDs := make(map[string]struct{})
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 
 	for _, path := range src.DedupeAndSort(changedRawPaths) {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, drift, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
+			return nil, nil, nil, drift, malformedData, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
 		}
 		if _, err := os.Stat(path); err != nil {
-			return nil, nil, drift, fmt.Errorf("scanChangedRollouts_osStat_%s: %w", filepath.Base(path), err)
+			return nil, nil, nil, drift, malformedData, fmt.Errorf(
+				"scanChangedRollouts_osStat_%s: %w",
+				filepath.Base(path),
+				err,
+			)
 		}
 
 		rollout, ok, err := scanRollout(path)
 		drift.Merge(rollout.drift)
 		if err != nil {
-			return nil, nil, drift, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
+			if errors.Is(err, src.ErrMalformedRawData) {
+				malformedData.Record(path)
+				if markErr := markMalformedIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
+					return nil, nil, nil, drift, malformedData, fmt.Errorf(
+						"markMalformedIncrementalRoot_%s: %w",
+						filepath.Base(path),
+						markErr,
+					)
+				}
+				continue
+			}
+			return nil, nil, nil, drift, malformedData, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if !ok {
-			return nil, nil, drift, fmt.Errorf(
-				"scanChangedRollouts_%s: %w",
-				filepath.Base(path),
-				errors.New("changed rollout missing session metadata"),
-			)
+			malformedData.Record(path)
+			if markErr := markMalformedIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
+				return nil, nil, nil, drift, malformedData, fmt.Errorf(
+					"markMalformedIncrementalRoot_%s: %w",
+					filepath.Base(path),
+					markErr,
+				)
+			}
+			continue
 		}
 		rollouts = append(rollouts, rollout)
 		byID[rollout.meta.ID] = rollout
 	}
-	return rollouts, byID, drift, nil
+	return rollouts, byID, blockedRootIDs, drift, malformedData, nil
 }
 
 func resolveIncrementalRootID(
@@ -257,7 +325,7 @@ func resolveIncrementalRootID(
 func scanIncrementalFamily(
 	ctx context.Context,
 	familyPaths map[string]struct{},
-) ([]conv.Conversation, src.DriftReport, error) {
+) ([]conv.Conversation, src.DriftReport, src.MalformedDataReport, error) {
 	paths := make([]string, 0, len(familyPaths))
 	for path := range familyPaths {
 		paths = append(paths, path)
@@ -266,19 +334,41 @@ func scanIncrementalFamily(
 
 	rollouts := make([]scannedRollout, 0, len(paths))
 	drift := src.NewDriftReport()
+	malformedData := src.NewMalformedDataReport()
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
-			return nil, drift, fmt.Errorf("scanIncrementalFamily_ctx: %w", err)
+			return nil, drift, malformedData, fmt.Errorf("scanIncrementalFamily_ctx: %w", err)
 		}
 		rollout, ok, err := scanRollout(path)
 		drift.Merge(rollout.drift)
 		if err != nil {
-			return nil, drift, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
+			if errors.Is(err, src.ErrMalformedRawData) {
+				malformedData.Record(path)
+				continue
+			}
+			return nil, drift, malformedData, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if !ok {
+			malformedData.Record(path)
 			continue
 		}
 		rollouts = append(rollouts, rollout)
 	}
-	return groupRollouts(rollouts), drift, nil
+	return groupRollouts(rollouts), drift, malformedData, nil
+}
+
+func markMalformedIncrementalRoot(
+	ctx context.Context,
+	path string,
+	blockedRootIDs map[string]struct{},
+	lookup src.IncrementalLookup,
+) error {
+	stored, ok, err := lookup.ConversationByFilePath(ctx, conv.ProviderCodex, path)
+	if err != nil {
+		return fmt.Errorf("lookup.ConversationByFilePath: %w", err)
+	}
+	if ok {
+		blockedRootIDs[stored.ID()] = struct{}{}
+	}
+	return nil
 }

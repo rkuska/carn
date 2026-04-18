@@ -104,7 +104,11 @@ func (m appModel) updateImportOverview(msg tea.Msg) (tea.Model, tea.Cmd) {
 		appendCmd(&cmds, func() tea.Msg {
 			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
 		})
-		if n, ok := driftNotification(m.importOverview.result.Drift); ok {
+		if n, ok := malformedDataNotification(m.importOverview.result.MalformedData); ok {
+			var notify tea.Cmd
+			m.browser, notify = m.browser.SetNotification(n)
+			appendCmd(&cmds, notify)
+		} else if n, ok := driftNotification(m.importOverview.result.Drift); ok {
 			var notify tea.Cmd
 			m.browser, notify = m.browser.SetNotification(n)
 			appendCmd(&cmds, notify)

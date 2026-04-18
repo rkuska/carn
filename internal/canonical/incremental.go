@@ -25,24 +25,24 @@ func tryIncrementalRebuildWithSources(
 	archiveDir string,
 	store *Store,
 	changedRawPaths map[conversationProvider][]string,
-) (src.ProviderDriftReports, error) {
+) (RebuildResult, error) {
 	needsRebuild, err := store.needsRebuild(ctx, archiveDir)
 	if err != nil {
-		return src.ProviderDriftReports{}, fmt.Errorf("store.needsRebuild: %w", err)
+		return RebuildResult{}, fmt.Errorf("store.needsRebuild: %w", err)
 	}
 	if needsRebuild {
-		return src.ProviderDriftReports{}, errors.New("store requires full rebuild")
+		return RebuildResult{}, errors.New("store requires full rebuild")
 	}
 
 	db, err := store.loadDB(ctx, archiveDir)
 	if err != nil {
-		return src.ProviderDriftReports{}, fmt.Errorf("store.loadDB: %w", err)
+		return RebuildResult{}, fmt.Errorf("store.loadDB: %w", err)
 	}
 	if err = ensureSQLiteSchema(ctx, db); err != nil {
-		return src.ProviderDriftReports{}, fmt.Errorf("ensureSQLiteSchema: %w", err)
+		return RebuildResult{}, fmt.Errorf("ensureSQLiteSchema: %w", err)
 	}
 
-	resolution, drift, err := resolveIncrementalRebuildWithSources(
+	resolution, drift, malformedData, err := resolveIncrementalRebuildWithSources(
 		ctx,
 		archiveDir,
 		store.sources,
@@ -50,39 +50,51 @@ func tryIncrementalRebuildWithSources(
 		sqliteIncrementalLookup{db: db},
 	)
 	if err != nil {
-		return drift, fmt.Errorf("resolveIncrementalRebuildWithSources: %w", err)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"resolveIncrementalRebuildWithSources: %w",
+			err,
+		)
 	}
 
-	results, err := parseConversationsParallelResultsWithSources(
+	results, parsedMalformedData, err := parseConversationsParallelResultsWithSources(
 		ctx,
 		store.sources,
 		store.collector,
 		resolution.Conversations,
 	)
 	if err != nil {
-		return drift, fmt.Errorf("parseConversationsParallelResultsWithSources: %w", err)
+		malformedData.Merge(parsedMalformedData)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"parseConversationsParallelResultsWithSources: %w",
+			err,
+		)
 	}
+	malformedData.Merge(parsedMalformedData)
 	resolution.Conversations = conversationsFromParseResults(results)
 	parsedTranscripts, groupedUnits, statsData, activityBucketRows := buildIncrementalParseOutputs(results)
 	setPlanCounts(resolution.Conversations, parsedTranscripts)
+	replaceCacheKeys := successfulIncrementalReplaceKeys(resolution, results)
 
 	if err := applySQLiteIncrementalRebuild(
 		ctx,
 		db,
-		resolution.ReplaceCacheKeys,
+		replaceCacheKeys,
 		resolution.Conversations,
 		parsedTranscripts,
 		groupedUnits,
 		statsData,
 		activityBucketRows,
 	); err != nil {
-		return drift, fmt.Errorf("applySQLiteIncrementalRebuild: %w", err)
+		return RebuildResult{Drift: drift, MalformedData: malformedData}, fmt.Errorf(
+			"applySQLiteIncrementalRebuild: %w",
+			err,
+		)
 	}
 
 	zerolog.Ctx(ctx).Info().
 		Int("changed", len(resolution.Conversations)).
 		Msg("incremental rebuild completed")
-	return drift, nil
+	return RebuildResult{Drift: drift, MalformedData: malformedData}, nil
 }
 
 func resolveIncrementalRebuildWithSources(
@@ -91,14 +103,17 @@ func resolveIncrementalRebuildWithSources(
 	sources sourceRegistry,
 	changedRawPaths map[conversationProvider][]string,
 	lookup src.IncrementalLookup,
-) (src.IncrementalResolution, src.ProviderDriftReports, error) {
+) (src.IncrementalResolution, src.ProviderDriftReports, src.ProviderMalformedDataReports, error) {
 	resolution := src.IncrementalResolution{
-		Conversations:    make([]conversation, 0),
-		ReplaceCacheKeys: make([]string, 0),
+		Conversations:                  make([]conversation, 0),
+		ReplaceCacheKeysByConversation: make(map[string][]string),
+		DeleteCacheKeys:                make([]string, 0),
 	}
 	seenConversations := make(map[string]struct{})
 	seenReplaceKeys := make(map[string]struct{})
+	seenDeleteKeys := make(map[string]struct{})
 	drift := src.NewProviderDriftReports()
+	malformedData := src.NewProviderMalformedDataReports()
 
 	for provider, paths := range changedRawPaths {
 		if len(paths) == 0 {
@@ -113,21 +128,24 @@ func resolveIncrementalRebuildWithSources(
 			lookup,
 		)
 		if err != nil {
-			return src.IncrementalResolution{}, drift, fmt.Errorf(
+			return src.IncrementalResolution{}, drift, malformedData, fmt.Errorf(
 				"resolveIncrementalProvider_%s: %w",
 				provider,
 				err,
 			)
 		}
 		resolution.Drift.Merge(providerResolution.Drift)
+		resolution.MalformedData.Merge(providerResolution.MalformedData)
 		drift.MergeProvider(conv.Provider(provider), providerResolution.Drift)
+		malformedData.MergeProvider(conv.Provider(provider), providerResolution.MalformedData)
 		if err := appendIncrementalResolution(
 			&resolution,
 			providerResolution,
 			seenConversations,
 			seenReplaceKeys,
+			seenDeleteKeys,
 		); err != nil {
-			return src.IncrementalResolution{}, drift, fmt.Errorf(
+			return src.IncrementalResolution{}, drift, malformedData, fmt.Errorf(
 				"appendIncrementalResolution_%s: %w",
 				provider,
 				err,
@@ -135,8 +153,8 @@ func resolveIncrementalRebuildWithSources(
 		}
 	}
 
-	resolution.ReplaceCacheKeys = src.DedupeAndSort(resolution.ReplaceCacheKeys)
-	return resolution, drift, nil
+	resolution.DeleteCacheKeys = src.DedupeAndSort(resolution.DeleteCacheKeys)
+	return resolution, drift, malformedData, nil
 }
 
 func resolveIncrementalProvider(
@@ -181,6 +199,7 @@ func appendIncrementalResolution(
 	providerResolution src.IncrementalResolution,
 	seenConversations map[string]struct{},
 	seenReplaceKeys map[string]struct{},
+	seenDeleteKeys map[string]struct{},
 ) error {
 	for _, conv := range providerResolution.Conversations {
 		cacheKey := conv.CacheKey()
@@ -192,19 +211,58 @@ func appendIncrementalResolution(
 		}
 		seenConversations[cacheKey] = struct{}{}
 		resolution.Conversations = append(resolution.Conversations, conv)
+
+		for _, replaceKey := range providerResolution.ReplaceCacheKeysByConversation[cacheKey] {
+			if replaceKey == "" {
+				continue
+			}
+			if _, ok := seenReplaceKeys[replaceKey]; ok {
+				continue
+			}
+			seenReplaceKeys[replaceKey] = struct{}{}
+			resolution.ReplaceCacheKeysByConversation[cacheKey] = append(
+				resolution.ReplaceCacheKeysByConversation[cacheKey],
+				replaceKey,
+			)
+		}
 	}
 
-	for _, cacheKey := range providerResolution.ReplaceCacheKeys {
+	for _, cacheKey := range providerResolution.DeleteCacheKeys {
 		if cacheKey == "" {
 			continue
 		}
-		if _, ok := seenReplaceKeys[cacheKey]; ok {
+		if _, ok := seenDeleteKeys[cacheKey]; ok {
 			continue
 		}
-		seenReplaceKeys[cacheKey] = struct{}{}
-		resolution.ReplaceCacheKeys = append(resolution.ReplaceCacheKeys, cacheKey)
+		seenDeleteKeys[cacheKey] = struct{}{}
+		resolution.DeleteCacheKeys = append(resolution.DeleteCacheKeys, cacheKey)
 	}
 	return nil
+}
+
+func successfulIncrementalReplaceKeys(
+	resolution src.IncrementalResolution,
+	results []parseResult,
+) []string {
+	replaceKeys := append([]string(nil), resolution.DeleteCacheKeys...)
+	seen := make(map[string]struct{}, len(replaceKeys))
+	for _, key := range replaceKeys {
+		seen[key] = struct{}{}
+	}
+
+	for _, result := range results {
+		for _, replaceKey := range resolution.ReplaceCacheKeysByConversation[result.key] {
+			if replaceKey == "" {
+				continue
+			}
+			if _, ok := seen[replaceKey]; ok {
+				continue
+			}
+			seen[replaceKey] = struct{}{}
+			replaceKeys = append(replaceKeys, replaceKey)
+		}
+	}
+	return src.DedupeAndSort(replaceKeys)
 }
 
 func buildIncrementalParseOutputs(

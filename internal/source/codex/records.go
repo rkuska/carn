@@ -14,6 +14,7 @@ import (
 	"github.com/buger/jsonparser"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	src "github.com/rkuska/carn/internal/source"
 )
 
 var readerPool = sync.Pool{
@@ -41,7 +42,7 @@ type completedItemPayload struct {
 func openReader(path string) (*os.File, *bufio.Reader, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("os.Open: %w", err)
+		return nil, nil, src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
 	}
 	br, ok := readerPool.Get().(*bufio.Reader)
 	if !ok {

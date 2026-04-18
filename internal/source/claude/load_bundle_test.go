@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func TestSourceLoadConversationBundleMatchesSeparateLoadsWithoutLinkedTranscripts(t *testing.T) {
@@ -99,4 +102,31 @@ func TestSourceLoadConversationBundleMatchesSeparateLoadsWithoutLinkedTranscript
 		require.NoError(t, err)
 		assert.Equal(t, want, bundledSessions[i])
 	}
+}
+
+func TestSourceLoadConversationBundleMarksMalformedRawData(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	source := New()
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "project-a")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+
+	path := filepath.Join(projectDir, "session-1.jsonl")
+	content := strings.Join([]string{
+		makeTestUserRecord(t, "s1", "demo", "start"),
+		`{"type":"assistant","sessionId":"s1","timestamp":"2024-01-01T00:00:01Z",` +
+			`"message":{"role":"assistant","model":"claude","content":[{"type":"text","text":"broken"}}`,
+	}, "\n")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	scanResult, err := source.Scan(ctx, dir)
+	require.NoError(t, err)
+	require.Len(t, scanResult.Conversations, 1)
+
+	_, _, err = source.LoadConversationBundle(ctx, scanResult.Conversations[0])
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "parseRecordMessageFields_content")
+	assert.True(t, errors.Is(err, src.ErrMalformedRawData))
 }

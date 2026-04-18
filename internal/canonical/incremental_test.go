@@ -97,8 +97,10 @@ func TestStoreIncrementalRebuildUsesTargetedResolverWithoutFullScan(t *testing.T
 
 	source.resolution = src.IncrementalResolution{
 		Conversations: []conversation{convValue},
-		ReplaceCacheKeys: []string{
-			convValue.CacheKey(),
+		ReplaceCacheKeysByConversation: map[string][]string{
+			convValue.CacheKey(): {
+				convValue.CacheKey(),
+			},
 		},
 	}
 	source.sessions[convValue.CacheKey()] = sessionFull{
@@ -299,8 +301,10 @@ func TestStoreIncrementalRebuildUpdatesStatsRowsWithoutDroppingUnchangedConversa
 
 	source.resolution = src.IncrementalResolution{
 		Conversations: []conversation{first},
-		ReplaceCacheKeys: []string{
-			first.CacheKey(),
+		ReplaceCacheKeysByConversation: map[string][]string{
+			first.CacheKey(): {
+				first.CacheKey(),
+			},
 		},
 	}
 	source.sessions[first.CacheKey()] = sessionFull{

@@ -54,6 +54,7 @@ type Progress struct {
 type ScanResult struct {
 	Conversations []conv.Conversation
 	Drift         DriftReport
+	MalformedData MalformedDataReport
 }
 
 // Backend is the generic provider contract used by archive, canonical, and app.
@@ -78,9 +79,11 @@ type IncrementalLookup interface {
 // IncrementalResolution describes the exact conversations that should be
 // replaced during a targeted canonical rebuild.
 type IncrementalResolution struct {
-	Conversations    []conv.Conversation
-	ReplaceCacheKeys []string
-	Drift            DriftReport
+	Conversations                  []conv.Conversation
+	ReplaceCacheKeysByConversation map[string][]string
+	DeleteCacheKeys                []string
+	Drift                          DriftReport
+	MalformedData                  MalformedDataReport
 }
 
 // IncrementalResolver is an optional provider hook for targeted canonical

@@ -111,7 +111,9 @@ func (m appModel) handleResyncSyncFinished(msg importSyncFinishedMsg) (appModel,
 	}
 	m.browser = m.browser.PrepareForResyncReload()
 	n := successNotification("resync finished").Notification
-	if drift, ok := driftNotification(msg.result.Drift); ok {
+	if malformed, ok := malformedDataNotification(msg.result.MalformedData); ok {
+		n = malformed
+	} else if drift, ok := driftNotification(msg.result.Drift); ok {
 		n = drift
 	}
 	model, cmd := m.withBrowserNotification(

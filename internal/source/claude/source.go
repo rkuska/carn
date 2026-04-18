@@ -23,7 +23,7 @@ func (Source) UsesScannedToolOutcomeCounts() bool {
 }
 
 func (Source) Scan(ctx context.Context, rawDir string) (src.ScanResult, error) {
-	sessions, drift, err := scanSessions(ctx, rawDir)
+	sessions, drift, malformedData, err := scanSessions(ctx, rawDir)
 	if err != nil {
 		return src.ScanResult{}, fmt.Errorf("scanSessions: %w", err)
 	}
@@ -31,6 +31,7 @@ func (Source) Scan(ctx context.Context, rawDir string) (src.ScanResult, error) {
 	return src.ScanResult{
 		Conversations: groupConversations(sessions),
 		Drift:         drift,
+		MalformedData: malformedData,
 	}, nil
 }
 
