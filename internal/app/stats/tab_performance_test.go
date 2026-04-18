@@ -25,12 +25,12 @@ func TestStatsRenderPerformanceTabShowsScopeAndDiagnostics(t *testing.T) {
 	m.snapshot.Performance = testRenderedPerformance(now)
 
 	body := ansi.Strip(m.renderPerformanceTab(120))
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
 
 	assert.Contains(t, body, "Improving")
 	assert.Contains(t, body, "Claude / claude-opus-4-1")
 	assert.Contains(t, body, "overall 81 ↑")
-	assert.Contains(t, body, "Metric detail")
-	assert.Contains(t, body, "Are mutated sessions getting verified after changes?")
+	assert.Contains(t, detail, "Are mutated sessions getting verified after changes?")
 	assert.Contains(t, body, "Likely causes")
 	assert.Contains(t, body, "Provider signals")
 	assert.Contains(t, body, "correction burden")
@@ -88,6 +88,7 @@ func TestStatsRenderPerformanceTabShowsScopePreviewForMixedFamily(t *testing.T) 
 	}
 
 	body := ansi.Strip(m.renderPerformanceTab(120))
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
 
 	assert.Contains(t, body, "Select 1 Provider and 1 Model to unlock the scorecard. Press f.")
 	assert.Contains(t, body, "need 1 provider + 1 model")
@@ -99,7 +100,8 @@ func TestStatsRenderPerformanceTabShowsScopePreviewForMixedFamily(t *testing.T) 
 	assert.Contains(t, body, "verification pass")
 	assert.Contains(t, body, "blind edit rate")
 	assert.NotContains(t, body, "1. Press f")
-	assert.Contains(t, body, "Metric detail")
+	assert.Contains(t, body, "Performance preview")
+	assert.Contains(t, detail, "Outcome")
 }
 
 func TestRenderPerformanceScopeGateCentersHintAbovePreviewCards(t *testing.T) {
@@ -142,16 +144,16 @@ func TestStatsPerformanceTabSupportsLaneAndMetricSelection(t *testing.T) {
 	m.tab = statsTabPerformance
 	m.snapshot.Performance = testRenderedPerformance(now)
 
-	body := ansi.Strip(m.renderPerformanceTab(120))
-	assert.Contains(t, body, "Are mutated sessions getting verified after changes?")
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Are mutated sessions getting verified after changes?")
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "l"})
-	body = ansi.Strip(m.renderPerformanceTab(120))
-	assert.Contains(t, body, "Does the model inspect context before it edits?")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Does the model inspect context before it edits?")
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "m"})
-	body = ansi.Strip(m.renderPerformanceTab(120))
-	assert.Contains(t, body, "How often does the model edit a target without reading it first?")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "How often does the model edit a target without reading it first?")
 }
 
 func TestRenderPerformanceLaneCardShowsAllLaneMetrics(t *testing.T) {

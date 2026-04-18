@@ -99,7 +99,6 @@ func (m statsModel) renderSessionsTab(width int) string {
 		growthChips,
 		promptGrowth,
 		turnCost,
-		m.renderActiveMetricDetail(width),
 	)
 }
 

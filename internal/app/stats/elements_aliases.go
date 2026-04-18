@@ -59,6 +59,7 @@ var (
 	renderBorderTop          = (*el.Theme).RenderBorderTop
 	renderFramedPane         = (*el.Theme).RenderFramedPane
 	renderFramedBox          = (*el.Theme).RenderFramedBox
+	renderInlineTitledRule   = (*el.Theme).RenderInlineTitledRule
 	framedFooterContentWidth = el.FramedFooterContentWidth
 	composeFooterRow         = el.ComposeFooterRow
 

@@ -53,7 +53,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 		},
 	)
 
-	return joinSections(chips, topPair, bottomPair, m.renderActiveMetricDetail(width))
+	return joinSections(chips, topPair, bottomPair)
 }
 
 func (m statsModel) cacheSummaryChips(cache statspkg.Cache) []chip {
@@ -162,7 +162,7 @@ func cacheHitRateBuckets(durations []statspkg.CacheDurationBucket) []histBucket 
 func (m statsModel) renderCacheMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return m.renderStatsMetricDetail("Cache", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Cache", width, nil, noDataLabel)
 	}
 	if m.splitActive() {
 		return m.renderSplitCacheMetricDetail(width, lane)
@@ -179,7 +179,7 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 	case statsLaneCacheHitDur:
 		return m.renderCacheHitDurMetricDetail(cache, width)
 	default:
-		return m.renderStatsMetricDetail("Cache", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Cache", width, nil, noDataLabel)
 	}
 }
 
@@ -194,7 +194,7 @@ func (m statsModel) renderCacheDailyMetricDetail(cache statspkg.Cache, title str
 
 func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title string, width int) string {
 	peakDay, peakRate := peakDailyRate(cache.DailyHitRate)
-	return m.renderStatsMetricDetail(title, width, []chip{
+	return m.renderStatsMetricDetailBody(title, width, []chip{
 		{Label: "peak day", Value: peakDay},
 		{Label: "peak hit rate", Value: formatRate(peakRate)},
 		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
@@ -210,7 +210,7 @@ func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title st
 
 func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title string, width int) string {
 	peakDay, peakRate := peakDailyRate(cache.DailyReuseRatio)
-	return m.renderStatsMetricDetail(title, width, []chip{
+	return m.renderStatsMetricDetailBody(title, width, []chip{
 		{Label: "peak day", Value: peakDay},
 		{Label: "peak reuse", Value: formatReuse(peakRate)},
 		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
@@ -225,7 +225,7 @@ func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title stri
 }
 
 func (m statsModel) renderCacheSegmentMetricDetail(cache statspkg.Cache, width int) string {
-	return m.renderStatsMetricDetail("Main vs Subagent", width, []chip{
+	return m.renderStatsMetricDetailBody("Main vs Subagent", width, []chip{
 		{Label: "main sessions", Value: statspkg.FormatNumber(cache.Main.SessionCount)},
 		{Label: "main hit rate", Value: formatRate(cache.Main.HitRate)},
 		{Label: "sub sessions", Value: statspkg.FormatNumber(cache.Subagent.SessionCount)},
@@ -241,7 +241,7 @@ func (m statsModel) renderCacheSegmentMetricDetail(cache statspkg.Cache, width i
 
 func (m statsModel) renderCacheReuseMetricDetail(cache statspkg.Cache, width int) string {
 	best := bestCacheReuseBucket(cache.DurationBuckets)
-	return m.renderStatsMetricDetail("Cache Reuse by Duration", width, []chip{
+	return m.renderStatsMetricDetailBody("Cache Reuse by Duration", width, []chip{
 		{Label: "best reuse bucket", Value: best},
 		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
 	},
@@ -256,7 +256,7 @@ func (m statsModel) renderCacheReuseMetricDetail(cache statspkg.Cache, width int
 
 func (m statsModel) renderCacheHitDurMetricDetail(cache statspkg.Cache, width int) string {
 	best := bestCacheDurationBucket(cache.DurationBuckets)
-	return m.renderStatsMetricDetail("Cache Hit Rate by Duration", width, []chip{
+	return m.renderStatsMetricDetailBody("Cache Hit Rate by Duration", width, []chip{
 		{Label: "best bucket", Value: best},
 		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
 	},

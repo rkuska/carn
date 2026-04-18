@@ -239,6 +239,34 @@ func (t *Theme) RenderFramedBox(title string, width int, borderColor color.Color
 	return topBorder + "\n" + RenderFramedBody(width, 0, borderColor, content)
 }
 
+// RenderInlineTitledRule renders a horizontal rule with an inline title, like
+// "─── Title ────────────". The title is foregrounded in titleColor, and the
+// dashes use the theme's StyleRuleHR styling.
+func (t *Theme) RenderInlineTitledRule(title string, width int, titleColor color.Color) string {
+	if width <= 0 {
+		return ""
+	}
+	if title == "" {
+		return t.StyleRuleHR.Render(strings.Repeat("─", width))
+	}
+
+	titleStyle := lipgloss.NewStyle().Foreground(titleColor).Bold(true)
+	titleRendered := titleStyle.Render(title)
+	titleW := lipgloss.Width(titleRendered)
+
+	const leadDashes = 3
+	if width <= leadDashes+2+titleW {
+		if width <= titleW {
+			return FitToWidth(titleStyle.Render(title), width)
+		}
+		padding := width - titleW - 1
+		return t.StyleRuleHR.Render(strings.Repeat("─", padding)) + " " + titleRendered
+	}
+	lead := t.StyleRuleHR.Render(strings.Repeat("─", leadDashes))
+	trail := t.StyleRuleHR.Render(strings.Repeat("─", width-leadDashes-2-titleW))
+	return lead + " " + titleRendered + " " + trail
+}
+
 func RenderInsetBox(width int, borderColor color.Color, content string) string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

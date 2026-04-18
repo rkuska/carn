@@ -63,15 +63,17 @@ func TestStatsSessionsPromptGrowthMetricKeyCyclesSelectedStatistic(t *testing.T)
 	m.snapshot.Sessions.ClaudeTurnMetrics = statspkg.ComputeTurnTokenMetricsForRange(m.statsTurnMetrics, m.timeRange)
 
 	body := ansi.Strip(m.renderSessionsTab(120))
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
 	assert.Contains(t, body, "Avg Prompt Growth")
-	assert.Contains(t, body, "stat avg")
+	assert.Contains(t, detail, "stat avg")
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "m"})
 
 	assert.Equal(t, statspkg.StatisticModeP50, m.sessionsPromptMode)
 
 	body = ansi.Strip(m.renderSessionsTab(120))
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
 	assert.Contains(t, body, "p50 Prompt Growth")
-	assert.Contains(t, body, "stat p50")
-	assert.Contains(t, body, "Y-axis is p50 prompt-side tokens")
+	assert.Contains(t, detail, "stat p50")
+	assert.Contains(t, detail, "Y-axis is p50 prompt-side tokens")
 }

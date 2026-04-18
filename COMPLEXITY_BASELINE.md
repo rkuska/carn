@@ -62,8 +62,8 @@ None.
 | internal/source/claude/scanner_metadata.go | source | 386 | 49 | 415 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
+| internal/app/stats/model.go | source | 375 | 42 | 422 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/stats/model.go | source | 361 | 37 | 407 |
 | internal/app/browser/viewer_model.go | source | 339 | 34 | 372 |
 | internal/canonical/store_integration_test.go | test | 661 | 29 | 792 |
 | internal/app/browser/browser_test.go | test | 615 | 25 | 748 |
@@ -73,7 +73,7 @@ None.
 | internal/app/browser/transcript_test.go | test | 776 | 9 | 893 |
 | internal/app/stats/render_test.go | test | 759 | 9 | 899 |
 | internal/app/stats/model_test.go | test | 750 | 4 | 858 |
-| internal/app/stats/tab_performance_test.go | test | 638 | 4 | 704 |
+| internal/app/stats/tab_performance_test.go | test | 640 | 4 | 706 |
 
 ## Failing modules
 
@@ -87,7 +87,7 @@ None.
 | internal/canonical | 30 | 4688 | 964 | 5151 | 14 | 4060 | 164 | 4663 |
 | internal/source/codex | 35 | 4926 | 907 | 5498 | 11 | 2287 | 76 | 2541 |
 | internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
-| internal/app/stats | 44 | 5401 | 740 | 6013 | 15 | 3841 | 58 | 4496 |
+| internal/app/stats | 45 | 5455 | 753 | 6075 | 15 | 3844 | 58 | 4499 |
 
 ## Notes
 

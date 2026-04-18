@@ -33,6 +33,12 @@ func (m statsModel) View() string {
 		renderBodyLine(m.renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
 	}
 	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight(), m.theme.ColorPrimary)...)
+	if !m.overlayActive() && m.metricDetailHeight > 0 {
+		lane := renderMetricDetailLane(m, m.contentWidth(), m.metricDetailHeight)
+		for row := range strings.SplitSeq(lane, "\n") {
+			lines = append(lines, renderBodyLine(row, m.contentWidth(), m.theme.ColorPrimary))
+		}
+	}
 	lines = append(lines,
 		renderBodyLine(m.renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
 		renderBodyLine(m.footerHelpRow(), m.contentWidth(), m.theme.ColorPrimary),

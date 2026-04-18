@@ -22,7 +22,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			chip{Label: "dominant bucket", Value: bucket},
 			chip{Label: "sessions", Value: statspkg.FormatNumber(count)},
 		)
-		return m.renderStatsMetricDetail(lane.title, width, chips,
+		return m.renderStatsMetricDetailBody(lane.title, width, chips,
 			m.metricDetailLine("Question", "Is tool use light and frequent or concentrated in a few heavy sessions?"),
 			m.metricDetailLine(
 				"Reading",
@@ -35,7 +35,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			chip{Label: "top tool", Value: leader},
 			chip{Label: "calls", Value: statspkg.FormatNumber(total)},
 		)
-		return m.renderStatsMetricDetail(lane.title, width, chips,
+		return m.renderStatsMetricDetailBody(lane.title, width, chips,
 			m.metricDetailLine("Question", "Which tools dominate the workflow?"),
 			m.metricDetailLine(
 				"Reading",
@@ -48,7 +48,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			chip{Label: "top rate", Value: name},
 			chip{Label: "error rate", Value: rate},
 		)
-		return m.renderStatsMetricDetail(lane.title, width, chips,
+		return m.renderStatsMetricDetailBody(lane.title, width, chips,
 			m.metricDetailLine("Question", "Which tools are failing often enough to inspect?"),
 			m.metricDetailLine(
 				"Reading",
@@ -62,7 +62,7 @@ func (m statsModel) renderSplitToolsMetricDetail(width int, lane statsLane) stri
 			chip{Label: "top rate", Value: name},
 			chip{Label: "rejected", Value: rate},
 		)
-		return m.renderStatsMetricDetail(lane.title, width, chips,
+		return m.renderStatsMetricDetailBody(lane.title, width, chips,
 			m.metricDetailLine("Question", "Which proposed tools are users pushing back on before execution?"),
 			m.metricDetailLine(
 				"Reading",
@@ -84,7 +84,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			chip{Label: "peak day", Value: peakDay},
 			chip{Label: "peak share", Value: formatRate(peakRate)},
 		)
-		return m.renderStatsMetricDetail(title, width, chips,
+		return m.renderStatsMetricDetailBody(title, width, chips,
 			m.metricDetailLine("Question", "How does daily cache traffic share evolve, by series?"),
 			m.metricDetailLine(
 				"Reading",
@@ -98,7 +98,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			chip{Label: "largest row", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		)
-		return m.renderStatsMetricDetail(lane.title, width, chips,
+		return m.renderStatsMetricDetailBody(lane.title, width, chips,
 			m.metricDetailLine("Question", "Does the main thread cache better than subagents?"),
 			m.metricDetailLine(
 				"Reading",
@@ -112,7 +112,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			chip{Label: "largest bucket", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		)
-		return m.renderStatsMetricDetail("Cache Write by Duration", width, chips,
+		return m.renderStatsMetricDetailBody("Cache Write by Duration", width, chips,
 			m.metricDetailLine("Question", "Which session durations write the most cache tokens?"),
 			m.metricDetailLine(
 				"Reading",
@@ -126,7 +126,7 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 			chip{Label: "largest bucket", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		)
-		return m.renderStatsMetricDetail("Cache Read by Duration", width, chips,
+		return m.renderStatsMetricDetailBody("Cache Read by Duration", width, chips,
 			m.metricDetailLine("Question", "Which session durations read the most cache tokens?"),
 			m.metricDetailLine(
 				"Reading",

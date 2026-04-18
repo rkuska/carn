@@ -77,7 +77,7 @@ func (m statsModel) renderToolsTab(width int) string {
 			return renderToolRateChartBody(m.theme, tools.ToolRejectRates, bodyWidth, m.theme.ColorPrimary, false)
 		},
 	)
-	return joinSections(chips, usageCharts, qualityCharts, m.renderActiveMetricDetail(width))
+	return joinSections(chips, usageCharts, qualityCharts)
 }
 
 func toolCallsChartHeight(errorRateCount int) int {

@@ -82,6 +82,7 @@ type statsModel struct {
 	statsQueryFailures      statsQueryFailures
 	performanceLaneCursor   int
 	performanceMetricCursor int
+	metricDetailHeight      int
 }
 
 const (
@@ -218,14 +219,28 @@ func (m statsModel) applyFilterChangeAndMaybeLoad() (statsModel, tea.Cmd) {
 
 func (m statsModel) renderViewportContent(resetScroll bool) statsModel {
 	m = m.normalizeStatsSelection()
+	if m.overlayActive() {
+		m.metricDetailHeight = 0
+	} else {
+		m.metricDetailHeight = metricDetailLaneHeight(m, m.contentWidth())
+	}
 	content := m.renderActiveTab()
 	m.viewport.SetWidth(m.contentWidth())
 	m.viewport.SetHeight(m.contentHeight())
 	m = m.setViewportContent(content)
 	if resetScroll {
 		m.viewport.GotoTop()
+	} else {
+		maxOffset := max(m.viewport.TotalLineCount()-m.viewport.Height(), 0)
+		if m.viewport.YOffset() > maxOffset {
+			m.viewport.SetYOffset(maxOffset)
+		}
 	}
 	return m
+}
+
+func (m statsModel) overlayActive() bool {
+	return m.helpOpen || m.filter.Active
 }
 
 func (m statsModel) setViewportContent(content string) statsModel {
@@ -368,7 +383,7 @@ func (m statsModel) contentWidth() int {
 }
 
 func (m statsModel) contentHeight() int {
-	return max(m.height-7, 1)
+	return max(m.height-7-m.metricDetailHeight, 1)
 }
 
 func (m statsModel) filteredConversations() []conv.Conversation {

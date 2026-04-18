@@ -28,14 +28,14 @@ func (m statsModel) renderActiveMetricDetail(width int) string {
 	}
 }
 
-func (m statsModel) renderStatsMetricDetail(title string, width int, chips []chip, lines ...string) string {
+func (m statsModel) renderStatsMetricDetailBody(title string, width int, chips []chip, lines ...string) string {
 	innerWidth := max(width-4, 1)
 	parts := []string{renderStatsTitle(m.theme, title)}
 	if len(chips) > 0 {
 		parts = append(parts, renderSummaryChips(m.theme, chips, innerWidth))
 	}
 	parts = append(parts, wrapStatsMetricDetailLines(lines, innerWidth)...)
-	return renderFramedBox(m.theme, "Metric detail", width, m.theme.ColorPrimary, strings.Join(parts, "\n"))
+	return strings.Join(parts, "\n")
 }
 
 func (m statsModel) metricDetailLine(label, value string) string {
@@ -68,13 +68,13 @@ func wrapStatsMetricDetailLines(lines []string, width int) []string {
 func (m statsModel) renderOverviewMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return m.renderStatsMetricDetail("Overview", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Overview", width, nil, noDataLabel)
 	}
 
 	overview := m.snapshot.Overview
 	if lane.id == statsLaneOverviewModel {
 		leader, share := leadingModelDetail(overview)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "leading model", Value: leader},
 			{Label: "share", Value: share},
 			{Label: "tokens", Value: statspkg.FormatNumber(overview.Tokens.Total)},
@@ -85,7 +85,7 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 	}
 	if lane.id == statsLaneOverviewProject {
 		leader, share := leadingProjectDetail(overview)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "leading project", Value: leader},
 			{Label: "share", Value: share},
 			{Label: "tokens", Value: statspkg.FormatNumber(overview.Tokens.Total)},
@@ -97,13 +97,13 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 	if lane.id == statsLaneOverviewProviderVersion {
 		items := m.snapshot.Overview.ByProviderVersion
 		if len(items) == 0 {
-			return m.renderStatsMetricDetail(lane.title, width, nil, noDataLabel)
+			return m.renderStatsMetricDetailBody(lane.title, width, nil, noDataLabel)
 		}
 		total := 0
 		for _, item := range items {
 			total += item.Tokens
 		}
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "providers", Value: statspkg.FormatNumber(providerVersionProviderCount(items))},
 			{Label: "entries", Value: statspkg.FormatNumber(len(items))},
 			{Label: "tokens", Value: statspkg.FormatNumber(total)},
@@ -119,14 +119,14 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 
 	session, index, selected := m.selectedOverviewSession()
 	if !selected {
-		return m.renderStatsMetricDetail(
+		return m.renderStatsMetricDetailBody(
 			lane.title,
 			width,
 			nil,
 			"No token-heavy sessions are available.",
 		)
 	}
-	return m.renderStatsMetricDetail(lane.title, width, []chip{
+	return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 		{Label: "session", Value: formatFractionInt(index+1, len(overview.TopSessions))},
 		{Label: "project", Value: session.Project},
 		{Label: "tokens", Value: statspkg.FormatNumber(session.Tokens)},
@@ -142,14 +142,14 @@ func (m statsModel) renderOverviewMetricDetail(width int) string {
 func (m statsModel) renderActivityMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return m.renderStatsMetricDetail("Activity", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Activity", width, nil, noDataLabel)
 	}
 
 	if lane.id == statsLaneActivityDaily {
 		label := activityMetricName(m.activityMetric)
 		_, counts := m.activitySeries()
 		peakDay, peakCount := peakDailyCount(counts)
-		return m.renderStatsMetricDetail("Daily Activity", width, []chip{
+		return m.renderStatsMetricDetailBody("Daily Activity", width, []chip{
 			{Label: "metric", Value: label},
 			{Label: "peak day", Value: peakDay},
 			{Label: "total", Value: statspkg.FormatNumber(totalDailyCount(counts))},
@@ -165,7 +165,7 @@ func (m statsModel) renderActivityMetricDetail(width int) string {
 	}
 
 	slot, count := busiestHeatmapSlot(m.snapshot.Activity.Heatmap)
-	return m.renderStatsMetricDetail(lane.title, width, []chip{
+	return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 		{Label: "busiest slot", Value: slot},
 		{Label: "sessions", Value: statspkg.FormatNumber(count)},
 	},
@@ -180,13 +180,13 @@ func (m statsModel) renderActivityMetricDetail(width int) string {
 func (m statsModel) renderSessionsMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return m.renderStatsMetricDetail("Sessions", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Sessions", width, nil, noDataLabel)
 	}
 
 	sessionStats := m.snapshot.Sessions
 	if lane.id == statsLaneSessionsDuration {
 		bucket, count := dominantHistogramBucket(sessionStats.DurationHistogram)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "dominant bucket", Value: bucket},
 			{Label: "sessions", Value: statspkg.FormatNumber(count)},
 		},
@@ -196,7 +196,7 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 	}
 	if lane.id == statsLaneSessionsMessages {
 		bucket, count := dominantHistogramBucket(sessionStats.MessageHistogram)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "dominant bucket", Value: bucket},
 			{Label: "sessions", Value: statspkg.FormatNumber(count)},
 		},
@@ -262,13 +262,13 @@ func (m statsModel) renderSessionTurnLaneDetail(
 	if note != "" {
 		lines = append(lines, m.metricDetailLine("Note", note))
 	}
-	return m.renderStatsMetricDetail(lane.title, width, chips, lines...)
+	return m.renderStatsMetricDetailBody(lane.title, width, chips, lines...)
 }
 
 func (m statsModel) renderToolsMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return m.renderStatsMetricDetail("Tools", width, nil, noDataLabel)
+		return m.renderStatsMetricDetailBody("Tools", width, nil, noDataLabel)
 	}
 	if m.splitActive() {
 		return m.renderSplitToolsMetricDetail(width, lane)
@@ -277,7 +277,7 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 	tools := m.snapshot.Tools
 	if lane.id == statsLaneToolsCalls {
 		bucket, count := dominantHistogramBucket(tools.CallsPerSession)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "dominant bucket", Value: bucket},
 			{Label: "sessions", Value: statspkg.FormatNumber(count)},
 		},
@@ -287,7 +287,7 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 	}
 	if lane.id == statsLaneToolsTop {
 		leader, count := leadingTool(tools.TopTools)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "top tool", Value: leader},
 			{Label: "calls", Value: statspkg.FormatNumber(count)},
 		},
@@ -297,7 +297,7 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 	}
 	if lane.id == statsLaneToolsErrors {
 		name, rate := topToolRate(tools.ToolErrorRates)
-		return m.renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 			{Label: "top rate", Value: name},
 			{Label: "error rate", Value: rate},
 		},
@@ -309,7 +309,7 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 		)
 	}
 	name, rate := topToolRate(tools.ToolRejectRates)
-	return m.renderStatsMetricDetail(lane.title, width, []chip{
+	return m.renderStatsMetricDetailBody(lane.title, width, []chip{
 		{Label: "top rate", Value: name},
 		{Label: "rejected", Value: rate},
 	},
@@ -328,7 +328,7 @@ func (m statsModel) renderPerformanceMetricDetail(width int) string {
 
 	metric, lane, _, ok := m.selectedPerformanceMetric()
 	if !ok {
-		return m.renderStatsMetricDetail("Performance", width, nil, "No performance metrics are available.")
+		return m.renderStatsMetricDetailBody("Performance", width, nil, "No performance metrics are available.")
 	}
 	return renderPerformanceMetricInspector(m.theme, metric, lane, width)
 }
@@ -336,12 +336,12 @@ func (m statsModel) renderPerformanceMetricDetail(width int) string {
 func renderPerformancePreviewMetricDetail(m statsModel, width int) string {
 	cards := performanceScopePreviewCards()
 	if len(cards) == 0 {
-		return m.renderStatsMetricDetail("Performance preview", width, nil, "No preview lanes are available.")
+		return m.renderStatsMetricDetailBody("Performance preview", width, nil, "No preview lanes are available.")
 	}
 
 	cursor := clampCursor(m.performanceLaneCursor, len(cards))
 	card := cards[cursor]
-	return m.renderStatsMetricDetail(card.Title, width, []chip{
+	return m.renderStatsMetricDetailBody(card.Title, width, []chip{
 		{Label: "need", Value: "1 provider + 1 model"},
 		{Label: "lane", Value: card.Title},
 	},

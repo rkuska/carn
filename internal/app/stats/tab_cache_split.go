@@ -9,7 +9,7 @@ import (
 func (m statsModel) renderSplitCacheTab(width int, cache statspkg.Cache) string {
 	chips := renderSummaryChips(m.theme, m.splitCacheSummaryChips(cache), width)
 	body := m.renderSplitCacheBody(width)
-	return joinSections(chips, body, m.renderActiveMetricDetail(width))
+	return joinSections(chips, body)
 }
 
 func (m statsModel) splitCacheSummaryChips(cache statspkg.Cache) []chip {

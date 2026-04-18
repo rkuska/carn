@@ -10,7 +10,7 @@ import (
 func (m statsModel) renderSplitToolsTab(width int, tools statspkg.Tools) string {
 	chips := renderSummaryChips(m.theme, m.splitToolsSummaryChips(tools), width)
 	body := m.renderSplitToolsBody(width)
-	return joinSections(chips, body, m.renderActiveMetricDetail(width))
+	return joinSections(chips, body)
 }
 
 func (m statsModel) splitToolsSummaryChips(tools statspkg.Tools) []chip {

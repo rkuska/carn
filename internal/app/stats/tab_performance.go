@@ -15,10 +15,7 @@ func (m statsModel) renderPerformanceTab(width int) string {
 	performance := m.snapshot.Performance
 	sections := make([]string, 0, 8)
 	if !m.performanceScopeAllowsScorecard() {
-		sections = append(sections,
-			renderPerformanceScopeGate(m, width),
-			m.renderActiveMetricDetail(width),
-		)
+		sections = append(sections, renderPerformanceScopeGate(m, width))
 		return strings.Join(sections, "\n\n")
 	}
 
@@ -30,7 +27,6 @@ func (m statsModel) renderPerformanceTab(width int) string {
 	)
 
 	sections = append(sections, renderPerformanceCards(m, width))
-	sections = append(sections, m.renderActiveMetricDetail(width))
 	sections = append(sections, renderPerformanceDiagnostics(m.theme, performance, width))
 
 	return strings.Join(sections, "\n\n")
@@ -193,7 +189,7 @@ func renderPerformanceMetricInspector(
 		renderStatsTitle(theme, "Trend"),
 		renderSparkline(metric.Series, max(innerWidth, 8)),
 	}
-	return renderFramedBox(theme, "Metric detail", width, theme.ColorPrimary, strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 func renderPerformanceDiagnostics(theme *el.Theme, performance statspkg.Performance, width int) string {

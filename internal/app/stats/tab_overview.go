@@ -52,7 +52,7 @@ func (m statsModel) renderOverviewTab(width int) string {
 	}
 
 	content := m.renderOverviewGrid(width, modelBars, projectBars, rows)
-	return joinSections(chips, content, m.renderActiveMetricDetail(width))
+	return joinSections(chips, content)
 }
 
 func (m statsModel) renderOverviewGrid(

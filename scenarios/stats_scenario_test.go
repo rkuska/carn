@@ -36,7 +36,7 @@ func TestScenarioStatsViewScrollBehavior(t *testing.T) {
 }
 
 func TestScenarioStatsViewSideBySideLayout(t *testing.T) {
-	wideHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 80, 32)
+	wideHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 80, 48)
 	wideView := wideHarness.currentView()
 	assert.Equal(
 		t,
@@ -50,7 +50,7 @@ func TestScenarioStatsViewSideBySideLayout(t *testing.T) {
 	)
 	wideHarness.quit(t)
 
-	narrowHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 60, 32)
+	narrowHarness := openStatsScenario(t, newStatsScenarioWorkspace(t, 4), 60, 48)
 	narrowView := narrowHarness.currentView()
 	require.NotEqual(
 		t,
@@ -167,14 +167,21 @@ func waitForStatsScrollPercent(
 }
 
 func extractStatsScrollPercent(view string) (int, bool) {
-	match := regexp.MustCompile(`(\d+)%`).FindStringSubmatch(view)
-	if len(match) != 2 {
-		return 0, false
+	lines := strings.Split(view, "\n")
+	percentRE := regexp.MustCompile(`(\d+)%`)
+	for index := len(lines) - 1; index >= 0; index-- {
+		if !strings.Contains(lines[index], "[stats]") {
+			continue
+		}
+		match := percentRE.FindStringSubmatch(lines[index])
+		if len(match) != 2 {
+			return 0, false
+		}
+		var percent int
+		_, err := fmt.Sscanf(match[1], "%d", &percent)
+		return percent, err == nil
 	}
-
-	var percent int
-	_, err := fmt.Sscanf(match[1], "%d", &percent)
-	return percent, err == nil
+	return 0, false
 }
 
 func lineIndexContaining(tb testing.TB, view, needle string) int {

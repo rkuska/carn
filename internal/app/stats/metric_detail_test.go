@@ -15,25 +15,24 @@ func TestStatsRenderOverviewIncludesSelectedLaneMetricDetail(t *testing.T) {
 
 	m := newStatsRenderModel(120, 32)
 
-	body := ansi.Strip(m.renderOverviewTab(120))
-	assert.Contains(t, body, "Metric detail")
-	assert.Contains(t, body, "Tokens by Model")
-	assert.Contains(t, body, "leading model")
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Tokens by Model")
+	assert.Contains(t, detail, "leading model")
 
 	m.overviewLaneCursor = 1
-	body = ansi.Strip(m.renderOverviewTab(120))
-	assert.Contains(t, body, "Tokens by Project")
-	assert.Contains(t, body, "leading project")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Tokens by Project")
+	assert.Contains(t, detail, "leading project")
 
 	m.overviewLaneCursor = 2
-	body = ansi.Strip(m.renderOverviewTab(120))
-	assert.Contains(t, body, "Tokens by (Provider, Version)")
-	assert.Contains(t, body, "provider/version")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Tokens by (Provider, Version)")
+	assert.Contains(t, detail, "provider/version")
 
 	m.overviewLaneCursor = 3
-	body = ansi.Strip(m.renderOverviewTab(120))
-	assert.Contains(t, body, "Most Token-Heavy Sessions")
-	assert.Contains(t, body, "Enter opens the selected session")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Most Token-Heavy Sessions")
+	assert.Contains(t, detail, "Enter opens the selected session")
 }
 
 func TestStatsRenderActivityMetricDetailFollowsSelectedLane(t *testing.T) {
@@ -42,15 +41,14 @@ func TestStatsRenderActivityMetricDetailFollowsSelectedLane(t *testing.T) {
 	m := newStatsRenderModel(120, 32)
 	m.tab = statsTabActivity
 
-	body := ansi.Strip(m.renderActivityTab(120, 25))
-	assert.Contains(t, body, "Metric detail")
-	assert.Contains(t, body, "Daily Activity")
-	assert.Contains(t, body, "peak day")
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Daily Activity")
+	assert.Contains(t, detail, "peak day")
 
 	m.activityLaneCursor = 1
-	body = ansi.Strip(m.renderActivityTab(120, 25))
-	assert.Contains(t, body, "Activity Heatmap")
-	assert.Contains(t, body, "busiest slot")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Activity Heatmap")
+	assert.Contains(t, detail, "busiest slot")
 }
 
 func TestStatsRenderSessionsMetricDetailFollowsSelectedLane(t *testing.T) {
@@ -59,15 +57,15 @@ func TestStatsRenderSessionsMetricDetailFollowsSelectedLane(t *testing.T) {
 	m := newStatsRenderModel(120, 32)
 	m.tab = statsTabSessions
 
-	body := ansi.Strip(m.renderSessionsTab(120))
-	assert.Contains(t, body, "Session Duration")
-	assert.Contains(t, body, "dominant bucket")
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Session Duration")
+	assert.Contains(t, detail, "dominant bucket")
 
 	m.sessionsLaneCursor = 2
-	body = ansi.Strip(m.renderSessionsTab(120))
-	assert.Contains(t, body, "Prompt Growth")
-	assert.Contains(t, body, "prompt multiplier")
-	assert.Contains(t, body, "main-thread user turn number")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Prompt Growth")
+	assert.Contains(t, detail, "prompt multiplier")
+	assert.Contains(t, detail, "main-thread user turn number")
 }
 
 func TestStatsRenderToolsMetricDetailFollowsSelectedLane(t *testing.T) {
@@ -76,14 +74,14 @@ func TestStatsRenderToolsMetricDetailFollowsSelectedLane(t *testing.T) {
 	m := newStatsRenderModel(120, 32)
 	m.tab = statsTabTools
 
-	body := ansi.Strip(m.renderToolsTab(120))
-	assert.Contains(t, body, "Tool Calls/Session")
-	assert.Contains(t, body, "dominant bucket")
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Tool Calls/Session")
+	assert.Contains(t, detail, "dominant bucket")
 
 	m.toolsLaneCursor = 2
-	body = ansi.Strip(m.renderToolsTab(120))
-	assert.Contains(t, body, "Tool Error Rate")
-	assert.Contains(t, body, "top rate")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Tool Error Rate")
+	assert.Contains(t, detail, "top rate")
 }
 
 func TestStatsRenderMetricDetailWrapsLongReadingText(t *testing.T) {
@@ -99,10 +97,10 @@ func TestStatsRenderMetricDetailWrapsLongReadingText(t *testing.T) {
 		SampleCount:         3,
 	}}
 
-	body := ansi.Strip(m.renderSessionsTab(72))
+	detail := ansi.Strip(m.renderActiveMetricDetail(72))
 
-	assert.Contains(t, body, "main-thread user turn")
-	assert.NotContains(t, body, "...")
+	assert.Contains(t, detail, "main-thread user turn")
+	assert.NotContains(t, detail, "...")
 }
 
 func TestStatsRenderCacheDailyMetricDetailOmitsToggleCopy(t *testing.T) {
@@ -139,11 +137,12 @@ func TestStatsRenderPerformanceScopeGateIncludesMetricDetail(t *testing.T) {
 	}
 
 	body := ansi.Strip(m.renderPerformanceTab(120))
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
 	assert.Contains(t, body, "Performance preview")
-	assert.Contains(t, body, "Metric detail")
 	assert.Contains(t, body, "Outcome")
+	assert.Contains(t, detail, "Outcome")
 
 	m.performanceLaneCursor = 2
-	body = ansi.Strip(m.renderPerformanceTab(120))
-	assert.Contains(t, body, "Efficiency")
+	detail = ansi.Strip(m.renderActiveMetricDetail(120))
+	assert.Contains(t, detail, "Efficiency")
 }
