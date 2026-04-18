@@ -4,8 +4,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-
-	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 var ErrMalformedRawData = errors.New("malformed raw data")
@@ -83,58 +81,8 @@ func (r MalformedDataReport) Values() []string {
 	return values
 }
 
-type ProviderMalformedDataReports struct {
-	reports map[conv.Provider]MalformedDataReport
-}
+type ProviderMalformedDataReports = ProviderReports[MalformedDataReport, *MalformedDataReport]
 
 func NewProviderMalformedDataReports() ProviderMalformedDataReports {
-	return ProviderMalformedDataReports{
-		reports: make(map[conv.Provider]MalformedDataReport),
-	}
-}
-
-func (r *ProviderMalformedDataReports) MergeProvider(provider conv.Provider, report MalformedDataReport) {
-	if provider == "" || report.Empty() {
-		return
-	}
-	if r.reports == nil {
-		r.reports = make(map[conv.Provider]MalformedDataReport)
-	}
-	current := r.reports[provider]
-	current.Merge(report)
-	r.reports[provider] = current
-}
-
-func (r *ProviderMalformedDataReports) Merge(other ProviderMalformedDataReports) {
-	for provider, report := range other.reports {
-		r.MergeProvider(provider, report)
-	}
-}
-
-func (r ProviderMalformedDataReports) Empty() bool {
-	return len(r.reports) == 0
-}
-
-func (r ProviderMalformedDataReports) Count() int {
-	total := 0
-	for _, report := range r.reports {
-		total += report.Count()
-	}
-	return total
-}
-
-func (r ProviderMalformedDataReports) Providers() []conv.Provider {
-	providers := make([]conv.Provider, 0, len(r.reports))
-	for provider, report := range r.reports {
-		if report.Empty() {
-			continue
-		}
-		providers = append(providers, provider)
-	}
-	slices.Sort(providers)
-	return providers
-}
-
-func (r ProviderMalformedDataReports) Report(provider conv.Provider) MalformedDataReport {
-	return r.reports[provider]
+	return NewProviderReports[MalformedDataReport]()
 }

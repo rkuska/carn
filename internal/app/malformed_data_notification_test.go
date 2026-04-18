@@ -16,12 +16,13 @@ func TestMalformedDataNotificationSingleProvider(t *testing.T) {
 	reports := src.NewProviderMalformedDataReports()
 	report := src.NewMalformedDataReport()
 	report.Record("claude:group:project-a:demo")
+	report.Record("claude:group:project-a:demo-2")
 	reports.MergeProvider(conv.ProviderClaude, report)
 
 	got, ok := malformedDataNotification(reports)
 	require.True(t, ok)
 	assert.Equal(t, notificationError, got.Kind)
-	assert.Equal(t, "rebuild warnings: skipped 1 malformed item in claude source (check logs)", got.Text)
+	assert.Equal(t, "rebuild warnings: skipped 2 malformed items in claude source (check logs)", got.Text)
 }
 
 func TestMalformedDataNotificationMultipleProviders(t *testing.T) {

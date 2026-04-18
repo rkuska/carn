@@ -3,14 +3,19 @@ package claude
 import (
 	"bufio"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func TestScanMetadataCapturesCountsAndUsage(t *testing.T) {
@@ -151,6 +156,38 @@ func TestScanMetadataHandlesLargeAssistantContent(t *testing.T) {
 	assert.Equal(t, "inspect", result.meta.FirstMessage)
 	assert.Equal(t, "claude", result.meta.Model)
 	assert.Equal(t, 2, result.meta.MessageCount)
+}
+
+func TestScanMetadataMarksMissingFileAsMalformedRawData(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing.jsonl")
+
+	_, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, fs.ErrNotExist)
+	assert.ErrorIs(t, err, src.ErrMalformedRawData)
+}
+
+func TestScanMetadataPropagatesPermissionDeniedOpenErrors(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("permission-denied semantics differ on windows")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(makeTestUserRecord(t, "s1", "demo", "hello")), 0o644))
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chmod(path, 0o644))
+	})
+
+	_, err := scanMetadataResult(context.Background(), path, project{DisplayName: "demo"})
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, src.ErrMalformedRawData))
+	assert.ErrorIs(t, err, fs.ErrPermission)
 }
 
 func TestScanMetadataPrefersPrimaryAssistantModelOverEarlierSidechain(t *testing.T) {

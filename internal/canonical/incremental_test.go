@@ -394,3 +394,22 @@ func TestBuildParseOutputsReturnsGroupedSearchCorpus(t *testing.T) {
 	}, corpus.byConversation["a"])
 	assert.Equal(t, 3, corpus.Len())
 }
+
+func TestSuccessfulIncrementalReplaceKeysReturnsSortedUniqueKeys(t *testing.T) {
+	t.Parallel()
+
+	resolution := src.IncrementalResolution{
+		DeleteCacheKeys: []string{"z-key", "a-key"},
+		ReplaceCacheKeysByConversation: map[string][]string{
+			"conv-a": {"m-key", "a-key"},
+			"conv-b": {"b-key", "m-key"},
+		},
+	}
+
+	keys := successfulIncrementalReplaceKeys(resolution, []parseResult{
+		{key: "conv-a"},
+		{key: "conv-b"},
+	})
+
+	assert.Equal(t, []string{"a-key", "b-key", "m-key", "z-key"}, keys)
+}

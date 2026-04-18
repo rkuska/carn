@@ -2,7 +2,6 @@ package source
 
 import (
 	"context"
-	"slices"
 	"sort"
 	"strings"
 
@@ -96,58 +95,8 @@ func (r DriftReport) Log(ctx context.Context, provider conv.Provider) {
 }
 
 // ProviderDriftReports keeps per-provider drift findings for one import or rebuild.
-type ProviderDriftReports struct {
-	reports map[conv.Provider]DriftReport
-}
+type ProviderDriftReports = ProviderReports[DriftReport, *DriftReport]
 
 func NewProviderDriftReports() ProviderDriftReports {
-	return ProviderDriftReports{
-		reports: make(map[conv.Provider]DriftReport),
-	}
-}
-
-func (r *ProviderDriftReports) MergeProvider(provider conv.Provider, report DriftReport) {
-	if provider == "" || report.Empty() {
-		return
-	}
-	if r.reports == nil {
-		r.reports = make(map[conv.Provider]DriftReport)
-	}
-	current := r.reports[provider]
-	current.Merge(report)
-	r.reports[provider] = current
-}
-
-func (r *ProviderDriftReports) Merge(other ProviderDriftReports) {
-	for provider, report := range other.reports {
-		r.MergeProvider(provider, report)
-	}
-}
-
-func (r ProviderDriftReports) Empty() bool {
-	return len(r.reports) == 0
-}
-
-func (r ProviderDriftReports) Count() int {
-	total := 0
-	for _, report := range r.reports {
-		total += report.Count()
-	}
-	return total
-}
-
-func (r ProviderDriftReports) Providers() []conv.Provider {
-	providers := make([]conv.Provider, 0, len(r.reports))
-	for provider, report := range r.reports {
-		if report.Empty() {
-			continue
-		}
-		providers = append(providers, provider)
-	}
-	slices.Sort(providers)
-	return providers
-}
-
-func (r ProviderDriftReports) Report(provider conv.Provider) DriftReport {
-	return r.reports[provider]
+	return NewProviderReports[DriftReport]()
 }

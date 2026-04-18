@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -173,7 +175,11 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return scannedSession{}, src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
+		err = fmt.Errorf("os.Open: %w", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return scannedSession{}, src.MarkMalformedRawData(err)
+		}
+		return scannedSession{}, err
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {

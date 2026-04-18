@@ -3,7 +3,9 @@ package codex
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,7 +44,11 @@ type completedItemPayload struct {
 func openReader(path string) (*os.File, *bufio.Reader, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, nil, src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
+		err = fmt.Errorf("os.Open: %w", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, src.MarkMalformedRawData(err)
+		}
+		return nil, nil, err
 	}
 	br, ok := readerPool.Get().(*bufio.Reader)
 	if !ok {

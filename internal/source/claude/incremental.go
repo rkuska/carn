@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -114,13 +113,6 @@ func resolveIncrementalPath(
 ) (incrementalResolvedPath, src.DriftReport, error) {
 	if err := ctx.Err(); err != nil {
 		return incrementalResolvedPath{}, src.DriftReport{}, fmt.Errorf("resolveIncrementalPath_ctx: %w", err)
-	}
-	if _, err := os.Stat(file.path); err != nil {
-		return incrementalResolvedPath{}, src.DriftReport{}, fmt.Errorf(
-			"resolveIncrementalPath_osStat_%s: %w",
-			filepath.Base(file.path),
-			err,
-		)
 	}
 
 	scanned, err := scanSessionFile(ctx, file)

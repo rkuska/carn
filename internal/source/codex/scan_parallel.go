@@ -86,9 +86,7 @@ func scanRolloutsParallel(
 		if ok {
 			rollouts = append(rollouts, results[i])
 		}
-	}
-	for _, value := range malformedValues {
-		malformedData.Record(value)
+		malformedData.Record(malformedValues[i])
 	}
 	return rollouts, drift, malformedData, nil
 }

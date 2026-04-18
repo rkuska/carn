@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/rs/zerolog"
 
@@ -134,8 +135,6 @@ func resolveIncrementalRebuildWithSources(
 				err,
 			)
 		}
-		resolution.Drift.Merge(providerResolution.Drift)
-		resolution.MalformedData.Merge(providerResolution.MalformedData)
 		drift.MergeProvider(conv.Provider(provider), providerResolution.Drift)
 		malformedData.MergeProvider(conv.Provider(provider), providerResolution.MalformedData)
 		if err := appendIncrementalResolution(
@@ -262,7 +261,8 @@ func successfulIncrementalReplaceKeys(
 			replaceKeys = append(replaceKeys, replaceKey)
 		}
 	}
-	return src.DedupeAndSort(replaceKeys)
+	sort.Strings(replaceKeys)
+	return replaceKeys
 }
 
 func buildIncrementalParseOutputs(

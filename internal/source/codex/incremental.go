@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sort"
 
@@ -18,7 +18,7 @@ func (Source) ResolveIncremental(
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
 ) (src.IncrementalResolution, error) {
-	changedRollouts, changedByID, blockedRootIDs, drift, malformedData, err := scanChangedRollouts(
+	changedRollouts, changedByID, rebuildRootIDs, blockedRootIDs, drift, malformedData, err := scanChangedRollouts(
 		ctx,
 		changedRawPaths,
 		lookup,
@@ -27,7 +27,13 @@ func (Source) ResolveIncremental(
 		return src.IncrementalResolution{}, fmt.Errorf("scanChangedRollouts: %w", err)
 	}
 
-	families, rootIDs, err := buildIncrementalFamilies(ctx, changedRollouts, changedByID, lookup)
+	families, rootIDs, err := buildIncrementalFamilies(
+		ctx,
+		changedRollouts,
+		changedByID,
+		rebuildRootIDs,
+		lookup,
+	)
 	if err != nil {
 		return src.IncrementalResolution{}, fmt.Errorf("buildIncrementalFamilies: %w", err)
 	}
@@ -57,18 +63,26 @@ func buildIncrementalFamilies(
 	ctx context.Context,
 	changedRollouts []scannedRollout,
 	changedByID map[string]scannedRollout,
+	rebuildRootIDs map[string]struct{},
 	lookup src.IncrementalLookup,
 ) (map[string][]scannedRollout, []string, error) {
 	families := make(map[string][]scannedRollout)
-	rootIDs := make([]string, 0)
+	rootIDs := make([]string, 0, len(rebuildRootIDs))
+	seenRootIDs := make(map[string]struct{}, len(rebuildRootIDs)+len(changedRollouts))
+
+	for rootID := range rebuildRootIDs {
+		rootIDs = append(rootIDs, rootID)
+		seenRootIDs[rootID] = struct{}{}
+	}
 
 	for _, rollout := range changedRollouts {
 		rootID, err := resolveIncrementalRootID(ctx, rollout, changedByID, lookup)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolveIncrementalRootID: %w", err)
 		}
-		if _, ok := families[rootID]; !ok {
+		if _, ok := seenRootIDs[rootID]; !ok {
 			rootIDs = append(rootIDs, rootID)
+			seenRootIDs[rootID] = struct{}{}
 		}
 		families[rootID] = append(families[rootID], rollout)
 	}
@@ -233,46 +247,58 @@ func scanChangedRollouts(
 	ctx context.Context,
 	changedRawPaths []string,
 	lookup src.IncrementalLookup,
-) ([]scannedRollout, map[string]scannedRollout, map[string]struct{}, src.DriftReport, src.MalformedDataReport, error) {
+) (
+	[]scannedRollout,
+	map[string]scannedRollout,
+	map[string]struct{},
+	map[string]struct{},
+	src.DriftReport,
+	src.MalformedDataReport,
+	error,
+) {
 	rollouts := make([]scannedRollout, 0, len(changedRawPaths))
 	byID := make(map[string]scannedRollout, len(changedRawPaths))
+	rebuildRootIDs := make(map[string]struct{})
 	blockedRootIDs := make(map[string]struct{})
 	drift := src.NewDriftReport()
 	malformedData := src.NewMalformedDataReport()
 
 	for _, path := range src.DedupeAndSort(changedRawPaths) {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, nil, drift, malformedData, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
-		}
-		if _, err := os.Stat(path); err != nil {
-			return nil, nil, nil, drift, malformedData, fmt.Errorf(
-				"scanChangedRollouts_osStat_%s: %w",
-				filepath.Base(path),
-				err,
-			)
+			return nil, nil, nil, nil, drift, malformedData, fmt.Errorf("scanChangedRollouts_ctx: %w", err)
 		}
 
 		rollout, ok, err := scanRollout(path)
 		drift.Merge(rollout.drift)
 		if err != nil {
-			if errors.Is(err, src.ErrMalformedRawData) {
-				malformedData.Record(path)
-				if markErr := markMalformedIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
-					return nil, nil, nil, drift, malformedData, fmt.Errorf(
-						"markMalformedIncrementalRoot_%s: %w",
+			if errors.Is(err, fs.ErrNotExist) {
+				if markErr := markIncrementalRoot(ctx, path, rebuildRootIDs, lookup); markErr != nil {
+					return nil, nil, nil, nil, drift, malformedData, fmt.Errorf(
+						"markIncrementalRoot_%s: %w",
 						filepath.Base(path),
 						markErr,
 					)
 				}
 				continue
 			}
-			return nil, nil, nil, drift, malformedData, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
+			if errors.Is(err, src.ErrMalformedRawData) {
+				malformedData.Record(path)
+				if markErr := markIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
+					return nil, nil, nil, nil, drift, malformedData, fmt.Errorf(
+						"markIncrementalRoot_%s: %w",
+						filepath.Base(path),
+						markErr,
+					)
+				}
+				continue
+			}
+			return nil, nil, nil, nil, drift, malformedData, fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)
 		}
 		if !ok {
 			malformedData.Record(path)
-			if markErr := markMalformedIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
-				return nil, nil, nil, drift, malformedData, fmt.Errorf(
-					"markMalformedIncrementalRoot_%s: %w",
+			if markErr := markIncrementalRoot(ctx, path, blockedRootIDs, lookup); markErr != nil {
+				return nil, nil, nil, nil, drift, malformedData, fmt.Errorf(
+					"markIncrementalRoot_%s: %w",
 					filepath.Base(path),
 					markErr,
 				)
@@ -282,7 +308,7 @@ func scanChangedRollouts(
 		rollouts = append(rollouts, rollout)
 		byID[rollout.meta.ID] = rollout
 	}
-	return rollouts, byID, blockedRootIDs, drift, malformedData, nil
+	return rollouts, byID, rebuildRootIDs, blockedRootIDs, drift, malformedData, nil
 }
 
 func resolveIncrementalRootID(
@@ -342,6 +368,9 @@ func scanIncrementalFamily(
 		rollout, ok, err := scanRollout(path)
 		drift.Merge(rollout.drift)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			if errors.Is(err, src.ErrMalformedRawData) {
 				malformedData.Record(path)
 				continue
@@ -357,10 +386,10 @@ func scanIncrementalFamily(
 	return groupRollouts(rollouts), drift, malformedData, nil
 }
 
-func markMalformedIncrementalRoot(
+func markIncrementalRoot(
 	ctx context.Context,
 	path string,
-	blockedRootIDs map[string]struct{},
+	rootIDs map[string]struct{},
 	lookup src.IncrementalLookup,
 ) error {
 	stored, ok, err := lookup.ConversationByFilePath(ctx, conv.ProviderCodex, path)
@@ -368,7 +397,7 @@ func markMalformedIncrementalRoot(
 		return fmt.Errorf("lookup.ConversationByFilePath: %w", err)
 	}
 	if ok {
-		blockedRootIDs[stored.ID()] = struct{}{}
+		rootIDs[stored.ID()] = struct{}{}
 	}
 	return nil
 }

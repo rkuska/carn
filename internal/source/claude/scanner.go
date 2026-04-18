@@ -176,14 +176,12 @@ func scanSessionFilesParallel(
 	sessions := make([]scannedSession, 0, len(files))
 	drift := src.NewDriftReport()
 	malformedData := src.NewMalformedDataReport()
-	for _, result := range results {
+	for i, result := range results {
 		drift.Merge(result.session.drift)
 		if result.ok {
 			sessions = append(sessions, result.session)
 		}
-	}
-	for _, value := range malformedValues {
-		malformedData.Record(value)
+		malformedData.Record(malformedValues[i])
 	}
 	return sessions, drift, malformedData, nil
 }
