@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -42,6 +43,8 @@ const (
 	jsonlParseBufferSize    = 32 * 1024
 	jsonlSlugBufferSize     = 32 * 1024
 )
+
+var errNoSessionMetadata = errors.New("no session metadata found")
 
 type sessionFile struct {
 	path         string
@@ -199,12 +202,23 @@ func scanSessionFileParallelResult(
 		return scannedSessionResult{}, "", fmt.Errorf("scanSessionFile_%s: %w", file.path, err)
 	}
 
-	malformedValue := ""
+	if errors.Is(err, errNoSessionMetadata) {
+		log.Info().
+			Str("provider", string(conv.ProviderClaude)).
+			Str("path", file.path).
+			Msg("skipping session without metadata")
+		return scannedSessionResult{session: scanned}, "", nil
+	}
 	if errors.Is(err, src.ErrMalformedRawData) {
-		malformedValue = file.path
+		log.Warn().
+			Err(err).
+			Str("provider", string(conv.ProviderClaude)).
+			Str("path", file.path).
+			Msg("skipping malformed raw data")
+		return scannedSessionResult{session: scanned}, file.path, nil
 	}
 	log.Debug().Err(err).Msgf("skipping %s", file.path)
-	return scannedSessionResult{session: scanned}, malformedValue, nil
+	return scannedSessionResult{session: scanned}, "", nil
 }
 
 func projectFromDirName(dirName string) scannedProject {

@@ -211,7 +211,7 @@ func scanMetadataResult(ctx context.Context, filePath string, proj project) (sca
 	}
 
 	if result.meta.ID == "" {
-		return scannedSession{}, src.MarkMalformedRawData(fmt.Errorf("no session metadata found in %s", filePath))
+		return scannedSession{}, fmt.Errorf("%w: %s", errNoSessionMetadata, filePath)
 	}
 
 	applyMetadataScanStats(&result.meta, state.stats)

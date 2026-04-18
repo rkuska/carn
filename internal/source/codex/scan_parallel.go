@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
 
@@ -63,7 +64,11 @@ func scanRolloutsParallel(
 			if err != nil {
 				if errors.Is(err, src.ErrMalformedRawData) {
 					malformedValues[index] = path
-					log.Debug().Err(err).Msgf("skipping %s", path)
+					log.Warn().
+						Err(err).
+						Str("provider", string(conv.ProviderCodex)).
+						Str("path", path).
+						Msg("skipping malformed raw data")
 					return nil
 				}
 				return fmt.Errorf("scanRollout_%s: %w", filepath.Base(path), err)

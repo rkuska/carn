@@ -43,12 +43,12 @@ None.
 | internal/app/elements/browser_filter.go | source | 303 | 67 | 340 |
 | internal/source/claude/scanner_parse.go | source | 279 | 67 | 321 |
 | internal/source/codex/incremental.go | source | 368 | 66 | 403 |
+| internal/source/claude/incremental.go | source | 321 | 66 | 355 |
+| internal/source/claude/scanner.go | source | 308 | 66 | 347 |
 | internal/source/codex/known_schema_extras.go | source | 235 | 66 | 262 |
 | internal/stats/performance_messages_collect.go | source | 216 | 66 | 239 |
 | internal/canonical/rebuild.go | source | 381 | 65 | 431 |
-| internal/source/claude/incremental.go | source | 312 | 65 | 345 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
-| internal/source/claude/scanner.go | source | 295 | 65 | 333 |
 | internal/canonical/sqlite_store_persist.go | source | 328 | 64 | 354 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
@@ -83,9 +83,9 @@ None.
 
 | Module | Source Files | Source Code | Source Complexity | Source Lines | Test Files | Test Code | Test Complexity | Test Lines |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| internal/source/claude | 33 | 4905 | 1094 | 5439 | 19 | 2496 | 74 | 2818 |
+| internal/source/claude | 33 | 4927 | 1096 | 5463 | 19 | 2541 | 74 | 2873 |
 | internal/canonical | 30 | 4688 | 964 | 5151 | 14 | 4060 | 164 | 4663 |
-| internal/source/codex | 35 | 4926 | 907 | 5498 | 11 | 2287 | 76 | 2541 |
+| internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
 | internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
 | internal/app/stats | 45 | 5455 | 753 | 6075 | 15 | 3844 | 58 | 4499 |
 

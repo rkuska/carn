@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rs/zerolog"
+
 	conv "github.com/rkuska/carn/internal/conversation"
 	src "github.com/rkuska/carn/internal/source"
 )
@@ -85,6 +87,14 @@ func resolveIncrementalTargets(
 		target, pathDrift, err := resolveIncrementalPath(ctx, file)
 		drift.Merge(pathDrift)
 		if err != nil {
+			if errors.Is(err, errNoSessionMetadata) {
+				zerolog.Ctx(ctx).Info().
+					Str("provider", string(conv.ProviderClaude)).
+					Str("path", path).
+					Msg("skipping session without metadata")
+				targetsByProject[file.groupDirName] = state
+				continue
+			}
 			if errors.Is(err, src.ErrMalformedRawData) {
 				malformedData.Record(path)
 				blockIncrementalProjectTarget(&state, replaceKey)
