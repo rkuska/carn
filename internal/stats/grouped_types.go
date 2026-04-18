@@ -2,50 +2,50 @@ package stats
 
 import "time"
 
-type VersionValue struct {
-	Version string
-	Value   int
+type SplitValue struct {
+	Key   string
+	Value int
 }
 
-type GroupedHistogramBucket struct {
-	Label    string
-	Total    int
-	Versions []VersionValue
+type SplitHistogramBucket struct {
+	Label  string
+	Total  int
+	Splits []SplitValue
 }
 
-type GroupedNamedStat struct {
-	Name     string
-	Total    int
-	Versions []VersionValue
+type SplitNamedStat struct {
+	Name   string
+	Total  int
+	Splits []SplitValue
 }
 
-type GroupedRateStat struct {
-	Name     string
-	Count    int
-	Total    int
-	Rate     float64
-	Versions []VersionValue
+type SplitRateStat struct {
+	Name   string
+	Count  int
+	Total  int
+	Rate   float64
+	Splits []SplitValue
 }
 
-type GroupedDailyShare struct {
+type SplitDailyShare struct {
 	Date        time.Time
 	Prompt      int
 	Total       int
 	HasActivity bool
-	Versions    []VersionValue
+	Splits      []SplitValue
 }
 
-type ToolsByVersion struct {
-	CallsPerSession []GroupedHistogramBucket
-	TopTools        []GroupedNamedStat
-	ToolErrorRates  []GroupedRateStat
-	ToolRejectRates []GroupedRateStat
+type ToolsBySplit struct {
+	CallsPerSession []SplitHistogramBucket
+	TopTools        []SplitNamedStat
+	ToolErrorRates  []SplitRateStat
+	ToolRejectRates []SplitRateStat
 }
 
-type CacheByVersion struct {
-	DailyReadShare  []GroupedDailyShare
-	DailyWriteShare []GroupedDailyShare
-	SegmentRows     []GroupedNamedStat
-	ReadDuration    []GroupedHistogramBucket
-	WriteDuration   []GroupedHistogramBucket
+type CacheBySplit struct {
+	DailyReadShare  []SplitDailyShare
+	DailyWriteShare []SplitDailyShare
+	SegmentRows     []SplitNamedStat
+	ReadDuration    []SplitHistogramBucket
+	WriteDuration   []SplitHistogramBucket
 }

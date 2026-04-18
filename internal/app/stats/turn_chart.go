@@ -110,7 +110,6 @@ func renderTurnBarChartBody(
 var (
 	turnBarAxisLabelWidth  = el.TurnBarAxisLabelWidth
 	turnBarColumns         = el.TurnBarColumns
-	turnBarScaledHeight    = el.TurnBarScaledHeight
 	turnBarLevelLabel      = el.TurnBarLevelLabel
 	renderTurnBarAxis      = (*el.Theme).RenderTurnBarAxis
 	renderTurnBarXAxisRows = el.RenderTurnBarXAxisRows

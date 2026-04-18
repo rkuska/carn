@@ -83,7 +83,7 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.tab = statsTabSessions
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
 		},
 		{
 			name: "sessions turn lane",
@@ -92,7 +92,7 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.sessionsLaneCursor = 2
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "m", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "?", "q/esc"},
 		},
 		{
 			name: "tools",
@@ -100,7 +100,7 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.tab = statsTabTools
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "?", "q/esc"},
 		},
 		{
 			name: "cache",
@@ -108,7 +108,7 @@ func TestStatsHelpNavigationTracksActiveLaneActions(t *testing.T) {
 				m.tab = statsTabCache
 				return m
 			},
-			want: []string{"ctrl+f/b", "r", "f", "h/l", "v", "m", "?", "q/esc"},
+			want: []string{"ctrl+f/b", "r", "f", "h/l", "m", "?", "q/esc"},
 		},
 		{
 			name: "performance",

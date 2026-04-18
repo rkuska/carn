@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 
 	conv "github.com/rkuska/carn/internal/conversation"
+	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 type FilterDimension int
@@ -16,6 +17,7 @@ const (
 	FilterDimProvider FilterDimension = iota
 	FilterDimProject
 	FilterDimModel
+	FilterDimVersion
 	FilterDimGitBranch
 	FilterDimHasPlans
 	FilterDimMultiPart
@@ -57,8 +59,8 @@ type FilterState struct {
 	Active         bool
 	Cursor         int
 	Expanded       int
-	ExpandedCursor int
 	ExpandedScroll int
+	ExpandedCursor int
 	RegexEditing   bool
 	RegexInput     textinput.Model
 	Dimensions     [FilterDimCount]DimensionFilter
@@ -106,6 +108,8 @@ func FilterDimensionLabel(dim FilterDimension) string {
 		return "Project"
 	case FilterDimModel:
 		return "Model"
+	case FilterDimVersion:
+		return "Version"
 	case FilterDimGitBranch:
 		return "Git Branch"
 	case FilterDimHasPlans:
@@ -122,27 +126,16 @@ func FilterDimensionIsBool(dim FilterDimension) bool {
 }
 
 func ExtractFilterValues(conversations []conv.Conversation) [FilterDimCount][]string {
-	var result [FilterDimCount][]string
 	sets := [FilterDimCount]map[string]bool{}
 	for i := range FilterDimCount {
 		sets[i] = make(map[string]bool)
 	}
 
 	for _, c := range conversations {
-		if label := c.Ref.Provider.Label(); label != "" {
-			sets[FilterDimProvider][label] = true
-		}
-		if p := c.Project.DisplayName; p != "" {
-			sets[FilterDimProject][p] = true
-		}
-		if m := c.Model(); m != "" {
-			sets[FilterDimModel][m] = true
-		}
-		if b := c.GitBranch(); b != "" {
-			sets[FilterDimGitBranch][b] = true
-		}
+		collectConversationFilterValues(sets, c)
 	}
 
+	var result [FilterDimCount][]string
 	for i := range FilterDimCount {
 		if FilterDimensionIsBool(FilterDimension(i)) {
 			result[i] = []string{BoolValueYes, BoolValueNo}
@@ -159,8 +152,26 @@ func ExtractFilterValues(conversations []conv.Conversation) [FilterDimCount][]st
 	return result
 }
 
+func collectConversationFilterValues(sets [FilterDimCount]map[string]bool, c conv.Conversation) {
+	if label := c.Ref.Provider.Label(); label != "" {
+		sets[FilterDimProvider][label] = true
+	}
+	if p := c.Project.DisplayName; p != "" {
+		sets[FilterDimProject][p] = true
+	}
+	if m := c.Model(); m != "" {
+		sets[FilterDimModel][m] = true
+	}
+	if b := c.GitBranch(); b != "" {
+		sets[FilterDimGitBranch][b] = true
+	}
+	for _, session := range c.Sessions {
+		sets[FilterDimVersion][statspkg.NormalizeVersionLabel(session.Version)] = true
+	}
+}
+
 func conversationDimensionValue(c conv.Conversation, dim FilterDimension) string {
-	switch dim { //nolint:exhaustive // FilterDimCount is a sentinel
+	switch dim { //nolint:exhaustive // FilterDimCount is a sentinel; FilterDimVersion uses session-level matching
 	case FilterDimProvider:
 		return c.Ref.Provider.Label()
 	case FilterDimProject:
@@ -201,6 +212,10 @@ func matchesDimensionFilter(c conv.Conversation, dim FilterDimension, f Dimensio
 		return true
 	}
 
+	if dim == FilterDimVersion {
+		return matchesVersionDimension(c, f)
+	}
+
 	value := conversationDimensionValue(c, dim)
 
 	if FilterDimensionIsBool(dim) {
@@ -223,6 +238,26 @@ func matchesDimensionFilter(c conv.Conversation, dim FilterDimension, f Dimensio
 	}
 
 	return true
+}
+
+func matchesVersionDimension(c conv.Conversation, f DimensionFilter) bool {
+	for _, session := range c.Sessions {
+		version := statspkg.NormalizeVersionLabel(session.Version)
+		if f.UseRegex && f.Regex != "" {
+			if f.matchesRegex(version) {
+				return true
+			}
+			continue
+		}
+		if len(f.Selected) > 0 {
+			if f.Selected[version] {
+				return true
+			}
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func matchesAllFilters(c conv.Conversation, dims [FilterDimCount]DimensionFilter) bool {

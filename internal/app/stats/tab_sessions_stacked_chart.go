@@ -13,10 +13,10 @@ import (
 )
 
 type stackedTurnBarSegment struct {
-	Version string
-	Value   float64
-	Height  int
-	Color   color.Color
+	Key    string
+	Value  float64
+	Height int
+	Color  color.Color
 }
 
 type stackedTurnBarColumn struct {
@@ -25,9 +25,9 @@ type stackedTurnBarColumn struct {
 }
 
 func buildStackedTurnBars(
-	series []statspkg.VersionTurnSeries,
+	series []statspkg.SplitTurnSeries,
 	plotHeight int,
-	colorByVersion map[string]color.Color,
+	colorByKey map[string]color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) []stackedTurnBarColumn {
 	positions := collectTurnPositions(series)
@@ -46,11 +46,11 @@ func buildStackedTurnBars(
 
 	columns := make([]stackedTurnBarColumn, 0, len(positions))
 	for _, position := range positions {
-		segments := stackedTurnBarSegmentsForPosition(series, position, colorByVersion, value)
+		segments := stackedTurnBarSegmentsForPosition(series, position, colorByKey, value)
 		if len(segments) == 0 {
 			continue
 		}
-		totalHeight := turnBarScaledHeight(barTotals[position], maxTotal, max(plotHeight, 1))
+		totalHeight := el.MonotonicScaledHeight(barTotals[position], maxTotal, max(plotHeight, 1))
 		assignStackedTurnSegmentHeights(segments, totalHeight)
 		columns = append(columns, stackedTurnBarColumn{
 			turnBarColumn: turnBarColumn{
@@ -63,7 +63,7 @@ func buildStackedTurnBars(
 	return columns
 }
 
-func collectTurnPositions(series []statspkg.VersionTurnSeries) []int {
+func collectTurnPositions(series []statspkg.SplitTurnSeries) []int {
 	positionSet := make(map[int]bool)
 	for _, item := range series {
 		for _, metric := range item.Metrics {
@@ -80,7 +80,7 @@ func collectTurnPositions(series []statspkg.VersionTurnSeries) []int {
 }
 
 func stackedTurnBarTotals(
-	series []statspkg.VersionTurnSeries,
+	series []statspkg.SplitTurnSeries,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) map[int]float64 {
 	totals := make(map[int]float64)
@@ -93,9 +93,9 @@ func stackedTurnBarTotals(
 }
 
 func stackedTurnBarSegmentsForPosition(
-	series []statspkg.VersionTurnSeries,
+	series []statspkg.SplitTurnSeries,
 	position int,
-	colorByVersion map[string]color.Color,
+	colorByKey map[string]color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) []stackedTurnBarSegment {
 	segments := make([]stackedTurnBarSegment, 0, len(series))
@@ -105,9 +105,9 @@ func stackedTurnBarSegmentsForPosition(
 			continue
 		}
 		segments = append(segments, stackedTurnBarSegment{
-			Version: item.Version,
-			Value:   metricValue,
-			Color:   colorByVersion[item.Version],
+			Key:   item.Key,
+			Value: metricValue,
+			Color: colorByKey[item.Key],
 		})
 	}
 	return segments

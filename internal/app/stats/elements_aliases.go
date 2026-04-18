@@ -26,6 +26,7 @@ const (
 	filterDimProvider = el.FilterDimProvider
 	filterDimProject  = el.FilterDimProject
 	filterDimModel    = el.FilterDimModel
+	filterDimVersion  = el.FilterDimVersion
 	filterDimHasPlans = el.FilterDimHasPlans
 	filterDimCount    = el.FilterDimCount
 
@@ -71,7 +72,6 @@ var (
 	renderFilterExpandedValues = (*el.Theme).RenderFilterExpandedValues
 	filterDimensionFooterItems = el.FilterDimensionFooterItems
 	copyBrowserFilterState     = el.CopyFilterState
-	renderSelectionSummary     = (*el.Theme).RenderSelectionSummary
 
 	noDataLabel      = el.NoDataLabel
 	fitToWidth       = el.FitToWidth

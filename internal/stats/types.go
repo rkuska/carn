@@ -125,8 +125,8 @@ type PositionTokenMetrics struct {
 	SampleCount         int
 }
 
-type VersionTurnSeries struct {
-	Version string
+type SplitTurnSeries struct {
+	Key     string
 	Metrics []PositionTokenMetrics
 }
 

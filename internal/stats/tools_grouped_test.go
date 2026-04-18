@@ -10,7 +10,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func TestComputeToolsByVersionAggregatesHistogramTopToolsAndRates(t *testing.T) {
+func TestComputeToolsBySplitByVersionAggregatesHistogramTopToolsAndRates(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
@@ -39,71 +39,63 @@ func TestComputeToolsByVersionAggregatesHistogramTopToolsAndRates(t *testing.T) 
 			withToolErrorCounts(map[string]int{"Bash": 3}),
 			withToolRejectCounts(map[string]int{"Bash": 2}),
 		),
-		testMeta(
-			"codex",
-			time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC),
-			withProvider(conv.ProviderCodex),
-			withVersion("9.9.9"),
-			withToolCounts(map[string]int{"Read": 100}),
-			withToolErrorCounts(map[string]int{"Read": 10}),
-		),
 	}
 
-	got := ComputeToolsByVersion(sessions, TimeRange{}, conv.ProviderClaude, nil)
+	got := ComputeToolsBySplit(sessions, TimeRange{}, SplitDimensionVersion, nil)
 
 	require.Len(t, got.CallsPerSession, 5)
-	assert.Equal(t, GroupedHistogramBucket{
+	assert.Equal(t, SplitHistogramBucket{
 		Label: "0-20",
 		Total: 3,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 2},
-			{Version: "2.0.0", Value: 1},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 2},
+			{Key: "2.0.0", Value: 1},
 		},
 	}, got.CallsPerSession[0])
 
 	require.Len(t, got.TopTools, 3)
-	assert.Equal(t, GroupedNamedStat{
+	assert.Equal(t, SplitNamedStat{
 		Name:  "Read",
 		Total: 30,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 25},
-			{Version: "2.0.0", Value: 5},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 25},
+			{Key: "2.0.0", Value: 5},
 		},
 	}, got.TopTools[0])
 
 	require.Len(t, got.ToolErrorRates, 2)
-	assert.Equal(t, GroupedRateStat{
+	assert.Equal(t, SplitRateStat{
 		Name:  "Bash",
 		Count: 3,
 		Total: 5,
 		Rate:  60,
-		Versions: []VersionValue{
-			{Version: "2.0.0", Value: 3},
+		Splits: []SplitValue{
+			{Key: "2.0.0", Value: 3},
 		},
 	}, got.ToolErrorRates[0])
-	assert.Equal(t, GroupedRateStat{
+	assert.Equal(t, SplitRateStat{
 		Name:  "Read",
 		Count: 4,
 		Total: 30,
 		Rate:  13.333333333333334,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 4},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 4},
 		},
 	}, got.ToolErrorRates[1])
 
 	require.Len(t, got.ToolRejectRates, 1)
-	assert.Equal(t, GroupedRateStat{
+	assert.Equal(t, SplitRateStat{
 		Name:  "Bash",
 		Count: 2,
 		Total: 5,
 		Rate:  40,
-		Versions: []VersionValue{
-			{Version: "2.0.0", Value: 2},
+		Splits: []SplitValue{
+			{Key: "2.0.0", Value: 2},
 		},
 	}, got.ToolRejectRates[0])
 }
 
-func TestComputeToolsByVersionHonorsSelectedVersions(t *testing.T) {
+func TestComputeToolsBySplitHonorsAllowedKeys(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
@@ -123,10 +115,10 @@ func TestComputeToolsByVersionHonorsSelectedVersions(t *testing.T) {
 		),
 	}
 
-	got := ComputeToolsByVersion(
+	got := ComputeToolsBySplit(
 		sessions,
 		TimeRange{},
-		conv.ProviderClaude,
+		SplitDimensionVersion,
 		map[string]bool{"2.0.0": true},
 	)
 
@@ -135,5 +127,35 @@ func TestComputeToolsByVersionHonorsSelectedVersions(t *testing.T) {
 	assert.Equal(t, 8, got.TopTools[0].Total)
 	require.Len(t, got.CallsPerSession, 5)
 	assert.Equal(t, 1, got.CallsPerSession[0].Total)
-	assert.Equal(t, []VersionValue{{Version: "2.0.0", Value: 1}}, got.CallsPerSession[0].Versions)
+	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 1}}, got.CallsPerSession[0].Splits)
+}
+
+func TestComputeToolsBySplitByModelDistinguishesSessionsByModel(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"opus",
+			time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderClaude),
+			withModel("claude-opus-4-6"),
+			withToolCounts(map[string]int{"Read": 4}),
+		),
+		testMeta(
+			"sonnet",
+			time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC),
+			withProvider(conv.ProviderClaude),
+			withModel("claude-sonnet-4-6"),
+			withToolCounts(map[string]int{"Read": 6}),
+		),
+	}
+
+	got := ComputeToolsBySplit(sessions, TimeRange{}, SplitDimensionModel, nil)
+
+	require.Len(t, got.TopTools, 1)
+	assert.Equal(t, "Read", got.TopTools[0].Name)
+	assert.Equal(t, []SplitValue{
+		{Key: "claude-opus-4-6", Value: 4},
+		{Key: "claude-sonnet-4-6", Value: 6},
+	}, got.TopTools[0].Splits)
 }

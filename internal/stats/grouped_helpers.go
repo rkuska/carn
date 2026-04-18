@@ -6,35 +6,38 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func matchSessionVersionScope(
+func matchSessionSplitScope(
 	session conv.SessionMeta,
 	timeRange TimeRange,
-	provider conv.Provider,
-	versions map[string]bool,
+	dim SplitDimension,
+	allowed map[string]bool,
 ) (string, bool) {
-	if session.Provider != provider || !timeRangeContains(timeRange, session.Timestamp) {
+	if !timeRangeContains(timeRange, session.Timestamp) {
 		return "", false
 	}
-	versionLabel := NormalizeVersionLabel(session.Version)
-	if len(versions) > 0 && !versions[versionLabel] {
+	key := dim.SessionKey(session)
+	if key == "" {
 		return "", false
 	}
-	return versionLabel, true
+	if len(allowed) > 0 && !allowed[key] {
+		return "", false
+	}
+	return key, true
 }
 
-func sortVersionValues(values map[string]int) []VersionValue {
-	items := make([]VersionValue, 0, len(values))
-	for version, value := range values {
+func sortSplitValues(values map[string]int) []SplitValue {
+	items := make([]SplitValue, 0, len(values))
+	for key, value := range values {
 		if value <= 0 {
 			continue
 		}
-		items = append(items, VersionValue{Version: version, Value: value})
+		items = append(items, SplitValue{Key: key, Value: value})
 	}
-	slices.SortFunc(items, func(left, right VersionValue) int {
+	slices.SortFunc(items, func(left, right SplitValue) int {
 		switch {
-		case left.Version < right.Version:
+		case left.Key < right.Key:
 			return -1
-		case left.Version > right.Version:
+		case left.Key > right.Key:
 			return 1
 		default:
 			return right.Value - left.Value
@@ -43,10 +46,10 @@ func sortVersionValues(values map[string]int) []VersionValue {
 	return items
 }
 
-func groupedNamedStatFromCounts(name string, total int, versions map[string]int) GroupedNamedStat {
-	return GroupedNamedStat{
-		Name:     name,
-		Total:    total,
-		Versions: sortVersionValues(versions),
+func splitNamedStatFromCounts(name string, total int, values map[string]int) SplitNamedStat {
+	return SplitNamedStat{
+		Name:   name,
+		Total:  total,
+		Splits: sortSplitValues(values),
 	}
 }

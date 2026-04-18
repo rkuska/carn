@@ -3,88 +3,75 @@ package stats
 import (
 	"slices"
 	"strings"
-
-	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-const UnknownVersionLabel = "unknown"
+// UnknownVersionLabel is preserved as an alias for UnknownSplitKey because
+// callers normalize blank session versions to the same fallback as other
+// blank split keys.
+const UnknownVersionLabel = UnknownSplitKey
 
 func NormalizeVersionLabel(version string) string {
-	version = strings.TrimSpace(version)
-	if version == "" {
-		return UnknownVersionLabel
-	}
-	return version
+	return labelOrUnknown(version)
 }
 
-func ComputeTurnTokenMetricsByVersion(
+func ComputeTurnTokenMetricsBySplit(
 	sessions []SessionTurnMetrics,
 	timeRange TimeRange,
-	provider conv.Provider,
-	versions map[string]bool,
-) []VersionTurnSeries {
-	if len(sessions) == 0 {
+	dim SplitDimension,
+	allowed map[string]bool,
+	mode StatisticMode,
+) []SplitTurnSeries {
+	if len(sessions) == 0 || !dim.SupportsTurnMetrics() {
 		return nil
 	}
 
-	grouped := groupTurnMetricsByVersion(sessions, provider, versions)
+	grouped := groupTurnMetricsBySplit(sessions, dim, allowed)
 	if len(grouped) == 0 {
 		return nil
 	}
 
-	return buildVersionTurnSeries(grouped, timeRange)
+	return buildSplitTurnSeries(grouped, timeRange, mode)
 }
 
-func groupTurnMetricsByVersion(
+func groupTurnMetricsBySplit(
 	sessions []SessionTurnMetrics,
-	provider conv.Provider,
-	versions map[string]bool,
+	dim SplitDimension,
+	allowed map[string]bool,
 ) map[string][]SessionTurnMetrics {
 	grouped := make(map[string][]SessionTurnMetrics)
 	for _, session := range sessions {
-		versionLabel, ok := matchVersionScope(session, provider, versions)
-		if !ok {
+		key := dim.TurnMetricsKey(session)
+		if key == "" {
 			continue
 		}
-		grouped[versionLabel] = append(grouped[versionLabel], session)
+		if len(allowed) > 0 && !allowed[key] {
+			continue
+		}
+		grouped[key] = append(grouped[key], session)
 	}
 	return grouped
 }
 
-func matchVersionScope(
-	session SessionTurnMetrics,
-	provider conv.Provider,
-	versions map[string]bool,
-) (string, bool) {
-	if session.Provider != provider {
-		return "", false
-	}
-	versionLabel := NormalizeVersionLabel(session.Version)
-	if len(versions) > 0 && !versions[versionLabel] {
-		return "", false
-	}
-	return versionLabel, true
-}
-
-func buildVersionTurnSeries(
+func buildSplitTurnSeries(
 	grouped map[string][]SessionTurnMetrics,
 	timeRange TimeRange,
-) []VersionTurnSeries {
-	items := make([]VersionTurnSeries, 0, len(grouped))
-	for versionLabel, versionSessions := range grouped {
-		metrics := ComputeTurnTokenMetricsForRange(versionSessions, timeRange)
+	mode StatisticMode,
+) []SplitTurnSeries {
+	items := make([]SplitTurnSeries, 0, len(grouped))
+	for key, rows := range grouped {
+		metrics := ComputeTurnTokenMetricsForRangeWithMode(rows, timeRange, mode)
 		if len(metrics) == 0 {
 			continue
 		}
-		items = append(items, VersionTurnSeries{
-			Version: versionLabel,
+		items = append(items, SplitTurnSeries{
+			Key:     key,
 			Metrics: metrics,
 		})
 	}
-	slices.SortFunc(items, compareVersionTurnSeries)
+	slices.SortFunc(items, compareSplitTurnSeries)
 	return items
 }
 
-func compareVersionTurnSeries(left, right VersionTurnSeries) int {
-	return strings.Compare(left.Version, right.Version)
+func compareSplitTurnSeries(left, right SplitTurnSeries) int {
+	return strings.Compare(left.Key, right.Key)
 }

@@ -56,16 +56,12 @@ func (m statsModel) renderSessionsTab(width int) string {
 
 	growthChips := renderSummaryChips(m.theme, m.sessionTurnSummaryChips(), width)
 	turnChartHeight := 12
-	if m.sessionsGrouped {
+	if m.splitActive() {
 		turnChartHeight = 14
 	}
 
-	promptMetrics := sessionStats.ClaudeTurnMetrics
-	turnCostMetrics := sessionStats.ClaudeTurnMetrics
-	if !m.sessionsGrouped {
-		promptMetrics = m.sessionTurnMetricsForMode(m.sessionsPromptMode)
-		turnCostMetrics = m.sessionTurnMetricsForMode(m.sessionsTurnCostMode)
-	}
+	promptMetrics := m.sessionTurnMetricsForMode(m.sessionsPromptMode)
+	turnCostMetrics := m.sessionTurnMetricsForMode(m.sessionsTurnCostMode)
 
 	promptGrowth := renderStatsLaneBox(
 		m.theme,
@@ -75,6 +71,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 		m.renderSessionTurnMetricBody(
 			width,
 			turnChartHeight,
+			m.sessionsPromptMode,
 			promptMetrics,
 			func(metric statspkg.PositionTokenMetrics) float64 {
 				return metric.AveragePromptTokens
@@ -89,6 +86,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 		m.renderSessionTurnMetricBody(
 			width,
 			turnChartHeight,
+			m.sessionsTurnCostMode,
 			turnCostMetrics,
 			func(metric statspkg.PositionTokenMetrics) float64 {
 				return metric.AverageTurnTokens
@@ -107,37 +105,32 @@ func (m statsModel) renderSessionsTab(width int) string {
 
 func (m statsModel) renderSessionTurnMetricBody(
 	width, height int,
+	mode statspkg.StatisticMode,
 	metrics []statspkg.PositionTokenMetrics,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
 	bodyWidth := statsLaneBodyWidth(width)
-	if m.sessionsGrouped {
-		return m.renderVersionedTurnMetricLaneBody(bodyWidth, height, value)
+	if m.splitActive() {
+		return m.renderSplitTurnMetricLaneBody(bodyWidth, height, mode, value)
 	}
 	return m.renderClaudeTurnMetricLaneBody(bodyWidth, height, metrics, value)
 }
 
 func (m statsModel) sessionTurnLaneTitle(base string, mode statspkg.StatisticMode) string {
-	providerLabel := ""
-	if m.sessionsGrouped && m.groupScope.hasProvider() {
-		providerLabel = m.groupScope.provider.Label()
+	splitLabel := ""
+	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
+		splitLabel = m.splitBy.Label()
 	}
-	return buildSessionTurnLaneTitle(base, m.sessionsGrouped, providerLabel, mode)
+	return buildSessionTurnLaneTitle(base, mode, splitLabel)
 }
 
 func (m statsModel) sessionTurnSummaryChips() []chip {
-	if !m.sessionsGrouped {
+	if !m.splitActive() {
 		return claudeTurnMetricChips(m.snapshot.Sessions.ClaudeTurnMetrics)
 	}
-	if !m.groupScope.hasProvider() {
-		return []chip{
-			{Label: "mode", Value: "grouped"},
-			{Label: "provider", Value: "Select with v"},
-		}
-	}
 	return []chip{
-		{Label: "mode", Value: "grouped"},
-		{Label: "provider", Value: m.groupScope.provider.Label()},
-		{Label: "versions", Value: statspkg.FormatNumber(len(m.groupedTurnSeries()))},
+		{Label: "mode", Value: "split"},
+		{Label: "by", Value: m.splitBy.Label()},
+		{Label: "series", Value: statspkg.FormatNumber(len(m.splitKeys()))},
 	}
 }

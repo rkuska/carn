@@ -10,7 +10,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func TestComputeCacheByVersionAggregatesDailySegmentsRowsAndDurations(t *testing.T) {
+func TestComputeCacheBySplitByVersionAggregatesDailySegmentsRowsAndDurations(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
@@ -39,88 +39,81 @@ func TestComputeCacheByVersionAggregatesDailySegmentsRowsAndDurations(t *testing
 			withLastTimestamp(time.Date(2026, 1, 12, 11, 30, 0, 0, time.UTC)),
 			withUsage(100, 100, 300, 10),
 		),
-		testMeta(
-			"codex",
-			time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC),
-			withProvider(conv.ProviderCodex),
-			withVersion("9.9.9"),
-			withUsage(100, 100, 100, 10),
-		),
 	}
 
-	got := ComputeCacheByVersion(sessions, TimeRange{}, conv.ProviderClaude, nil)
+	got := ComputeCacheBySplit(sessions, TimeRange{}, SplitDimensionVersion, nil)
 
 	require.Len(t, got.DailyReadShare, 3)
 	assert.Equal(t, time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC), got.DailyReadShare[0].Date)
 	assert.Equal(t, 1500, got.DailyReadShare[0].Prompt)
 	assert.Equal(t, 1000, got.DailyReadShare[0].Total)
-	assert.Equal(t, []VersionValue{
-		{Version: "1.0.0", Value: 800},
-		{Version: "2.0.0", Value: 200},
-	}, got.DailyReadShare[0].Versions)
+	assert.Equal(t, []SplitValue{
+		{Key: "1.0.0", Value: 800},
+		{Key: "2.0.0", Value: 200},
+	}, got.DailyReadShare[0].Splits)
 	assert.False(t, got.DailyReadShare[1].HasActivity)
 	assert.Equal(t, 0, got.DailyReadShare[1].Prompt)
 	assert.Equal(t, 0, got.DailyReadShare[1].Total)
 
 	require.Len(t, got.DailyWriteShare, 3)
 	assert.Equal(t, 150, got.DailyWriteShare[0].Total)
-	assert.Equal(t, []VersionValue{
-		{Version: "1.0.0", Value: 100},
-		{Version: "2.0.0", Value: 50},
-	}, got.DailyWriteShare[0].Versions)
+	assert.Equal(t, []SplitValue{
+		{Key: "1.0.0", Value: 100},
+		{Key: "2.0.0", Value: 50},
+	}, got.DailyWriteShare[0].Splits)
 
 	require.Len(t, got.SegmentRows, 6)
-	assert.Equal(t, GroupedNamedStat{
+	assert.Equal(t, SplitNamedStat{
 		Name:  "Main cache-rd",
 		Total: 1100,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 1100},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 1100},
 		},
 	}, got.SegmentRows[0])
-	assert.Equal(t, GroupedNamedStat{
+	assert.Equal(t, SplitNamedStat{
 		Name:  "Sub  miss",
 		Total: 250,
-		Versions: []VersionValue{
-			{Version: "2.0.0", Value: 250},
+		Splits: []SplitValue{
+			{Key: "2.0.0", Value: 250},
 		},
 	}, got.SegmentRows[5])
 
 	require.Len(t, got.ReadDuration, 6)
-	assert.Equal(t, GroupedHistogramBucket{
+	assert.Equal(t, SplitHistogramBucket{
 		Label: "<5m",
 		Total: 1000,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 800},
-			{Version: "2.0.0", Value: 200},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 800},
+			{Key: "2.0.0", Value: 200},
 		},
 	}, got.ReadDuration[0])
-	assert.Equal(t, GroupedHistogramBucket{
+	assert.Equal(t, SplitHistogramBucket{
 		Label: "2h+",
 		Total: 300,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 300},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 300},
 		},
 	}, got.ReadDuration[5])
 
 	require.Len(t, got.WriteDuration, 6)
-	assert.Equal(t, GroupedHistogramBucket{
+	assert.Equal(t, SplitHistogramBucket{
 		Label: "<5m",
 		Total: 150,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 100},
-			{Version: "2.0.0", Value: 50},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 100},
+			{Key: "2.0.0", Value: 50},
 		},
 	}, got.WriteDuration[0])
-	assert.Equal(t, GroupedHistogramBucket{
+	assert.Equal(t, SplitHistogramBucket{
 		Label: "2h+",
 		Total: 100,
-		Versions: []VersionValue{
-			{Version: "1.0.0", Value: 100},
+		Splits: []SplitValue{
+			{Key: "1.0.0", Value: 100},
 		},
 	}, got.WriteDuration[5])
 }
 
-func TestComputeCacheByVersionHonorsSelectedVersions(t *testing.T) {
+func TestComputeCacheBySplitHonorsAllowedKeys(t *testing.T) {
 	t.Parallel()
 
 	sessions := []sessionMeta{
@@ -140,18 +133,18 @@ func TestComputeCacheByVersionHonorsSelectedVersions(t *testing.T) {
 		),
 	}
 
-	got := ComputeCacheByVersion(
+	got := ComputeCacheBySplit(
 		sessions,
 		TimeRange{},
-		conv.ProviderClaude,
+		SplitDimensionVersion,
 		map[string]bool{"2.0.0": true},
 	)
 
 	require.Len(t, got.DailyReadShare, 1)
 	assert.Equal(t, 400, got.DailyReadShare[0].Prompt)
 	assert.Equal(t, 150, got.DailyReadShare[0].Total)
-	assert.Equal(t, []VersionValue{{Version: "2.0.0", Value: 150}}, got.DailyReadShare[0].Versions)
+	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 150}}, got.DailyReadShare[0].Splits)
 	require.Len(t, got.SegmentRows, 6)
 	assert.Equal(t, 150, got.SegmentRows[0].Total)
-	assert.Equal(t, []VersionValue{{Version: "2.0.0", Value: 150}}, got.SegmentRows[0].Versions)
+	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 150}}, got.SegmentRows[0].Splits)
 }

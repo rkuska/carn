@@ -36,7 +36,7 @@ func (m statsModel) statsNavigationHelpItems() []helpItem {
 			Key:      "f",
 			Desc:     filterDesc,
 			Detail:   filterDetail,
-			Glow:     m.performanceScopeGateActive() || m.filter.HasActiveFilters(),
+			Glow:     m.performanceScopeGateActive() || m.filter.HasActiveFilters() || m.splitBy.IsActive(),
 			Priority: helpPriorityNormal,
 		},
 	}
@@ -63,10 +63,6 @@ func (m statsModel) statsNavigationHelpItems() []helpItem {
 			Detail:   "move focus between the current tab's metric-detail lanes",
 			Priority: helpPriorityHigh,
 		})
-	}
-	if item := m.activeTabGroupHelpItem(); item.Key != "" {
-		item.Priority = helpPriorityHigh
-		items = append(items, item)
 	}
 	if item := m.activeLaneMetricHelpItem(); item.Key != "" {
 		item.Detail = m.activeLaneMetricHelpDetail()
@@ -109,7 +105,7 @@ func laneMetricHelpDetail(m statsModel, lane statsLane) string {
 		return "cycle the daily chart between sessions, messages, and tokens"
 	}
 	if lane.id == statsLaneCacheDaily {
-		return cacheLaneMetricHelpDetail(m.cacheGrouped)
+		return cacheLaneMetricHelpDetail(m.splitActive())
 	}
 	if detail := sessionLaneMetricHelpDetail(lane.id); detail != "" {
 		return detail
@@ -120,8 +116,8 @@ func laneMetricHelpDetail(m statsModel, lane statsLane) string {
 	return ""
 }
 
-func cacheLaneMetricHelpDetail(grouped bool) string {
-	if grouped {
+func cacheLaneMetricHelpDetail(split bool) string {
+	if split {
 		return "cycle between daily cache read share and write share"
 	}
 	return "cycle between daily hit rate and reuse ratio"
@@ -139,17 +135,4 @@ func isPerformanceMetricLane(id statsLaneID) bool {
 		id == statsLanePerformanceDiscipline ||
 		id == statsLanePerformanceEfficiency ||
 		id == statsLanePerformanceRobustness
-}
-
-func (m statsModel) activeTabGroupHelpItem() helpItem {
-	if !m.versionGroupingSupportedTab() {
-		return helpItem{}
-	}
-	return helpItem{
-		Key:      "v",
-		Desc:     "versions",
-		Detail:   "toggle grouped version bars and open the provider/version scope when needed",
-		Glow:     m.versionGroupingActive(),
-		Priority: helpPriorityNormal,
-	}
 }

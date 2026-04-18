@@ -531,10 +531,10 @@ func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T)
 func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 	t.Parallel()
 
-	rendered := ansi.Strip(renderVersionedTurnChartBody(testutil.NewTestTheme(),
-		[]statspkg.VersionTurnSeries{
+	rendered := ansi.Strip(renderSplitTurnChartBody(testutil.NewTestTheme(),
+		[]statspkg.SplitTurnSeries{
 			{
-				Version: "1.0.0",
+				Key: "1.0.0",
 				Metrics: []statspkg.PositionTokenMetrics{
 					{Position: 1, AveragePromptTokens: 120},
 					{Position: 2, AveragePromptTokens: 180},
@@ -542,7 +542,7 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 				},
 			},
 			{
-				Version: statspkg.UnknownVersionLabel,
+				Key: statspkg.UnknownVersionLabel,
 				Metrics: []statspkg.PositionTokenMetrics{
 					{Position: 1, AveragePromptTokens: 90},
 					{Position: 2, AveragePromptTokens: 110},
@@ -552,7 +552,7 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 		},
 		80,
 		8,
-		versionColorMap(testutil.NewTestTheme(), []string{"1.0.0", statspkg.UnknownVersionLabel}),
+		buildSplitColorMap(testutil.NewTestTheme(), []string{"1.0.0", statspkg.UnknownVersionLabel}),
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
@@ -604,16 +604,16 @@ func TestRenderVerticalStackedHistogramBodyShowsSingleZeroAxisLabel(t *testing.T
 	assert.Equal(t, 1, zeroLines)
 }
 
-func TestRenderChartWithVersionLegendBuildsChartAtReducedWidth(t *testing.T) {
+func TestRenderChartWithSplitLegendBuildsChartAtReducedWidth(t *testing.T) {
 	t.Parallel()
 
-	versionLabels := []string{"1.0.0", "2.0.0"}
+	splitKeys := []string{"1.0.0", "2.0.0"}
 	var builtWidth int
 
-	rendered := renderChartWithVersionLegend(testutil.NewTestTheme(),
+	rendered := renderChartWithSplitLegend(testutil.NewTestTheme(),
 		64,
-		versionLabels,
-		versionColorMap(testutil.NewTestTheme(), versionLabels),
+		splitKeys,
+		buildSplitColorMap(testutil.NewTestTheme(), splitKeys),
 		24,
 		func(chartWidth int) string {
 			builtWidth = chartWidth

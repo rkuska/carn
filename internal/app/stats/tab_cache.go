@@ -12,8 +12,8 @@ import (
 
 func (m statsModel) renderCacheTab(width, height int) string {
 	cache := m.snapshot.Cache
-	if m.cacheGrouped {
-		return m.renderGroupedCacheTab(width, cache)
+	if m.splitActive() {
+		return m.renderSplitCacheTab(width, cache)
 	}
 	chips := renderSummaryChips(m.theme, m.cacheSummaryChips(cache), width)
 
@@ -164,8 +164,8 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 	if !ok {
 		return m.renderStatsMetricDetail("Cache", width, nil, noDataLabel)
 	}
-	if m.cacheGrouped {
-		return m.renderGroupedCacheMetricDetail(width, lane)
+	if m.splitActive() {
+		return m.renderSplitCacheMetricDetail(width, lane)
 	}
 
 	cache := m.snapshot.Cache

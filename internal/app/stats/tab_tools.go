@@ -17,8 +17,8 @@ const statsRejectedSuggestionsTitle = "Rejected Suggestions"
 
 func (m statsModel) renderToolsTab(width int) string {
 	tools := m.snapshot.Tools
-	if m.toolsGrouped {
-		return m.renderGroupedToolsTab(width, tools)
+	if m.splitActive() {
+		return m.renderSplitToolsTab(width, tools)
 	}
 	chips := renderSummaryChips(m.theme, []chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},

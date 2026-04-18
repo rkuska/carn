@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
 
@@ -24,8 +23,6 @@ func (m statsModel) View() string {
 			"Stats Help",
 			m.helpSections(),
 		)
-	case m.groupScope.active:
-		content = m.renderGroupScopeOverlay()
 	case m.filter.Active:
 		content = m.renderStatsFilterOverlay()
 	}
@@ -151,10 +148,6 @@ func (m statsModel) footerHelpRow() string {
 		return composeFooterRow(m.width, renderFittedHelpItems(m.theme, items, leftWidth), right)
 	}
 
-	if m.groupScope.active {
-		return composeFooterRow(m.width, renderHelpItems(m.theme, m.groupScopeFooterItems()), "")
-	}
-
 	if m.filter.Active {
 		return composeFooterRow(m.width, renderHelpItems(m.theme, m.statsFilterFooterItems()), m.footerHelpRight())
 	}
@@ -179,9 +172,7 @@ func (m statsModel) footerHelpRight() string {
 
 func (m statsModel) footerStatusRow() string {
 	status := joinNonEmpty(m.footerStatusParts(), "  ")
-	if m.groupScope.active {
-		status = joinNonEmpty([]string{fmt.Sprintf("%d sessions in scope", m.groupScopeSessionCount())}, "  ")
-	} else if m.filter.Active {
+	if m.filter.Active {
 		status = joinNonEmpty(m.filterFooterStatusParts(), "  ")
 	}
 	if m.notification.Text != "" {

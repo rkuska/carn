@@ -6,33 +6,33 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func ComputeToolsByVersion(
+func ComputeToolsBySplit(
 	sessions []conv.SessionMeta,
 	timeRange TimeRange,
-	provider conv.Provider,
-	versions map[string]bool,
-) ToolsByVersion {
-	grouped := ToolsByVersion{
-		CallsPerSession: make([]GroupedHistogramBucket, 0, 5),
+	dim SplitDimension,
+	allowed map[string]bool,
+) ToolsBySplit {
+	grouped := ToolsBySplit{
+		CallsPerSession: make([]SplitHistogramBucket, 0, 5),
 	}
-	bucketVersionCounts := make([]map[string]int, 5)
+	bucketSplitCounts := make([]map[string]int, 5)
 	for i, label := range []string{"0-20", "21-50", "51-100", "101-200", "201+"} {
-		grouped.CallsPerSession = append(grouped.CallsPerSession, GroupedHistogramBucket{Label: label})
-		bucketVersionCounts[i] = make(map[string]int)
+		grouped.CallsPerSession = append(grouped.CallsPerSession, SplitHistogramBucket{Label: label})
+		bucketSplitCounts[i] = make(map[string]int)
 	}
-	if len(sessions) == 0 || provider == "" {
+	if len(sessions) == 0 || !dim.IsActive() {
 		return grouped
 	}
 
 	toolTotals := make(map[string]int)
-	toolVersions := make(map[string]map[string]int)
+	toolSplits := make(map[string]map[string]int)
 	errorCounts := make(map[string]int)
-	errorVersions := make(map[string]map[string]int)
+	errorSplits := make(map[string]map[string]int)
 	rejectCounts := make(map[string]int)
-	rejectVersions := make(map[string]map[string]int)
+	rejectSplits := make(map[string]map[string]int)
 
 	for _, session := range sessions {
-		versionLabel, ok := matchSessionVersionScope(session, timeRange, provider, versions)
+		key, ok := matchSessionSplitScope(session, timeRange, dim, allowed)
 		if !ok {
 			continue
 		}
@@ -40,44 +40,44 @@ func ComputeToolsByVersion(
 		sessionCalls, _ := accumulateToolCounts(toolTotals, session.ToolCounts, session.ActionCounts)
 		bucket := toolCallsBucket(sessionCalls)
 		grouped.CallsPerSession[bucket].Total++
-		bucketVersionCounts[bucket][versionLabel]++
+		bucketSplitCounts[bucket][key]++
 
-		accumulateVersionCounts(toolVersions, versionLabel, session.ToolCounts)
-		accumulateVersionCounts(errorVersions, versionLabel, session.ToolErrorCounts)
-		accumulateVersionCounts(rejectVersions, versionLabel, session.ToolRejectCounts)
+		accumulateSplitCounts(toolSplits, key, session.ToolCounts)
+		accumulateSplitCounts(errorSplits, key, session.ToolErrorCounts)
+		accumulateSplitCounts(rejectSplits, key, session.ToolRejectCounts)
 		accumulateNamedCounts(errorCounts, session.ToolErrorCounts)
 		accumulateNamedCounts(rejectCounts, session.ToolRejectCounts)
 	}
 
 	for i := range grouped.CallsPerSession {
-		grouped.CallsPerSession[i].Versions = sortVersionValues(bucketVersionCounts[i])
+		grouped.CallsPerSession[i].Splits = sortSplitValues(bucketSplitCounts[i])
 	}
-	grouped.TopTools = buildGroupedToolStats(toolTotals, toolVersions)
-	grouped.ToolErrorRates = buildGroupedToolRates(toolTotals, errorCounts, errorVersions, minToolErrorCount)
-	grouped.ToolRejectRates = buildGroupedToolRates(toolTotals, rejectCounts, rejectVersions, 1)
+	grouped.TopTools = buildSplitToolStats(toolTotals, toolSplits)
+	grouped.ToolErrorRates = buildSplitToolRates(toolTotals, errorCounts, errorSplits, minToolErrorCount)
+	grouped.ToolRejectRates = buildSplitToolRates(toolTotals, rejectCounts, rejectSplits, 1)
 	return grouped
 }
 
-func accumulateVersionCounts(target map[string]map[string]int, version string, counts map[string]int) {
+func accumulateSplitCounts(target map[string]map[string]int, key string, counts map[string]int) {
 	for name, count := range counts {
-		byVersion := target[name]
-		if byVersion == nil {
-			byVersion = make(map[string]int)
-			target[name] = byVersion
+		bySplit := target[name]
+		if bySplit == nil {
+			bySplit = make(map[string]int)
+			target[name] = bySplit
 		}
-		byVersion[version] += count
+		bySplit[key] += count
 	}
 }
 
-func buildGroupedToolStats(
+func buildSplitToolStats(
 	totals map[string]int,
-	versionCounts map[string]map[string]int,
-) []GroupedNamedStat {
-	items := make([]GroupedNamedStat, 0, len(totals))
+	splitCounts map[string]map[string]int,
+) []SplitNamedStat {
+	items := make([]SplitNamedStat, 0, len(totals))
 	for name, total := range totals {
-		items = append(items, groupedNamedStatFromCounts(name, total, versionCounts[name]))
+		items = append(items, splitNamedStatFromCounts(name, total, splitCounts[name]))
 	}
-	slices.SortFunc(items, func(left, right GroupedNamedStat) int {
+	slices.SortFunc(items, func(left, right SplitNamedStat) int {
 		switch {
 		case left.Total != right.Total:
 			return right.Total - left.Total
@@ -92,27 +92,27 @@ func buildGroupedToolStats(
 	return items
 }
 
-func buildGroupedToolRates(
+func buildSplitToolRates(
 	totalCounts map[string]int,
 	countMap map[string]int,
-	versionCounts map[string]map[string]int,
+	splitCounts map[string]map[string]int,
 	minCount int,
-) []GroupedRateStat {
-	rates := make([]GroupedRateStat, 0, len(countMap))
+) []SplitRateStat {
+	rates := make([]SplitRateStat, 0, len(countMap))
 	for name, count := range countMap {
 		total := totalCounts[name]
 		if total < minToolRateCalls || count < minCount {
 			continue
 		}
-		rates = append(rates, GroupedRateStat{
-			Name:     name,
-			Count:    count,
-			Total:    total,
-			Rate:     float64(count) / float64(total) * 100,
-			Versions: sortVersionValues(versionCounts[name]),
+		rates = append(rates, SplitRateStat{
+			Name:   name,
+			Count:  count,
+			Total:  total,
+			Rate:   float64(count) / float64(total) * 100,
+			Splits: sortSplitValues(splitCounts[name]),
 		})
 	}
-	slices.SortFunc(rates, func(left, right GroupedRateStat) int {
+	slices.SortFunc(rates, func(left, right SplitRateStat) int {
 		switch {
 		case left.Rate != right.Rate:
 			if left.Rate > right.Rate {

@@ -10,7 +10,6 @@ type statsKeyMap struct {
 	PrevTab key.Binding
 	Range   key.Binding
 	Filter  key.Binding
-	Group   key.Binding
 	Metric  key.Binding
 	Help    key.Binding
 	Close   key.Binding
@@ -32,10 +31,6 @@ var statsKeys = statsKeyMap{
 	Filter: key.NewBinding(
 		key.WithKeys("f"),
 		key.WithHelp("f", "filter"),
-	),
-	Group: key.NewBinding(
-		key.WithKeys("v"),
-		key.WithHelp("v", "group"),
 	),
 	Metric: key.NewBinding(
 		key.WithKeys("m"),
@@ -97,8 +92,6 @@ func (m statsModel) handleStatsGlobalActionKey(msg tea.KeyPressMsg) (statsModel,
 		return next, cmd, true
 	case key.Matches(msg, statsKeys.Filter):
 		return m.openFilterOverlay(), nil, true
-	case key.Matches(msg, statsKeys.Group):
-		return m.handleStatsGroupAction()
 	case key.Matches(msg, statsKeys.Help):
 		m.helpOpen = true
 		return m, nil, true

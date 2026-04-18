@@ -86,8 +86,9 @@ Use these terms when referring to different parts of the project in prompts.
 |---|---|
 | **Stats View** | A fullscreen analytics screen opened from the browser. Shows aggregate usage data across sessions instead of a single transcript. |
 | **Time Range** | The active date window applied across all stats tabs. Predefined ranges: 7d, 30d, 90d, and All. |
-| **Version Filter** | A stats-only filter that narrows the analytics dataset by session version after conversation-level filters have already been applied. Blank session versions are shown as `unknown`. |
-| **Grouped Scope** | The shared provider/version selection used by the Overview provider-version lane and the Sessions grouped turn charts. It requires exactly one provider and can target multiple versions. |
+| **Split Dimension** | The single dataset axis (Provider, Version, Model, or Project) selected from the filter overlay's Split-by row. When active it splits supported chart series; when off, charts render as a single series. |
+| **Split Series** | One labeled, colored data series produced by splitting a metric along the active Split Dimension. Carries a key string, label, color, and payload. |
+| **Split Key** | The string value extracted from a session for the active Split Dimension (for example a version label or model name). Used as the map key in split-aware computations. |
 | **Snapshot** | The precomputed bundle of stats data for the current filters + time range. Contains tab-specific aggregates for overview, activity, sessions, tools, cache, and performance. |
 | **Summary Chip** | A compact stats metric rendered as `label value` at the top of a tab, for example `sessions 42` or `error rate 3.2%`. |
 | **Heatmap** | A weekday × hour grid (7 rows × 24 columns) showing session density. Darker cells mean more sessions in that slot. Empty hours are compressed. |

@@ -215,7 +215,7 @@ func (m statsModel) activeLaneSupportsMetric() bool {
 	case statsLaneOverviewTop, statsLaneActivityDaily, statsLaneCacheDaily:
 		return true
 	case statsLaneSessionsContext, statsLaneSessionsTurnCost:
-		return !m.sessionsGrouped
+		return true
 	case statsLanePerformanceOutcome,
 		statsLanePerformanceDiscipline,
 		statsLanePerformanceEfficiency,

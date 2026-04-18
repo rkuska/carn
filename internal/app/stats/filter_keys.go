@@ -5,6 +5,8 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+
+	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 func (m statsModel) openFilterOverlay() statsModel {
@@ -12,6 +14,8 @@ func (m statsModel) openFilterOverlay() statsModel {
 	m.filter.RegexEditing = false
 	m.filter.RegexInput.Blur()
 	m.filter.Expanded = -1
+	m.splitExpanded = false
+	m.splitExpandedCursor = 0
 	if m.performanceScopeGateActive() {
 		target := m.performanceScopeFilterDimension()
 		m.filter.Cursor = int(target)
@@ -28,12 +32,17 @@ func (m statsModel) closeFilterOverlay() statsModel {
 	m.filter.Expanded = -1
 	m.filter.RegexEditing = false
 	m.filter.RegexInput.Blur()
+	m.splitExpanded = false
+	m.splitExpandedCursor = 0
 	return m
 }
 
 func (m statsModel) handleFilterKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
 	if m.filter.RegexEditing {
 		return m.handleFilterRegexKey(msg)
+	}
+	if m.splitExpanded {
+		return m.handleSplitExpandedKey(msg)
 	}
 	if m.filter.Expanded >= 0 {
 		return m.handleFilterExpandedKey(msg)
@@ -45,9 +54,8 @@ func (m statsModel) handleFilterDimensionKey(msg tea.KeyPressMsg) (statsModel, t
 	if updated, cmd, handled := m.handleFilterNavigation(msg); handled {
 		return updated, cmd
 	}
-
-	if m.filter.Cursor == statsFilterVersionCursor {
-		return m.handleVersionFilterDimensionAction(msg)
+	if m.filter.Cursor == splitRowCursor {
+		return m.handleSplitRowAction(msg)
 	}
 	return m.handleFilterDimensionAction(msg, filterDimension(m.filter.Cursor))
 }
@@ -57,12 +65,12 @@ func (m statsModel) handleFilterNavigation(msg tea.KeyPressMsg) (statsModel, tea
 	case msg.Code == tea.KeyEscape || msg.Text == "q":
 		return m.closeFilterOverlay(), nil, true
 	case msg.Text == "j" || msg.Code == tea.KeyDown:
-		if m.filter.Cursor < statsFilterVersionCursor {
+		if m.filter.Cursor < int(filterDimCount)-1 {
 			m.filter.Cursor++
 		}
 		return m, nil, true
 	case msg.Text == "k" || msg.Code == tea.KeyUp:
-		if m.filter.Cursor > 0 {
+		if m.filter.Cursor > splitRowCursor {
 			m.filter.Cursor--
 		}
 		return m, nil, true
@@ -117,7 +125,7 @@ func (m statsModel) filterClearAll() (statsModel, tea.Cmd) {
 	for i := range filterDimCount {
 		m.filter.Dimensions[i] = dimensionFilter{}
 	}
-	m.versionFilter = dimensionFilter{}
+	m.splitBy = statspkg.SplitDimensionNone
 	m, cmd := m.applyFilterChangeAndMaybeLoad()
 	return m.closeFilterOverlay(), cmd
 }
@@ -133,13 +141,6 @@ func (m statsModel) filterStartRegex(dim filterDimension) (statsModel, tea.Cmd) 
 }
 
 func (m statsModel) handleFilterExpandedKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
-	if m.filter.Expanded == statsFilterVersionCursor {
-		if updated, cmd, handled := m.handleFilterExpandedNav(msg, len(m.versionValues)); handled {
-			return updated, cmd
-		}
-		return m.handleVersionFilterExpandedAction(msg)
-	}
-
 	dim := filterDimension(m.filter.Expanded)
 	values := m.filter.Values[dim]
 	if updated, cmd, handled := m.handleFilterExpandedNav(msg, len(values)); handled {
@@ -216,7 +217,7 @@ func (m statsModel) filterToggleValue(
 }
 
 func (m statsModel) handleFilterRegexKey(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
-	if m.filter.Cursor == statsFilterVersionCursor {
+	if m.filter.Cursor == splitRowCursor {
 		m.filter.RegexEditing = false
 		m.filter.RegexInput.Blur()
 		return m, nil
@@ -257,71 +258,4 @@ func (m statsModel) filterApplyRegex(dim filterDimension) (statsModel, tea.Cmd) 
 	m.filter.RegexEditing = false
 	m.filter.RegexInput.Blur()
 	return m, nil
-}
-
-func (m statsModel) handleVersionFilterDimensionAction(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
-	switch {
-	case msg.Code == tea.KeyEnter || msg.Text == "l" || msg.Code == tea.KeyRight:
-		m.filter.Expanded = statsFilterVersionCursor
-		m.filter.ExpandedCursor = 0
-		return m, nil
-	case msg.Text == "x":
-		m.versionFilter = dimensionFilter{}
-		return m.applyFilterChangeAndMaybeLoad()
-	case msg.Text == "X":
-		return m.filterClearAll()
-	default:
-		return m, nil
-	}
-}
-
-func (m statsModel) handleVersionFilterExpandedAction(msg tea.KeyPressMsg) (statsModel, tea.Cmd) {
-	switch msg.Text {
-	case " ":
-		return m.toggleVersionFilterValue()
-	case "x":
-		m.versionFilter = dimensionFilter{}
-		m.filter.Expanded = -1
-		return m.applyFilterChangeAndMaybeLoad()
-	default:
-		return m, nil
-	}
-}
-
-func (m statsModel) toggleVersionFilterValue() (statsModel, tea.Cmd) {
-	if m.filter.ExpandedCursor >= len(m.versionValues) {
-		return m, nil
-	}
-	value := m.versionValues[m.filter.ExpandedCursor]
-	filter := m.versionFilter
-	if filter.Selected == nil {
-		filter.Selected = make(map[string]bool)
-	}
-	if filter.Selected[value] {
-		delete(filter.Selected, value)
-	} else {
-		filter.Selected[value] = true
-	}
-	m.versionFilter = filter
-	return m.applyFilterChangeAndMaybeLoad()
-}
-
-func (m statsModel) handleStatsGroupAction() (statsModel, tea.Cmd, bool) {
-	if !m.versionGroupingSupportedTab() {
-		return m, nil, false
-	}
-	if m.versionGroupingActive() {
-		m = m.setVersionGrouping(false)
-		if !m.anyVersionGroupingActive() {
-			m = m.clearGroupScope()
-		}
-		return m.renderViewportContent(true), nil, true
-	}
-
-	m = m.setVersionGrouping(true)
-	m = m.seedSingleProviderGroupScope()
-	if !m.groupScope.hasProvider() {
-		return m.openGroupScopeOverlay(), nil, true
-	}
-	return m.renderViewportContent(true), nil, true
 }

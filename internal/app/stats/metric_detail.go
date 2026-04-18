@@ -205,68 +205,56 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 		)
 	}
 	if lane.id == statsLaneSessionsContext {
-		if m.sessionsGrouped {
-			return m.renderStatsMetricDetail(lane.title, width, groupedTurnMetricDetailChips(m),
-				m.metricDetailLine("Question", "How does prompt growth differ across versions for the selected provider?"),
-				m.metricDetailLine(
-					"Reading",
-					"Each stacked bar is one main-thread user turn position, with colors splitting the total by version.",
-				),
-				m.metricDetailLine("Scope", groupedTurnMetricScope(m)),
-			)
-		}
-		mode := m.sessionsPromptMode
-		metrics := m.sessionTurnMetricsForMode(mode)
-		return m.renderStatsMetricDetail(lane.title, width, append([]chip{
-			{Label: "stat", Value: mode.ShortLabel()},
-		}, promptMetricDetailChips(metrics, mode)...),
-			m.metricDetailLine("Question", "How does prompt size grow as main-thread sessions go deeper?"),
-			m.metricDetailLine(
-				"Reading",
-				fmt.Sprintf(
-					"The X-axis is main-thread user turn number and the Y-axis is %s prompt-side tokens.",
-					mode.TextLabel(),
-				),
-			),
-			m.metricDetailLine(
-				"Scope",
-				"Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt.",
-			),
+		return m.renderSessionTurnLaneDetail(
+			lane,
+			width,
+			m.sessionsPromptMode,
+			"How does prompt size grow as main-thread sessions go deeper?",
+			"prompt-side tokens",
+			promptMetricDetailChips,
 		)
 	}
-	if m.sessionsGrouped {
-		return m.renderStatsMetricDetail(lane.title, width, groupedTurnMetricDetailChips(m),
-			m.metricDetailLine(
-				"Question",
-				"How does full assistant-side turn cost differ across versions for the selected provider?",
-			),
-			m.metricDetailLine(
-				"Reading",
-				"Each stacked bar is one main-thread user turn position, with colors splitting the total by version.",
-			),
-			m.metricDetailLine("Scope", groupedTurnMetricScope(m)),
-		)
-	}
-	mode := m.sessionsTurnCostMode
+	return m.renderSessionTurnLaneDetail(
+		lane,
+		width,
+		m.sessionsTurnCostMode,
+		"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
+		"total assistant tokens per turn",
+		turnCostMetricDetailChips,
+	)
+}
+
+func (m statsModel) renderSessionTurnLaneDetail(
+	lane statsLane,
+	width int,
+	mode statspkg.StatisticMode,
+	question, yAxisDescription string,
+	metricChips func([]statspkg.PositionTokenMetrics, statspkg.StatisticMode) []chip,
+) string {
 	metrics := m.sessionTurnMetricsForMode(mode)
-	return m.renderStatsMetricDetail(lane.title, width, append([]chip{
-		{Label: "stat", Value: mode.ShortLabel()},
-	}, turnCostMetricDetailChips(metrics, mode)...),
-		m.metricDetailLine(
-			"Question",
-			"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
-		),
-		m.metricDetailLine(
-			"Reading",
-			fmt.Sprintf(
-				"The X-axis is main-thread user turn number and the Y-axis is %s total assistant tokens per turn.",
-				mode.TextLabel(),
-			),
-		),
-		m.metricDetailLine(
-			"Scope",
-			"Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt.",
-		),
+	chips := append([]chip{{Label: "stat", Value: mode.ShortLabel()}}, metricChips(metrics, mode)...)
+	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
+		chips = append(chips, splitTurnMetricDetailChips(m)...)
+	}
+
+	reading := fmt.Sprintf(
+		"The X-axis is main-thread user turn number and the Y-axis is %s %s.",
+		mode.TextLabel(),
+		yAxisDescription,
+	)
+	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
+		reading += " Colors stack each bar by " + m.splitBy.Label() + "."
+	}
+
+	scope := "Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt."
+	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
+		scope += " " + splitTurnMetricScope(m)
+	}
+
+	return m.renderStatsMetricDetail(lane.title, width, chips,
+		m.metricDetailLine("Question", question),
+		m.metricDetailLine("Reading", reading),
+		m.metricDetailLine("Scope", scope),
 	)
 }
 
@@ -275,8 +263,8 @@ func (m statsModel) renderToolsMetricDetail(width int) string {
 	if !ok {
 		return m.renderStatsMetricDetail("Tools", width, nil, noDataLabel)
 	}
-	if m.toolsGrouped {
-		return m.renderGroupedToolsMetricDetail(width, lane)
+	if m.splitActive() {
+		return m.renderSplitToolsMetricDetail(width, lane)
 	}
 
 	tools := m.snapshot.Tools

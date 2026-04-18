@@ -6,7 +6,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-var cacheGroupedRowLabels = []string{
+var cacheSplitRowLabels = []string{
 	"Main cache-rd",
 	"Sub  cache-rd",
 	"Main cache-wr",
@@ -15,48 +15,48 @@ var cacheGroupedRowLabels = []string{
 	"Sub  miss",
 }
 
-func ComputeCacheByVersion(
+func ComputeCacheBySplit(
 	sessions []conv.SessionMeta,
 	timeRange TimeRange,
-	provider conv.Provider,
-	versions map[string]bool,
-) CacheByVersion {
-	grouped := CacheByVersion{
-		SegmentRows:   make([]GroupedNamedStat, 0, len(cacheGroupedRowLabels)),
-		ReadDuration:  make([]GroupedHistogramBucket, len(cacheDurationLabels)),
-		WriteDuration: make([]GroupedHistogramBucket, len(cacheDurationLabels)),
+	dim SplitDimension,
+	allowed map[string]bool,
+) CacheBySplit {
+	grouped := CacheBySplit{
+		SegmentRows:   make([]SplitNamedStat, 0, len(cacheSplitRowLabels)),
+		ReadDuration:  make([]SplitHistogramBucket, len(cacheDurationLabels)),
+		WriteDuration: make([]SplitHistogramBucket, len(cacheDurationLabels)),
 	}
 	for i, label := range cacheDurationLabels {
-		grouped.ReadDuration[i] = GroupedHistogramBucket{Label: label}
-		grouped.WriteDuration[i] = GroupedHistogramBucket{Label: label}
+		grouped.ReadDuration[i] = SplitHistogramBucket{Label: label}
+		grouped.WriteDuration[i] = SplitHistogramBucket{Label: label}
 	}
-	if len(sessions) == 0 || provider == "" {
-		return groupedRowsWithLabels(grouped)
+	if len(sessions) == 0 || !dim.IsActive() {
+		return splitRowsWithLabels(grouped)
 	}
 
-	filtered := filterSessionsForCacheGrouping(sessions, timeRange, provider, versions)
+	filtered := filterSessionsForCacheSplit(sessions, timeRange, dim, allowed)
 	if len(filtered) == 0 {
-		return groupedRowsWithLabels(grouped)
+		return splitRowsWithLabels(grouped)
 	}
 
 	location := activityLocation(filtered, timeRange)
 	start, _, startDayKey, dayCount, ok := resolveCacheBounds(filtered, timeRange, location)
 	if !ok {
-		return groupedRowsWithLabels(grouped)
+		return splitRowsWithLabels(grouped)
 	}
 
 	readTotals := make([]int, dayCount)
 	writeTotals := make([]int, dayCount)
 	promptTotals := make([]int, dayCount)
 	activeDays := make([]bool, dayCount)
-	readVersions := make([]map[string]int, dayCount)
-	writeVersions := make([]map[string]int, dayCount)
-	rowVersions := make([]map[string]int, len(cacheGroupedRowLabels))
-	readDurationVersions := make([]map[string]int, len(cacheDurationLabels))
-	writeDurationVersions := make([]map[string]int, len(cacheDurationLabels))
+	readSplits := make([]map[string]int, dayCount)
+	writeSplits := make([]map[string]int, dayCount)
+	rowSplits := make([]map[string]int, len(cacheSplitRowLabels))
+	readDurationSplits := make([]map[string]int, len(cacheDurationLabels))
+	writeDurationSplits := make([]map[string]int, len(cacheDurationLabels))
 
 	for _, session := range filtered {
-		versionLabel := NormalizeVersionLabel(session.Version)
+		key := dim.SessionKey(session)
 		prompt := sessionPromptTokens(session)
 		readTokens := session.TotalUsage.CacheReadInputTokens
 		writeProxy := cacheWriteProxy(session)
@@ -65,16 +65,16 @@ func ComputeCacheByVersion(
 		dayIndex := activityDayKey(
 			normalizeActivityTime(session.Timestamp, location),
 		) - startDayKey
-		recordGroupedCacheDay(
+		recordSplitCacheDay(
 			dayIndex,
 			dayCount,
 			activeDays,
 			promptTotals,
 			readTotals,
 			writeTotals,
-			readVersions,
-			writeVersions,
-			versionLabel,
+			readSplits,
+			writeSplits,
+			key,
 			prompt,
 			readTokens,
 			writeProxy,
@@ -84,43 +84,43 @@ func ComputeCacheByVersion(
 		if session.IsSubagent {
 			rowBase = 1
 		}
-		accumulateGroupedCacheRow(rowVersions, rowBase, versionLabel, readTokens)
-		accumulateGroupedCacheRow(rowVersions, rowBase+2, versionLabel, writeProxy)
-		accumulateGroupedCacheRow(rowVersions, rowBase+4, versionLabel, missTokens)
+		accumulateSplitCacheRow(rowSplits, rowBase, key, readTokens)
+		accumulateSplitCacheRow(rowSplits, rowBase+2, key, writeProxy)
+		accumulateSplitCacheRow(rowSplits, rowBase+4, key, missTokens)
 
 		durationIndex := durationBucket(session.Duration())
-		accumulateGroupedCacheRow(readDurationVersions, durationIndex, versionLabel, readTokens)
-		accumulateGroupedCacheRow(writeDurationVersions, durationIndex, versionLabel, writeProxy)
+		accumulateSplitCacheRow(readDurationSplits, durationIndex, key, readTokens)
+		accumulateSplitCacheRow(writeDurationSplits, durationIndex, key, writeProxy)
 		grouped.ReadDuration[durationIndex].Total += readTokens
 		grouped.WriteDuration[durationIndex].Total += writeProxy
 	}
 
-	grouped.DailyReadShare = buildGroupedDailyShares(start, dayCount, promptTotals, readTotals, activeDays, readVersions)
-	grouped.DailyWriteShare = buildGroupedDailyShares(
+	grouped.DailyReadShare = buildSplitDailyShares(start, dayCount, promptTotals, readTotals, activeDays, readSplits)
+	grouped.DailyWriteShare = buildSplitDailyShares(
 		start,
 		dayCount,
 		promptTotals,
 		writeTotals,
 		activeDays,
-		writeVersions,
+		writeSplits,
 	)
-	grouped.SegmentRows = buildGroupedCacheRows(rowVersions)
+	grouped.SegmentRows = buildSplitCacheRows(rowSplits)
 	for i := range grouped.ReadDuration {
-		grouped.ReadDuration[i].Versions = sortVersionValues(readDurationVersions[i])
-		grouped.WriteDuration[i].Versions = sortVersionValues(writeDurationVersions[i])
+		grouped.ReadDuration[i].Splits = sortSplitValues(readDurationSplits[i])
+		grouped.WriteDuration[i].Splits = sortSplitValues(writeDurationSplits[i])
 	}
 	return grouped
 }
 
-func filterSessionsForCacheGrouping(
+func filterSessionsForCacheSplit(
 	sessions []conv.SessionMeta,
 	timeRange TimeRange,
-	provider conv.Provider,
-	versions map[string]bool,
+	dim SplitDimension,
+	allowed map[string]bool,
 ) []conv.SessionMeta {
 	filtered := make([]conv.SessionMeta, 0, len(sessions))
 	for _, session := range sessions {
-		if _, ok := matchSessionVersionScope(session, timeRange, provider, versions); !ok {
+		if _, ok := matchSessionSplitScope(session, timeRange, dim, allowed); !ok {
 			continue
 		}
 		filtered = append(filtered, session)
@@ -128,21 +128,21 @@ func filterSessionsForCacheGrouping(
 	return filtered
 }
 
-func groupedRowsWithLabels(grouped CacheByVersion) CacheByVersion {
-	grouped.SegmentRows = buildGroupedCacheRows(nil)
+func splitRowsWithLabels(grouped CacheBySplit) CacheBySplit {
+	grouped.SegmentRows = buildSplitCacheRows(nil)
 	return grouped
 }
 
-func recordGroupedCacheDay(
+func recordSplitCacheDay(
 	dayIndex int,
 	dayCount int,
 	activeDays []bool,
 	promptTotals []int,
 	readTotals []int,
 	writeTotals []int,
-	readVersions []map[string]int,
-	writeVersions []map[string]int,
-	version string,
+	readSplits []map[string]int,
+	writeSplits []map[string]int,
+	key string,
 	prompt int,
 	readTokens int,
 	writeProxy int,
@@ -154,53 +154,53 @@ func recordGroupedCacheDay(
 	promptTotals[dayIndex] += prompt
 	readTotals[dayIndex] += readTokens
 	writeTotals[dayIndex] += writeProxy
-	accumulateGroupedCacheRow(readVersions, dayIndex, version, readTokens)
-	accumulateGroupedCacheRow(writeVersions, dayIndex, version, writeProxy)
+	accumulateSplitCacheRow(readSplits, dayIndex, key, readTokens)
+	accumulateSplitCacheRow(writeSplits, dayIndex, key, writeProxy)
 }
 
-func accumulateGroupedCacheRow(target []map[string]int, index int, version string, value int) {
+func accumulateSplitCacheRow(target []map[string]int, index int, key string, value int) {
 	if value <= 0 {
 		return
 	}
 	if target[index] == nil {
 		target[index] = make(map[string]int)
 	}
-	target[index][version] += value
+	target[index][key] += value
 }
 
-func buildGroupedDailyShares(
+func buildSplitDailyShares(
 	start time.Time,
 	dayCount int,
 	promptTotals []int,
 	valueTotals []int,
 	activeDays []bool,
-	versionTotals []map[string]int,
-) []GroupedDailyShare {
-	daily := make([]GroupedDailyShare, 0, dayCount)
+	splitTotals []map[string]int,
+) []SplitDailyShare {
+	daily := make([]SplitDailyShare, 0, dayCount)
 	for i := range dayCount {
-		daily = append(daily, GroupedDailyShare{
+		daily = append(daily, SplitDailyShare{
 			Date:        start.AddDate(0, 0, i),
 			Prompt:      promptTotals[i],
 			Total:       valueTotals[i],
 			HasActivity: activeDays[i],
-			Versions:    sortVersionValues(versionTotals[i]),
+			Splits:      sortSplitValues(splitTotals[i]),
 		})
 	}
 	return daily
 }
 
-func buildGroupedCacheRows(rowVersions []map[string]int) []GroupedNamedStat {
-	rows := make([]GroupedNamedStat, 0, len(cacheGroupedRowLabels))
-	for i, label := range cacheGroupedRowLabels {
-		versions := map[string]int(nil)
-		if i < len(rowVersions) {
-			versions = rowVersions[i]
+func buildSplitCacheRows(rowSplits []map[string]int) []SplitNamedStat {
+	rows := make([]SplitNamedStat, 0, len(cacheSplitRowLabels))
+	for i, label := range cacheSplitRowLabels {
+		splits := map[string]int(nil)
+		if i < len(rowSplits) {
+			splits = rowSplits[i]
 		}
 		total := 0
-		for _, value := range versions {
+		for _, value := range splits {
 			total += value
 		}
-		rows = append(rows, groupedNamedStatFromCounts(label, total, versions))
+		rows = append(rows, splitNamedStatFromCounts(label, total, splits))
 	}
 	return rows
 }

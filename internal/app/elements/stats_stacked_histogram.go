@@ -74,7 +74,7 @@ func buildStackedHistogramBucketRenders(
 		maxTotal = 1
 	}
 	for i, bucket := range buckets {
-		renderBuckets[i].Height = ScaledWidth(bucket.Total, maxTotal, maxHeight)
+		renderBuckets[i].Height = MonotonicScaledHeight(float64(bucket.Total), float64(maxTotal), maxHeight)
 		renderBuckets[i].Segments = buildStackedHistogramSegments(bucket.Segments, renderBuckets[i].Height)
 	}
 	return maxTotal, renderBuckets

@@ -258,14 +258,16 @@ func TestStatsRenderSessionsGroupedTurnChartsShowVersionLegend(t *testing.T) {
 	m = m.applyFilterChange()
 	m.tab = statsTabSessions
 	m.sessionsLaneCursor = 2
-	m.sessionsGrouped = true
-	m.groupScope.provider = conv.ProviderClaude
-	m.groupScope.versions = map[string]bool{"1.0.0": true, statspkg.UnknownVersionLabel: true}
+	m.splitBy = statspkg.SplitDimensionVersion
+	m.filter.Dimensions[filterDimVersion] = dimensionFilter{
+		Selected: map[string]bool{"1.0.0": true, statspkg.UnknownVersionLabel: true},
+	}
+	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderSessionsTab(120))
 
-	assert.Contains(t, body, "Prompt Growth (Claude)")
-	assert.Contains(t, body, "Turn Cost (Claude)")
+	assert.Contains(t, body, "Avg Prompt Growth (by Version)")
+	assert.Contains(t, body, "Avg Turn Cost (by Version)")
 	assert.Contains(t, body, "1.0.0")
 	assert.Contains(t, body, statspkg.UnknownVersionLabel)
 }
@@ -361,6 +363,11 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 func TestStatsRenderGroupedToolsShowsProviderTitlesAndVersionLegend(t *testing.T) {
 	t.Parallel()
 
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
+
 	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -370,13 +377,13 @@ func TestStatsRenderGroupedToolsShowsProviderTitlesAndVersionLegend(t *testing.T
 				"alpha",
 				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
 					meta.Provider = conv.ProviderClaude
-					meta.Version = "1.0.0"
+					meta.Version = versionOne
 					meta.ToolCounts = map[string]int{"Read": 10, "Write": 5}
 					meta.ToolErrorCounts = map[string]int{"Read": 3}
 				}),
 				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
 					meta.Provider = conv.ProviderClaude
-					meta.Version = "2.0.0"
+					meta.Version = versionTwo
 					meta.ToolCounts = map[string]int{"Read": 5, "Bash": 5}
 					meta.ToolRejectCounts = map[string]int{"Bash": 2}
 				}),
@@ -388,21 +395,26 @@ func TestStatsRenderGroupedToolsShowsProviderTitlesAndVersionLegend(t *testing.T
 		newBrowserFilterState(),
 	)
 	m.tab = statsTabTools
-	m.toolsGrouped = true
-	m.groupScope.provider = conv.ProviderClaude
+	m.splitBy = statspkg.SplitDimensionVersion
+	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderToolsTab(120))
 
-	assert.Contains(t, body, "Tool Calls/Session (Claude)")
-	assert.Contains(t, body, "Top Tools (Claude)")
-	assert.Contains(t, body, "Tool Error Rate (Claude)")
-	assert.Contains(t, body, "Rejected Suggestions (Claude)")
-	assert.Contains(t, body, "1.0.0")
-	assert.Contains(t, body, "2.0.0")
+	assert.Contains(t, body, "Tool Calls/Session (by Version)")
+	assert.Contains(t, body, "Top Tools (by Version)")
+	assert.Contains(t, body, "Tool Error Rate (by Version)")
+	assert.Contains(t, body, "Rejected Suggestions (by Version)")
+	assert.Contains(t, body, versionOne)
+	assert.Contains(t, body, versionTwo)
 }
 
 func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T) {
 	t.Parallel()
+
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
 
 	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
@@ -413,7 +425,7 @@ func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T
 				"alpha",
 				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
 					meta.Provider = conv.ProviderClaude
-					meta.Version = "1.0.0"
+					meta.Version = versionOne
 					meta.TotalUsage = conv.TokenUsage{
 						InputTokens:              100,
 						CacheCreationInputTokens: 100,
@@ -422,7 +434,7 @@ func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T
 				}),
 				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
 					meta.Provider = conv.ProviderClaude
-					meta.Version = "2.0.0"
+					meta.Version = versionTwo
 					meta.TotalUsage = conv.TokenUsage{
 						InputTokens:              250,
 						CacheCreationInputTokens: 50,
@@ -437,17 +449,17 @@ func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T
 		newBrowserFilterState(),
 	)
 	m.tab = statsTabCache
-	m.cacheGrouped = true
-	m.groupScope.provider = conv.ProviderClaude
+	m.splitBy = statspkg.SplitDimensionVersion
+	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderCacheTab(120, 32))
 
-	assert.Contains(t, body, "Daily Cache Read Share (Claude)")
-	assert.Contains(t, body, "Main vs Subagent (Claude)")
-	assert.Contains(t, body, "Cache Write by Duration (Claude)")
-	assert.Contains(t, body, "Cache Read by Duration (Claude)")
-	assert.Contains(t, body, "1.0.0")
-	assert.Contains(t, body, "2.0.0")
+	assert.Contains(t, body, "Daily Cache Read Share (by Version)")
+	assert.Contains(t, body, "Main vs Subagent (by Version)")
+	assert.Contains(t, body, "Cache Write by Duration (by Version)")
+	assert.Contains(t, body, "Cache Read by Duration (by Version)")
+	assert.Contains(t, body, versionOne)
+	assert.Contains(t, body, versionTwo)
 }
 
 func TestRenderToolsHistogramKeepsVisibleBarsWhenErrorRatesAreSparse(t *testing.T) {
@@ -622,7 +634,7 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 
 	m.tab = statsTabSessions
 	row = ansi.Strip(m.footerHelpRow())
-	assert.Contains(t, row, "v versions")
+	assert.NotContains(t, row, "v versions")
 	assert.NotContains(t, row, "m metric")
 
 	m.sessionsLaneCursor = 2
@@ -631,12 +643,12 @@ func TestStatsFooterHelpRowTracksActiveLaneActions(t *testing.T) {
 
 	m.tab = statsTabTools
 	row = ansi.Strip(m.footerHelpRow())
-	assert.Contains(t, row, "v versions")
+	assert.NotContains(t, row, "v versions")
 	assert.NotContains(t, row, "m metric")
 
 	m.tab = statsTabCache
 	row = ansi.Strip(m.footerHelpRow())
-	assert.Contains(t, row, "v versions")
+	assert.NotContains(t, row, "v versions")
 	assert.Contains(t, row, "m metric")
 
 	m.activityLaneCursor = 1

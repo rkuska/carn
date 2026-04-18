@@ -21,20 +21,20 @@ func (m statsModel) sessionTurnMetricsForMode(
 	return statspkg.ComputeTurnTokenMetricsForRangeWithMode(m.statsTurnMetrics, m.timeRange, mode)
 }
 
+// buildSessionTurnLaneTitle composes the lane title for the session turn
+// charts. The current statistic-mode badge is always prefixed; an optional
+// split label is appended in parentheses so split and non-split lanes share
+// the same "{badge} {base}" prefix.
 func buildSessionTurnLaneTitle(
 	base string,
-	grouped bool,
-	providerLabel string,
 	mode statspkg.StatisticMode,
+	splitLabel string,
 ) string {
-	title := base
-	if !grouped {
-		title = sessionTurnMetricBadge(mode) + " " + base
-	}
-	if providerLabel == "" {
+	title := sessionTurnMetricBadge(mode) + " " + base
+	if splitLabel == "" {
 		return title
 	}
-	return title + " (" + providerLabel + ")"
+	return title + " (by " + splitLabel + ")"
 }
 
 func sessionTurnMetricBadge(mode statspkg.StatisticMode) string {

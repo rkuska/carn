@@ -31,16 +31,18 @@ func formatPercent(part, total int) string {
 	return fmt.Sprintf("%.0f%%", float64(part)/float64(total)*100)
 }
 
+const sessionsMetricName = "Sessions"
+
 func activityMetricName(metric activityMetric) string {
 	switch metric {
 	case metricSessions:
-		return "Sessions"
+		return sessionsMetricName
 	case metricMessages:
 		return "Messages"
 	case metricTokens:
 		return "Tokens"
 	}
-	return "Sessions"
+	return sessionsMetricName
 }
 
 func peakDailyCount(counts []statspkg.DailyCount) (string, int) {
@@ -159,32 +161,37 @@ func turnMetricFactorLabel(prefix string, mode statspkg.StatisticMode) string {
 	return prefix + " " + mode.ShortLabel() + " multiplier"
 }
 
-func groupedTurnMetricDetailChips(m statsModel) []chip {
-	if !m.groupScope.hasProvider() {
-		return []chip{{Label: "provider", Value: "Select with v"}}
-	}
-
-	series := m.groupedTurnSeries()
+func splitTurnMetricDetailChips(m statsModel) []chip {
+	keys := m.splitKeys()
 	return []chip{
-		{Label: "provider", Value: m.groupScope.provider.Label()},
-		{Label: "versions", Value: statspkg.FormatNumber(len(series))},
-		{Label: "mode", Value: "grouped"},
+		{Label: "by", Value: m.splitBy.Label()},
+		{Label: "series", Value: statspkg.FormatNumber(len(keys))},
+		{Label: "mode", Value: "split"},
 	}
 }
 
-func groupedTurnMetricScope(m statsModel) string {
-	if !m.groupScope.hasProvider() {
-		return "Choose a provider with v to compare versions."
+func splitTurnMetricScope(m statsModel) string {
+	dim, ok := splitToFilterDim(m.splitBy)
+	if !ok {
+		return ""
 	}
-	if len(m.groupScope.versions) == 0 {
-		return "All versions for the selected provider in the active range."
+	selected := m.filter.Dimensions[dim].Selected
+	if len(selected) == 0 {
+		return "All " + m.splitBy.Label() + " values in the active range."
 	}
-	versions := make([]string, 0, len(m.groupScope.versions))
-	for version := range m.groupScope.versions {
-		versions = append(versions, version)
+	return "Selected " + m.splitBy.Label() + " values: " + joinSelectedSplitValues(selected)
+}
+
+func joinSelectedSplitValues(selected map[string]bool) string {
+	if len(selected) == 0 {
+		return ""
 	}
-	slices.Sort(versions)
-	return "Selected versions: " + strings.Join(versions, ", ")
+	keys := make([]string, 0, len(selected))
+	for key := range selected {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ", ")
 }
 
 func providerVersionProviderCount(items []statspkg.ProviderVersionTokens) int {

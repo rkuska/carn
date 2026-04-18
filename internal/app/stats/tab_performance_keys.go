@@ -53,15 +53,9 @@ func (m statsModel) handleSharedLaneMetricAction(id statsLaneID) (statsModel, te
 func (m statsModel) handleSessionLaneMetricAction(id statsLaneID) (statsModel, tea.Cmd, bool) {
 	switch id { //nolint:exhaustive // only session metric lanes handled
 	case statsLaneSessionsContext:
-		if m.sessionsGrouped {
-			return m, nil, false
-		}
 		m.sessionsPromptMode = statspkg.NextStatisticMode(m.sessionsPromptMode, statisticModesWithoutTotal)
 		return m.renderViewportContent(true), nil, true
 	case statsLaneSessionsTurnCost:
-		if m.sessionsGrouped {
-			return m, nil, false
-		}
 		m.sessionsTurnCostMode = statspkg.NextStatisticMode(m.sessionsTurnCostMode, statisticModesWithoutTotal)
 		return m.renderViewportContent(true), nil, true
 	default:

@@ -53,15 +53,13 @@ type statsModel struct {
 	timeRange               stats.TimeRange
 	snapshot                stats.Snapshot
 	filter                  browserFilterState
-	versionFilter           dimensionFilter
-	versionValues           []string
 	statsSessions           []conv.SessionMeta
 	statsTurnMetrics        []conv.SessionTurnMetrics
 	statsActivityBuckets    []conv.ActivityBucketRow
-	groupScope              statsGroupScopeState
-	sessionsGrouped         bool
-	toolsGrouped            bool
-	cacheGrouped            bool
+	splitBy                 stats.SplitDimension
+	splitValues             []string
+	splitExpanded           bool
+	splitExpandedCursor     int
 	notification            notification
 	helpOpen                bool
 	renderedTabContent      string
@@ -163,9 +161,6 @@ func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
 		if m.helpOpen {
 			return m.handleHelpKey(keyMsg)
 		}
-		if m.groupScope.active {
-			return m.handleGroupScopeKey(keyMsg)
-		}
 		if m.filter.Active {
 			return m.handleFilterKey(keyMsg)
 		}
@@ -246,6 +241,14 @@ func (m statsModel) renderActiveTab() string {
 		)
 	}
 
+	if m.splitBy.IsActive() && !splitDimensionSupportsTab(m.tab) {
+		return renderSplitUnsupportedPlaceholder(m.theme, m.contentWidth(), m.contentHeight(), m.splitBy, m.tab)
+	}
+
+	return m.renderTabBody()
+}
+
+func (m statsModel) renderTabBody() string {
 	switch m.tab {
 	case statsTabOverview:
 		return m.renderOverviewTab(m.contentWidth())
@@ -264,31 +267,67 @@ func (m statsModel) renderActiveTab() string {
 	}
 }
 
+func renderSplitUnsupportedPlaceholder(
+	theme *el.Theme,
+	width, height int,
+	dim stats.SplitDimension,
+	tab statsTab,
+) string {
+	msg := fmt.Sprintf("Split by %s is not supported on the %s tab.", dim.Label(), tabLabel(tab))
+	body := lipgloss.NewStyle().Foreground(theme.ColorNormalDesc).Render(msg)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, body)
+}
+
 func (m statsModel) recomputeSnapshot() statsModel {
 	conversations := m.filteredConversations()
 	cacheKeys := filteredConversationCacheKeys(conversations)
 	rows := m.loadPrecomputedStatsRows(cacheKeys)
 	m = m.applyStatsQueryFailures(rows.queryFailure)
-	filteredConversations, filteredSessions := filterStatsConversationsByVersion(conversations, m.versionFilter)
-	filteredTurnMetrics := filterTurnMetricsByVersion(rows.turnMetrics, m.versionFilter)
-	filteredActivityBuckets := filterActivityBucketsByVersion(rows.activityBuckets, m.versionFilter)
-	m.versionValues = extractStatsVersionValues(conversations)
-	m.statsSessions = filteredSessions
-	m.statsTurnMetrics = filteredTurnMetrics
-	m.statsActivityBuckets = filteredActivityBuckets
+	m.statsSessions = flattenStatsSessions(conversations)
+	m.statsTurnMetrics = append([]conv.SessionTurnMetrics(nil), rows.turnMetrics...)
+	m.statsActivityBuckets = append([]conv.ActivityBucketRow(nil), rows.activityBuckets...)
+	m.splitValues = m.extractSplitValues()
 	sequence := rows.sequence
-	if m.versionFilter.IsActive() {
+	if m.filter.Dimensions[filterDimVersion].IsActive() {
 		sequence = nil
 	}
 	m.snapshot = stats.ComputeSnapshotWithPrecomputed(
-		filteredConversations,
+		conversations,
 		m.timeRange,
 		sequence,
-		filteredTurnMetrics,
-		filteredActivityBuckets,
+		m.statsTurnMetrics,
+		m.statsActivityBuckets,
 	)
 	m = m.normalizeStatsSelection()
 	return m
+}
+
+func flattenStatsSessions(conversations []conv.Conversation) []conv.SessionMeta {
+	if len(conversations) == 0 {
+		return nil
+	}
+
+	count := 0
+	for _, conversation := range conversations {
+		count += len(conversation.Sessions)
+	}
+	sessions := make([]conv.SessionMeta, 0, count)
+	for _, conversation := range conversations {
+		for _, session := range conversation.Sessions {
+			sessions = append(sessions, statsSessionWithConversation(session, conversation))
+		}
+	}
+	return sessions
+}
+
+func statsSessionWithConversation(session conv.SessionMeta, conversation conv.Conversation) conv.SessionMeta {
+	if session.Provider == "" {
+		session.Provider = conversation.Ref.Provider
+	}
+	if session.Project.DisplayName == "" {
+		session.Project = conversation.Project
+	}
+	return session
 }
 
 func (m statsModel) loadPrecomputedStatsRows(
@@ -331,8 +370,8 @@ func (m statsModel) footerStatusParts() []string {
 	for _, badge := range filterBadges(m.filter.Dimensions) {
 		parts = append(parts, m.theme.StyleToolCall.Render("["+badge+"]"))
 	}
-	if m.versionFilter.IsActive() {
-		parts = append(parts, renderStatsVersionFilterBadge(m.theme, m.versionFilter))
+	if m.splitBy.IsActive() {
+		parts = append(parts, m.theme.StyleToolCall.Render("[split:"+m.splitBy.Label()+"]"))
 	}
 	if m.statsQueryFailures.degraded() {
 		parts = append(parts, renderStatsDegradedBadge(m.theme))

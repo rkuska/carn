@@ -225,6 +225,22 @@ func ScaledWidth(value, maxValue, width int) int {
 	return min(scaled, width)
 }
 
+// MonotonicScaledHeight maps a positive value into a 1..height integer slot
+// using a ceiling, so that distinct non-zero values map to distinct heights
+// whenever the chart resolution allows. Used by stacked histogram and stacked
+// turn renderers where round-to-nearest would otherwise collapse adjacent
+// small values onto the same row.
+func MonotonicScaledHeight(value, maxValue float64, height int) int {
+	if value <= 0 || maxValue <= 0 || height <= 0 {
+		return 0
+	}
+	scaled := int(math.Ceil(value / maxValue * float64(height)))
+	if scaled < 1 {
+		return 1
+	}
+	return min(scaled, height)
+}
+
 func SplitAndFitLines(content string, width int) []string {
 	lines := strings.Split(content, "\n")
 	result := make([]string, 0, len(lines))
