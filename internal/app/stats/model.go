@@ -83,6 +83,7 @@ type statsModel struct {
 	performanceLaneCursor   int
 	performanceMetricCursor int
 	metricDetailHeight      int
+	metricDetailLines       []string
 }
 
 const (
@@ -221,8 +222,10 @@ func (m statsModel) renderViewportContent(resetScroll bool) statsModel {
 	m = m.normalizeStatsSelection()
 	if m.overlayActive() {
 		m.metricDetailHeight = 0
+		m.metricDetailLines = nil
 	} else {
-		m.metricDetailHeight = metricDetailLaneHeight(m, m.contentWidth())
+		m.metricDetailLines = metricDetailLaneLines(m, m.contentWidth())
+		m.metricDetailHeight = metricDetailLaneHeightFromLines(m.metricDetailLines)
 	}
 	content := m.renderActiveTab()
 	m.viewport.SetWidth(m.contentWidth())

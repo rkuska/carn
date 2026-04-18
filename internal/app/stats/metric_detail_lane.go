@@ -10,36 +10,36 @@ const (
 	metricDetailLaneTitle = "Metric detail"
 )
 
-func metricDetailLaneHeight(m statsModel, width int) int {
+func metricDetailLaneLines(m statsModel, width int) []string {
 	if width <= 0 {
-		return metricDetailLaneMin
+		return nil
 	}
-	body := m.renderActiveMetricDetail(width)
-	lines := splitAndFitLines(body, width)
-	visible := len(lines) + 1
+	return splitAndFitLines(m.renderActiveMetricDetail(width), width)
+}
+
+func metricDetailLaneHeightFromLines(bodyLines []string) int {
+	visible := len(bodyLines) + 1
 	visible = max(visible, metricDetailLaneMin)
 	visible = min(visible, metricDetailLaneMax)
 	return visible
 }
 
-func renderMetricDetailLane(m statsModel, width, height int) string {
+func renderMetricDetailLaneRows(m statsModel, bodyLines []string, width, height int) []string {
 	if width <= 0 || height <= 0 {
-		return ""
+		return nil
 	}
-
-	divider := renderInlineTitledRule(m.theme, metricDetailLaneTitle, width, m.theme.ColorPrimary)
-	bodyLines := splitAndFitLines(m.renderActiveMetricDetail(width), width)
 
 	bodyHeight := max(height-1, 0)
 	if len(bodyLines) > bodyHeight {
 		bodyLines = bodyLines[:bodyHeight]
 	}
+	blank := strings.Repeat(" ", width)
 	for len(bodyLines) < bodyHeight {
-		bodyLines = append(bodyLines, strings.Repeat(" ", width))
+		bodyLines = append(bodyLines, blank)
 	}
 
-	lines := make([]string, 0, 1+len(bodyLines))
-	lines = append(lines, divider)
-	lines = append(lines, bodyLines...)
-	return strings.Join(lines, "\n")
+	rows := make([]string, 0, 1+len(bodyLines))
+	rows = append(rows, renderInlineTitledRule(m.theme, metricDetailLaneTitle, width, m.theme.ColorPrimary))
+	rows = append(rows, bodyLines...)
+	return rows
 }
