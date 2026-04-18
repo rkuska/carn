@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/rs/zerolog"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -68,9 +69,9 @@ func joinNaturalList(values []string) string {
 	}
 }
 
-func renderStatsDegradedBadge() string {
+func renderStatsDegradedBadge(theme *el.Theme) string {
 	return lipgloss.NewStyle().
-		Foreground(colorDiffRemove).
+		Foreground(theme.ColorDiffRemove).
 		Render(statsDegradedBadgeText)
 }
 

@@ -5,6 +5,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
 // searchOccurrence identifies a single match by line index and byte
@@ -62,7 +64,7 @@ func collectSearchOccurrences(lines []searchLineIndex, query string) []searchOcc
 // highlightLineOccurrences applies per-occurrence highlight styling.
 // The line may contain ANSI codes; matching is done on stripped text via
 // lipgloss.StyleRanges.
-func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) string {
+func highlightLineOccurrences(theme *el.Theme, line, queryLower string, occs []lineOccurrence) string {
 	if len(occs) == 0 || queryLower == "" {
 		return line
 	}
@@ -90,9 +92,9 @@ func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) st
 		cellStart := ansi.StringWidth(stripped[:byteStart])
 		cellEnd := ansi.StringWidth(stripped[:byteEnd])
 
-		style := styleSearchMatch
+		style := theme.StyleSearchMatch
 		if occIdx < len(occs) && occs[occIdx].isCurrentMatch {
-			style = styleCurrentMatch
+			style = theme.StyleCurrentMatch
 		}
 
 		ranges = append(ranges, lipgloss.NewRange(cellStart, cellEnd, style))
@@ -108,6 +110,7 @@ func highlightLineOccurrences(line, queryLower string, occs []lineOccurrence) st
 }
 
 func highlightViewportMatches(
+	theme *el.Theme,
 	content string,
 	query string,
 	matches []searchOccurrence,
@@ -135,7 +138,7 @@ func highlightViewportMatches(
 	}
 
 	for visibleLine, occs := range lineOccs {
-		lines[visibleLine] = highlightLineOccurrences(lines[visibleLine], queryLower, occs)
+		lines[visibleLine] = highlightLineOccurrences(theme, lines[visibleLine], queryLower, occs)
 	}
 
 	return strings.Join(lines, "\n")

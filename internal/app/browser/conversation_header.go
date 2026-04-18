@@ -9,6 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -24,7 +25,7 @@ func singleSessionConversation(meta conv.SessionMeta) conv.Conversation {
 	}
 }
 
-func renderConversationHeader(conversation conv.Conversation, width int, tsFmt string) string {
+func renderConversationHeader(theme *el.Theme, conversation conv.Conversation, width int, tsFmt string) string {
 	if len(conversation.Sessions) == 0 || width <= 0 {
 		return ""
 	}
@@ -32,41 +33,41 @@ func renderConversationHeader(conversation conv.Conversation, width int, tsFmt s
 	contentWidth := max(width-conversationHeaderInset, 1)
 	var lines []string
 
-	if badges := renderWrappedTokens(headerBadges(conversation), contentWidth); badges != "" {
+	if badges := renderWrappedTokens(headerBadges(theme, conversation), contentWidth); badges != "" {
 		lines = append(lines, badges)
 	}
-	if summary := renderWrappedTokens(headerSummaryChips(conversation), contentWidth); summary != "" {
+	if summary := renderWrappedTokens(headerSummaryChips(theme, conversation), contentWidth); summary != "" {
 		lines = append(lines, summary)
 	}
-	if timing := renderWrappedTokens(headerTimingChips(conversation, tsFmt), contentWidth); timing != "" {
+	if timing := renderWrappedTokens(headerTimingChips(theme, conversation, tsFmt), contentWidth); timing != "" {
 		lines = append(lines, timing)
 	}
 
 	if tools := conv.FormatToolCounts(conversation.TotalToolCounts()); tools != "" {
-		lines = append(lines, renderSingleChip("tools", tools))
+		lines = append(lines, renderSingleChip(theme, "tools", tools))
 	}
 
 	if cwd := conv.CompactCWD(conversation.ResumeCWD()); cwd != "" {
-		lines = append(lines, renderSingleChip("cwd", cwd))
+		lines = append(lines, renderSingleChip(theme, "cwd", cwd))
 	}
 
-	return renderInsetBox(width, colorSecondary, strings.Join(lines, "\n")) + "\n\n"
+	return renderInsetBox(width, theme.ColorSecondary, strings.Join(lines, "\n")) + "\n\n"
 }
 
-func headerBadges(conversation conv.Conversation) []string {
+func headerBadges(theme *el.Theme, conversation conv.Conversation) []string {
 	var badges []string
 	if conversation.IsSubagent() {
-		badges = append(badges, renderHeaderBadge("subagent", colorAccent))
+		badges = append(badges, renderHeaderBadge(theme, "subagent", theme.ColorAccent))
 	}
 	if parts := conversation.PartCount(); parts > 1 {
-		badges = append(badges, renderHeaderBadge(fmt.Sprintf("%d parts", parts), colorSecondary))
+		badges = append(badges, renderHeaderBadge(theme, fmt.Sprintf("%d parts", parts), theme.ColorSecondary))
 	}
 	if conversation.PlanCount > 0 {
 		label := fmt.Sprintf("%d plan", conversation.PlanCount)
 		if conversation.PlanCount > 1 {
 			label += "s"
 		}
-		badges = append(badges, renderHeaderBadge(label, colorPrimary))
+		badges = append(badges, renderHeaderBadge(theme, label, theme.ColorPrimary))
 	}
 	return badges
 }
@@ -74,7 +75,7 @@ func headerBadges(conversation conv.Conversation) []string {
 // renderPlanHeader renders plans inside bordered boxes below the conversation
 // metadata header. Returns empty if no plans exist.
 // When collapsed, shows only the last plan filename; when expanded, shows all plans.
-func renderPlanHeader(messages []conv.Message, width int, expanded bool) string {
+func renderPlanHeader(theme *el.Theme, messages []conv.Message, width int, expanded bool) string {
 	plans := conv.AllPlans(messages)
 	if len(plans) == 0 {
 		return ""
@@ -82,86 +83,62 @@ func renderPlanHeader(messages []conv.Message, width int, expanded bool) string 
 	if !expanded {
 		p := plans[len(plans)-1]
 		title := fmt.Sprintf("Plan: %s", filepath.Base(p.FilePath))
-		return renderInsetBox(width, colorPrimary, title) + "\n\n"
+		return renderInsetBox(width, theme.ColorPrimary, title) + "\n\n"
 	}
 	var sb strings.Builder
 	for _, p := range plans {
 		title := fmt.Sprintf("Plan: %s", filepath.Base(p.FilePath))
-		sb.WriteString(renderInsetBox(width, colorPrimary, title+"\n\n"+p.Content))
+		sb.WriteString(renderInsetBox(width, theme.ColorPrimary, title+"\n\n"+p.Content))
 		sb.WriteString("\n\n")
 	}
 	return sb.String()
 }
 
-func headerSummaryChips(conversation conv.Conversation) []string {
+func headerSummaryChips(theme *el.Theme, conversation conv.Conversation) []string {
 	var chips []string
 	if provider := conversationProviderLabel(conversation); provider != "" {
-		chips = append(chips, renderSingleChip("provider", provider))
+		chips = append(chips, renderSingleChip(theme, "provider", provider))
 	}
 	if model := conversation.Model(); model != "" {
-		chips = append(chips, renderSingleChip("model", model))
+		chips = append(chips, renderSingleChip(theme, "model", model))
 	}
 	if version := conversation.Version(); version != "" {
-		chips = append(chips, renderSingleChip("version", version))
+		chips = append(chips, renderSingleChip(theme, "version", version))
 	}
 	if branch := conversation.GitBranch(); branch != "" {
-		chips = append(chips, renderSingleChip("branch", branch))
+		chips = append(chips, renderSingleChip(theme, "branch", branch))
 	}
 	if d := conversation.Duration(); d > 0 {
-		chips = append(chips, renderSingleChip("duration", conv.FormatDuration(d)))
+		chips = append(chips, renderSingleChip(theme, "duration", conv.FormatDuration(d)))
 	}
 	if msgs := formatConversationMessages(conversation); msgs != "" {
-		chips = append(chips, renderSingleChip("msgs", msgs))
+		chips = append(chips, renderSingleChip(theme, "msgs", msgs))
 	}
 	if total := conversation.TotalTokenUsage().TotalTokens(); total > 0 {
-		chips = append(chips, renderSingleChip("tokens", formatTokenCount(total)))
+		chips = append(chips, renderSingleChip(theme, "tokens", formatTokenCount(total)))
 	}
 	return chips
 }
 
-func headerTimingChips(conversation conv.Conversation, tsFmt string) []string {
+func headerTimingChips(theme *el.Theme, conversation conv.Conversation, tsFmt string) []string {
 	var chips []string
 
 	if started := conversation.Timestamp(); !started.IsZero() {
-		chips = append(chips, renderSingleChip("started", started.Format(tsFmt)))
+		chips = append(chips, renderSingleChip(theme, "started", started.Format(tsFmt)))
 	}
 	if last := conversationLastTimestamp(conversation); !last.IsZero() {
-		chips = append(chips, renderSingleChip("last", last.Format(tsFmt)))
+		chips = append(chips, renderSingleChip(theme, "last", last.Format(tsFmt)))
 	}
 	if conversation.PartCount() > 1 {
-		chips = append(chips, renderSingleChip("resume", shortID(conversation.ResumeID())))
+		chips = append(chips, renderSingleChip(theme, "resume", shortID(conversation.ResumeID())))
 	}
 	return chips
 }
 
-func renderWrappedTokens(tokens []string, width int) string {
-	if len(tokens) == 0 {
-		return ""
-	}
-
-	const sep = "  "
-	lines := make([]string, 0, len(tokens))
-	current := tokens[0]
-	for _, token := range tokens[1:] {
-		if lipgloss.Width(current+sep+token) <= width {
-			current += sep + token
-			continue
-		}
-		lines = append(lines, current)
-		current = token
-	}
-	lines = append(lines, current)
-	return strings.Join(lines, "\n")
-}
-
-func renderSingleChip(label, value string) string {
-	return styleMetaLabel.Render(label) + " " + styleMetaValue.Render(value)
-}
-
-func renderHeaderBadge(text string, bg color.Color) string {
+func renderHeaderBadge(theme *el.Theme, text string, bg color.Color) string {
 	return lipgloss.NewStyle().
 		Bold(true).
-		Foreground(colorStatusFg).
+		Foreground(theme.ColorStatusFg).
 		Background(bg).
 		Padding(0, 1).
 		Render(text)

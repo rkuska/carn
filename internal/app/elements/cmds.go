@@ -1,8 +1,8 @@
-package app
+package elements
 
 import tea "charm.land/bubbletea/v2"
 
-func appendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {
+func AppendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {
 	if cmd != nil {
 		*cmds = append(*cmds, cmd)
 	}

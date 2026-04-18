@@ -32,15 +32,15 @@ type Chip struct {
 	Value string
 }
 
-func RenderHorizontalBars(title string, items []BarItem, width int, barColor color.Color) string {
-	body := RenderHorizontalBarsBody(items, width, barColor)
+func (t *Theme) RenderHorizontalBars(title string, items []BarItem, width int, barColor color.Color) string {
+	body := t.RenderHorizontalBarsBody(items, width, barColor)
 	if body == "" {
 		return ""
 	}
-	return RenderStatsTitle(title) + "\n" + body
+	return t.RenderStatsTitle(title) + "\n" + body
 }
 
-func RenderHorizontalBarsBody(items []BarItem, width int, barColor color.Color) string {
+func (t *Theme) RenderHorizontalBarsBody(items []BarItem, width int, barColor color.Color) string {
 	if width <= 0 {
 		return ""
 	}
@@ -75,25 +75,25 @@ func RenderHorizontalBarsBody(items []BarItem, width int, barColor color.Color) 
 	return strings.Join(lines, "\n")
 }
 
-func RenderRankedTable(title string, rows []TableRow, maxWidth int) string {
+func (t *Theme) RenderRankedTable(title string, rows []TableRow, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
 
 	width := min(maxWidth, 72)
-	titleLine := RenderStatsTitle(title)
+	titleLine := t.RenderStatsTitle(title)
 	if maxWidth > width {
 		titleLine = lipgloss.PlaceHorizontal(maxWidth, lipgloss.Center, titleLine)
 	}
 
-	body := RenderRankedTableBody(rows, maxWidth)
+	body := t.RenderRankedTableBody(rows, maxWidth)
 	if body == "" {
 		return titleLine
 	}
 	return titleLine + "\n" + body
 }
 
-func RenderRankedTableBody(rows []TableRow, maxWidth int) string {
+func (t *Theme) RenderRankedTableBody(rows []TableRow, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
@@ -126,17 +126,17 @@ func RenderRankedTableBody(rows []TableRow, maxWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderSideBySide(left, right string, width int) string {
-	return renderWeightedColumns(left, right, width, 1, 1)
+func (t *Theme) RenderSideBySide(left, right string, width int) string {
+	return t.renderWeightedColumns(left, right, width, 1, 1)
 }
 
-func renderWeightedColumns(left, right string, width, leftWeight, rightWeight int) string {
+func (t *Theme) renderWeightedColumns(left, right string, width, leftWeight, rightWeight int) string {
 	if width <= 0 {
 		return ""
 	}
 
 	leftWidth, rightWidth, stacked := StatsColumnWidths(width, leftWeight, rightWeight, 30)
-	return RenderColumns(left, right, leftWidth, rightWidth, stacked)
+	return t.RenderColumns(left, right, leftWidth, rightWidth, stacked)
 }
 
 func StatsColumnWidths(
@@ -165,7 +165,7 @@ func StatsColumnWidths(
 	return leftWidth, rightWidth, false
 }
 
-func RenderColumns(left, right string, leftWidth, rightWidth int, stacked bool) string {
+func (t *Theme) RenderColumns(left, right string, leftWidth, rightWidth int, stacked bool) string {
 	if stacked || leftWidth <= 0 || rightWidth <= 0 {
 		return strings.TrimSpace(left) + "\n\n" + strings.TrimSpace(right)
 	}
@@ -186,29 +186,29 @@ func RenderColumns(left, right string, leftWidth, rightWidth int, stacked bool) 
 		}
 		rows = append(rows,
 			FitToWidth(leftLine, leftWidth)+" "+
-				StyleRuleHR.Render("│")+" "+
+				t.StyleRuleHR.Render("│")+" "+
 				FitToWidth(rightLine, rightWidth),
 		)
 	}
 	return strings.Join(rows, "\n")
 }
 
-func RenderStatsTitle(title string) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(title)
+func (t *Theme) RenderStatsTitle(title string) string {
+	return lipgloss.NewStyle().Bold(true).Foreground(t.ColorPrimary).Render(title)
 }
 
-func RenderTokenValue(text string) string {
-	return lipgloss.NewStyle().Foreground(ColorChartToken).Render(text)
+func (t *Theme) RenderTokenValue(text string) string {
+	return lipgloss.NewStyle().Foreground(t.ColorChartToken).Render(text)
 }
 
-func RenderSummaryChips(chips []Chip, width int) string {
+func (t *Theme) RenderSummaryChips(chips []Chip, width int) string {
 	if len(chips) == 0 {
 		return ""
 	}
 
 	tokens := make([]string, 0, len(chips))
 	for _, item := range chips {
-		tokens = append(tokens, RenderSingleChip(item.Label, item.Value))
+		tokens = append(tokens, t.RenderSingleChip(item.Label, item.Value))
 	}
 	return RenderWrappedTokens(tokens, width)
 }

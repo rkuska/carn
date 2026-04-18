@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -136,7 +137,7 @@ func assignStackedTurnSegmentHeights(segments []stackedTurnBarSegment, totalHeig
 	}
 }
 
-func renderStackedTurnBarsChartBody(columns []stackedTurnBarColumn, width int) string {
+func renderStackedTurnBarsChartBody(theme *el.Theme, columns []stackedTurnBarColumn, width int) string {
 	if len(columns) == 0 || width <= 0 {
 		return statsNoClaudeTurnMetricsData
 	}
@@ -159,6 +160,7 @@ func renderStackedTurnBarsChartBody(columns []stackedTurnBarColumn, width int) s
 	lines := make([]string, 0, plotHeight+3)
 	for level := plotHeight; level >= 1; level-- {
 		lines = append(lines, renderStackedTurnBarLevel(
+			theme,
 			renderColumns,
 			level,
 			plotHeight,
@@ -168,7 +170,7 @@ func renderStackedTurnBarsChartBody(columns []stackedTurnBarColumn, width int) s
 			width,
 		))
 	}
-	lines = append(lines, renderTurnBarAxis(axisLabelWidth, graphWidth, width))
+	lines = append(lines, renderTurnBarAxis(theme, axisLabelWidth, graphWidth, width))
 
 	axisColumns := make([]turnBarColumn, 0, len(renderColumns))
 	for _, column := range renderColumns {
@@ -225,6 +227,7 @@ func layoutStackedTurnColumnsFromHistogram(
 }
 
 func renderStackedTurnBarLevel(
+	theme *el.Theme,
 	columns []stackedTurnBarColumn,
 	level, plotHeight int,
 	maxTotal float64,
@@ -258,7 +261,7 @@ func renderStackedTurnBarLevel(
 	}
 
 	label := turnBarLevelLabel(level, plotHeight, maxTotal)
-	prefix := fitToWidth(histogramAxisLabel(label), axisLabelWidth) + " " + histogramAxisLine("│") + " "
+	prefix := fitToWidth(histogramAxisLabel(theme, label), axisLabelWidth) + " " + histogramAxisLine(theme, "│") + " "
 	return ansi.Truncate(prefix+graph.String(), width, "…")
 }
 

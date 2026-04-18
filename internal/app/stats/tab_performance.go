@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -21,16 +22,16 @@ func (m statsModel) renderPerformanceTab(width int) string {
 		return strings.Join(sections, "\n\n")
 	}
 
-	sections = append(sections, renderPerformanceHeadline(performance, width))
+	sections = append(sections, renderPerformanceHeadline(m.theme, performance, width))
 
 	sections = append(sections,
-		renderSummaryChips(performanceScoreChips(performance), width),
-		renderSummaryChips(performanceScopeChips(performance), width),
+		renderSummaryChips(m.theme, performanceScoreChips(performance), width),
+		renderSummaryChips(m.theme, performanceScopeChips(performance), width),
 	)
 
 	sections = append(sections, renderPerformanceCards(m, width))
 	sections = append(sections, m.renderActiveMetricDetail(width))
-	sections = append(sections, renderPerformanceDiagnostics(performance, width))
+	sections = append(sections, renderPerformanceDiagnostics(m.theme, performance, width))
 
 	return strings.Join(sections, "\n\n")
 }
@@ -58,26 +59,27 @@ func performanceScopeChips(performance statspkg.Performance) []chip {
 	return chips
 }
 
-func renderPerformanceHeadline(performance statspkg.Performance, width int) string {
+func renderPerformanceHeadline(theme *el.Theme, performance statspkg.Performance, width int) string {
 	scope := performance.Scope
 	innerWidth := max(width-4, 1)
 	lines := []string{
-		renderStatsTitle(performanceVerdictText(performance.Overall) + " relative to baseline"),
+		renderStatsTitle(theme, performanceVerdictText(performance.Overall)+" relative to baseline"),
 		fmt.Sprintf("scope %s", performanceScopeSummary(scope)),
-		renderSummaryChips([]chip{
+		renderSummaryChips(theme, []chip{
 			{Label: "current", Value: formatPerformanceTimeRange(scope.CurrentRange)},
 			{Label: "baseline", Value: formatPerformanceTimeRange(scope.BaselineRange)},
 		}, innerWidth),
 	}
-	return renderFramedBox("Performance verdict", width, colorPrimary, strings.Join(lines, "\n"))
+	return renderFramedBox(theme, "Performance verdict", width, theme.ColorPrimary, strings.Join(lines, "\n"))
 }
 
 func renderPerformanceCards(m statsModel, width int) string {
 	cards := m.performanceLanes()
 	selectedLane := m.performanceLaneCursor
 	bodyHeight := performanceLaneCardsBodyHeight(cards[:])
-	return renderStatsLaneGrid(width, 36, selectedLane, func(index, width int, selected bool) string {
+	return renderStatsLaneGrid(m.theme, width, 36, selectedLane, func(index, width int, selected bool) string {
 		return renderPerformanceLaneCard(
+			m.theme,
 			cards[index],
 			selected,
 			metricCursorForLane(selectedLane, index, m.performanceMetricCursor),
@@ -95,6 +97,7 @@ func metricCursorForLane(selectedLane, laneIndex, metricCursor int) int {
 }
 
 func renderPerformanceLaneCard(
+	theme *el.Theme,
 	lane statspkg.PerformanceLane,
 	selected bool,
 	selectedMetricIndex int,
@@ -109,11 +112,13 @@ func renderPerformanceLaneCard(
 
 	lines := []string{
 		lane.Detail,
-		styleMetaLabel.Render("verdict") + " " + styleMetaValue.Render(performanceVerdictText(statspkg.PerformanceScore{
-			Score:    lane.Score,
-			HasScore: lane.HasScore,
-			Trend:    lane.Trend,
-		})),
+		theme.StyleMetaLabel.Render("verdict") + " " + theme.StyleMetaValue.Render(
+			performanceVerdictText(statspkg.PerformanceScore{
+				Score:    lane.Score,
+				HasScore: lane.HasScore,
+				Trend:    lane.Trend,
+			}),
+		),
 	}
 
 	selectedMetricID := ""
@@ -123,7 +128,7 @@ func renderPerformanceLaneCard(
 	for _, metric := range lane.Metrics {
 		lines = append(lines, renderPerformanceMetricRow(metric, metric.ID == selectedMetricID, width-4))
 	}
-	return renderStatsLanePane(title, selected, width, bodyHeight, strings.Join(lines, "\n"))
+	return renderStatsLanePane(theme, title, selected, width, bodyHeight, strings.Join(lines, "\n"))
 }
 
 func performanceLaneCardsBodyHeight(lanes []statspkg.PerformanceLane) int {
@@ -167,16 +172,17 @@ func renderPerformanceMetricRow(metric statspkg.PerformanceMetric, selected bool
 }
 
 func renderPerformanceMetricInspector(
+	theme *el.Theme,
 	metric statspkg.PerformanceMetric,
 	lane statspkg.PerformanceLane,
 	width int,
 ) string {
 	innerWidth := max(width-4, 1)
 	lines := []string{
-		renderStatsTitle(metric.Label + "  " + metric.Value),
-		styleMetaLabel.Render("Question") + " " + styleMetaValue.Render(metric.Question),
-		styleMetaLabel.Render("Formula") + " " + styleMetaValue.Render(metric.Formula),
-		renderSummaryChips([]chip{
+		renderStatsTitle(theme, metric.Label+"  "+metric.Value),
+		theme.StyleMetaLabel.Render("Question") + " " + theme.StyleMetaValue.Render(metric.Question),
+		theme.StyleMetaLabel.Render("Formula") + " " + theme.StyleMetaValue.Render(metric.Formula),
+		renderSummaryChips(theme, []chip{
 			{Label: "lane", Value: lane.Label},
 			{Label: "baseline", Value: performanceBaselineValue(metric)},
 			{Label: "delta", Value: performanceDelta(metric)},
@@ -184,25 +190,26 @@ func renderPerformanceMetricInspector(
 			{Label: "better when", Value: performanceDirection(metric.HigherIsBetter)},
 			{Label: "samples", Value: statspkg.FormatNumber(metric.SampleCount)},
 		}, innerWidth),
-		renderStatsTitle("Trend"),
+		renderStatsTitle(theme, "Trend"),
 		renderSparkline(metric.Series, max(innerWidth, 8)),
 	}
-	return renderFramedBox("Metric detail", width, colorPrimary, strings.Join(lines, "\n"))
+	return renderFramedBox(theme, "Metric detail", width, theme.ColorPrimary, strings.Join(lines, "\n"))
 }
 
-func renderPerformanceDiagnostics(performance statspkg.Performance, width int) string {
+func renderPerformanceDiagnostics(theme *el.Theme, performance statspkg.Performance, width int) string {
 	leftWidth, rightWidth, stacked := statsColumnWidths(width, 1, 1, 36)
 	return renderColumns(
-		renderPerformanceLikelyCauses(performance, leftWidth),
-		renderPerformanceProviderSignals(performance.Diagnostics, rightWidth),
+		theme,
+		renderPerformanceLikelyCauses(theme, performance, leftWidth),
+		renderPerformanceProviderSignals(theme, performance.Diagnostics, rightWidth),
 		leftWidth,
 		rightWidth,
 		stacked,
 	)
 }
 
-func renderPerformanceLikelyCauses(performance statspkg.Performance, width int) string {
-	lines := []string{renderStatsTitle("Likely causes")}
+func renderPerformanceLikelyCauses(theme *el.Theme, performance statspkg.Performance, width int) string {
+	lines := []string{renderStatsTitle(theme, "Likely causes")}
 	for _, cause := range performanceLikelyCauses(performance) {
 		lines = append(lines, ansi.Truncate(cause, width, "…"))
 	}
@@ -210,10 +217,11 @@ func renderPerformanceLikelyCauses(performance statspkg.Performance, width int) 
 }
 
 func renderPerformanceProviderSignals(
+	theme *el.Theme,
 	diagnostics []statspkg.PerformanceDiagnostic,
 	width int,
 ) string {
-	lines := []string{renderStatsTitle("Provider signals")}
+	lines := []string{renderStatsTitle(theme, "Provider signals")}
 	if len(diagnostics) == 0 {
 		lines = append(lines, "No diagnostic signals")
 		return strings.Join(lines, "\n")

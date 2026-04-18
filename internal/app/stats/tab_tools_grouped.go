@@ -3,6 +3,7 @@ package stats
 import (
 	"image/color"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -16,7 +17,7 @@ func (m statsModel) groupedTools() statspkg.ToolsByVersion {
 }
 
 func (m statsModel) renderGroupedToolsTab(width int, tools statspkg.Tools) string {
-	chips := renderSummaryChips(m.groupedToolsSummaryChips(tools), width)
+	chips := renderSummaryChips(m.theme, m.groupedToolsSummaryChips(tools), width)
 	body := selectProviderWithVersionsPrompt
 	if m.groupScope.hasProvider() {
 		body = m.renderGroupedToolsBody(width)
@@ -53,18 +54,21 @@ func (m statsModel) renderGroupedToolsBody(width int) string {
 	colorByVersion := m.groupScopeColorMap()
 
 	usageCharts := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		m.groupedProviderTitle("Tool Calls/Session"),
 		m.toolsLaneCursor == 0,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderVerticalStackedHistogramBody(
+						m.theme,
 						groupedToolCallBuckets(grouped.CallsPerSession, colorByVersion),
 						chartWidth,
 						5,
@@ -77,6 +81,7 @@ func (m statsModel) renderGroupedToolsBody(width int) string {
 		m.toolsLaneCursor == 1,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
@@ -92,19 +97,21 @@ func (m statsModel) renderGroupedToolsBody(width int) string {
 	)
 
 	qualityCharts := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		m.groupedProviderTitle("Tool Error Rate"),
 		m.toolsLaneCursor == 2,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderHorizontalStackedBarsBody(
-						groupedToolRateRows(grouped.ToolErrorRates, colorByVersion, true),
+						groupedToolRateRows(m.theme, grouped.ToolErrorRates, colorByVersion, true),
 						chartWidth,
 					)
 				},
@@ -114,13 +121,14 @@ func (m statsModel) renderGroupedToolsBody(width int) string {
 		m.toolsLaneCursor == 3,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderHorizontalStackedBarsBody(
-						groupedToolRateRows(grouped.ToolRejectRates, colorByVersion, false),
+						groupedToolRateRows(m.theme, grouped.ToolRejectRates, colorByVersion, false),
 						chartWidth,
 					)
 				},
@@ -162,6 +170,7 @@ func groupedToolTopRows(
 }
 
 func groupedToolRateRows(
+	theme *el.Theme,
 	items []statspkg.GroupedRateStat,
 	colorByVersion map[string]color.Color,
 	showCount bool,
@@ -171,7 +180,7 @@ func groupedToolRateRows(
 		rows = append(rows, stackedRowItem{
 			Label: item.Name,
 			Scale: item.Rate,
-			Value: renderToolRateValue(statspkg.ToolRateStat{
+			Value: renderToolRateValue(theme, statspkg.ToolRateStat{
 				Name: item.Name, Count: item.Count, Total: item.Total, Rate: item.Rate,
 			}, showCount),
 			Segments: groupedRowSegments(item.Versions, colorByVersion),

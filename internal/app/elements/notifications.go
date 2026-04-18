@@ -75,20 +75,20 @@ func NotificationCmd(msg NotificationMsg) tea.Cmd {
 	}
 }
 
-func RenderNotification(n Notification) string {
+func (t *Theme) RenderNotification(n Notification) string {
 	if n.Text == "" {
 		return ""
 	}
 
-	style := lipgloss.NewStyle().Foreground(ColorSecondary)
+	style := lipgloss.NewStyle().Foreground(t.ColorSecondary)
 
 	switch n.Kind {
 	case NotificationError:
-		style = lipgloss.NewStyle().Foreground(ColorDiffRemove)
+		style = lipgloss.NewStyle().Foreground(t.ColorDiffRemove)
 	case NotificationSuccess:
-		style = lipgloss.NewStyle().Foreground(ColorAccent)
+		style = lipgloss.NewStyle().Foreground(t.ColorAccent)
 	case NotificationInfo:
-		style = lipgloss.NewStyle().Foreground(ColorSecondary)
+		style = lipgloss.NewStyle().Foreground(t.ColorSecondary)
 	}
 
 	return style.Render(n.Text)

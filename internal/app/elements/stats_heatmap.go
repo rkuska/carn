@@ -23,15 +23,15 @@ var heatmapIntervals = [heatmapIntervalCount]heatmapInterval{
 	{label: "20-23", start: 20, end: 23},
 }
 
-func RenderActivityHeatmap(title string, cells [7][24]int, width int) string {
-	body := RenderActivityHeatmapBody(cells, width)
+func (t *Theme) RenderActivityHeatmap(title string, cells [7][24]int, width int) string {
+	body := t.RenderActivityHeatmapBody(cells, width)
 	if body == "" {
 		return ""
 	}
-	return RenderStatsTitle(title) + "\n" + body
+	return t.RenderStatsTitle(title) + "\n" + body
 }
 
-func RenderActivityHeatmapBody(cells [7][24]int, width int) string {
+func (t *Theme) RenderActivityHeatmapBody(cells [7][24]int, width int) string {
 	if width <= 0 {
 		return ""
 	}
@@ -63,7 +63,7 @@ func RenderActivityHeatmapBody(cells [7][24]int, width int) string {
 		row.WriteByte(' ')
 		for day := range 7 {
 			level := heatmapLevel(intervalCells[day][intervalIndex], maxValue)
-			char, style := heatmapCellStyle(level)
+			char, style := t.heatmapCellStyle(level)
 			row.WriteString(style.Render(strings.Repeat(char, cellWidth)))
 		}
 		lines = append(lines, row.String())
@@ -110,17 +110,17 @@ func heatmapLevel(value, maxValue int) int {
 	}
 }
 
-func heatmapCellStyle(level int) (string, lipgloss.Style) {
+func (t *Theme) heatmapCellStyle(level int) (string, lipgloss.Style) {
 	switch level {
 	case 1:
-		return "░", lipgloss.NewStyle().Foreground(ColorHeatmap1)
+		return "░", lipgloss.NewStyle().Foreground(t.ColorHeatmap1)
 	case 2:
-		return "▒", lipgloss.NewStyle().Foreground(ColorHeatmap2)
+		return "▒", lipgloss.NewStyle().Foreground(t.ColorHeatmap2)
 	case 3:
-		return "▓", lipgloss.NewStyle().Foreground(ColorHeatmap3)
+		return "▓", lipgloss.NewStyle().Foreground(t.ColorHeatmap3)
 	case 4:
-		return "█", lipgloss.NewStyle().Foreground(ColorHeatmap4)
+		return "█", lipgloss.NewStyle().Foreground(t.ColorHeatmap4)
 	default:
-		return " ", lipgloss.NewStyle().Foreground(ColorHeatmap0)
+		return " ", lipgloss.NewStyle().Foreground(t.ColorHeatmap0)
 	}
 }

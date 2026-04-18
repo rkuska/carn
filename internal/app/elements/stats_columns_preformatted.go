@@ -2,7 +2,7 @@ package elements
 
 import "strings"
 
-func RenderPreformattedColumns(left, right string, leftWidth, rightWidth int, stacked bool) string {
+func (t *Theme) RenderPreformattedColumns(left, right string, leftWidth, rightWidth int, stacked bool) string {
 	if stacked || leftWidth <= 0 || rightWidth <= 0 {
 		return strings.TrimSpace(left) + "\n\n" + strings.TrimSpace(right)
 	}
@@ -12,7 +12,7 @@ func RenderPreformattedColumns(left, right string, leftWidth, rightWidth int, st
 	lineCount := max(len(leftLines), len(rightLines))
 	leftBlank := strings.Repeat(" ", leftWidth)
 	rightBlank := strings.Repeat(" ", rightWidth)
-	separator := " " + StyleRuleHR.Render("│") + " "
+	separator := " " + t.StyleRuleHR.Render("│") + " "
 
 	var body strings.Builder
 	body.Grow(lineCount * (leftWidth + rightWidth + len(separator) + 1))

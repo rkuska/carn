@@ -6,8 +6,7 @@ import (
 )
 
 func initPaletteForTest(hasDarkBG bool) {
-	el.InitPaletteForTest(hasDarkBG)
-	syncPaletteFromElements()
+	_ = hasDarkBG
 }
 
 func heatmapIntervalCells(cells [7][24]int) [7][6]int {
@@ -24,12 +23,4 @@ func histogramValueLabelPlacement(scaledHeight, maxHeight int) (int, bool) {
 
 func bucketDailyRates(rates []statspkg.DailyRate, columnCount int) []dailyRateBucket {
 	return el.BucketDailyRates(rates, columnCount)
-}
-
-func helpItemKeys(items []helpItem) []string {
-	keys := make([]string, 0, len(items))
-	for _, item := range items {
-		keys = append(keys, item.Key)
-	}
-	return keys
 }

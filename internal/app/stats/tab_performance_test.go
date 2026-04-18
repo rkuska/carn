@@ -39,7 +39,7 @@ func TestStatsRenderPerformanceTabShowsScopeAndDiagnostics(t *testing.T) {
 func TestRenderPerformanceProviderSignalsAlignsTrendColumn(t *testing.T) {
 	t.Parallel()
 
-	body := ansi.Strip(renderPerformanceProviderSignals([]statspkg.PerformanceDiagnostic{
+	body := ansi.Strip(renderPerformanceProviderSignals(testTheme(), []statspkg.PerformanceDiagnostic{
 		{Group: "provider_signals", Label: "hidden thinking", Value: "0.0%", Trend: statspkg.TrendDirectionFlat},
 		{Group: "provider_signals", Label: "cache efficiency", Value: "97.0%", Trend: statspkg.TrendDirectionUp},
 		{Group: "provider_signals", Label: "output / input", Value: "0.5%", Trend: statspkg.TrendDirectionFlat},
@@ -167,7 +167,7 @@ func TestRenderPerformanceLaneCardShowsAllLaneMetrics(t *testing.T) {
 		testLaneMetric("metric four", "patch_churn", now),
 	)
 
-	body := ansi.Strip(renderPerformanceLaneCard(
+	body := ansi.Strip(renderPerformanceLaneCard(testTheme(),
 		lane,
 		true,
 		0,
@@ -222,8 +222,8 @@ func TestPerformanceLaneCardsBodyHeightUsesTallestLaneMetricCount(t *testing.T) 
 
 	assert.Equal(t, 6, bodyHeight)
 	assert.Equal(t,
-		lipgloss.Height(renderPerformanceLaneCard(lanes[0], true, 0, 56, bodyHeight)),
-		lipgloss.Height(renderPerformanceLaneCard(lanes[2], false, 0, 56, bodyHeight)),
+		lipgloss.Height(renderPerformanceLaneCard(testTheme(), lanes[0], true, 0, 56, bodyHeight)),
+		lipgloss.Height(renderPerformanceLaneCard(testTheme(), lanes[2], false, 0, 56, bodyHeight)),
 	)
 }
 

@@ -64,36 +64,39 @@ func formatTurnMetricMultiplier(early, late float64) string {
 }
 
 func renderClaudeTurnChart(
+	theme *el.Theme,
 	title string,
 	metrics []statspkg.PositionTokenMetrics,
 	width, height int,
 	barColor color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
-	body := renderClaudeTurnChartBody(metrics, width, height, barColor, value)
+	body := renderClaudeTurnChartBody(theme, metrics, width, height, barColor, value)
 	if body == "" {
 		return ""
 	}
-	return renderStatsTitle(title) + "\n" + body
+	return renderStatsTitle(theme, title) + "\n" + body
 }
 
 func renderClaudeTurnChartBody(
+	theme *el.Theme,
 	metrics []statspkg.PositionTokenMetrics,
 	width, height int,
 	barColor color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 ) string {
-	return renderTurnBarChartBody(metrics, width, height, barColor, value, true)
+	return renderTurnBarChartBody(theme, metrics, width, height, barColor, value, true)
 }
 
 func renderTurnBarChartBody(
+	theme *el.Theme,
 	metrics []statspkg.PositionTokenMetrics,
 	width, height int,
 	barColor color.Color,
 	value func(statspkg.PositionTokenMetrics) float64,
 	showXAxis bool,
 ) string {
-	return el.RenderTurnBarChartBody(
+	return theme.RenderTurnBarChartBody(
 		metrics,
 		width,
 		height,
@@ -109,7 +112,7 @@ var (
 	turnBarColumns         = el.TurnBarColumns
 	turnBarScaledHeight    = el.TurnBarScaledHeight
 	turnBarLevelLabel      = el.TurnBarLevelLabel
-	renderTurnBarAxis      = el.RenderTurnBarAxis
+	renderTurnBarAxis      = (*el.Theme).RenderTurnBarAxis
 	renderTurnBarXAxisRows = el.RenderTurnBarXAxisRows
 	claudeTurnChartPoints  = el.ClaudeTurnChartPoints
 	claudeTurnChartRange   = el.ClaudeTurnChartRange
@@ -123,5 +126,5 @@ func (m statsModel) renderClaudeTurnMetricLaneBody(
 	if len(metrics) == 0 {
 		return statsNoClaudeTurnMetricsData
 	}
-	return renderClaudeTurnChartBody(metrics, width, height, colorChartToken, value)
+	return renderClaudeTurnChartBody(m.theme, metrics, width, height, m.theme.ColorChartToken, value)
 }

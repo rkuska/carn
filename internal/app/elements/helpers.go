@@ -48,6 +48,6 @@ func RenderWrappedTokens(tokens []string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func RenderSingleChip(label, value string) string {
-	return StyleMetaLabel.Render(label) + " " + StyleMetaValue.Render(value)
+func (t *Theme) RenderSingleChip(label, value string) string {
+	return t.StyleMetaLabel.Render(label) + " " + t.StyleMetaValue.Render(value)
 }

@@ -16,7 +16,7 @@ func (m statsModel) groupedCache() statspkg.CacheByVersion {
 }
 
 func (m statsModel) renderGroupedCacheTab(width int, cache statspkg.Cache) string {
-	chips := renderSummaryChips(m.groupedCacheSummaryChips(cache), width)
+	chips := renderSummaryChips(m.theme, m.groupedCacheSummaryChips(cache), width)
 	body := selectProviderWithVersionsPrompt
 	if m.groupScope.hasProvider() {
 		body = m.renderGroupedCacheBody(width)
@@ -48,18 +48,21 @@ func (m statsModel) renderGroupedCacheBody(width int) string {
 	dailyTitle, dailyShares := m.groupedCacheDailyData(grouped)
 
 	topPair := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		m.groupedProviderTitle(dailyTitle),
 		m.cacheLaneCursor == 0,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderGroupedDailyShareChartBody(
+						m.theme,
 						dailyShares,
 						chartWidth,
 						11,
@@ -72,6 +75,7 @@ func (m statsModel) renderGroupedCacheBody(width int) string {
 		m.cacheLaneCursor == 1,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
@@ -87,18 +91,21 @@ func (m statsModel) renderGroupedCacheBody(width int) string {
 	)
 
 	bottomPair := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		m.groupedProviderTitle("Cache Write by Duration"),
 		m.cacheLaneCursor == 2,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderVerticalStackedHistogramBody(
+						m.theme,
 						groupedCacheDurationBuckets(grouped.WriteDuration, colorByVersion),
 						chartWidth,
 						7,
@@ -111,12 +118,14 @@ func (m statsModel) renderGroupedCacheBody(width int) string {
 		m.cacheLaneCursor == 3,
 		func(bodyWidth int) string {
 			return renderChartWithVersionLegend(
+				m.theme,
 				bodyWidth,
 				versions,
 				colorByVersion,
 				24,
 				func(chartWidth int) string {
 					return renderVerticalStackedHistogramBody(
+						m.theme,
 						groupedCacheDurationBuckets(grouped.ReadDuration, colorByVersion),
 						chartWidth,
 						7,

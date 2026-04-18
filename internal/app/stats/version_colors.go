@@ -3,17 +3,19 @@ package stats
 import (
 	"image/color"
 	"slices"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
-func versionColorMap(versions []string) map[string]color.Color {
+func versionColorMap(theme *el.Theme, versions []string) map[string]color.Color {
 	palette := []color.Color{
-		colorChartToken,
-		colorChartBar,
-		colorChartTime,
-		colorAccent,
-		colorPrimary,
-		colorDiffHunk,
-		colorDiffRemove,
+		theme.ColorChartToken,
+		theme.ColorChartBar,
+		theme.ColorChartTime,
+		theme.ColorAccent,
+		theme.ColorPrimary,
+		theme.ColorDiffHunk,
+		theme.ColorDiffRemove,
 	}
 
 	sorted := slices.Clone(versions)
@@ -37,5 +39,5 @@ func (m statsModel) groupScopeColorMap() map[string]color.Color {
 			versions = append(versions, version)
 		}
 	}
-	return versionColorMap(versions)
+	return versionColorMap(m.theme, versions)
 }

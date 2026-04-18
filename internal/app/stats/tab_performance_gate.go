@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -20,35 +21,41 @@ func renderPerformanceScopeGate(m statsModel, width int) string {
 	scope := m.snapshot.Performance.Scope
 	innerWidth := max(width-4, 1)
 	lines := []string{
-		renderSummaryChips([]chip{
+		renderSummaryChips(m.theme, []chip{
 			{Label: "need", Value: "1 provider + 1 model"},
 			{Label: "scope", Value: performanceScopeMismatchValue(scope)},
 			{Label: "sessions", Value: statspkg.FormatNumber(scope.SessionCount)},
 			{Label: "baseline", Value: statspkg.FormatNumber(scope.BaselineSessionCount)},
 		}, innerWidth),
-		renderSummaryChips([]chip{
+		renderSummaryChips(m.theme, []chip{
 			{Label: "current", Value: formatPerformanceTimeRange(scope.CurrentRange)},
 			{Label: "baseline", Value: formatPerformanceTimeRange(scope.BaselineRange)},
 		}, innerWidth),
-		performanceScopeSelectionLine("provider", scope.SingleProvider, scope.Providers),
-		performanceScopeSelectionLine("model", scope.SingleModel, scope.Models),
+		performanceScopeSelectionLine(m.theme, "provider", scope.SingleProvider, scope.Providers),
+		performanceScopeSelectionLine(m.theme, "model", scope.SingleModel, scope.Models),
 		"",
-		renderPerformanceScopeGateHint(innerWidth),
+		renderPerformanceScopeGateHint(m.theme, innerWidth),
 		"",
-		renderPerformanceScopePreview(innerWidth, m.performanceLaneCursor),
+		renderPerformanceScopePreview(m.theme, innerWidth, m.performanceLaneCursor),
 	}
-	return renderFramedBox("Performance preview", width, colorAccent, strings.Join(lines, "\n"))
+	return renderFramedBox(m.theme, "Performance preview", width, m.theme.ColorAccent, strings.Join(lines, "\n"))
 }
 
 func performanceScopeMismatchValue(scope statspkg.PerformanceScope) string {
 	return fmt.Sprintf("%d providers / %d models", len(scope.Providers), len(scope.Models))
 }
 
-func performanceScopeSelectionLine(label string, single bool, values []string) string {
+func performanceScopeSelectionLine(
+	theme *el.Theme,
+	label string,
+	single bool,
+	values []string,
+) string {
 	if !single {
 		label += "s"
 	}
-	return styleMetaLabel.Render(label) + " " + styleMetaValue.Render(performanceScopeSelectionValues(values))
+	return theme.StyleMetaLabel.Render(label) + " " +
+		theme.StyleMetaValue.Render(performanceScopeSelectionValues(values))
 }
 
 func performanceScopeSelectionValues(values []string) string {
@@ -58,31 +65,36 @@ func performanceScopeSelectionValues(values []string) string {
 	return strings.Join(values, ", ")
 }
 
-func renderPerformanceScopeGateHint(width int) string {
+func renderPerformanceScopeGateHint(theme *el.Theme, width int) string {
 	return lipgloss.NewStyle().
 		Width(width).
 		Align(lipgloss.Center).
-		Render(renderStatsTitle(performanceScopeGateHint))
+		Render(renderStatsTitle(theme, performanceScopeGateHint))
 }
 
-func renderPerformanceScopePreview(width, selectedLane int) string {
+func renderPerformanceScopePreview(theme *el.Theme, width, selectedLane int) string {
 	cards := performanceScopePreviewCards()
-	return renderStatsLaneGrid(width, 28, selectedLane, func(index, width int, selected bool) string {
-		return renderPerformanceScopePreviewCard(cards[index], width, selected)
+	return renderStatsLaneGrid(theme, width, 28, selectedLane, func(index, width int, selected bool) string {
+		return renderPerformanceScopePreviewCard(theme, cards[index], width, selected)
 	})
 }
 
-func renderPerformanceScopePreviewCard(card performanceScopePreviewCard, width int, selected bool) string {
+func renderPerformanceScopePreviewCard(
+	theme *el.Theme,
+	card performanceScopePreviewCard,
+	width int,
+	selected bool,
+) string {
 	if width <= 0 {
 		return ""
 	}
 
-	muted := lipgloss.NewStyle().Foreground(colorNormalDesc)
+	muted := lipgloss.NewStyle().Foreground(theme.ColorNormalDesc)
 	lines := []string{muted.Render("filtered view")}
 	for _, metric := range card.Metrics {
 		lines = append(lines, muted.Render(metric))
 	}
-	return renderStatsLaneBox(card.Title, selected, width, strings.Join(lines, "\n"))
+	return renderStatsLaneBox(theme, card.Title, selected, width, strings.Join(lines, "\n"))
 }
 
 func performanceScopePreviewCards() []performanceScopePreviewCard {

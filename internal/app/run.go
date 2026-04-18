@@ -122,13 +122,6 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 		ctx = context.Background()
 	}
 
-	glamourStyle := cfg.GlamourStyle
-	if glamourStyle == "" {
-		glamourStyle = glamourStyleDark
-	}
-
-	initPalette(glamourStyle != appbrowser.GlamourStyleLight)
-
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
 	store := canonical.New(StatsCollector{}, claudeBackend, codexBackend)

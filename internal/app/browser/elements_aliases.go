@@ -1,10 +1,6 @@
 package browser
 
-import (
-	"image/color"
-
-	el "github.com/rkuska/carn/internal/app/elements"
-)
+import el "github.com/rkuska/carn/internal/app/elements"
 
 type helpItem = el.HelpItem
 type helpSection = el.HelpSection
@@ -45,18 +41,19 @@ const (
 )
 
 var (
-	renderHelpFooter                     = el.RenderHelpFooter
-	renderSearchFooter                   = el.RenderSearchFooter
-	renderHelpItems                      = el.RenderHelpItems
-	renderHelpItem                       = el.RenderHelpItem
-	renderHelpOverlay                    = el.RenderHelpOverlay
+	renderHelpFooter                     = (*el.Theme).RenderHelpFooter
+	renderSearchFooter                   = (*el.Theme).RenderSearchFooter
+	renderHelpItems                      = (*el.Theme).RenderHelpItems
+	renderHelpItem                       = (*el.Theme).RenderHelpItem
+	renderHelpOverlay                    = (*el.Theme).RenderHelpOverlay
 	joinNonEmpty                         = el.JoinNonEmpty
 	withHelpDetail                       = el.WithHelpDetail
 	logInfoSection                       = el.LogInfoSection
 	versionInfoSection                   = el.VersionInfoSection
-	renderFramedPane                     = el.RenderFramedPane
+	renderFramedPane                     = (*el.Theme).RenderFramedPane
 	renderInsetBox                       = el.RenderInsetBox
 	framedBodyHeight                     = el.FramedBodyHeight
+	appendCmd                            = el.AppendCmd
 	infoNotification                     = el.InfoNotification
 	successNotification                  = el.SuccessNotification
 	errorNotification                    = el.ErrorNotification
@@ -70,86 +67,15 @@ var (
 	applyStructuredFilters               = el.ApplyStructuredFilters
 	filterBadges                         = el.FilterBadges
 	cycleBoolFilter                      = el.CycleBoolFilter
-	renderFilterOverlayWithConversations = el.RenderFilterOverlayWithConversations
+	renderFilterOverlayWithConversations = (*el.Theme).RenderFilterOverlayWithConversations
 	filterFooterStatusParts              = el.FilterFooterStatusParts
 	filterFooterItems                    = el.FilterFooterItems
 	copyBrowserFilterState               = el.CopyFilterState
 	fitToWidth                           = el.FitToWidth
+	renderWrappedTokens                  = el.RenderWrappedTokens
+	renderSingleChip                     = (*el.Theme).RenderSingleChip
 )
 
 func resumeErrorNotification(err error, cwd string) notificationMsg {
 	return el.FormatResumeErrorNotification(err, cwd, errResumeProviderUnavailable)
-}
-
-var (
-	colorPrimary    color.Color
-	colorSecondary  color.Color
-	colorAccent     color.Color
-	colorHighlight  color.Color
-	colorSelectedFg color.Color
-	colorDiffRemove color.Color
-	colorStatusFg   color.Color
-	colorNormalDesc color.Color
-
-	styleSubtitle             = el.StyleSubtitle
-	styleToolCall             = el.StyleToolCall
-	styleToolCallItalic       = el.StyleToolCallItalic
-	styleMetaLabel            = el.StyleMetaLabel
-	styleMetaValue            = el.StyleMetaValue
-	styleSearchMatch          = el.StyleSearchMatch
-	styleCurrentMatch         = el.StyleCurrentMatch
-	styleRuleHR               = el.StyleRuleHR
-	styleBadgeUser            = el.StyleBadgeUser
-	styleBadgeAssistant       = el.StyleBadgeAssistant
-	styleBadgeSystem          = el.StyleBadgeSystem
-	styleThinkLabel           = el.StyleThinkLabel
-	styleThinkBorder          = el.StyleThinkBorder
-	styleThinkLine            = el.StyleThinkLine
-	styleSelectedPreview      = el.StyleSelectedPreview
-	styleNormalPreview        = el.StyleNormalPreview
-	styleDimmedPreview        = el.StyleDimmedPreview
-	styleDiffBg               = el.StyleDiffBg
-	styleDiffAdd              = el.StyleDiffAdd
-	styleDiffRemoveLine       = el.StyleDiffRemoveLine
-	styleDiffHunkLine         = el.StyleDiffHunkLine
-	styleToolResultBadge      = el.StyleToolResultBadge
-	styleToolResultErrorBadge = el.StyleToolResultErrorBadge
-)
-
-func syncPaletteFromElements() {
-	if el.ColorPrimary == nil {
-		el.InitPalette(true)
-	}
-	colorPrimary = el.ColorPrimary
-	colorSecondary = el.ColorSecondary
-	colorAccent = el.ColorAccent
-	colorHighlight = el.ColorHighlight
-	colorSelectedFg = el.ColorSelectedFg
-	colorDiffRemove = el.ColorDiffRemove
-	colorStatusFg = el.ColorStatusFg
-	colorNormalDesc = el.ColorNormalDesc
-
-	styleSubtitle = el.StyleSubtitle
-	styleToolCall = el.StyleToolCall
-	styleToolCallItalic = el.StyleToolCallItalic
-	styleMetaLabel = el.StyleMetaLabel
-	styleMetaValue = el.StyleMetaValue
-	styleSearchMatch = el.StyleSearchMatch
-	styleCurrentMatch = el.StyleCurrentMatch
-	styleRuleHR = el.StyleRuleHR
-	styleBadgeUser = el.StyleBadgeUser
-	styleBadgeAssistant = el.StyleBadgeAssistant
-	styleBadgeSystem = el.StyleBadgeSystem
-	styleThinkLabel = el.StyleThinkLabel
-	styleThinkBorder = el.StyleThinkBorder
-	styleThinkLine = el.StyleThinkLine
-	styleSelectedPreview = el.StyleSelectedPreview
-	styleNormalPreview = el.StyleNormalPreview
-	styleDimmedPreview = el.StyleDimmedPreview
-	styleDiffBg = el.StyleDiffBg
-	styleDiffAdd = el.StyleDiffAdd
-	styleDiffRemoveLine = el.StyleDiffRemoveLine
-	styleDiffHunkLine = el.StyleDiffHunkLine
-	styleToolResultBadge = el.StyleToolResultBadge
-	styleToolResultErrorBadge = el.StyleToolResultErrorBadge
 }

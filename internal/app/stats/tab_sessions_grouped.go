@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -21,10 +22,11 @@ func (m statsModel) renderVersionedTurnMetricLaneBody(
 	if len(series) == 0 {
 		return "No turn metrics for the selected provider/version scope."
 	}
-	return renderVersionedTurnChartBody(series, width, height, m.groupScopeColorMap(), value)
+	return renderVersionedTurnChartBody(m.theme, series, width, height, m.groupScopeColorMap(), value)
 }
 
 func renderVersionedTurnChartBody(
+	theme *el.Theme,
 	series []statspkg.VersionTurnSeries,
 	width, height int,
 	colorByVersion map[string]color.Color,
@@ -36,12 +38,12 @@ func renderVersionedTurnChartBody(
 
 	chartWidth, legendWidth, sideLegend := versionedTurnChartWidths(width, series)
 	columns := buildStackedTurnBars(series, height, colorByVersion, value)
-	chartBody := renderStackedTurnBarsChartBody(columns, chartWidth)
+	chartBody := renderStackedTurnBarsChartBody(theme, columns, chartWidth)
 	legendBody := renderVersionLegend(series, legendWidth, colorByVersion)
 	if !sideLegend {
 		return chartBody + "\n" + legendBody
 	}
-	return renderColumns(chartBody, legendBody, chartWidth, legendWidth, false)
+	return renderColumns(theme, chartBody, legendBody, chartWidth, legendWidth, false)
 }
 
 func versionedTurnChartWidths(

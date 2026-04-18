@@ -12,7 +12,7 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
-func RenderFilterOverlayWithConversations(
+func (t *Theme) RenderFilterOverlayWithConversations(
 	conversations []conv.Conversation,
 	filter FilterState,
 	width, height int,
@@ -24,43 +24,43 @@ func RenderFilterOverlayWithConversations(
 	lines := []string{""}
 	for i := range FilterDimCount {
 		dim := FilterDimension(i)
-		lines = append(lines, RenderFilterDimensionRow(filter, dim, contentWidth))
+		lines = append(lines, t.RenderFilterDimensionRow(filter, dim, contentWidth))
 		if filter.Expanded == int(dim) {
-			lines = append(lines, RenderFilterExpandedValues(filter, dim, contentWidth)...)
+			lines = append(lines, t.RenderFilterExpandedValues(filter, dim, contentWidth)...)
 		}
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, renderFilterMatchLine(conversations, filter, contentWidth))
+	lines = append(lines, t.renderFilterMatchLine(conversations, filter, contentWidth))
 	lines = append(lines, "")
 
 	content := strings.Join(lines, "\n")
-	box := RenderFramedBox("Filter", boxWidth, ColorPrimary, content)
+	box := t.RenderFramedBox("Filter", boxWidth, t.ColorPrimary, content)
 	return lipgloss.Place(width, bodyHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
-func RenderFilterDimensionRow(filter FilterState, dim FilterDimension, width int) string {
+func (t *Theme) RenderFilterDimensionRow(filter FilterState, dim FilterDimension, width int) string {
 	cursor := FilterOverlayCursorOff
 	if filter.Cursor == int(dim) && filter.Expanded < 0 {
 		cursor = FilterOverlayCursorOn
 	}
 
 	label := FilterDimensionLabel(dim)
-	labelRendered := StyleMetaLabel.Render(label)
+	labelRendered := t.StyleMetaLabel.Render(label)
 	labelWidth := lipgloss.Width(labelRendered)
 
 	summaryWidth := max(width-lipgloss.Width(FilterOverlayIndent+cursor)-labelWidth-2, 1)
-	summary := RenderFilterDimensionSummary(filter, dim, summaryWidth)
+	summary := t.RenderFilterDimensionSummary(filter, dim, summaryWidth)
 
 	row := FilterOverlayIndent + cursor + labelRendered + "  " + summary
 	return ansi.Truncate(row, width, "…")
 }
 
-func RenderFilterDimensionSummary(filter FilterState, dim FilterDimension, maxWidth int) string {
+func (t *Theme) RenderFilterDimensionSummary(filter FilterState, dim FilterDimension, maxWidth int) string {
 	f := filter.Dimensions[dim]
 
 	if FilterDimensionIsBool(dim) {
-		return RenderBoolSummary(f.BoolState, maxWidth)
+		return t.RenderBoolSummary(f.BoolState, maxWidth)
 	}
 
 	if filter.RegexEditing && filter.Cursor == int(dim) {
@@ -68,14 +68,14 @@ func RenderFilterDimensionSummary(filter FilterState, dim FilterDimension, maxWi
 	}
 
 	if f.UseRegex && f.Regex != "" {
-		text := lipgloss.NewStyle().Foreground(ColorPrimary).Render("/" + f.Regex + "/")
+		text := lipgloss.NewStyle().Foreground(t.ColorPrimary).Render("/" + f.Regex + "/")
 		return ansi.Truncate(text, maxWidth, "…")
 	}
 
-	return RenderSelectionSummary(f, filter.Values[dim], maxWidth)
+	return t.RenderSelectionSummary(f, filter.Values[dim], maxWidth)
 }
 
-func RenderFilterExpandedValues(filter FilterState, dim FilterDimension, width int) []string {
+func (t *Theme) RenderFilterExpandedValues(filter FilterState, dim FilterDimension, width int) []string {
 	values := filter.Values[dim]
 	f := filter.Dimensions[dim]
 	indent := FilterOverlayIndent + "    "
@@ -89,7 +89,7 @@ func RenderFilterExpandedValues(filter FilterState, dim FilterDimension, width i
 
 		check := FilterOverlayCheckOff
 		if f.Selected[value] {
-			check = lipgloss.NewStyle().Foreground(ColorAccent).Render("✓ ")
+			check = lipgloss.NewStyle().Foreground(t.ColorAccent).Render("✓ ")
 		}
 
 		row := indent + cursor + check + value
@@ -98,7 +98,7 @@ func RenderFilterExpandedValues(filter FilterState, dim FilterDimension, width i
 	return lines
 }
 
-func renderFilterMatchLine(
+func (t *Theme) renderFilterMatchLine(
 	conversations []conv.Conversation,
 	filter FilterState,
 	width int,
@@ -106,7 +106,7 @@ func renderFilterMatchLine(
 	count := filter.MatchCount(conversations)
 	total := len(conversations)
 	text := fmt.Sprintf("%d of %d matching", count, total)
-	rendered := lipgloss.NewStyle().Foreground(ColorNormalDesc).Render(text)
+	rendered := lipgloss.NewStyle().Foreground(t.ColorNormalDesc).Render(text)
 	return FilterOverlayIndent + ansi.Truncate(rendered, max(width-4, 1), "…")
 }
 

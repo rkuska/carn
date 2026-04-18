@@ -61,7 +61,7 @@ func TestBrowserListFooterShowsResyncProgressStatus(t *testing.T) {
 	b.resync.total = 5
 
 	footer := ansi.Strip(b.footerView())
-	help := renderHelpItems(b.listFooterItems())
+	help := renderHelpItems(testTheme(), b.listFooterItems())
 
 	assert.Contains(t, footer, "[resync]")
 	assert.Contains(t, footer, "2/5")
@@ -106,9 +106,9 @@ func TestBrowserResyncHelpItemUsesActionKeyWithoutTogglePrefix(t *testing.T) {
 	item := testBrowser(t).resyncHelpItem()
 
 	assert.False(t, item.Toggle)
-	assert.Contains(t, ansi.Strip(renderHelpItem(item)), "R resync")
-	assert.NotContains(t, ansi.Strip(renderHelpItem(item)), "+R")
-	assert.NotContains(t, ansi.Strip(renderHelpItem(item)), "-R")
+	assert.Contains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "R resync")
+	assert.NotContains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "+R")
+	assert.NotContains(t, ansi.Strip(renderHelpItem(testTheme(), item)), "-R")
 }
 
 func TestBrowserListHelpShowsResyncAction(t *testing.T) {

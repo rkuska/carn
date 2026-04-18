@@ -1,7 +1,6 @@
 package app
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,14 +8,7 @@ import (
 	el "github.com/rkuska/carn/internal/app/elements"
 )
 
-var versionStateMu sync.Mutex
-
 func TestVersionInfoSyncsElementsBuildMetadata(t *testing.T) {
-	t.Parallel()
-
-	versionStateMu.Lock()
-	t.Cleanup(versionStateMu.Unlock)
-
 	originalVersion := version
 	originalCommit := commit
 	originalDate := date

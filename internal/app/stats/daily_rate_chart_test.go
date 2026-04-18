@@ -62,11 +62,11 @@ func TestRenderDailyRateChartBodyUsesDistinctMarkersForInactiveAndZeroDays(t *te
 	t.Parallel()
 
 	start := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	got := ansi.Strip(renderDailyRateChartBody([]statspkg.DailyRate{
+	got := ansi.Strip(renderDailyRateChartBody(testTheme(), []statspkg.DailyRate{
 		{Date: start, Rate: 0.8, HasActivity: true},
 		{Date: start.AddDate(0, 0, 1), Rate: 0, HasActivity: false},
 		{Date: start.AddDate(0, 0, 2), Rate: 0, HasActivity: true},
-	}, 24, 6, colorChartToken, percentYLabel()))
+	}, 24, 6, testTheme().ColorChartToken, percentYLabel()))
 
 	assert.Contains(t, got, "█")
 	assert.Contains(t, got, "·")
@@ -79,14 +79,14 @@ func TestRenderDailyRateChartBodyFitsWidth(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
-	got := renderDailyRateChartBody([]statspkg.DailyRate{
+	got := renderDailyRateChartBody(testTheme(), []statspkg.DailyRate{
 		{Date: start, Rate: 0.97, HasActivity: true},
 		{Date: start.AddDate(0, 0, 1), Rate: 0.86, HasActivity: true},
 		{Date: start.AddDate(0, 0, 2), Rate: 0, HasActivity: false},
 		{Date: start.AddDate(0, 0, 3), Rate: 0.24, HasActivity: true},
 		{Date: start.AddDate(0, 0, 4), Rate: 0, HasActivity: true},
 		{Date: start.AddDate(0, 0, 5), Rate: 0.91, HasActivity: true},
-	}, 28, 7, colorChartToken, percentYLabel())
+	}, 28, 7, testTheme().ColorChartToken, percentYLabel())
 
 	for line := range strings.SplitSeq(ansi.Strip(got), "\n") {
 		assert.LessOrEqual(t, lipgloss.Width(line), 28)
@@ -141,7 +141,7 @@ func TestRenderDailyRateChartBodyUsesWideBarsWhenSpaceAllows(t *testing.T) {
 		})
 	}
 
-	got := ansi.Strip(renderDailyRateChartBody(rates, 48, 6, colorChartToken, percentYLabel()))
+	got := ansi.Strip(renderDailyRateChartBody(testTheme(), rates, 48, 6, testTheme().ColorChartToken, percentYLabel()))
 
 	assert.Contains(t, got, "██")
 }

@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -32,6 +33,7 @@ type viewerModel struct {
 	viewport             viewport.Model
 	conversation         conv.Conversation
 	session              conv.Session
+	theme                *el.Theme
 	launcher             sessionLauncher
 	opts                 transcriptOptions
 	content              contentFlags
@@ -110,6 +112,7 @@ func newViewerModel(
 		width,
 		height,
 		nil,
+		nil,
 	)
 }
 
@@ -119,13 +122,16 @@ func newViewerModelWithLauncher(
 	glamourStyle string,
 	timestampFormat string,
 	width, height int,
+	theme *el.Theme,
 	launcher sessionLauncher,
 ) viewerModel {
-	syncPaletteFromElements()
+	if theme == nil {
+		theme = el.NewTheme(glamourStyle != GlamourStyleLight)
+	}
 	vp := viewport.New(viewport.WithWidth(width-viewerBorderH), viewport.WithHeight(framedBodyHeight(height)))
 	vp.Style = lipgloss.NewStyle().Padding(0, 1)
-	vp.HighlightStyle = styleSearchMatch
-	vp.SelectedHighlightStyle = styleCurrentMatch
+	vp.HighlightStyle = theme.StyleSearchMatch
+	vp.SelectedHighlightStyle = theme.StyleCurrentMatch
 	vp.KeyMap.PageDown = key.NewBinding(
 		key.WithKeys("pgdown", "ctrl+f"),
 		key.WithHelp("ctrl+f/pgdn", "page down"),
@@ -144,6 +150,7 @@ func newViewerModelWithLauncher(
 		viewport:        vp,
 		conversation:    conversation,
 		session:         session,
+		theme:           theme,
 		launcher:        resolveSessionLauncher(launcher),
 		opts:            transcriptOptions{},
 		content:         scanContentFlags(session.Messages),

@@ -19,7 +19,7 @@ type StackedHistBucket struct {
 	Segments []StackedHistSegment
 }
 
-func RenderVerticalStackedHistogramBody(
+func (t *Theme) RenderVerticalStackedHistogramBody(
 	buckets []StackedHistBucket,
 	width, maxHeight int,
 	yLabel func(int) string,
@@ -42,12 +42,12 @@ func RenderVerticalStackedHistogramBody(
 	lines := make([]string, 0, maxHeight+2)
 	for level := maxHeight; level >= 1; level-- {
 		label := stackedHistogramAxisLabel(level, maxHeight, maxTotal, yLabel)
-		prefix := FitToWidth(HistogramAxisLabel(label), axisLabelWidth) +
-			" " + HistogramAxisLine("│") + " "
+		prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) +
+			" " + t.HistogramAxisLine("│") + " "
 		lines = append(lines, ansi.Truncate(prefix+renderStackedHistogramLevel(renderBuckets, level, layout), width, "…"))
 	}
-	lines = append(lines, RenderHistogramAxis(axisLabelWidth, layout.GraphWidth, width))
-	lines = append(lines, RenderHistogramLabels(
+	lines = append(lines, t.RenderHistogramAxis(axisLabelWidth, layout.GraphWidth, width))
+	lines = append(lines, t.RenderHistogramLabels(
 		histBucketsFromStacked(buckets),
 		axisLabelWidth,
 		layout.BucketWidths,

@@ -204,6 +204,7 @@ func TestNewModelLoadsPrecomputedStatsWithArchiveDir(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		testTheme(),
 	)
 
 	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)

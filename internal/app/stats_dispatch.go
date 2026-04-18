@@ -21,6 +21,7 @@ func (m appModel) updateStats(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width,
 			m.height,
 			m.browser.FilterState(),
+			m.theme,
 		)
 		m.state = viewStats
 		return m, nil

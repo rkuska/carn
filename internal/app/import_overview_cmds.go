@@ -8,14 +8,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	arch "github.com/rkuska/carn/internal/archive"
 )
 
 // renderKeyHint renders a hint line with the key name highlighted white when
 // active, or entirely grey when disabled. The surrounding text is always grey.
-func renderKeyHint(parts ...string) string {
-	grey := lipgloss.NewStyle().Foreground(colorSecondary)
-	white := lipgloss.NewStyle().Foreground(colorStatusFg)
+func renderKeyHint(theme *el.Theme, parts ...string) string {
+	grey := lipgloss.NewStyle().Foreground(theme.ColorSecondary)
+	white := lipgloss.NewStyle().Foreground(theme.ColorStatusFg)
 	var b strings.Builder
 	for i, p := range parts {
 		if i%2 == 0 {

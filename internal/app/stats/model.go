@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 	"github.com/rkuska/carn/internal/stats"
 )
@@ -45,6 +46,7 @@ const (
 type statsModel struct {
 	conversations           []conv.Conversation
 	store                   browserStore
+	theme                   *el.Theme
 	ctx                     context.Context
 	archiveDir              string
 	tab                     statsTab
@@ -111,13 +113,16 @@ func setStatsNowForTest(now func() time.Time) func() {
 	}
 }
 
-func newStatsModel(
+func newStatsModelWithTheme(
 	conversations []conv.Conversation,
 	store browserStore,
 	width, height int,
 	filter browserFilterState,
+	theme *el.Theme,
 ) statsModel {
-	syncPaletteFromElements()
+	if theme == nil {
+		theme = el.NewTheme(true)
+	}
 	vp := viewport.New()
 	vp.KeyMap.PageDown.SetEnabled(false)
 	vp.KeyMap.PageUp.SetEnabled(false)
@@ -125,6 +130,7 @@ func newStatsModel(
 	model := statsModel{
 		conversations: conversations,
 		store:         store,
+		theme:         theme,
 		ctx:           context.Background(),
 		filter:        copyBrowserFilterState(filter),
 		viewport:      vp,
@@ -137,6 +143,15 @@ func newStatsModel(
 	model = model.setSize(width, height)
 	model = model.applyFilterChange()
 	return model
+}
+
+func newStatsModel(
+	conversations []conv.Conversation,
+	store browserStore,
+	width, height int,
+	filter browserFilterState,
+) statsModel {
+	return newStatsModelWithTheme(conversations, store, width, height, filter, nil)
 }
 
 func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {
@@ -314,13 +329,13 @@ func filteredConversationCacheKeys(conversations []conv.Conversation) []string {
 func (m statsModel) footerStatusParts() []string {
 	parts := make([]string, 0, 2+len(filterBadges(m.filter.Dimensions)))
 	for _, badge := range filterBadges(m.filter.Dimensions) {
-		parts = append(parts, styleToolCall.Render("["+badge+"]"))
+		parts = append(parts, m.theme.StyleToolCall.Render("["+badge+"]"))
 	}
 	if m.versionFilter.IsActive() {
-		parts = append(parts, renderStatsVersionFilterBadge(m.versionFilter))
+		parts = append(parts, renderStatsVersionFilterBadge(m.theme, m.versionFilter))
 	}
 	if m.statsQueryFailures.degraded() {
-		parts = append(parts, renderStatsDegradedBadge())
+		parts = append(parts, renderStatsDegradedBadge(m.theme))
 	}
 	parts = append(parts, fmt.Sprintf("[stats] %d sessions", m.snapshot.Overview.SessionCount))
 	return parts

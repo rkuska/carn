@@ -13,10 +13,10 @@ import (
 
 func (m statsModel) renderOverviewTab(width int) string {
 	overview := m.snapshot.Overview
-	chips := renderSummaryChips([]chip{
+	chips := renderSummaryChips(m.theme, []chip{
 		{Label: "sessions", Value: statspkg.FormatNumber(overview.SessionCount)},
 		{Label: "messages", Value: statspkg.FormatNumber(overview.MessageCount)},
-		{Label: "tokens", Value: renderOverviewTokenValue(overview)},
+		{Label: "tokens", Value: m.renderOverviewTokenValue(overview)},
 		{Label: "input", Value: statspkg.FormatNumber(overview.Tokens.Input)},
 		{Label: "output", Value: statspkg.FormatNumber(overview.Tokens.Output)},
 		{Label: "cache-rd", Value: statspkg.FormatNumber(overview.Tokens.CacheRead)},
@@ -47,7 +47,7 @@ func (m statsModel) renderOverviewTab(width int) string {
 			session.Timestamp.Format("2006-01-02"),
 			statspkg.FormatNumber(session.MessageCount),
 			conv.FormatDuration(session.Duration),
-			renderTokenValue(statspkg.FormatNumber(session.Tokens)),
+			renderTokenValue(m.theme, statspkg.FormatNumber(session.Tokens)),
 		}})
 	}
 
@@ -66,36 +66,40 @@ func (m statsModel) renderOverviewGrid(
 		bodyWidth := statsLaneBodyWidth(width)
 		return strings.Join([]string{
 			renderStatsLaneBox(
+				m.theme,
 				"Tokens by Model",
 				m.overviewLaneCursor == 0,
 				width,
-				renderHorizontalBarsBody(modelBars, bodyWidth, colorChartToken),
+				renderHorizontalBarsBody(m.theme, modelBars, bodyWidth, m.theme.ColorChartToken),
 			),
 			renderStatsLaneBox(
+				m.theme,
 				"Tokens by Project",
 				m.overviewLaneCursor == 1,
 				width,
-				renderHorizontalBarsBody(projectBars, bodyWidth, colorChartBar),
+				renderHorizontalBarsBody(m.theme, projectBars, bodyWidth, m.theme.ColorChartBar),
 			),
 			renderStatsLaneBox(
+				m.theme,
 				"Tokens by (Provider, Version)",
 				m.overviewLaneCursor == 2,
 				width,
 				m.renderProviderVersionOverviewBody(bodyWidth),
 			),
 			renderStatsLaneBox(
+				m.theme,
 				"Most Token-Heavy Sessions",
 				m.overviewLaneCursor == 3,
 				width,
-				renderRankedTableBody(topSessionRows, bodyWidth),
+				renderRankedTableBody(m.theme, topSessionRows, bodyWidth),
 			),
 		}, "\n\n")
 	}
 
-	modelBody := renderHorizontalBarsBody(modelBars, statsLaneBodyWidth(leftWidth), colorChartToken)
-	projectBody := renderHorizontalBarsBody(projectBars, statsLaneBodyWidth(rightWidth), colorChartBar)
+	modelBody := renderHorizontalBarsBody(m.theme, modelBars, statsLaneBodyWidth(leftWidth), m.theme.ColorChartToken)
+	projectBody := renderHorizontalBarsBody(m.theme, projectBars, statsLaneBodyWidth(rightWidth), m.theme.ColorChartBar)
 	providerVersionBody := m.renderProviderVersionOverviewBody(statsLaneBodyWidth(leftWidth))
-	topSessionsBody := renderRankedTableBody(topSessionRows, statsLaneBodyWidth(rightWidth))
+	topSessionsBody := renderRankedTableBody(m.theme, topSessionRows, statsLaneBodyWidth(rightWidth))
 	bodyHeight := max(
 		lipgloss.Height(modelBody),
 		lipgloss.Height(projectBody),
@@ -104,14 +108,17 @@ func (m statsModel) renderOverviewGrid(
 	)
 
 	top := renderPreformattedColumns(
-		renderStatsLanePane("Tokens by Model", m.overviewLaneCursor == 0, leftWidth, bodyHeight, modelBody),
-		renderStatsLanePane("Tokens by Project", m.overviewLaneCursor == 1, rightWidth, bodyHeight, projectBody),
+		m.theme,
+		renderStatsLanePane(m.theme, "Tokens by Model", m.overviewLaneCursor == 0, leftWidth, bodyHeight, modelBody),
+		renderStatsLanePane(m.theme, "Tokens by Project", m.overviewLaneCursor == 1, rightWidth, bodyHeight, projectBody),
 		leftWidth,
 		rightWidth,
 		false,
 	)
 	bottom := renderPreformattedColumns(
+		m.theme,
 		renderStatsLanePane(
+			m.theme,
 			"Tokens by (Provider, Version)",
 			m.overviewLaneCursor == 2,
 			leftWidth,
@@ -119,6 +126,7 @@ func (m statsModel) renderOverviewGrid(
 			providerVersionBody,
 		),
 		renderStatsLanePane(
+			m.theme,
 			"Most Token-Heavy Sessions",
 			m.overviewLaneCursor == 3,
 			rightWidth,
@@ -147,7 +155,7 @@ func (m statsModel) renderProviderVersionOverviewBody(width int) string {
 
 	labelWidth, valueWidth := providerVersionOverviewWidths(items, totalTokens, width)
 	barWidth := max(width-labelWidth-valueWidth-2, 1)
-	barStyle := lipgloss.NewStyle().Foreground(colorChartToken)
+	barStyle := lipgloss.NewStyle().Foreground(m.theme.ColorChartToken)
 	lines := make([]string, 0, len(items))
 	for _, item := range items {
 		lines = append(lines, renderProviderVersionOverviewLine(
@@ -208,7 +216,7 @@ func providerVersionOverviewValue(item statspkg.ProviderVersionTokens, totalToke
 	return statspkg.FormatNumber(item.Tokens) + " " + formatPercent(item.Tokens, totalTokens)
 }
 
-func renderOverviewTokenValue(overview statspkg.Overview) string {
+func (m statsModel) renderOverviewTokenValue(overview statspkg.Overview) string {
 	value := statspkg.FormatNumber(overview.Tokens.Total)
 	switch overview.TokenTrend.Direction {
 	case statspkg.TrendDirectionNone:
@@ -219,7 +227,7 @@ func renderOverviewTokenValue(overview statspkg.Overview) string {
 			Render(formatSignedPercent(overview.TokenTrend.PercentChange))
 	case statspkg.TrendDirectionDown:
 		return value + " " + lipgloss.NewStyle().
-			Foreground(colorChartBar).
+			Foreground(m.theme.ColorChartBar).
 			Render(formatSignedPercent(overview.TokenTrend.PercentChange))
 	case statspkg.TrendDirectionFlat:
 		return value + " " + lipgloss.NewStyle().

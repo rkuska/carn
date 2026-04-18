@@ -29,17 +29,17 @@ func (m statsModel) renderGroupScopeOverlay() string {
 	}
 	lines = append(lines,
 		"",
-		filterOverlayIndent+lipgloss.NewStyle().Foreground(colorNormalDesc).Render(
+		filterOverlayIndent+lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render(
 			"Choose one provider and any number of versions.",
 		),
-		filterOverlayIndent+lipgloss.NewStyle().Foreground(colorNormalDesc).Render(
+		filterOverlayIndent+lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render(
 			fmt.Sprintf("%d sessions in range", m.groupScopeSessionCount()),
 		),
 		"",
 	)
 
 	content := strings.Join(lines, "\n")
-	box := renderFramedBox("Provider / Version Scope", boxWidth, colorPrimary, content)
+	box := renderFramedBox(m.theme, "Provider / Version Scope", boxWidth, m.theme.ColorPrimary, content)
 	return lipgloss.Place(m.contentWidth(), bodyHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
@@ -49,13 +49,13 @@ func renderGroupScopeProviderRow(m statsModel, width int) string {
 		cursor = filterOverlayCursorOn
 	}
 
-	labelRendered := styleMetaLabel.Render("Provider")
+	labelRendered := m.theme.StyleMetaLabel.Render("Provider")
 	labelWidth := lipgloss.Width(labelRendered)
 	summaryWidth := max(width-lipgloss.Width(filterOverlayIndent+cursor)-labelWidth-2, 1)
 
-	summary := lipgloss.NewStyle().Foreground(colorNormalDesc).Render("select one")
+	summary := lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render("select one")
 	if m.groupScope.provider != "" {
-		summary = styleMetaValue.Render(m.groupScope.provider.Label())
+		summary = m.theme.StyleMetaValue.Render(m.groupScope.provider.Label())
 	}
 
 	row := filterOverlayIndent + cursor + labelRendered + "  " + ansi.Truncate(summary, summaryWidth, "…")
@@ -68,16 +68,17 @@ func renderGroupScopeVersionRow(m statsModel, width int) string {
 		cursor = filterOverlayCursorOn
 	}
 
-	labelRendered := styleMetaLabel.Render("Version")
+	labelRendered := m.theme.StyleMetaLabel.Render("Version")
 	labelWidth := lipgloss.Width(labelRendered)
 	summaryWidth := max(width-lipgloss.Width(filterOverlayIndent+cursor)-labelWidth-2, 1)
 
 	var summary string
 	switch m.groupScope.provider {
 	case "":
-		summary = lipgloss.NewStyle().Foreground(colorNormalDesc).Render("select provider first")
+		summary = lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render("select provider first")
 	case conv.ProviderClaude, conv.ProviderCodex:
 		summary = renderSelectionSummary(
+			m.theme,
 			dimensionFilter{Selected: cloneGroupScopeVersions(m.groupScope.versions)},
 			m.groupScopeVersionValues(m.groupScope.provider),
 			summaryWidth,
@@ -99,7 +100,7 @@ func renderGroupScopeProviderValues(m statsModel, width int) []string {
 		}
 		check := filterOverlayCheckOff
 		if m.groupScope.provider == provider {
-			check = lipgloss.NewStyle().Foreground(colorAccent).Render("✓ ")
+			check = lipgloss.NewStyle().Foreground(m.theme.ColorAccent).Render("✓ ")
 		}
 		lines = append(lines, ansi.Truncate(indent+cursor+check+provider.Label(), width, "…"))
 	}
@@ -117,7 +118,7 @@ func renderGroupScopeVersionValues(m statsModel, width int) []string {
 		}
 		check := filterOverlayCheckOff
 		if m.groupScope.versions[version] {
-			check = lipgloss.NewStyle().Foreground(colorAccent).Render("✓ ")
+			check = lipgloss.NewStyle().Foreground(m.theme.ColorAccent).Render("✓ ")
 		}
 		lines = append(lines, ansi.Truncate(indent+cursor+check+version, width, "…"))
 	}

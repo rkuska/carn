@@ -35,10 +35,11 @@ func NewModelWithStore(
 	timestampFormat string,
 	cacheSize int,
 	debounceMs int,
+	theme *el.Theme,
 	store Store,
 	launchers ...SessionLauncher,
 ) Model {
-	return newBrowserModelWithStore(
+	return newBrowserModelWithStoreAndTheme(
 		ctx,
 		archiveDir,
 		logFilePath,
@@ -46,6 +47,7 @@ func NewModelWithStore(
 		timestampFormat,
 		cacheSize,
 		debounceMs,
+		theme,
 		store,
 		launchers...,
 	)

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	arch "github.com/rkuska/carn/internal/archive"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -420,7 +421,7 @@ func TestRenderCenteredImportActivityBlockCentersNonEmptyLines(t *testing.T) {
 	got := ansi.Strip(renderCenteredImportActivityBlock(
 		[]string{
 			"No import needed. Archived files already match the source.",
-			renderKeyHint("Press ", "Enter", " to continue"),
+			renderKeyHint(el.NewTheme(true), "Press ", "Enter", " to continue"),
 		},
 		width,
 	))

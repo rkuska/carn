@@ -23,7 +23,7 @@ func BenchmarkStatsHeatmapRender(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = renderActivityHeatmap("Activity Heatmap", heatmap, 120)
+		_ = renderActivityHeatmap(testTheme(), "Activity Heatmap", heatmap, 120)
 	}
 }
 
@@ -36,7 +36,7 @@ func BenchmarkStatsHistogramRender(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = renderVerticalHistogram("Session Duration", buckets, 58, 8)
+		_ = renderVerticalHistogram(testTheme(), "Session Duration", buckets, 58, 8)
 	}
 }
 

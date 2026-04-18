@@ -44,13 +44,13 @@ func (m importOverviewModel) readyActivityLines(width int) []string {
 	if m.configStatus == config.StatusInvalid {
 		return []string{
 			ansi.Hardwrap(fmt.Sprintf("Config is invalid: %v", m.configErr), width, false),
-			renderKeyHint("Press ", "c", " to fix"),
+			renderKeyHint(m.theme, "Press ", "c", " to fix"),
 		}
 	}
 	if m.analysis.Err != nil {
 		return []string{
 			ansi.Hardwrap(fmt.Sprintf("Import is blocked: %v", m.analysis.Err), width, false),
-			renderKeyHint("Press ", "q", " to quit"),
+			renderKeyHint(m.theme, "Press ", "q", " to quit"),
 		}
 	}
 
@@ -60,7 +60,7 @@ func (m importOverviewModel) readyActivityLines(width int) []string {
 	}
 	return append(lines,
 		ansi.Hardwrap("No import needed. Archived files already match the source.", width, false),
-		renderKeyHint("Press ", "Enter", " to continue"),
+		renderKeyHint(m.theme, "Press ", "Enter", " to continue"),
 	)
 }
 
@@ -103,21 +103,21 @@ func (m importOverviewModel) readySyncKeyHint(queuedFiles int) string {
 	if m.syncErr == nil {
 		switch {
 		case queuedFiles == 0:
-			return renderKeyHint("Press ", "Enter", " to rebuild")
+			return renderKeyHint(m.theme, "Press ", "Enter", " to rebuild")
 		case m.analysis.StoreNeedsBuild:
-			return renderKeyHint("Press ", "Enter", " to import and rebuild")
+			return renderKeyHint(m.theme, "Press ", "Enter", " to import and rebuild")
 		default:
-			return renderKeyHint("Press ", "Enter", " to import")
+			return renderKeyHint(m.theme, "Press ", "Enter", " to import")
 		}
 	}
 
 	switch {
 	case queuedFiles == 0:
-		return renderKeyHint("Press ", "Enter", " to retry rebuild")
+		return renderKeyHint(m.theme, "Press ", "Enter", " to retry rebuild")
 	case m.analysis.StoreNeedsBuild:
-		return renderKeyHint("Press ", "Enter", " to retry import and rebuild")
+		return renderKeyHint(m.theme, "Press ", "Enter", " to retry import and rebuild")
 	default:
-		return renderKeyHint("Press ", "Enter", " to retry import")
+		return renderKeyHint(m.theme, "Press ", "Enter", " to retry import")
 	}
 }
 
@@ -129,7 +129,7 @@ func (m importOverviewModel) syncingActivityLines(width int) []string {
 
 	lines := []string{m.renderProgressLine(width, label)}
 	if syncActivityShowsCurrentFile(m.syncActivity) && m.currentFile != "" {
-		lines = append(lines, ansi.Truncate(renderSingleChip("Current file", m.currentFile), width, "…"))
+		lines = append(lines, ansi.Truncate(renderSingleChip(m.theme, "Current file", m.currentFile), width, "…"))
 	}
 	return lines
 }
@@ -141,7 +141,7 @@ func (m importOverviewModel) doneActivityLines(width int) []string {
 	}
 	return []string{
 		ansi.Hardwrap(message, width, false),
-		renderKeyHint("Press ", "Enter", " to continue"),
+		renderKeyHint(m.theme, "Press ", "Enter", " to continue"),
 	}
 }
 

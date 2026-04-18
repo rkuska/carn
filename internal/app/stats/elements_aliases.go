@@ -1,10 +1,6 @@
 package stats
 
-import (
-	"image/color"
-
-	el "github.com/rkuska/carn/internal/app/elements"
-)
+import el "github.com/rkuska/carn/internal/app/elements"
 
 type helpItem = el.HelpItem
 type helpSection = el.HelpSection
@@ -51,17 +47,17 @@ type stackedRowItem = el.StackedRowItem
 type dailyRateBucket = el.DailyRateBucket
 
 var (
-	renderHelpOverlay      = el.RenderHelpOverlay
-	renderHelpItems        = el.RenderHelpItems
-	renderFittedHelpItems  = el.RenderFittedHelpItems
+	renderHelpOverlay      = (*el.Theme).RenderHelpOverlay
+	renderHelpItems        = (*el.Theme).RenderHelpItems
+	renderFittedHelpItems  = (*el.Theme).RenderFittedHelpItems
 	joinNonEmpty           = el.JoinNonEmpty
-	renderNotification     = el.RenderNotification
+	renderNotification     = (*el.Theme).RenderNotification
 	clearNotificationAfter = el.ClearNotificationAfter
 	errorNotification      = el.ErrorNotification
 
-	renderBorderTop          = el.RenderBorderTop
-	renderFramedPane         = el.RenderFramedPane
-	renderFramedBox          = el.RenderFramedBox
+	renderBorderTop          = (*el.Theme).RenderBorderTop
+	renderFramedPane         = (*el.Theme).RenderFramedPane
+	renderFramedBox          = (*el.Theme).RenderFramedBox
 	framedFooterContentWidth = el.FramedFooterContentWidth
 	composeFooterRow         = el.ComposeFooterRow
 
@@ -71,11 +67,11 @@ var (
 	applyStructuredFilters     = el.ApplyStructuredFilters
 	filterBadges               = el.FilterBadges
 	cycleBoolFilter            = el.CycleBoolFilter
-	renderFilterDimensionRow   = el.RenderFilterDimensionRow
-	renderFilterExpandedValues = el.RenderFilterExpandedValues
+	renderFilterDimensionRow   = (*el.Theme).RenderFilterDimensionRow
+	renderFilterExpandedValues = (*el.Theme).RenderFilterExpandedValues
 	filterDimensionFooterItems = el.FilterDimensionFooterItems
 	copyBrowserFilterState     = el.CopyFilterState
-	renderSelectionSummary     = el.RenderSelectionSummary
+	renderSelectionSummary     = (*el.Theme).RenderSelectionSummary
 
 	noDataLabel      = el.NoDataLabel
 	fitToWidth       = el.FitToWidth
@@ -83,71 +79,26 @@ var (
 	formatFloat      = el.FormatFloat
 	scaledWidth      = el.ScaledWidth
 
-	renderHorizontalBars            = el.RenderHorizontalBars
-	renderHorizontalBarsBody        = el.RenderHorizontalBarsBody
-	renderRankedTable               = el.RenderRankedTable
-	renderRankedTableBody           = el.RenderRankedTableBody
-	renderSideBySide                = el.RenderSideBySide
-	renderColumns                   = el.RenderColumns
+	renderHorizontalBars            = (*el.Theme).RenderHorizontalBars
+	renderHorizontalBarsBody        = (*el.Theme).RenderHorizontalBarsBody
+	renderRankedTable               = (*el.Theme).RenderRankedTable
+	renderRankedTableBody           = (*el.Theme).RenderRankedTableBody
+	renderSideBySide                = (*el.Theme).RenderSideBySide
+	renderColumns                   = (*el.Theme).RenderColumns
 	statsColumnWidths               = el.StatsColumnWidths
-	renderPreformattedColumns       = el.RenderPreformattedColumns
-	renderStatsTitle                = el.RenderStatsTitle
-	renderTokenValue                = el.RenderTokenValue
-	renderSummaryChips              = el.RenderSummaryChips
+	renderPreformattedColumns       = (*el.Theme).RenderPreformattedColumns
+	renderStatsTitle                = (*el.Theme).RenderStatsTitle
+	renderTokenValue                = (*el.Theme).RenderTokenValue
+	renderSummaryChips              = (*el.Theme).RenderSummaryChips
 	renderSparkline                 = el.RenderSparkline
-	renderDailyRateColumnChart      = el.RenderDailyRateColumnChart
+	renderDailyRateColumnChart      = (*el.Theme).RenderDailyRateColumnChart
 	dailyRateBarSlots               = el.DailyRateBarSlots
-	renderVerticalHistogram         = el.RenderVerticalHistogram
-	renderVerticalHistogramBody     = el.RenderVerticalHistogramBody
-	renderActivityHeatmap           = el.RenderActivityHeatmap
-	renderActivityHeatmapBody       = el.RenderActivityHeatmapBody
-	histogramAxisLabel              = el.HistogramAxisLabel
-	histogramAxisLine               = el.HistogramAxisLine
+	renderVerticalHistogram         = (*el.Theme).RenderVerticalHistogram
+	renderVerticalHistogramBody     = (*el.Theme).RenderVerticalHistogramBody
+	renderActivityHeatmap           = (*el.Theme).RenderActivityHeatmap
+	renderActivityHeatmapBody       = (*el.Theme).RenderActivityHeatmapBody
+	histogramAxisLabel              = (*el.Theme).HistogramAxisLabel
+	histogramAxisLine               = (*el.Theme).HistogramAxisLine
 	renderHorizontalStackedBarsBody = el.RenderHorizontalStackedBarsBody
 	resolveStackedBarWidths         = el.ResolveStackedBarWidths
 )
-
-var (
-	colorPrimary     color.Color
-	colorSecondary   color.Color
-	colorAccent      color.Color
-	colorDiffRemove  color.Color
-	colorDiffHunk    color.Color
-	colorNormalTitle color.Color
-	colorNormalDesc  color.Color
-	colorTitleFg     color.Color
-	colorChartBar    color.Color
-	colorChartToken  color.Color
-	colorChartTime   color.Color
-	colorChartError  color.Color
-	colorHeatmap4    color.Color
-
-	styleToolCall  = el.StyleToolCall
-	styleMetaLabel = el.StyleMetaLabel
-	styleMetaValue = el.StyleMetaValue
-	styleRuleHR    = el.StyleRuleHR
-)
-
-func syncPaletteFromElements() {
-	if el.ColorPrimary == nil {
-		el.InitPalette(true)
-	}
-	colorPrimary = el.ColorPrimary
-	colorSecondary = el.ColorSecondary
-	colorAccent = el.ColorAccent
-	colorDiffRemove = el.ColorDiffRemove
-	colorDiffHunk = el.ColorDiffHunk
-	colorNormalTitle = el.ColorNormalTitle
-	colorNormalDesc = el.ColorNormalDesc
-	colorTitleFg = el.ColorTitleFg
-	colorChartBar = el.ColorChartBar
-	colorChartToken = el.ColorChartToken
-	colorChartTime = el.ColorChartTime
-	colorChartError = el.ColorChartError
-	colorHeatmap4 = el.ColorHeatmap4
-
-	styleToolCall = el.StyleToolCall
-	styleMetaLabel = el.StyleMetaLabel
-	styleMetaValue = el.StyleMetaValue
-	styleRuleHR = el.StyleRuleHR
-}

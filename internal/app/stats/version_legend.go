@@ -4,6 +4,8 @@ import (
 	"image/color"
 
 	"charm.land/lipgloss/v2"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
 func versionLegendLayout(width int, versions []string, minChartWidth int) (int, int, bool) {
@@ -20,6 +22,7 @@ func versionLegendLayout(width int, versions []string, minChartWidth int) (int, 
 }
 
 func renderChartWithVersionLegend(
+	theme *el.Theme,
 	width int,
 	versions []string,
 	colorByVersion map[string]color.Color,
@@ -32,6 +35,7 @@ func renderChartWithVersionLegend(
 		return chartBody + "\n" + renderVersionLegendLabels(versions, width, colorByVersion)
 	}
 	return renderColumns(
+		theme,
 		chartBody,
 		renderVersionLegendLabels(versions, legendWidth, colorByVersion),
 		chartWidth,

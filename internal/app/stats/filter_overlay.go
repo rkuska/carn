@@ -18,9 +18,9 @@ func (m statsModel) renderStatsFilterOverlay() string {
 	lines := []string{""}
 	for i := range filterDimCount {
 		dim := filterDimension(i)
-		lines = append(lines, renderFilterDimensionRow(m.filter, dim, contentWidth))
+		lines = append(lines, renderFilterDimensionRow(m.theme, m.filter, dim, contentWidth))
 		if m.filter.Expanded == int(dim) {
-			lines = append(lines, renderFilterExpandedValues(m.filter, dim, contentWidth)...)
+			lines = append(lines, renderFilterExpandedValues(m.theme, m.filter, dim, contentWidth)...)
 		}
 	}
 
@@ -34,7 +34,7 @@ func (m statsModel) renderStatsFilterOverlay() string {
 	lines = append(lines, "")
 
 	content := strings.Join(lines, "\n")
-	box := renderFramedBox("Filter", boxWidth, colorPrimary, content)
+	box := renderFramedBox(m.theme, "Filter", boxWidth, m.theme.ColorPrimary, content)
 	return lipgloss.Place(m.contentWidth(), bodyHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
@@ -44,10 +44,10 @@ func renderStatsVersionFilterRow(m statsModel, width int) string {
 		cursor = filterOverlayCursorOn
 	}
 
-	labelRendered := styleMetaLabel.Render("Version")
+	labelRendered := m.theme.StyleMetaLabel.Render("Version")
 	labelWidth := lipgloss.Width(labelRendered)
 	summaryWidth := max(width-lipgloss.Width(filterOverlayIndent+cursor)-labelWidth-2, 1)
-	summary := renderSelectionSummary(m.versionFilter, m.versionValues, summaryWidth)
+	summary := renderSelectionSummary(m.theme, m.versionFilter, m.versionValues, summaryWidth)
 	row := filterOverlayIndent + cursor + labelRendered + "  " + summary
 	return ansi.Truncate(row, width, "…")
 }
@@ -63,7 +63,7 @@ func renderStatsVersionExpandedValues(m statsModel, width int) []string {
 
 		check := filterOverlayCheckOff
 		if m.versionFilter.Selected[value] {
-			check = lipgloss.NewStyle().Foreground(colorAccent).Render("✓ ")
+			check = lipgloss.NewStyle().Foreground(m.theme.ColorAccent).Render("✓ ")
 		}
 
 		lines = append(lines, ansi.Truncate(indent+cursor+check+value, width, "…"))
@@ -75,7 +75,7 @@ func renderStatsFilterMatchLine(m statsModel, width int) string {
 	baseSessions := flattenStatsSessions(m.filteredConversations())
 	_, filteredSessions := filterStatsConversationsByVersion(m.filteredConversations(), m.versionFilter)
 	text := fmt.Sprintf("%d of %d sessions matching", len(filteredSessions), len(baseSessions))
-	rendered := lipgloss.NewStyle().Foreground(colorNormalDesc).Render(text)
+	rendered := lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render(text)
 	return filterOverlayIndent + ansi.Truncate(rendered, max(width-4, 1), "…")
 }
 

@@ -11,6 +11,7 @@ const readyActionRetry = "retry"
 func (m importOverviewModel) footerView() string {
 	if m.helpOpen {
 		return renderHelpFooter(
+			m.theme,
 			m.width,
 			[]helpItem{
 				{Key: "?", Desc: "close help", Priority: helpPriorityEssential},
@@ -21,7 +22,7 @@ func (m importOverviewModel) footerView() string {
 		)
 	}
 
-	return renderHelpFooter(m.width, m.footerItems(), nil, notification{})
+	return renderHelpFooter(m.theme, m.width, m.footerItems(), nil, notification{})
 }
 
 func (m importOverviewModel) footerItems() []helpItem {
@@ -99,7 +100,7 @@ func (m importOverviewModel) helpSections() []helpSection {
 }
 
 func (m importOverviewModel) renderBox(title string, boxWidth int, content string) string {
-	box := renderFramedBox(title, boxWidth, colorPrimary, content)
+	box := renderFramedBox(m.theme, title, boxWidth, m.theme.ColorPrimary, content)
 	return lipgloss.Place(m.width, max(m.height-framedFooterRows, 1), lipgloss.Center, lipgloss.Center, box)
 }
 

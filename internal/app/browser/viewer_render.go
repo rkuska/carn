@@ -8,11 +8,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 func (m viewerModel) View() string {
-	return m.paneView(colorPrimary) + "\n" + m.footerView()
+	return m.paneView(m.theme.ColorPrimary) + "\n" + m.footerView()
 }
 
 func (m viewerModel) paneTitle() string {
@@ -25,6 +26,7 @@ func (m viewerModel) paneTitle() string {
 
 func (m viewerModel) paneView(borderColor color.Color) string {
 	return renderFramedPane(
+		m.theme,
 		m.paneTitle(),
 		m.width,
 		framedBodyHeight(m.height),
@@ -35,9 +37,9 @@ func (m viewerModel) paneView(borderColor color.Color) string {
 
 func (m viewerModel) footerView() string {
 	if m.searching {
-		return renderSearchFooter(m.width, m.searchInput.View(), "", m.notification)
+		return renderSearchFooter(m.theme, m.width, m.searchInput.View(), "", m.notification)
 	}
-	return renderHelpFooter(m.width, m.footerItems(), m.footerStatusParts(), m.notification)
+	return renderHelpFooter(m.theme, m.width, m.footerItems(), m.footerStatusParts(), m.notification)
 }
 
 func (m viewerModel) footerItems() []helpItem {
@@ -70,23 +72,23 @@ func (m viewerModel) footerStatusParts() []string {
 	if position := viewerLineRangeStatus(m.viewport); position != "" {
 		rightParts = append(rightParts, position)
 	}
-	rightParts = appendToggleStatusParts(rightParts, m.opts, m.content)
+	rightParts = appendToggleStatusParts(rightParts, m.theme, m.opts, m.content)
 	if m.planExpanded && m.content.hasPlans {
-		rightParts = append(rightParts, styleToolCall.Render("[plan]"))
+		rightParts = append(rightParts, m.theme.StyleToolCall.Render("[plan]"))
 	}
 	if m.actionMode != viewerActionNone {
-		rightParts = append(rightParts, styleToolCall.Render("["+m.actionMode.String()+"]"))
+		rightParts = append(rightParts, m.theme.StyleToolCall.Render("["+m.actionMode.String()+"]"))
 	}
 	if m.planPicker.active {
 		rightParts = append(
 			rightParts,
-			styleToolCall.Render("[select "+m.planPicker.action.String()+" plan]"),
+			m.theme.StyleToolCall.Render("[select "+m.planPicker.action.String()+" plan]"),
 		)
 	}
 	return appendSearchStatusPart(rightParts, m.searchQuery, m.matches, m.currentMatch)
 }
 
-func appendToggleStatusParts(parts []string, opts transcriptOptions, content contentFlags) []string {
+func appendToggleStatusParts(parts []string, theme *el.Theme, opts transcriptOptions, content contentFlags) []string {
 	toggles := []struct {
 		active bool
 		label  string
@@ -99,7 +101,7 @@ func appendToggleStatusParts(parts []string, opts transcriptOptions, content con
 	}
 	for _, toggle := range toggles {
 		if toggle.active {
-			parts = append(parts, styleToolCall.Render(toggle.label))
+			parts = append(parts, theme.StyleToolCall.Render(toggle.label))
 		}
 	}
 	return parts
@@ -136,14 +138,14 @@ func (m viewerModel) renderContent() viewerModel {
 	}
 
 	var sb strings.Builder
-	if header := renderConversationHeader(m.conversation, contentWidth, m.timestampFormat); header != "" {
+	if header := renderConversationHeader(m.theme, m.conversation, contentWidth, m.timestampFormat); header != "" {
 		sb.WriteString(header)
 	}
-	if planHeader := renderPlanHeader(m.session.Messages, contentWidth, m.planExpanded); planHeader != "" {
+	if planHeader := renderPlanHeader(m.theme, m.session.Messages, contentWidth, m.planExpanded); planHeader != "" {
 		sb.WriteString(planHeader)
 	}
 	for _, seg := range segments {
-		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache)
+		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache, m.theme)
 	}
 
 	baseContent := sb.String()
@@ -164,20 +166,21 @@ func renderSegmentCached(
 	contentWidth int,
 	mdCache map[string]string,
 	roleCache map[roleHeaderKey]string,
+	theme *el.Theme,
 ) {
 	switch seg.kind {
 	case segmentMarkdown:
 		sb.WriteString(renderMarkdownSegment(seg.text, renderer, rendererErr, mdCache))
 	case segmentToolResult:
-		sb.WriteString(renderStyledToolResult(seg.result, contentWidth))
+		sb.WriteString(renderStyledToolResult(theme, seg.result, contentWidth))
 	case segmentRoleHeader:
-		sb.WriteString(renderRoleHeaderCached(seg.role, contentWidth, roleCache))
+		sb.WriteString(renderRoleHeaderCached(theme, seg.role, contentWidth, roleCache))
 	case segmentThinking:
-		sb.WriteString(renderThinkingBlock(seg.text))
+		sb.WriteString(renderThinkingBlock(theme, seg.text))
 	case segmentThinkingUnavailable:
-		sb.WriteString(renderThinkingUnavailableBlock())
+		sb.WriteString(renderThinkingUnavailableBlock(theme))
 	case segmentToolCall:
-		sb.WriteString(renderStyledToolCall(seg.text))
+		sb.WriteString(renderStyledToolCall(theme, seg.text))
 	}
 }
 
@@ -229,65 +232,65 @@ type roleHeaderKey struct {
 	width int
 }
 
-func renderRoleHeaderCached(r conv.Role, width int, cache map[roleHeaderKey]string) string {
+func renderRoleHeaderCached(theme *el.Theme, r conv.Role, width int, cache map[roleHeaderKey]string) string {
 	if cache != nil {
 		key := roleHeaderKey{role: r, width: width}
 		if cached, ok := cache[key]; ok {
 			return cached
 		}
-		result := renderRoleHeader(r, width)
+		result := renderRoleHeader(theme, r, width)
 		cache[key] = result
 		return result
 	}
-	return renderRoleHeader(r, width)
+	return renderRoleHeader(theme, r, width)
 }
 
-func renderRoleHeader(r conv.Role, width int) string {
+func renderRoleHeader(theme *el.Theme, r conv.Role, width int) string {
 	switch r {
 	case conv.RoleUser:
-		return renderRoleHeaderBadge(styleBadgeUser, " User", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeUser, " User", width)
 	case conv.RoleAssistant:
-		return renderRoleHeaderBadge(styleBadgeAssistant, " Assistant", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeAssistant, " Assistant", width)
 	case conv.RoleSystem:
-		return renderRoleHeaderBadge(styleBadgeSystem, " System", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeSystem, " System", width)
 	}
 	return "\n"
 }
 
-func renderRoleHeaderBadge(style lipgloss.Style, label string, width int) string {
+func renderRoleHeaderBadge(theme *el.Theme, style lipgloss.Style, label string, width int) string {
 	badge := style.Render(label)
 	ruleLen := max(width-lipgloss.Width(badge)-1, 0)
-	return badge + " " + styleRuleHR.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+	return badge + " " + theme.StyleRuleHR.Render(strings.Repeat("─", ruleLen)) + "\n\n"
 }
 
-func renderThinkingBlock(text string) string {
+func renderThinkingBlock(theme *el.Theme, text string) string {
 	var sb strings.Builder
-	sb.WriteString(styleThinkLabel.Render("Thinking"))
+	sb.WriteString(theme.StyleThinkLabel.Render("Thinking"))
 	sb.WriteString("\n")
 
-	border := styleThinkBorder.Render("▎")
+	border := theme.StyleThinkBorder.Render("▎")
 	for line := range strings.SplitSeq(text, "\n") {
 		sb.WriteString(border)
 		sb.WriteString(" ")
-		sb.WriteString(styleThinkLine.Render(line))
+		sb.WriteString(theme.StyleThinkLine.Render(line))
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
 	return sb.String()
 }
 
-func renderThinkingUnavailableBlock() string {
+func renderThinkingUnavailableBlock(theme *el.Theme) string {
 	var sb strings.Builder
-	sb.WriteString(styleThinkLabel.Render("Thinking unavailable"))
+	sb.WriteString(theme.StyleThinkLabel.Render("Thinking unavailable"))
 	sb.WriteString("\n")
 
-	sb.WriteString(styleThinkBorder.Render("▎"))
+	sb.WriteString(theme.StyleThinkBorder.Render("▎"))
 	sb.WriteString(" ")
-	sb.WriteString(styleSubtitle.Render(hiddenThinkingUnavailableText))
+	sb.WriteString(theme.StyleSubtitle.Render(hiddenThinkingUnavailableText))
 	sb.WriteString("\n\n")
 	return sb.String()
 }
 
-func renderStyledToolCall(text string) string {
-	return styleToolCallItalic.Render(text) + "\n"
+func renderStyledToolCall(theme *el.Theme, text string) string {
+	return theme.StyleToolCallItalic.Render(text) + "\n"
 }

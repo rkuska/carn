@@ -1,20 +1,19 @@
 package browser
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func (m browserModel) footerView() string {
 	if m.searchEditing() && !m.transcriptFocused() {
-		return renderSearchFooter(m.width, m.searchInput.View(), m.searchFooterRightText(), m.notification)
+		return renderSearchFooter(m.theme, m.width, m.searchInput.View(), m.searchFooterRightText(), m.notification)
 	}
 
 	if m.transcriptFocused() && m.viewer.searching {
-		return renderSearchFooter(m.width, m.viewer.searchInput.View(), "", m.notification)
+		return renderSearchFooter(m.theme, m.width, m.viewer.searchInput.View(), "", m.notification)
 	}
 
 	if m.helpOpen {
 		return renderHelpFooter(
+			m.theme,
 			m.width,
 			[]helpItem{
 				{Key: "?", Desc: "close help", Priority: helpPriorityEssential},
@@ -26,7 +25,7 @@ func (m browserModel) footerView() string {
 	}
 
 	if m.filter.Active {
-		return renderHelpFooter(m.width, m.filterFooterItems(), m.filterFooterStatusParts(), m.notification)
+		return renderHelpFooter(m.theme, m.width, m.filterFooterItems(), m.filterFooterStatusParts(), m.notification)
 	}
 
 	if m.transcriptFocused() {
@@ -37,10 +36,11 @@ func (m browserModel) footerView() string {
 		} else {
 			status = append(status, "[split]")
 		}
-		return renderHelpFooter(m.width, items, status, m.notification)
+		return renderHelpFooter(m.theme, m.width, items, status, m.notification)
 	}
 
 	return renderHelpFooter(
+		m.theme,
 		m.width,
 		m.listFooterItems(),
 		m.listFooterStatusParts(),
@@ -89,10 +89,10 @@ func (m browserModel) listFooterItems() []helpItem {
 func (m browserModel) listFooterStatusParts() []string {
 	status := make([]string, 0, 8)
 	for _, badge := range filterBadges(m.filter.Dimensions) {
-		status = append(status, styleToolCall.Render("["+badge+"]"))
+		status = append(status, m.theme.StyleToolCall.Render("["+badge+"]"))
 	}
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
-		status = append(status, styleToolCall.Render("[UPDATING]"))
+		status = append(status, m.theme.StyleToolCall.Render("[UPDATING]"))
 	}
 	status = append(status, m.resyncStatusParts()...)
 	if m.transcriptMode == transcriptSplit {
@@ -188,10 +188,10 @@ func (m browserModel) helpSections() []helpSection {
 func (m browserModel) searchFooterRightText() string {
 	parts := []string{}
 	if m.hasActiveSearch() {
-		parts = append(parts, renderHelpItem(m.clearSearchItem()))
+		parts = append(parts, renderHelpItem(m.theme, m.clearSearchItem()))
 	}
 	if m.search.status == searchStatusDebouncing || m.search.status == searchStatusSearching {
-		parts = append(parts, styleToolCall.Render("[UPDATING]"))
+		parts = append(parts, m.theme.StyleToolCall.Render("[UPDATING]"))
 	}
 	return joinNonEmpty(parts, "  ")
 }

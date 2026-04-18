@@ -75,7 +75,7 @@ func renderConversationItem(
 ) string {
 	t.Helper()
 
-	d := newDelegate()
+	d := newDelegate(testTheme())
 	d.SetHeight(height)
 
 	items := []list.Item{

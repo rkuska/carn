@@ -145,6 +145,7 @@ Use these terms when referring to different parts of the project in prompts.
 
 | Term | What it means |
 |---|---|
+| **Theme** | The explicit UI color-and-style bundle passed into TUI render paths instead of reading package-global palette state. |
 | **Framed Pane** | A bordered box with a title badge in the top border: `╭─ Title ──╮`. Used for list and transcript. |
 | **Framed Box** | Like framed pane but non-scrollable. |
 | **Inset Box** | Rounded border with padding, no custom title bar. Used for plan display. |
@@ -155,5 +156,6 @@ Use these terms when referring to different parts of the project in prompts.
 
 | Term | What it means |
 |---|---|
+| **Test Utility** | A shared test-only helper used across packages for assertions or small adapter functions that are not tied to one package's behavior. |
 | **Coverage Snapshot** | The statement-weighted coverage totals computed from one `go test` coverprofile run for the whole repo and for each package with statements. |
 | **Coverage Baseline** | The committed coverage snapshot stored in `COVERAGE_BASELINE.json`. The canonical test command compares the current snapshot against it and fails when coverage drops. |

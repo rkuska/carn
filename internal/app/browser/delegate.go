@@ -9,12 +9,15 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
 const listItemEllipsis = "..."
 
 type conversationDelegate struct {
 	list.DefaultDelegate
+	theme *el.Theme
 }
 
 type matchRangeItem interface {
@@ -25,35 +28,37 @@ func hasMatchRanges(ranges itemMatchRanges) bool {
 	return len(ranges.title) > 0 || len(ranges.metadata) > 0 || len(ranges.preview) > 0
 }
 
-func newDelegate() conversationDelegate {
-	syncPaletteFromElements()
-	d := conversationDelegate{DefaultDelegate: list.NewDefaultDelegate()}
+func newDelegate(theme *el.Theme) conversationDelegate {
+	d := conversationDelegate{
+		DefaultDelegate: list.NewDefaultDelegate(),
+		theme:           theme,
+	}
 	d.ShowDescription = true
 	d.SetSpacing(1)
 	d.SetHeight(3)
 
 	d.Styles.NormalTitle = lipgloss.NewStyle().
-		Foreground(colorNormalDesc).
+		Foreground(theme.ColorNormalDesc).
 		Padding(0, 0, 0, 2)
 
 	d.Styles.NormalDesc = lipgloss.NewStyle().
-		Foreground(colorNormalDesc).
+		Foreground(theme.ColorNormalDesc).
 		Padding(0, 0, 0, 2)
 
 	d.Styles.FilterMatch = lipgloss.NewStyle().
-		Background(colorHighlight).
+		Background(theme.ColorHighlight).
 		Bold(true)
 
 	d.Styles.SelectedTitle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(colorAccent).
-		Foreground(colorSelectedFg).
+		BorderForeground(theme.ColorAccent).
+		Foreground(theme.ColorSelectedFg).
 		Padding(0, 0, 0, 1)
 
 	d.Styles.SelectedDesc = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(colorAccent).
-		Foreground(colorSelectedFg).
+		BorderForeground(theme.ColorAccent).
+		Foreground(theme.ColorSelectedFg).
 		Padding(0, 0, 0, 1)
 
 	return d
@@ -139,23 +144,23 @@ func (d conversationDelegate) styledLines(
 
 	switch {
 	case emptyFilter:
-		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(metadata), styleDimmedPreview.Render(preview)
+		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(metadata), d.theme.StyleDimmedPreview.Render(preview)
 
 	case isSelected && filterState != list.Filtering:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.SelectedTitle, s.FilterMatch)
 			metadata = renderMatchedText(metadata, metadataMatches, s.SelectedDesc, s.FilterMatch)
-			preview = renderMatchedText(preview, previewMatches, styleSelectedPreview, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, d.theme.StyleSelectedPreview, s.FilterMatch)
 		}
-		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(metadata), styleSelectedPreview.Render(preview)
+		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(metadata), d.theme.StyleSelectedPreview.Render(preview)
 
 	default:
 		if isFiltered {
 			title = renderMatchedText(title, titleMatches, s.NormalTitle, s.FilterMatch)
 			metadata = renderMatchedText(metadata, metadataMatches, s.NormalDesc, s.FilterMatch)
-			preview = renderMatchedText(preview, previewMatches, styleNormalPreview, s.FilterMatch)
+			preview = renderMatchedText(preview, previewMatches, d.theme.StyleNormalPreview, s.FilterMatch)
 		}
-		return s.NormalTitle.Render(title), s.NormalDesc.Render(metadata), styleNormalPreview.Render(preview)
+		return s.NormalTitle.Render(title), s.NormalDesc.Render(metadata), d.theme.StyleNormalPreview.Render(preview)
 	}
 }
 

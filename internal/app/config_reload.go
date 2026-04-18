@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	appbrowser "github.com/rkuska/carn/internal/app/browser"
+	el "github.com/rkuska/carn/internal/app/elements"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -107,10 +108,12 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 		ArchiveDir: appCfg.ArchiveDir,
 	}
 	m.logFilePath = appCfg.LogFile
+	m.theme = el.NewTheme(appCfg.GlamourStyle != appbrowser.GlamourStyleLight)
 	m.pipeline = m.pipelineFactory(m.cfg)
 	m.importOverview = newImportOverviewModelWithPipelineConfig(
 		m.ctx,
 		m.cfg,
+		m.theme,
 		m.pipeline,
 		appCfg.ConfigFilePath,
 		appCfg.ConfigStatus,
@@ -128,6 +131,7 @@ func (m appModel) rebuildRuntime(appCfg Config) appModel {
 		appCfg.TimestampFormat,
 		appCfg.BrowserCacheSize,
 		appCfg.DeepSearchDebounceMs,
+		m.theme,
 		m.store,
 		m.launcher,
 	)

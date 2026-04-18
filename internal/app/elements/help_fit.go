@@ -2,27 +2,27 @@ package elements
 
 import "charm.land/lipgloss/v2"
 
-func essentialHelpWidth(items []HelpItem) int {
+func (t *Theme) essentialHelpWidth(items []HelpItem) int {
 	parts := make([]string, len(items))
 	keep := make([]bool, len(items))
 	for i, item := range items {
 		if item.Key == "" || item.Desc == "" || item.Priority < HelpPriorityEssential {
 			continue
 		}
-		parts[i] = RenderHelpItem(item)
+		parts[i] = t.RenderHelpItem(item)
 		keep[i] = true
 	}
 	return helpPartsWidth(parts, keep)
 }
 
-func keepHelpItems(items []HelpItem, width int) []bool {
+func (t *Theme) keepHelpItems(items []HelpItem, width int) []bool {
 	parts := make([]string, len(items))
 	keep := make([]bool, len(items))
 	for i, item := range items {
 		if item.Key == "" || item.Desc == "" {
 			continue
 		}
-		parts[i] = RenderHelpItem(item)
+		parts[i] = t.RenderHelpItem(item)
 		keep[i] = true
 	}
 

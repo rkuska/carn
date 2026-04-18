@@ -39,7 +39,7 @@ const (
 	dailyRateLabelAlignRight
 )
 
-func RenderDailyRateColumnChart(
+func (t *Theme) RenderDailyRateColumnChart(
 	rates []statspkg.DailyRate,
 	width, height int,
 	barColor color.Color,
@@ -62,8 +62,8 @@ func RenderDailyRateColumnChart(
 	slots := DailyRateBarSlots(len(buckets), plotWidth)
 	plotHeight, showLabels := DailyRateChartDimensions(height)
 	barStyle := lipgloss.NewStyle().Foreground(barColor)
-	inactiveStyle := lipgloss.NewStyle().Foreground(ColorNormalDesc)
-	lines := renderDailyRateRows(
+	inactiveStyle := lipgloss.NewStyle().Foreground(t.ColorNormalDesc)
+	lines := t.renderDailyRateRows(
 		buckets,
 		slots,
 		plotHeight,
@@ -110,7 +110,7 @@ func DailyRateChartDimensions(height int) (int, bool) {
 	return max(height-1, 1), true
 }
 
-func renderDailyRateRows(
+func (t *Theme) renderDailyRateRows(
 	buckets []DailyRateBucket,
 	slots []DailyRateBarSlot,
 	plotHeight int,
@@ -121,7 +121,7 @@ func renderDailyRateRows(
 ) []string {
 	lines := make([]string, 0, plotHeight)
 	for level := plotHeight; level >= 1; level-- {
-		lines = append(lines, renderDailyRateRow(
+		lines = append(lines, t.renderDailyRateRow(
 			buckets,
 			slots,
 			level,
@@ -136,7 +136,7 @@ func renderDailyRateRows(
 	return lines
 }
 
-func renderDailyRateRow(
+func (t *Theme) renderDailyRateRow(
 	buckets []DailyRateBucket,
 	slots []DailyRateBarSlot,
 	level, plotHeight int,
@@ -146,8 +146,8 @@ func renderDailyRateRow(
 	barStyle, inactiveStyle lipgloss.Style,
 ) string {
 	label := dailyRateAxisLabel(level, plotHeight, maxValue, yFormatter)
-	prefix := FitToWidth(HistogramAxisLabel(label), axisLabelWidth) +
-		" " + HistogramAxisLine("│") + " "
+	prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) +
+		" " + t.HistogramAxisLine("│") + " "
 	cells := BlankDailyRateCells(DailyRatePlotWidth(slots))
 	for i, bucket := range buckets {
 		cell, fill := renderDailyRateBucketLevel(

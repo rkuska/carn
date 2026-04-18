@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	appbrowser "github.com/rkuska/carn/internal/app/browser"
+	el "github.com/rkuska/carn/internal/app/elements"
 	appstats "github.com/rkuska/carn/internal/app/stats"
 	arch "github.com/rkuska/carn/internal/archive"
 )
@@ -23,6 +24,7 @@ type appModel struct {
 	cfg             arch.Config
 	glamourStyle    string
 	logFilePath     string
+	theme           *el.Theme
 	pipeline        importPipeline
 	pipelineFactory func(arch.Config) importPipeline
 	store           appbrowser.Store

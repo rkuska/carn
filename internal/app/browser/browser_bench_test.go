@@ -226,12 +226,30 @@ func BenchmarkBrowserOpenConversationWarm(b *testing.B) {
 	store := rebuildBenchBrowserStore(b, archiveDir)
 	browserStore := newBrowserStore(store)
 	conversations := mustLoadBenchBrowserConversations(b, ctx, archiveDir, browserStore)
-	cmd := openConversationCmdWithStore(ctx, archiveDir, conversations[0], browserStore)
-	_ = mustBenchOpenViewerMsg(b, cmd())
+	openMsg := mustBenchOpenViewerMsg(
+		b,
+		openConversationCmdWithStore(ctx, archiveDir, conversations[0], browserStore)(),
+	)
+	model := newBrowserModelWithStore(
+		ctx,
+		archiveDir,
+		"",
+		"dark",
+		"2006-01-02 15:04",
+		20,
+		200,
+		browserStore,
+	)
+	model.width = 120
+	model.height = 40
+	model = model.updateLayout()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = mustBenchOpenViewerMsg(b, cmd())
+		opened := model.installViewer(openMsg.session, openMsg.conversation)
+		if opened.openConversationID == "" {
+			b.Fatal("installViewer did not open a conversation")
+		}
 	}
 }
 

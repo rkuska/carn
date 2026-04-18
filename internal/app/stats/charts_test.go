@@ -18,10 +18,10 @@ import (
 func TestRenderHorizontalBarsUsesProportionalWidthsAndTruncatesLabels(t *testing.T) {
 	t.Parallel()
 
-	got := renderHorizontalBars("Top", []barItem{
+	got := renderHorizontalBars(testTheme(), "Top", []barItem{
 		{Label: "very-long-label-that-should-truncate", Value: 10},
 		{Label: "short", Value: 5},
-	}, 48, colorChartBar)
+	}, 48, testTheme().ColorChartBar)
 
 	stripped := ansi.Strip(got)
 	lines := strings.Split(stripped, "\n")
@@ -35,11 +35,17 @@ func TestRenderHorizontalBarsUsesProportionalWidthsAndTruncatesLabels(t *testing
 func TestRenderHorizontalBarsHandlesSingleAndEmptyInputs(t *testing.T) {
 	t.Parallel()
 
-	single := ansi.Strip(renderHorizontalBars("One", []barItem{{Label: "alpha", Value: 7}}, 36, colorChartBar))
+	single := ansi.Strip(renderHorizontalBars(
+		testTheme(),
+		"One",
+		[]barItem{{Label: "alpha", Value: 7}},
+		36,
+		testTheme().ColorChartBar,
+	))
 	assert.Contains(t, single, "alpha")
 	assert.Contains(t, single, "7")
 
-	empty := ansi.Strip(renderHorizontalBars("None", nil, 36, colorChartBar))
+	empty := ansi.Strip(renderHorizontalBars(testTheme(), "None", nil, 36, testTheme().ColorChartBar))
 	assert.Contains(t, empty, "None")
 	assert.Contains(t, empty, "No data")
 }
@@ -47,10 +53,10 @@ func TestRenderHorizontalBarsHandlesSingleAndEmptyInputs(t *testing.T) {
 func TestRenderToolRateChartShowsDecimalPercentages(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderToolRateChart("Tool Error Rate", []statspkg.ToolRateStat{
+	got := ansi.Strip(renderToolRateChart(testTheme(), "Tool Error Rate", []statspkg.ToolRateStat{
 		{Name: "Bash", Rate: 12.5, Count: 67},
 		{Name: "Read", Rate: 2.4, Count: 6},
-	}, 48, colorChartError, true))
+	}, 48, testTheme().ColorChartError, true))
 
 	assert.Contains(t, got, "12.5% (67)")
 	assert.Contains(t, got, "2.4% (6)")
@@ -59,9 +65,9 @@ func TestRenderToolRateChartShowsDecimalPercentages(t *testing.T) {
 func TestRenderToolRateChartCanOmitAbsoluteCounts(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderToolRateChart("Rejected Suggestions", []statspkg.ToolRateStat{
+	got := ansi.Strip(renderToolRateChart(testTheme(), "Rejected Suggestions", []statspkg.ToolRateStat{
 		{Name: "Bash", Rate: 30, Count: 3},
-	}, 40, colorPrimary, false))
+	}, 40, testTheme().ColorPrimary, false))
 
 	assert.Contains(t, got, "30.0%")
 	assert.NotContains(t, got, "(3)")
@@ -70,9 +76,9 @@ func TestRenderToolRateChartCanOmitAbsoluteCounts(t *testing.T) {
 func TestRenderToolRateChartShowsLessThanPointOneForTinyNonZeroRate(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderToolRateChart("Rejected Suggestions", []statspkg.ToolRateStat{
+	got := ansi.Strip(renderToolRateChart(testTheme(), "Rejected Suggestions", []statspkg.ToolRateStat{
 		{Name: "Bash", Rate: 0.04, Count: 1},
-	}, 40, colorPrimary, false))
+	}, 40, testTheme().ColorPrimary, false))
 
 	assert.Contains(t, got, "<0.1%")
 	assert.NotContains(t, got, "0.0%")
@@ -88,7 +94,7 @@ func TestToolRateChipValueShowsLessThanPointOneForTinyNonZeroRate(t *testing.T) 
 func TestRenderVerticalHistogramKeepsWidthsAndLabelsAligned(t *testing.T) {
 	t.Parallel()
 
-	got := renderVerticalHistogram("Durations", []histBucket{
+	got := renderVerticalHistogram(testTheme(), "Durations", []histBucket{
 		{Label: "A", Count: 1},
 		{Label: "B", Count: 3},
 		{Label: "C", Count: 0},
@@ -106,7 +112,7 @@ func TestRenderVerticalHistogramKeepsWidthsAndLabelsAligned(t *testing.T) {
 func TestRenderVerticalHistogramShowsValueLabelsAboveBars(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderVerticalHistogram("Durations", []histBucket{
+	got := ansi.Strip(renderVerticalHistogram(testTheme(), "Durations", []histBucket{
 		{Label: "A", Count: 8},
 		{Label: "B", Count: 5},
 		{Label: "C", Count: 2},
@@ -185,7 +191,7 @@ func TestRenderActivityHeatmapUsesGridSizingAndIntensityLevels(t *testing.T) {
 	cells[2][8] = 4
 	cells[3][12] = 8
 
-	got := renderActivityHeatmap("Heatmap", cells, 56)
+	got := renderActivityHeatmap(testTheme(), "Heatmap", cells, 56)
 	stripped := ansi.Strip(got)
 
 	assert.Contains(t, stripped, "Heatmap")
@@ -227,9 +233,9 @@ func TestRenderActivityHeatmapUsesCurrentPalette(t *testing.T) {
 	var cells [7][24]int
 	cells[0][12] = 8
 
-	got := renderActivityHeatmapBody(cells, 56)
+	got := renderActivityHeatmapBody(testTheme(), cells, 56)
 	expected := lipgloss.NewStyle().
-		Foreground(colorHeatmap4).
+		Foreground(testTheme().ColorHeatmap4).
 		Render(strings.Repeat("█", heatmapCellWidth(56)))
 
 	assert.Contains(t, got, expected)
@@ -238,11 +244,11 @@ func TestRenderActivityHeatmapUsesCurrentPalette(t *testing.T) {
 func TestRenderSideBySideSplitsAtNormalWidthAndStacksWhenNarrow(t *testing.T) {
 	t.Parallel()
 
-	sideBySide := ansi.Strip(renderSideBySide("left", "right", 80))
+	sideBySide := ansi.Strip(renderSideBySide(testTheme(), "left", "right", 80))
 	assert.Contains(t, sideBySide, "│")
 	assert.NotContains(t, sideBySide, "\n\nleft")
 
-	stacked := ansi.Strip(renderSideBySide("left", "right", 40))
+	stacked := ansi.Strip(renderSideBySide(testTheme(), "left", "right", 40))
 	assert.NotContains(t, stacked, "│")
 	assert.Contains(t, stacked, "left\n\nright")
 }
@@ -264,7 +270,7 @@ func TestStatsColumnWidthsUseWeightsAndStackWhenNeeded(t *testing.T) {
 func TestRenderRankedTableCentersTitleWhenContentIsCapped(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderRankedTable("Most Token-Heavy Sessions", []tableRow{
+	got := ansi.Strip(renderRankedTable(testTheme(), "Most Token-Heavy Sessions", []tableRow{
 		{Columns: []string{"Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
 		{Columns: []string{"alpha", "session-a", "2026-03-22", "12", "15m", "1200"}},
 	}, 120))
@@ -278,7 +284,7 @@ func TestRenderRankedTableCentersTitleWhenContentIsCapped(t *testing.T) {
 func TestRenderRankedTableKeepsCenteredRowsAlignedByColumnStart(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderRankedTable("Most Token-Heavy Sessions", []tableRow{
+	got := ansi.Strip(renderRankedTable(testTheme(), "Most Token-Heavy Sessions", []tableRow{
 		{Columns: []string{"Project", "Slug", "Date", "Msgs", "Duration", "Tokens"}},
 		{Columns: []string{"claude-search", "019ce1da-4e2", "2026-03-12", "225", "3h 31m", "166.2M"}},
 		{Columns: []string{"claude-search", "019d15fd-172", "2026-03-22", "156", "1h 44m", "99.6M"}},
@@ -297,7 +303,7 @@ func TestRenderRankedTableKeepsCenteredRowsAlignedByColumnStart(t *testing.T) {
 func TestRenderVerticalHistogramAddsYAxisWithoutUnitCaption(t *testing.T) {
 	t.Parallel()
 
-	got := ansi.Strip(renderVerticalHistogram("Durations", []histBucket{
+	got := ansi.Strip(renderVerticalHistogram(testTheme(), "Durations", []histBucket{
 		{Label: "A", Count: 1},
 		{Label: "B", Count: 3},
 		{Label: "C", Count: 0},
@@ -434,7 +440,7 @@ func TestLayoutStackedTurnColumnsUsesUniformWidthsWhenSpaceAllows(t *testing.T) 
 func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
 	t.Parallel()
 
-	rendered := ansi.Strip(renderClaudeTurnChart(
+	rendered := ansi.Strip(renderClaudeTurnChart(testTheme(),
 		"Prompt Growth",
 		[]statspkg.PositionTokenMetrics{
 			{Position: 1, AveragePromptTokens: 10},
@@ -443,7 +449,7 @@ func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
 		},
 		50,
 		8,
-		colorChartToken,
+		testTheme().ColorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
@@ -456,7 +462,7 @@ func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
 func TestRenderClaudeTurnChartUsesMultipleXAxisRowsWhenNeeded(t *testing.T) {
 	t.Parallel()
 
-	rendered := ansi.Strip(renderClaudeTurnChart(
+	rendered := ansi.Strip(renderClaudeTurnChart(testTheme(),
 		"Prompt Growth",
 		[]statspkg.PositionTokenMetrics{
 			{Position: 11, AveragePromptTokens: 10},
@@ -469,7 +475,7 @@ func TestRenderClaudeTurnChartUsesMultipleXAxisRowsWhenNeeded(t *testing.T) {
 		},
 		24,
 		8,
-		colorChartToken,
+		testTheme().ColorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
@@ -495,12 +501,12 @@ func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T)
 		})
 	}
 
-	rendered := ansi.Strip(renderClaudeTurnChart(
+	rendered := ansi.Strip(renderClaudeTurnChart(testTheme(),
 		"Prompt Growth",
 		metrics,
 		38,
 		8,
-		colorChartToken,
+		testTheme().ColorChartToken,
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
@@ -518,7 +524,7 @@ func TestRenderClaudeTurnChartLeavesRightPaddingForFinalXAxisLabel(t *testing.T)
 func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 	t.Parallel()
 
-	rendered := ansi.Strip(renderVersionedTurnChartBody(
+	rendered := ansi.Strip(renderVersionedTurnChartBody(testTheme(),
 		[]statspkg.VersionTurnSeries{
 			{
 				Version: "1.0.0",
@@ -539,7 +545,7 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 		},
 		80,
 		8,
-		versionColorMap([]string{"1.0.0", statspkg.UnknownVersionLabel}),
+		versionColorMap(testTheme(), []string{"1.0.0", statspkg.UnknownVersionLabel}),
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},
@@ -556,22 +562,22 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 func TestRenderVerticalStackedHistogramBodyShowsSingleZeroAxisLabel(t *testing.T) {
 	t.Parallel()
 
-	rendered := ansi.Strip(renderVerticalStackedHistogramBody(
+	rendered := ansi.Strip(renderVerticalStackedHistogramBody(testTheme(),
 		[]stackedHistBucket{
 			{
 				Label: "0-20",
 				Total: 6,
 				Segments: []stackedHistSegment{
-					{Value: 2, Color: colorChartBar},
-					{Value: 4, Color: colorPrimary},
+					{Value: 2, Color: testTheme().ColorChartBar},
+					{Value: 4, Color: testTheme().ColorPrimary},
 				},
 			},
 			{
 				Label: "21-50",
 				Total: 12,
 				Segments: []stackedHistSegment{
-					{Value: 5, Color: colorChartBar},
-					{Value: 7, Color: colorPrimary},
+					{Value: 5, Color: testTheme().ColorChartBar},
+					{Value: 7, Color: testTheme().ColorPrimary},
 				},
 			},
 		},
@@ -597,10 +603,10 @@ func TestRenderChartWithVersionLegendBuildsChartAtReducedWidth(t *testing.T) {
 	versionLabels := []string{"1.0.0", "2.0.0"}
 	var builtWidth int
 
-	rendered := renderChartWithVersionLegend(
+	rendered := renderChartWithVersionLegend(testTheme(),
 		64,
 		versionLabels,
-		versionColorMap(versionLabels),
+		versionColorMap(testTheme(), versionLabels),
 		24,
 		func(chartWidth int) string {
 			builtWidth = chartWidth

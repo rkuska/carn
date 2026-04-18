@@ -12,7 +12,7 @@ func (m browserModel) View() string {
 	var body string
 	switch {
 	case m.helpOpen:
-		body = renderHelpOverlay(m.width, m.height, m.helpTitle(), m.helpSections())
+		body = renderHelpOverlay(m.theme, m.width, m.height, m.helpTitle(), m.helpSections())
 	case m.filter.Active:
 		body = m.renderFilterOverlay()
 	default:
@@ -47,11 +47,12 @@ func (m browserModel) updateLayout() browserModel {
 }
 
 func (m browserModel) renderListPane(width int, active bool) string {
-	borderColor := colorSecondary
+	borderColor := m.theme.ColorSecondary
 	if active {
-		borderColor = colorAccent
+		borderColor = m.theme.ColorAccent
 	}
 	return renderFramedPane(
+		m.theme,
 		"Conversations",
 		width,
 		framedBodyHeight(m.height),
@@ -61,9 +62,9 @@ func (m browserModel) renderListPane(width int, active bool) string {
 }
 
 func (m browserModel) renderTranscriptPane(width int, active bool) string {
-	borderColor := colorSecondary
+	borderColor := m.theme.ColorSecondary
 	if active {
-		borderColor = colorAccent
+		borderColor = m.theme.ColorAccent
 	}
 
 	if m.loadingConversationID != "" {
@@ -72,6 +73,7 @@ func (m browserModel) renderTranscriptPane(width int, active bool) string {
 			title = conv.Title()
 		}
 		return renderFramedPane(
+			m.theme,
 			title,
 			width,
 			framedBodyHeight(m.height),
@@ -82,6 +84,7 @@ func (m browserModel) renderTranscriptPane(width int, active bool) string {
 
 	if m.viewer.session.Meta.ID == "" {
 		return renderFramedPane(
+			m.theme,
 			"Transcript",
 			width,
 			framedBodyHeight(m.height),

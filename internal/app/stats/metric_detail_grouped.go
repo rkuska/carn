@@ -8,10 +8,10 @@ import (
 
 func (m statsModel) renderGroupedToolsMetricDetail(width int, lane statsLane) string {
 	if !m.groupScope.hasProvider() {
-		return renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetail(lane.title, width, []chip{
 			{Label: "mode", Value: "grouped"},
 			{Label: "provider", Value: "Select with v"},
-		}, metricDetailLine("Scope", "Choose a provider with v to split tool metrics by version."))
+		}, m.metricDetailLine("Scope", "Choose a provider with v to split tool metrics by version."))
 	}
 
 	grouped := m.groupedTools()
@@ -22,43 +22,43 @@ func (m statsModel) renderGroupedToolsMetricDetail(width int, lane statsLane) st
 	switch lane.id { //nolint:exhaustive // grouped tools detail only handles tool lanes
 	case statsLaneToolsCalls:
 		bucket, count := dominantGroupedHistogramBucket(grouped.CallsPerSession)
-		return renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
 			chip{Label: "dominant bucket", Value: bucket},
 			chip{Label: "sessions", Value: statspkg.FormatNumber(count)},
 		),
-			metricDetailLine("Question", "How is tool usage distributed across versions for the selected provider?"),
-			metricDetailLine("Reading", "Each bucket stacks session counts by version within the active time range."),
-			metricDetailLine("Scope", groupedTurnMetricScope(m)),
+			m.metricDetailLine("Question", "How is tool usage distributed across versions for the selected provider?"),
+			m.metricDetailLine("Reading", "Each bucket stacks session counts by version within the active time range."),
+			m.metricDetailLine("Scope", groupedTurnMetricScope(m)),
 		)
 	case statsLaneToolsTop:
 		leader, total := leadingGroupedTool(grouped.TopTools)
-		return renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
 			chip{Label: "top tool", Value: leader},
 			chip{Label: "calls", Value: statspkg.FormatNumber(total)},
 		),
-			metricDetailLine("Question", "Which tools dominate, and which versions contribute those calls?"),
-			metricDetailLine("Reading", "Each bar keeps the total call volume and colors split that total by version."),
+			m.metricDetailLine("Question", "Which tools dominate, and which versions contribute those calls?"),
+			m.metricDetailLine("Reading", "Each bar keeps the total call volume and colors split that total by version."),
 		)
 	case statsLaneToolsErrors:
 		name, rate := topGroupedToolRate(grouped.ToolErrorRates)
-		return renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
 			chip{Label: "top rate", Value: name},
 			chip{Label: "error rate", Value: rate},
 		),
-			metricDetailLine("Question", "Which tools fail, and which versions contribute those failures?"),
-			metricDetailLine(
+			m.metricDetailLine("Question", "Which tools fail, and which versions contribute those failures?"),
+			m.metricDetailLine(
 				"Reading",
 				"Bar length stays tied to the overall error rate, while colors split the failing calls by version.",
 			),
 		)
 	default:
 		name, rate := topGroupedToolRate(grouped.ToolRejectRates)
-		return renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
 			chip{Label: "top rate", Value: name},
 			chip{Label: "rejected", Value: rate},
 		),
-			metricDetailLine("Question", "Which tool suggestions are rejected, and which versions drive those rejections?"),
-			metricDetailLine(
+			m.metricDetailLine("Question", "Which tool suggestions are rejected, and which versions drive those rejections?"),
+			m.metricDetailLine(
 				"Reading",
 				"Bar length stays tied to the total rejection rate, while colors split rejected calls by version.",
 			),
@@ -68,10 +68,10 @@ func (m statsModel) renderGroupedToolsMetricDetail(width int, lane statsLane) st
 
 func (m statsModel) renderGroupedCacheMetricDetail(width int, lane statsLane) string {
 	if !m.groupScope.hasProvider() {
-		return renderStatsMetricDetail(lane.title, width, []chip{
+		return m.renderStatsMetricDetail(lane.title, width, []chip{
 			{Label: "mode", Value: "grouped"},
 			{Label: "provider", Value: "Select with v"},
-		}, metricDetailLine("Scope", "Choose a provider with v to split cache metrics by version."))
+		}, m.metricDetailLine("Scope", "Choose a provider with v to split cache metrics by version."))
 	}
 
 	grouped := m.groupedCache()
@@ -83,39 +83,39 @@ func (m statsModel) renderGroupedCacheMetricDetail(width int, lane statsLane) st
 	case statsLaneCacheDaily:
 		title, shares := m.groupedCacheDailyData(grouped)
 		peakDay, peakRate := peakGroupedDailyShare(shares)
-		return renderStatsMetricDetail(m.groupedProviderTitle(title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(title), width, append(baseChips,
 			chip{Label: "peak day", Value: peakDay},
 			chip{Label: "peak share", Value: formatRate(peakRate)},
 		),
-			metricDetailLine("Question", "How much of prompt traffic is cache read or write share each day?"),
-			metricDetailLine("Reading", "Each day keeps the total share and colors split the tokens by version."),
+			m.metricDetailLine("Question", "How much of prompt traffic is cache read or write share each day?"),
+			m.metricDetailLine("Reading", "Each day keeps the total share and colors split the tokens by version."),
 		)
 	case statsLaneCacheSegment:
 		name, total := leadingGroupedTool(grouped.SegmentRows)
-		return renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle(lane.title), width, append(baseChips,
 			chip{Label: "largest row", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		),
-			metricDetailLine("Question", "How do main-thread and subagent cache components split by version?"),
-			metricDetailLine("Reading", "Each row keeps the total tokens for that cache component, split by version."),
+			m.metricDetailLine("Question", "How do main-thread and subagent cache components split by version?"),
+			m.metricDetailLine("Reading", "Each row keeps the total tokens for that cache component, split by version."),
 		)
 	case statsLaneCacheReuse:
 		name, total := leadingGroupedHistogram(grouped.WriteDuration)
-		return renderStatsMetricDetail(m.groupedProviderTitle("Cache Write by Duration"), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle("Cache Write by Duration"), width, append(baseChips,
 			chip{Label: "largest bucket", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		),
-			metricDetailLine("Question", "Which session durations write the most cache tokens, split by version?"),
-			metricDetailLine("Reading", "Each duration bucket stacks cache-write tokens by version."),
+			m.metricDetailLine("Question", "Which session durations write the most cache tokens, split by version?"),
+			m.metricDetailLine("Reading", "Each duration bucket stacks cache-write tokens by version."),
 		)
 	default:
 		name, total := leadingGroupedHistogram(grouped.ReadDuration)
-		return renderStatsMetricDetail(m.groupedProviderTitle("Cache Read by Duration"), width, append(baseChips,
+		return m.renderStatsMetricDetail(m.groupedProviderTitle("Cache Read by Duration"), width, append(baseChips,
 			chip{Label: "largest bucket", Value: name},
 			chip{Label: "tokens", Value: statspkg.FormatNumber(total)},
 		),
-			metricDetailLine("Question", "Which session durations read the most cache tokens, split by version?"),
-			metricDetailLine("Reading", "Each duration bucket stacks cache-read tokens by version."),
+			m.metricDetailLine("Question", "Which session durations read the most cache tokens, split by version?"),
+			m.metricDetailLine("Reading", "Each duration bucket stacks cache-read tokens by version."),
 		)
 	}
 }

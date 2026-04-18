@@ -111,18 +111,24 @@ func (m browserModel) installViewer(session conv.Session, conversation conv.Conv
 	m.loadingConversationID = ""
 	m.sessionCache[key] = session
 	m = m.addToCache(key)
-
-	m.viewer = newViewerModelWithLauncher(
-		session,
-		conversation,
-		m.glamourStyle,
-		m.timestampFormat,
-		m.viewerWidth(),
-		m.height,
-		m.launcher,
-	)
 	if m.transcriptMode == transcriptClosed {
 		m.transcriptMode = transcriptSplit
+	}
+
+	if cached, ok := m.cachedViewerForOpen(key, session, conversation); ok {
+		m.viewer = cached
+	} else {
+		m.viewer = newViewerModelWithLauncher(
+			session,
+			conversation,
+			m.glamourStyle,
+			m.timestampFormat,
+			m.viewerWidth(),
+			m.height,
+			m.theme,
+			m.launcher,
+		)
+		m.viewerCache[key] = m.viewer
 	}
 	if m.transcriptMode == transcriptFullscreen {
 		m.focus = focusTranscript
@@ -241,6 +247,7 @@ func (m browserModel) addToCache(id string) browserModel {
 		evictID := m.cacheOrder[0]
 		m.cacheOrder = m.cacheOrder[1:]
 		delete(m.sessionCache, evictID)
+		delete(m.viewerCache, evictID)
 	}
 	return m
 }

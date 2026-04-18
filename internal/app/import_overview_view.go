@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	"github.com/rkuska/carn/internal/config"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
@@ -36,8 +37,8 @@ func (m importOverviewModel) viewDashboard() string {
 }
 
 func (m importOverviewModel) renderDashboardHeader(width int) string {
-	pill := renderImportStatusPill(m.phase, m.result.Failed > 0 || m.importBlocked() || m.syncErr != nil)
-	subtitle := styleSubtitle.Render(m.dashboardSubtitle())
+	pill := renderImportStatusPill(m.theme, m.phase, m.result.Failed > 0 || m.importBlocked() || m.syncErr != nil)
+	subtitle := m.theme.StyleSubtitle.Render(m.dashboardSubtitle())
 
 	if lipgloss.Width(pill)+2+lipgloss.Width(subtitle) <= width {
 		return pill + "  " + subtitle
@@ -99,37 +100,37 @@ func (m importOverviewModel) doneSubtitle() string {
 	return "import finished and is ready to continue"
 }
 
-func renderImportStatusPill(phase importPhase, hasFailures bool) string {
+func renderImportStatusPill(theme *el.Theme, phase importPhase, hasFailures bool) string {
 	var text string
 	var bg color.Color
 
 	switch phase {
 	case phaseAnalyzing:
 		text = "Analyzing"
-		bg = colorPrimary
+		bg = theme.ColorPrimary
 	case phaseReady:
 		if hasFailures {
 			text = "Ready with Issues"
-			bg = colorHighlight
+			bg = theme.ColorHighlight
 		} else {
 			text = "Ready to Import"
-			bg = colorAccent
+			bg = theme.ColorAccent
 		}
 	case phaseSyncing:
 		text = "Importing"
-		bg = colorPrimary
+		bg = theme.ColorPrimary
 	case phaseDone:
 		text = "Complete"
 		if hasFailures {
-			bg = colorHighlight
+			bg = theme.ColorHighlight
 		} else {
-			bg = colorAccent
+			bg = theme.ColorAccent
 		}
 	}
 
 	return lipgloss.NewStyle().
 		Bold(true).
-		Foreground(colorStatusFg).
+		Foreground(theme.ColorStatusFg).
 		Background(bg).
 		Padding(0, 1).
 		Render(text)
@@ -143,20 +144,20 @@ func (m importOverviewModel) renderContextBlock(width int) string {
 			continue
 		}
 		lines = append(lines, ansi.Truncate(
-			renderSingleChip(provider.Label(), shortenPath(sourceDir)),
+			renderSingleChip(m.theme, provider.Label(), shortenPath(sourceDir)),
 			width,
 			"…",
 		))
 	}
 	lines = append(lines, ansi.Truncate(
-		renderSingleChip("Archive", shortenPath(m.cfg.ArchiveDir)),
+		renderSingleChip(m.theme, "Archive", shortenPath(m.cfg.ArchiveDir)),
 		width,
 		"…",
 	))
 
 	if m.configStatus != config.StatusMissing {
 		lines = append(lines, ansi.Truncate(
-			renderSingleChip("Config", shortenPath(m.configFilePath)),
+			renderSingleChip(m.theme, "Config", shortenPath(m.configFilePath)),
 			width,
 			"…",
 		))
@@ -164,17 +165,17 @@ func (m importOverviewModel) renderContextBlock(width int) string {
 
 	switch m.configStatus {
 	case config.StatusMissing:
-		hint := styleMetaLabel.Render("Config") + " " +
-			styleMetaValue.Render("not found — press ") +
-			styleMetaValue.Bold(true).Render("c") +
-			styleMetaValue.Render(" to create")
+		hint := m.theme.StyleMetaLabel.Render("Config") + " " +
+			m.theme.StyleMetaValue.Render("not found — press ") +
+			m.theme.StyleMetaValue.Bold(true).Render("c") +
+			m.theme.StyleMetaValue.Render(" to create")
 		lines = append(lines, ansi.Truncate(hint, width, "…"))
 	case config.StatusLoaded:
 	case config.StatusInvalid:
-		hint := styleMetaLabel.Render("Config") + " " +
-			styleMetaValue.Render("invalid — press ") +
-			styleMetaValue.Bold(true).Render("c") +
-			styleMetaValue.Render(" to fix")
+		hint := m.theme.StyleMetaLabel.Render("Config") + " " +
+			m.theme.StyleMetaValue.Render("invalid — press ") +
+			m.theme.StyleMetaValue.Bold(true).Render("c") +
+			m.theme.StyleMetaValue.Render(" to fix")
 		lines = append(lines, ansi.Truncate(hint, width, "…"))
 	}
 
@@ -185,9 +186,9 @@ func (m importOverviewModel) renderSummaryBlock(width int) string {
 	var lines []string
 
 	headlineTokens := []string{
-		renderSingleChip("Sources", m.sourcesMetric()),
-		renderSingleChip("Files", m.filesMetric()),
-		renderSingleChip("Conversations", m.conversationMetric()),
+		renderSingleChip(m.theme, "Sources", m.sourcesMetric()),
+		renderSingleChip(m.theme, "Files", m.filesMetric()),
+		renderSingleChip(m.theme, "Conversations", m.conversationMetric()),
 	}
 
 	lines = append(lines, renderWrappedTokens(headlineTokens, width))
@@ -208,33 +209,33 @@ func (m importOverviewModel) summaryDetailTokens() []string {
 	switch m.phase {
 	case phaseAnalyzing:
 		tokens := []string{
-			renderSingleChip("New", fmt.Sprintf("%d", m.analysisProgress.NewConversations)),
-			renderSingleChip("Update", fmt.Sprintf("%d", m.analysisProgress.ToUpdate)),
+			renderSingleChip(m.theme, "New", fmt.Sprintf("%d", m.analysisProgress.NewConversations)),
+			renderSingleChip(m.theme, "Update", fmt.Sprintf("%d", m.analysisProgress.ToUpdate)),
 		}
 		if m.analysisProgress.CurrentProject != "" {
 			tokens = append(
 				tokens,
-				renderSingleChip("Current", m.analysisProgress.CurrentProject),
+				renderSingleChip(m.theme, "Current", m.analysisProgress.CurrentProject),
 			)
 		}
 		return tokens
 	case phaseReady:
 		return []string{
-			renderSingleChip("New", fmt.Sprintf("%d", m.analysis.NewConversations)),
-			renderSingleChip("Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),
-			renderSingleChip("Current", fmt.Sprintf("%d", m.analysis.UpToDate)),
+			renderSingleChip(m.theme, "New", fmt.Sprintf("%d", m.analysis.NewConversations)),
+			renderSingleChip(m.theme, "Update", fmt.Sprintf("%d", m.analysis.ToUpdate)),
+			renderSingleChip(m.theme, "Current", fmt.Sprintf("%d", m.analysis.UpToDate)),
 		}
 	case phaseSyncing:
 		return []string{
-			renderSingleChip("Queued", fmt.Sprintf("%d", m.total)),
-			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.Copied)),
-			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.Failed)),
+			renderSingleChip(m.theme, "Queued", fmt.Sprintf("%d", m.total)),
+			renderSingleChip(m.theme, "Copied", fmt.Sprintf("%d", m.result.Copied)),
+			renderSingleChip(m.theme, "Failed", fmt.Sprintf("%d", m.result.Failed)),
 		}
 	case phaseDone:
 		return []string{
-			renderSingleChip("Copied", fmt.Sprintf("%d", m.result.Copied)),
-			renderSingleChip("Failed", fmt.Sprintf("%d", m.result.Failed)),
-			renderSingleChip("Elapsed", formatElapsed(m.result.Elapsed)),
+			renderSingleChip(m.theme, "Copied", fmt.Sprintf("%d", m.result.Copied)),
+			renderSingleChip(m.theme, "Failed", fmt.Sprintf("%d", m.result.Failed)),
+			renderSingleChip(m.theme, "Elapsed", formatElapsed(m.result.Elapsed)),
 		}
 	default:
 		return nil

@@ -69,7 +69,7 @@ func (m browserModel) resyncStatusParts() []string {
 		return nil
 	}
 
-	parts := []string{styleToolCall.Render("[resync]")}
+	parts := []string{m.theme.StyleToolCall.Render("[resync]")}
 	switch m.resync.phase {
 	case resyncPhaseIdle:
 		return nil

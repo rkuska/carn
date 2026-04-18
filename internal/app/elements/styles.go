@@ -3,13 +3,11 @@ package elements
 import (
 	"image/color"
 	"strings"
-	"sync"
 
 	"charm.land/lipgloss/v2"
 )
 
-var (
-	// Colors — set by InitPalette based on terminal background.
+type Theme struct {
 	ColorPrimary     color.Color
 	ColorSecondary   color.Color
 	ColorAccent      color.Color
@@ -18,11 +16,11 @@ var (
 	ColorDiffRemove  color.Color
 	ColorDiffHunk    color.Color
 	ColorToolBg      color.Color
-	ColorFgOnBg      color.Color // foreground on toolBg / status surfaces
+	ColorFgOnBg      color.Color
 	ColorStatusFg    color.Color
 	ColorNormalTitle color.Color
 	ColorNormalDesc  color.Color
-	ColorTitleFg     color.Color // list title text on primary bg
+	ColorTitleFg     color.Color
 	ColorChartBar    color.Color
 	ColorChartToken  color.Color
 	ColorChartTime   color.Color
@@ -33,7 +31,6 @@ var (
 	ColorHeatmap3    color.Color
 	ColorHeatmap4    color.Color
 
-	// Styles — rebuilt by InitPalette.
 	StyleSubtitle             lipgloss.Style
 	StyleToolCall             lipgloss.Style
 	StyleToolCallItalic       lipgloss.Style
@@ -58,156 +55,147 @@ var (
 	StyleToolResultBadge      lipgloss.Style
 	StyleToolResultErrorBadge lipgloss.Style
 	StylePaneTitle            lipgloss.Style
-
-	paletteOnce = &sync.Once{}
-)
-
-// InitPalette sets the colour palette and derived styles based on
-// whether the terminal has a dark background.
-func InitPalette(hasDarkBG bool) {
-	paletteOnce.Do(func() {
-		ld := lipgloss.LightDark(hasDarkBG)
-
-		// (light-bg variant, dark-bg variant)
-		ColorPrimary = ld(lipgloss.Color("55"), lipgloss.Color("99"))
-		ColorSecondary = ld(lipgloss.Color("245"), lipgloss.Color("243"))
-		ColorAccent = ld(lipgloss.Color("28"), lipgloss.Color("114"))
-		ColorHighlight = ld(lipgloss.Color("225"), lipgloss.Color("53"))
-		ColorSelectedFg = ld(lipgloss.Color("22"), lipgloss.Color("156"))
-		ColorDiffRemove = ld(lipgloss.Color("124"), lipgloss.Color("203"))
-		ColorDiffHunk = ld(lipgloss.Color("30"), lipgloss.Color("37"))
-		ColorToolBg = ld(lipgloss.Color("254"), lipgloss.Color("236"))
-		ColorFgOnBg = ld(lipgloss.Color("238"), lipgloss.Color("252"))
-		ColorStatusFg = ld(lipgloss.Color("232"), lipgloss.Color("255"))
-		ColorNormalTitle = ld(lipgloss.Color("240"), lipgloss.Color("249"))
-		ColorNormalDesc = ld(lipgloss.Color("245"), lipgloss.Color("243"))
-		ColorTitleFg = ld(lipgloss.Color("255"), lipgloss.Color("230"))
-		ColorChartBar = lipgloss.Color("#39d353")
-		ColorChartToken = lipgloss.Color("#a371f7")
-		ColorChartTime = lipgloss.Color("#d2a8ff")
-		ColorChartError = lipgloss.Color("#f85149")
-		ColorHeatmap0 = lipgloss.Color("#161b22")
-		ColorHeatmap1 = lipgloss.Color("#0e4429")
-		ColorHeatmap2 = lipgloss.Color("#006d32")
-		ColorHeatmap3 = lipgloss.Color("#26a641")
-		ColorHeatmap4 = lipgloss.Color("#39d353")
-
-		StyleSubtitle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
-
-		StyleToolCall = lipgloss.NewStyle().
-			Foreground(ColorAccent)
-
-		StyleToolCallItalic = lipgloss.NewStyle().
-			Foreground(ColorAccent).
-			Italic(true)
-
-		StyleMetaLabel = lipgloss.NewStyle().
-			Foreground(ColorSecondary).
-			Bold(true)
-
-		StyleMetaValue = lipgloss.NewStyle().
-			Foreground(ColorNormalTitle)
-
-		StyleSearchMatch = lipgloss.NewStyle().
-			Background(ColorHighlight)
-
-		colorCurrentMatch := ld(lipgloss.Color("201"), lipgloss.Color("129"))
-		StyleCurrentMatch = lipgloss.NewStyle().
-			Background(colorCurrentMatch).
-			Bold(true)
-
-		StyleRuleHR = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("238"))
-
-		StyleBadgeUser = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary)
-
-		StyleBadgeAssistant = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorAccent)
-
-		StyleBadgeSystem = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorSecondary)
-
-		StyleThinkLabel = lipgloss.NewStyle().
-			Italic(true).
-			Foreground(ColorSecondary)
-
-		StyleThinkBorder = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
-
-		StyleThinkLine = lipgloss.NewStyle().
-			Foreground(ColorSecondary).
-			Italic(true)
-
-		StyleSelectedPreview = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(ColorAccent).
-			Foreground(ColorSelectedFg).
-			Padding(0, 0, 0, 1)
-
-		StyleNormalPreview = lipgloss.NewStyle().
-			Foreground(ColorNormalTitle).
-			Bold(true).
-			Padding(0, 0, 0, 2)
-
-		StyleDimmedPreview = lipgloss.NewStyle().
-			Foreground(ColorNormalDesc).
-			Padding(0, 0, 0, 2)
-
-		StyleDiffBg = lipgloss.NewStyle().
-			Background(ColorToolBg).
-			Foreground(ColorFgOnBg)
-
-		StyleDiffAdd = lipgloss.NewStyle().
-			Background(ColorToolBg).
-			Foreground(ColorAccent)
-
-		StyleDiffRemoveLine = lipgloss.NewStyle().
-			Background(ColorToolBg).
-			Foreground(ColorDiffRemove)
-
-		StyleDiffHunkLine = lipgloss.NewStyle().
-			Background(ColorToolBg).
-			Foreground(ColorDiffHunk)
-
-		StyleToolResultBadge = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorStatusFg).
-			Background(ColorPrimary).
-			Padding(0, 1)
-
-		StyleToolResultErrorBadge = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorStatusFg).
-			Background(ColorDiffRemove).
-			Padding(0, 1)
-
-		StylePaneTitle = lipgloss.NewStyle().
-			Foreground(ColorTitleFg).
-			Bold(true).
-			Padding(0, 1)
-	})
 }
 
-func InitPaletteForTest(hasDarkBG bool) {
-	paletteOnce = &sync.Once{}
-	InitPalette(hasDarkBG)
+func NewTheme(hasDarkBG bool) *Theme {
+	ld := lipgloss.LightDark(hasDarkBG)
+	theme := &Theme{
+		ColorPrimary:     ld(lipgloss.Color("55"), lipgloss.Color("99")),
+		ColorSecondary:   ld(lipgloss.Color("245"), lipgloss.Color("243")),
+		ColorAccent:      ld(lipgloss.Color("28"), lipgloss.Color("114")),
+		ColorHighlight:   ld(lipgloss.Color("225"), lipgloss.Color("53")),
+		ColorSelectedFg:  ld(lipgloss.Color("22"), lipgloss.Color("156")),
+		ColorDiffRemove:  ld(lipgloss.Color("124"), lipgloss.Color("203")),
+		ColorDiffHunk:    ld(lipgloss.Color("30"), lipgloss.Color("37")),
+		ColorToolBg:      ld(lipgloss.Color("254"), lipgloss.Color("236")),
+		ColorFgOnBg:      ld(lipgloss.Color("238"), lipgloss.Color("252")),
+		ColorStatusFg:    ld(lipgloss.Color("232"), lipgloss.Color("255")),
+		ColorNormalTitle: ld(lipgloss.Color("240"), lipgloss.Color("249")),
+		ColorNormalDesc:  ld(lipgloss.Color("245"), lipgloss.Color("243")),
+		ColorTitleFg:     ld(lipgloss.Color("255"), lipgloss.Color("230")),
+		ColorChartBar:    lipgloss.Color("#39d353"),
+		ColorChartToken:  lipgloss.Color("#a371f7"),
+		ColorChartTime:   lipgloss.Color("#d2a8ff"),
+		ColorChartError:  lipgloss.Color("#f85149"),
+		ColorHeatmap0:    lipgloss.Color("#161b22"),
+		ColorHeatmap1:    lipgloss.Color("#0e4429"),
+		ColorHeatmap2:    lipgloss.Color("#006d32"),
+		ColorHeatmap3:    lipgloss.Color("#26a641"),
+		ColorHeatmap4:    lipgloss.Color("#39d353"),
+	}
+
+	theme.StyleSubtitle = lipgloss.NewStyle().
+		Foreground(theme.ColorSecondary)
+
+	theme.StyleToolCall = lipgloss.NewStyle().
+		Foreground(theme.ColorAccent)
+
+	theme.StyleToolCallItalic = lipgloss.NewStyle().
+		Foreground(theme.ColorAccent).
+		Italic(true)
+
+	theme.StyleMetaLabel = lipgloss.NewStyle().
+		Foreground(theme.ColorSecondary).
+		Bold(true)
+
+	theme.StyleMetaValue = lipgloss.NewStyle().
+		Foreground(theme.ColorNormalTitle)
+
+	theme.StyleSearchMatch = lipgloss.NewStyle().
+		Background(theme.ColorHighlight)
+
+	colorCurrentMatch := ld(lipgloss.Color("201"), lipgloss.Color("129"))
+	theme.StyleCurrentMatch = lipgloss.NewStyle().
+		Background(colorCurrentMatch).
+		Bold(true)
+
+	theme.StyleRuleHR = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("238"))
+
+	theme.StyleBadgeUser = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorPrimary)
+
+	theme.StyleBadgeAssistant = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorAccent)
+
+	theme.StyleBadgeSystem = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorSecondary)
+
+	theme.StyleThinkLabel = lipgloss.NewStyle().
+		Italic(true).
+		Foreground(theme.ColorSecondary)
+
+	theme.StyleThinkBorder = lipgloss.NewStyle().
+		Foreground(theme.ColorSecondary)
+
+	theme.StyleThinkLine = lipgloss.NewStyle().
+		Foreground(theme.ColorSecondary).
+		Italic(true)
+
+	theme.StyleSelectedPreview = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(theme.ColorAccent).
+		Foreground(theme.ColorSelectedFg).
+		Padding(0, 0, 0, 1)
+
+	theme.StyleNormalPreview = lipgloss.NewStyle().
+		Foreground(theme.ColorNormalTitle).
+		Bold(true).
+		Padding(0, 0, 0, 2)
+
+	theme.StyleDimmedPreview = lipgloss.NewStyle().
+		Foreground(theme.ColorNormalDesc).
+		Padding(0, 0, 0, 2)
+
+	theme.StyleDiffBg = lipgloss.NewStyle().
+		Background(theme.ColorToolBg).
+		Foreground(theme.ColorFgOnBg)
+
+	theme.StyleDiffAdd = lipgloss.NewStyle().
+		Background(theme.ColorToolBg).
+		Foreground(theme.ColorAccent)
+
+	theme.StyleDiffRemoveLine = lipgloss.NewStyle().
+		Background(theme.ColorToolBg).
+		Foreground(theme.ColorDiffRemove)
+
+	theme.StyleDiffHunkLine = lipgloss.NewStyle().
+		Background(theme.ColorToolBg).
+		Foreground(theme.ColorDiffHunk)
+
+	theme.StyleToolResultBadge = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorStatusFg).
+		Background(theme.ColorPrimary).
+		Padding(0, 1)
+
+	theme.StyleToolResultErrorBadge = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorStatusFg).
+		Background(theme.ColorDiffRemove).
+		Padding(0, 1)
+
+	theme.StylePaneTitle = lipgloss.NewStyle().
+		Foreground(theme.ColorTitleFg).
+		Bold(true).
+		Padding(0, 1)
+
+	return theme
 }
 
 // RenderBorderTop builds a custom top border line with an embedded title badge:
 // ╭─ Title ──────────────────────╮
-func RenderBorderTop(title string, width int, fg, bg color.Color) string {
+func (t *Theme) RenderBorderTop(title string, width int, fg, bg color.Color) string {
 	border := lipgloss.RoundedBorder()
 	bs := lipgloss.NewStyle().Foreground(fg)
-	ts := StylePaneTitle.Background(bg)
+	ts := t.StylePaneTitle.Background(bg)
 
 	titleRendered := ts.Render(title)
 	titleW := lipgloss.Width(titleRendered)
-	innerWidth := width - 2 // minus two corners
+	innerWidth := width - 2
 	padLen := max(innerWidth-titleW-3, 0)
 
 	return bs.Render(string(border.TopLeft)+"─") +
@@ -215,13 +203,18 @@ func RenderBorderTop(title string, width int, fg, bg color.Color) string {
 		bs.Render(strings.Repeat("─", padLen)+string(border.TopRight))
 }
 
-func RenderFramedPane(title string, width, bodyHeight int, borderColor color.Color, content string) string {
-	topBorder := RenderBorderTop(title, width, borderColor, borderColor)
+func (t *Theme) RenderFramedPane(
+	title string,
+	width, bodyHeight int,
+	borderColor color.Color,
+	content string,
+) string {
+	topBorder := t.RenderBorderTop(title, width, borderColor, borderColor)
 	return topBorder + "\n" + RenderFramedBody(width, bodyHeight, borderColor, content)
 }
 
-func RenderFramedBox(title string, width int, borderColor color.Color, content string) string {
-	topBorder := RenderBorderTop(title, width, borderColor, borderColor)
+func (t *Theme) RenderFramedBox(title string, width int, borderColor color.Color, content string) string {
+	topBorder := t.RenderBorderTop(title, width, borderColor, borderColor)
 	return topBorder + "\n" + RenderFramedBody(width, 0, borderColor, content)
 }
 

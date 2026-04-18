@@ -103,14 +103,6 @@ func testLongConv(id string) conv.Conversation {
 	}
 }
 
-func helpItemKeys(items []helpItem) []string {
-	keys := make([]string, 0, len(items))
-	for _, item := range items {
-		keys = append(keys, item.Key)
-	}
-	return keys
-}
-
 func TestBrowserEnterOpensTranscriptSplit(t *testing.T) {
 	t.Parallel()
 
@@ -176,6 +168,37 @@ func TestBrowserOpenViewerMsgSetsViewerState(t *testing.T) {
 	assert.Equal(t, session.Meta.ID, b.viewer.session.Meta.ID)
 	_, ok := b.sessionCache[session.Meta.ID]
 	assert.True(t, ok)
+	_, ok = b.viewerCache[session.Meta.ID]
+	assert.True(t, ok)
+}
+
+func TestBrowserInstallViewerReusesCachedViewer(t *testing.T) {
+	t.Parallel()
+
+	b := testBrowser(t)
+	session := testSession(testConversationIDPrimary)
+	conversation := singleSessionConversation(session.Meta)
+
+	b = b.installViewer(session, conversation)
+	cached, ok := b.viewerCache[session.Meta.ID]
+	require.True(t, ok)
+	require.NotNil(t, cached.renderer)
+
+	cached.searching = true
+	cached.searchQuery = "needle"
+	cached.planExpanded = true
+	cached.actionMode = viewerActionCopy
+	cached.viewport.SetYOffset(3)
+	b.viewerCache[session.Meta.ID] = cached
+
+	b = b.installViewer(session, conversation)
+
+	assert.Same(t, cached.renderer, b.viewer.renderer)
+	assert.False(t, b.viewer.searching)
+	assert.Empty(t, b.viewer.searchQuery)
+	assert.False(t, b.viewer.planExpanded)
+	assert.Equal(t, viewerActionNone, b.viewer.actionMode)
+	assert.Zero(t, b.viewer.viewport.YOffset())
 }
 
 func TestBrowserOpenViewerMsgIgnoresStaleLoad(t *testing.T) {
@@ -309,7 +332,7 @@ func TestBrowserFooterShowsTranscriptTogglePrefixesConsistently(t *testing.T) {
 		session:        testSession(testConversationIDPrimary),
 	})
 
-	helpLine := ansi.Strip(renderHelpItems(b.viewer.footerItems()))
+	helpLine := ansi.Strip(renderHelpItems(testTheme(), b.viewer.footerItems()))
 	assertContainsAll(t, helpLine, "-t", "-T", "-R", "+s", "? help", "thinking")
 	assert.NotContains(t, helpLine, " open")
 }
@@ -325,19 +348,19 @@ func TestRenderHelpItemUsesGlowForPurpleToggleHighlight(t *testing.T) {
 		{
 			name:     "glowing toggle uses primary",
 			item:     helpItem{Key: "t", Desc: "thinking", Toggle: true, Glow: true},
-			expected: lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+			expected: lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("-t"),
 		},
 		{
 			name:     "glowing action uses primary",
 			item:     helpItem{Key: "ctrl+l", Desc: "clear", Glow: true},
-			expected: lipgloss.NewStyle().Foreground(colorPrimary).Render("ctrl+l"),
+			expected: lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("ctrl+l"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Contains(t, renderHelpItem(tt.item), tt.expected)
+			assert.Contains(t, renderHelpItem(testTheme(), tt.item), tt.expected)
 		})
 	}
 }

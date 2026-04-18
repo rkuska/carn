@@ -22,7 +22,7 @@ const (
 
 func (m statsModel) renderSessionsTab(width int) string {
 	sessionStats := m.snapshot.Sessions
-	chips := renderSummaryChips([]chip{
+	chips := renderSummaryChips(m.theme, []chip{
 		{Label: "avg duration", Value: conv.FormatDuration(sessionStats.AverageDuration)},
 		{Label: "avg messages", Value: formatFloat(sessionStats.AverageMessages)},
 		{Label: "user:assistant", Value: formatRatio(sessionStats.UserAssistantRatio)},
@@ -39,21 +39,22 @@ func (m statsModel) renderSessionsTab(width int) string {
 	}
 
 	histograms := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		"Session Duration",
 		m.sessionsLaneCursor == 0,
 		func(bodyWidth int) string {
-			return renderVerticalHistogramBody(durationBuckets, bodyWidth, 8, colorChartTime)
+			return renderVerticalHistogramBody(m.theme, durationBuckets, bodyWidth, 8, m.theme.ColorChartTime)
 		},
 		"Messages per Session",
 		m.sessionsLaneCursor == 1,
 		func(bodyWidth int) string {
-			return renderVerticalHistogramBody(messageBuckets, bodyWidth, 8, colorChartBar)
+			return renderVerticalHistogramBody(m.theme, messageBuckets, bodyWidth, 8, m.theme.ColorChartBar)
 		},
 	)
 
-	growthChips := renderSummaryChips(m.sessionTurnSummaryChips(), width)
+	growthChips := renderSummaryChips(m.theme, m.sessionTurnSummaryChips(), width)
 	turnChartHeight := 12
 	if m.sessionsGrouped {
 		turnChartHeight = 14
@@ -67,6 +68,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 	}
 
 	promptGrowth := renderStatsLaneBox(
+		m.theme,
 		m.sessionTurnLaneTitle(statsClaudePromptGrowthTitle, m.sessionsPromptMode),
 		m.sessionsLaneCursor == 2,
 		width,
@@ -80,6 +82,7 @@ func (m statsModel) renderSessionsTab(width int) string {
 		),
 	)
 	turnCost := renderStatsLaneBox(
+		m.theme,
 		m.sessionTurnLaneTitle(statsClaudeTurnCostTitle, m.sessionsTurnCostMode),
 		m.sessionsLaneCursor == 3,
 		width,

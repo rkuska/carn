@@ -5,37 +5,42 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	el "github.com/rkuska/carn/internal/app/elements"
 )
 
 type statsLaneContentBuilder func(bodyWidth int) string
 type statsLaneRenderer func(index, width int, selected bool) string
 
-func renderStatsLaneBox(title string, selected bool, width int, content string) string {
+func renderStatsLaneBox(theme *el.Theme, title string, selected bool, width int, content string) string {
 	if width <= 0 {
 		return ""
 	}
 	return renderFramedBox(
+		theme,
 		selectedStatsTitle(title, selected),
 		width,
-		statsLaneBorderColor(selected),
+		statsLaneBorderColor(theme, selected),
 		"\n"+content,
 	)
 }
 
-func renderStatsLanePane(title string, selected bool, width, bodyHeight int, content string) string {
+func renderStatsLanePane(theme *el.Theme, title string, selected bool, width, bodyHeight int, content string) string {
 	if width <= 0 {
 		return ""
 	}
 	return renderFramedPane(
+		theme,
 		selectedStatsTitle(title, selected),
 		width,
 		max(bodyHeight, 1)+1,
-		statsLaneBorderColor(selected),
+		statsLaneBorderColor(theme, selected),
 		"\n"+content,
 	)
 }
 
 func renderStatsLanePair(
+	theme *el.Theme,
 	width, minColumnWidth int,
 	leftTitle string,
 	leftSelected bool,
@@ -48,8 +53,8 @@ func renderStatsLanePair(
 	if stacked {
 		bodyWidth := statsLaneBodyWidth(width)
 		return strings.Join([]string{
-			renderStatsLaneBox(leftTitle, leftSelected, width, leftContent(bodyWidth)),
-			renderStatsLaneBox(rightTitle, rightSelected, width, rightContent(bodyWidth)),
+			renderStatsLaneBox(theme, leftTitle, leftSelected, width, leftContent(bodyWidth)),
+			renderStatsLaneBox(theme, rightTitle, rightSelected, width, rightContent(bodyWidth)),
 		}, "\n\n")
 	}
 
@@ -58,8 +63,9 @@ func renderStatsLanePair(
 	bodyHeight := max(lipgloss.Height(leftBody), lipgloss.Height(rightBody))
 
 	return renderPreformattedColumns(
-		renderStatsLanePane(leftTitle, leftSelected, leftWidth, bodyHeight, leftBody),
-		renderStatsLanePane(rightTitle, rightSelected, rightWidth, bodyHeight, rightBody),
+		theme,
+		renderStatsLanePane(theme, leftTitle, leftSelected, leftWidth, bodyHeight, leftBody),
+		renderStatsLanePane(theme, rightTitle, rightSelected, rightWidth, bodyHeight, rightBody),
 		leftWidth,
 		rightWidth,
 		false,
@@ -67,6 +73,7 @@ func renderStatsLanePair(
 }
 
 func renderStatsLaneGrid(
+	theme *el.Theme,
 	width, minColumnWidth int,
 	selectedIndex int,
 	render statsLaneRenderer,
@@ -83,6 +90,7 @@ func renderStatsLaneGrid(
 	}
 
 	top := renderPreformattedColumns(
+		theme,
 		render(0, leftWidth, selectedIndex == 0),
 		render(1, rightWidth, selectedIndex == 1),
 		leftWidth,
@@ -90,6 +98,7 @@ func renderStatsLaneGrid(
 		false,
 	)
 	bottom := renderPreformattedColumns(
+		theme,
 		render(2, leftWidth, selectedIndex == 2),
 		render(3, rightWidth, selectedIndex == 3),
 		leftWidth,
@@ -103,9 +112,9 @@ func statsLaneBodyWidth(width int) int {
 	return max(width-2, 1)
 }
 
-func statsLaneBorderColor(selected bool) color.Color {
+func statsLaneBorderColor(theme *el.Theme, selected bool) color.Color {
 	if selected {
-		return colorAccent
+		return theme.ColorAccent
 	}
-	return colorPrimary
+	return theme.ColorPrimary
 }

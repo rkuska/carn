@@ -3,6 +3,7 @@ package stats
 import (
 	"time"
 
+	"github.com/rkuska/carn/internal/app/testutil"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -72,4 +73,8 @@ func testTurnMetricRowWithLength(
 		})
 	}
 	return row
+}
+
+func helpItemKeys(items []helpItem) []string {
+	return testutil.HelpItemKeys(items)
 }

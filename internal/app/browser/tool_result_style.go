@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -16,13 +17,13 @@ const toolResultPrefixW = 2 // ▎ border (1 cell) + space (1 cell)
 // renderStyledToolResult renders a tool result with lipgloss styling:
 // colored header badge, dark background content area with left border,
 // and per-line diff coloring for structured patches.
-func renderStyledToolResult(tr conv.ToolResult, width int) string {
+func renderStyledToolResult(theme *el.Theme, tr conv.ToolResult, width int) string {
 	var sb strings.Builder
 
 	// Choose badge color based on error status
-	borderColor := colorPrimary
+	borderColor := theme.ColorPrimary
 	if tr.IsError {
-		borderColor = colorDiffRemove
+		borderColor = theme.ColorDiffRemove
 	}
 
 	name := "Result"
@@ -30,9 +31,9 @@ func renderStyledToolResult(tr conv.ToolResult, width int) string {
 		name = tr.ToolName
 	}
 	if tr.IsError {
-		sb.WriteString(styleToolResultErrorBadge.Render(name))
+		sb.WriteString(theme.StyleToolResultErrorBadge.Render(name))
 	} else {
-		sb.WriteString(styleToolResultBadge.Render(name))
+		sb.WriteString(theme.StyleToolResultBadge.Render(name))
 	}
 
 	// Build content lines early so we can show line count
@@ -44,17 +45,17 @@ func renderStyledToolResult(tr conv.ToolResult, width int) string {
 	}
 	if summary != "" {
 		sb.WriteString(" ")
-		sb.WriteString(styleSubtitle.Render(summary))
+		sb.WriteString(theme.StyleSubtitle.Render(summary))
 	}
 	if len(contentLines) > 0 {
 		lineCount := fmt.Sprintf(" %d lines", len(contentLines))
-		sb.WriteString(styleSubtitle.Render(lineCount))
+		sb.WriteString(theme.StyleSubtitle.Render(lineCount))
 	}
 	sb.WriteString("\n")
 
 	// Content area
 	if len(contentLines) > 0 {
-		renderContentArea(&sb, contentLines, tr.StructuredPatch != nil, width, borderColor)
+		renderContentArea(theme, &sb, contentLines, tr.StructuredPatch != nil, width, borderColor)
 	}
 
 	sb.WriteString("\n")
@@ -92,7 +93,14 @@ func buildContentLines(tr conv.ToolResult) []string {
 	return nil
 }
 
-func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width int, borderClr color.Color) {
+func renderContentArea(
+	theme *el.Theme,
+	sb *strings.Builder,
+	lines []string,
+	isDiff bool,
+	width int,
+	borderClr color.Color,
+) {
 	border := lipgloss.NewStyle().
 		Foreground(borderClr).
 		Render("▎")
@@ -100,15 +108,15 @@ func renderContentArea(sb *strings.Builder, lines []string, isDiff bool, width i
 	contentWidth := max(width-toolResultPrefixW, 1)
 
 	for _, line := range lines {
-		style := styleDiffBg
+		style := theme.StyleDiffBg
 		if isDiff {
 			switch {
 			case strings.HasPrefix(line, "+"):
-				style = styleDiffAdd
+				style = theme.StyleDiffAdd
 			case strings.HasPrefix(line, "-"):
-				style = styleDiffRemoveLine
+				style = theme.StyleDiffRemoveLine
 			case strings.HasPrefix(line, "@@"):
-				style = styleDiffHunkLine
+				style = theme.StyleDiffHunkLine
 			}
 		}
 

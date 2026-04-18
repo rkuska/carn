@@ -17,8 +17,9 @@ func NewModel(
 	store Store,
 	width, height int,
 	filter el.FilterState,
+	theme *el.Theme,
 ) Model {
-	model := newStatsModel(conversations, store, width, height, filter)
+	model := newStatsModelWithTheme(conversations, store, width, height, filter, theme)
 	model.ctx = ctx
 	model.archiveDir = archiveDir
 	return model.applyFilterChange()

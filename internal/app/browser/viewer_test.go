@@ -112,20 +112,20 @@ func TestHelpViewGlowsWhenHiddenDataExists(t *testing.T) {
 	m := newTestViewer(session, 120, 40)
 
 	// Thinking is off by default and there IS thinking content — should glow.
-	helpOff := renderHelpItems(m.footerItems())
+	helpOff := renderHelpItems(testTheme(), m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := renderHelpItems(m.footerItems())
+	helpOn := renderHelpItems(testTheme(), m.footerItems())
 
 	assert.Contains(
 		t,
 		helpOff,
-		lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("-t"),
 	)
 	assert.Contains(
 		t,
 		helpOn,
-		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorAccent).Render("+t"),
 	)
 }
 
@@ -146,20 +146,20 @@ func TestHelpViewGlowsWhenHiddenThinkingExistsWithoutVisibleThinking(t *testing.
 
 	m := newTestViewer(session, 120, 40)
 
-	helpOff := renderHelpItems(m.footerItems())
+	helpOff := renderHelpItems(testTheme(), m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := renderHelpItems(m.footerItems())
+	helpOn := renderHelpItems(testTheme(), m.footerItems())
 
 	assert.Contains(
 		t,
 		helpOff,
-		lipgloss.NewStyle().Foreground(colorPrimary).Render("-t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("-t"),
 	)
 	assert.Contains(
 		t,
 		helpOn,
-		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorAccent).Render("+t"),
 	)
 }
 
@@ -168,20 +168,20 @@ func TestHelpViewNoGlowWhenNoHiddenData(t *testing.T) {
 
 	noThinkSession := testSession("no-glow-plain")
 	m := newTestViewer(noThinkSession, 120, 40)
-	helpOff := renderHelpItems(m.footerItems())
+	helpOff := renderHelpItems(testTheme(), m.footerItems())
 
 	m.opts.showThinking = true
-	helpOn := renderHelpItems(m.footerItems())
+	helpOn := renderHelpItems(testTheme(), m.footerItems())
 
 	assert.Contains(
 		t,
 		helpOff,
-		lipgloss.NewStyle().Foreground(colorAccent).Render("-t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorAccent).Render("-t"),
 	)
 	assert.Contains(
 		t,
 		helpOn,
-		lipgloss.NewStyle().Foreground(colorAccent).Render("+t"),
+		lipgloss.NewStyle().Foreground(testTheme().ColorAccent).Render("+t"),
 	)
 }
 
@@ -377,8 +377,8 @@ func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 	assert.Contains(t, keys, "p")
 	assert.Contains(
 		t,
-		renderHelpItems(m.footerItems()),
-		lipgloss.NewStyle().Foreground(colorPrimary).Render("-p"),
+		renderHelpItems(testTheme(), m.footerItems()),
+		lipgloss.NewStyle().Foreground(testTheme().ColorPrimary).Render("-p"),
 	)
 
 	// p should appear after the last transcript toggle and before action items
@@ -402,8 +402,8 @@ func TestViewerFooterShowsPlanToggleWhenPlansExist(t *testing.T) {
 
 	assert.Contains(
 		t,
-		renderHelpItems(m.footerItems()),
-		lipgloss.NewStyle().Foreground(colorAccent).Render("+p"),
+		renderHelpItems(testTheme(), m.footerItems()),
+		lipgloss.NewStyle().Foreground(testTheme().ColorAccent).Render("+p"),
 	)
 }
 
@@ -471,7 +471,7 @@ func TestRenderRoleHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := renderRoleHeader(tt.role, 80)
+			got := renderRoleHeader(testTheme(), tt.role, 80)
 			stripped := ansi.Strip(got)
 
 			assert.Contains(t, stripped, tt.wantLabel)
@@ -485,14 +485,14 @@ func TestViewerSearchHighlightsMatchedText(t *testing.T) {
 
 	m := newTestViewer(testSession("search-highlight"), 120, 40)
 
-	contentBefore := m.paneView(colorPrimary)
+	contentBefore := m.paneView(testTheme().ColorPrimary)
 	baseBefore := m.viewport.GetContent()
 
 	m.searchQuery = testTextHello
 	m = m.performSearch()
 	require.NotEmpty(t, m.matches)
 
-	contentAfter := m.paneView(colorPrimary)
+	contentAfter := m.paneView(testTheme().ColorPrimary)
 
 	// The viewport content should differ because matches are highlighted.
 	assert.NotEqual(t, contentBefore, contentAfter)
@@ -517,10 +517,10 @@ func TestViewerSearchCurrentMatchMovesOnJump(t *testing.T) {
 	m = m.performSearch()
 	require.Greater(t, len(m.matches), 1)
 
-	contentAt0 := m.paneView(colorPrimary)
+	contentAt0 := m.paneView(testTheme().ColorPrimary)
 
 	m = m.jumpToMatch(1)
-	contentAt1 := m.paneView(colorPrimary)
+	contentAt1 := m.paneView(testTheme().ColorPrimary)
 
 	// Different current match should produce different highlighted content.
 	assert.NotEqual(t, contentAt0, contentAt1)
@@ -533,7 +533,7 @@ func TestViewerSearchClearRemovesHighlights(t *testing.T) {
 	m := newTestViewer(testSession("clear-highlight"), 120, 40)
 
 	// Capture the un-highlighted content.
-	contentClean := m.paneView(colorPrimary)
+	contentClean := m.paneView(testTheme().ColorPrimary)
 
 	m.searchQuery = testTextHello
 	m = m.performSearch()
@@ -541,7 +541,7 @@ func TestViewerSearchClearRemovesHighlights(t *testing.T) {
 
 	// After clearing, content should return to the original un-highlighted state.
 	m = m.clearSearch()
-	contentAfterClear := m.paneView(colorPrimary)
+	contentAfterClear := m.paneView(testTheme().ColorPrimary)
 
 	assert.Equal(t, contentClean, contentAfterClear)
 	assert.Equal(t, m.baseContent, m.viewport.GetContent())

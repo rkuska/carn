@@ -10,12 +10,13 @@ import (
 	"github.com/NimbleMarkets/ntcharts/v2/linechart"
 	tslc "github.com/NimbleMarkets/ntcharts/v2/linechart/timeserieslinechart"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 func (m statsModel) renderActivityTab(width, height int) string {
 	activity := m.snapshot.Activity
-	chips := renderSummaryChips([]chip{
+	chips := renderSummaryChips(m.theme, []chip{
 		{Label: "active days", Value: fmt.Sprintf("%d/%d", activity.ActiveDays, activity.TotalDays)},
 		{Label: "current streak", Value: statspkg.FormatNumber(activity.CurrentStreak)},
 		{Label: "longest streak", Value: statspkg.FormatNumber(activity.LongestStreak)},
@@ -28,21 +29,24 @@ func (m statsModel) renderActivityTab(width, height int) string {
 	}
 
 	lineChart := renderStatsLaneBox(
+		m.theme,
 		chartTitle,
 		m.activityLaneCursor == 0,
 		width,
 		renderDailyActivityChartBody(
+			m.theme,
 			counts,
 			max(statsLaneBodyWidth(width), 10),
 			chartHeight,
-			colorChartTime,
+			m.theme.ColorChartTime,
 		),
 	)
 	heatmap := renderStatsLaneBox(
+		m.theme,
 		"Activity Heatmap",
 		m.activityLaneCursor == 1,
 		width,
-		renderActivityHeatmapBody(activity.Heatmap, statsLaneBodyWidth(width)),
+		renderActivityHeatmapBody(m.theme, activity.Heatmap, statsLaneBodyWidth(width)),
 	)
 	return joinSections(chips, lineChart, heatmap, m.renderActiveMetricDetail(width))
 }
@@ -61,6 +65,7 @@ func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {
 }
 
 func renderDailyActivityChartBody(
+	theme *el.Theme,
 	counts []statspkg.DailyCount,
 	width, height int,
 	lineColor color.Color,
@@ -85,8 +90,8 @@ func renderDailyActivityChartBody(
 		tslc.WithLineStyle(runes.ArcLineStyle),
 		tslc.WithStyle(lipgloss.NewStyle().Foreground(lineColor)),
 		tslc.WithAxesStyles(
-			lipgloss.NewStyle().Foreground(colorSecondary),
-			lipgloss.NewStyle().Foreground(colorNormalDesc),
+			lipgloss.NewStyle().Foreground(theme.ColorSecondary),
+			lipgloss.NewStyle().Foreground(theme.ColorNormalDesc),
 		),
 	)
 	for _, count := range counts {
@@ -98,12 +103,13 @@ func renderDailyActivityChartBody(
 }
 
 func renderDailyRateChartBody(
+	theme *el.Theme,
 	rates []statspkg.DailyRate,
 	width, height int,
 	lineColor color.Color,
 	yFormatter linechart.LabelFormatter,
 ) string {
-	return renderDailyRateColumnChart(rates, width, height, lineColor, yFormatter)
+	return renderDailyRateColumnChart(theme, rates, width, height, lineColor, yFormatter)
 }
 
 func activityChartRange(counts []statspkg.DailyCount) (time.Time, time.Time) {

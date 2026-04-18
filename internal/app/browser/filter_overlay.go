@@ -3,7 +3,7 @@ package browser
 import tea "charm.land/bubbletea/v2"
 
 func (m browserModel) renderFilterOverlay() string {
-	return renderFilterOverlayWithConversations(m.mainConversations, m.filter, m.width, m.height)
+	return renderFilterOverlayWithConversations(m.theme, m.mainConversations, m.filter, m.width, m.height)
 }
 
 func (m browserModel) filterFooterStatusParts() []string {

@@ -21,7 +21,7 @@ type TurnBarColumn struct {
 	Height   int
 }
 
-func RenderTurnBarChartBody(
+func (t *Theme) RenderTurnBarChartBody(
 	metrics []statspkg.PositionTokenMetrics,
 	width, height int,
 	barColor color.Color,
@@ -52,7 +52,7 @@ func RenderTurnBarChartBody(
 	barStyle := lipgloss.NewStyle().Foreground(barColor)
 	lines := make([]string, 0, plotHeight+3)
 	for level := plotHeight; level >= 1; level-- {
-		lines = append(lines, renderTurnBarLevel(
+		lines = append(lines, t.renderTurnBarLevel(
 			columns,
 			level,
 			plotHeight,
@@ -63,7 +63,7 @@ func RenderTurnBarChartBody(
 			width,
 		))
 	}
-	lines = append(lines, RenderTurnBarAxis(axisLabelWidth, graphWidth, width))
+	lines = append(lines, t.RenderTurnBarAxis(axisLabelWidth, graphWidth, width))
 	if showXAxis {
 		lines = append(lines, RenderTurnBarXAxisRows(columns, axisLabelWidth, graphWidth)...)
 	}
@@ -153,7 +153,7 @@ func TurnBarScaledHeight(current, maxY float64, plotHeight int) int {
 	return min(scaled, plotHeight)
 }
 
-func renderTurnBarLevel(
+func (t *Theme) renderTurnBarLevel(
 	columns []TurnBarColumn,
 	level, plotHeight int,
 	maxY float64,
@@ -183,7 +183,7 @@ func renderTurnBarLevel(
 		graph.WriteString(strings.Repeat(" ", graphWidth-cursor))
 	}
 	label := TurnBarLevelLabel(level, plotHeight, maxY)
-	prefix := FitToWidth(HistogramAxisLabel(label), axisLabelWidth) + " " + HistogramAxisLine("│") + " "
+	prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) + " " + t.HistogramAxisLine("│") + " "
 	return ansi.Truncate(prefix+graph.String(), width, "…")
 }
 
@@ -198,9 +198,9 @@ func TurnBarLevelLabel(level, plotHeight int, maxY float64) string {
 	}
 }
 
-func RenderTurnBarAxis(axisLabelWidth, graphWidth, width int) string {
-	prefix := FitToWidth(HistogramAxisLabel("0"), axisLabelWidth) + " " + HistogramAxisLine("└")
-	return ansi.Truncate(prefix+HistogramAxisLine(strings.Repeat("─", graphWidth)), width, "…")
+func (t *Theme) RenderTurnBarAxis(axisLabelWidth, graphWidth, width int) string {
+	prefix := FitToWidth(t.HistogramAxisLabel("0"), axisLabelWidth) + " " + t.HistogramAxisLine("└")
+	return ansi.Truncate(prefix+t.HistogramAxisLine(strings.Repeat("─", graphWidth)), width, "…")
 }
 
 func RenderTurnBarXAxisRows(

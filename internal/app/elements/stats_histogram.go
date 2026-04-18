@@ -24,24 +24,24 @@ type HistogramLayout struct {
 	GraphWidth   int
 }
 
-func RenderVerticalHistogram(title string, buckets []HistBucket, width, maxHeight int) string {
-	return RenderVerticalHistogramWithColor(title, buckets, width, maxHeight, ColorChartBar)
+func (t *Theme) RenderVerticalHistogram(title string, buckets []HistBucket, width, maxHeight int) string {
+	return t.RenderVerticalHistogramWithColor(title, buckets, width, maxHeight, t.ColorChartBar)
 }
 
-func RenderVerticalHistogramWithColor(
+func (t *Theme) RenderVerticalHistogramWithColor(
 	title string,
 	buckets []HistBucket,
 	width, maxHeight int,
 	barColor color.Color,
 ) string {
-	body := RenderVerticalHistogramBody(buckets, width, maxHeight, barColor)
+	body := t.RenderVerticalHistogramBody(buckets, width, maxHeight, barColor)
 	if body == "" {
 		return ""
 	}
-	return RenderStatsTitle(title) + "\n" + body
+	return t.RenderStatsTitle(title) + "\n" + body
 }
 
-func RenderVerticalHistogramBody(
+func (t *Theme) RenderVerticalHistogramBody(
 	buckets []HistBucket,
 	width, maxHeight int,
 	barColor color.Color,
@@ -67,6 +67,7 @@ func RenderVerticalHistogramBody(
 
 	for level := maxHeight; level >= 1; level-- {
 		lines = append(lines, renderHistogramLevel(
+			t,
 			renderBuckets,
 			level,
 			maxCount,
@@ -80,8 +81,8 @@ func RenderVerticalHistogramBody(
 		))
 	}
 
-	lines = append(lines, RenderHistogramAxis(axisLabelWidth, layout.GraphWidth, width))
-	lines = append(lines, RenderHistogramLabels(buckets, axisLabelWidth, layout.BucketWidths, layout.GapWidth, width))
+	lines = append(lines, t.RenderHistogramAxis(axisLabelWidth, layout.GraphWidth, width))
+	lines = append(lines, t.RenderHistogramLabels(buckets, axisLabelWidth, layout.BucketWidths, layout.GapWidth, width))
 
 	return strings.Join(lines, "\n")
 }
@@ -131,6 +132,7 @@ func HistogramValueLabelPlacement(scaledHeight, maxHeight int) (int, bool) {
 }
 
 func renderHistogramLevel(
+	t *Theme,
 	buckets []histogramBucketRender,
 	level, maxCount, maxHeight, axisLabelWidth int,
 	bucketWidths []int,
@@ -141,8 +143,8 @@ func renderHistogramLevel(
 	for i, bucket := range buckets {
 		parts = append(parts, renderHistogramCell(bucket, level, bucketWidths[i], barStyle, labelStyle))
 	}
-	prefix := FitToWidth(HistogramAxisLabel(histogramLevelLabel(level, maxHeight, maxCount)), axisLabelWidth) +
-		" " + HistogramAxisLine("│") + " "
+	prefix := FitToWidth(t.HistogramAxisLabel(histogramLevelLabel(level, maxHeight, maxCount)), axisLabelWidth) +
+		" " + t.HistogramAxisLine("│") + " "
 	return ansi.Truncate(prefix+strings.Join(parts, strings.Repeat(" ", gapWidth)), width, "…")
 }
 
@@ -182,12 +184,12 @@ func histogramLevelLabel(level, maxHeight, maxCount int) string {
 	}
 }
 
-func RenderHistogramAxis(axisLabelWidth, graphWidth, width int) string {
-	prefix := FitToWidth(HistogramAxisLabel("0"), axisLabelWidth) + " " + HistogramAxisLine("└")
-	return ansi.Truncate(prefix+HistogramAxisLine(strings.Repeat("─", graphWidth)), width, "…")
+func (t *Theme) RenderHistogramAxis(axisLabelWidth, graphWidth, width int) string {
+	prefix := FitToWidth(t.HistogramAxisLabel("0"), axisLabelWidth) + " " + t.HistogramAxisLine("└")
+	return ansi.Truncate(prefix+t.HistogramAxisLine(strings.Repeat("─", graphWidth)), width, "…")
 }
 
-func RenderHistogramLabels(
+func (t *Theme) RenderHistogramLabels(
 	buckets []HistBucket,
 	axisLabelWidth int,
 	bucketWidths []int,
@@ -200,7 +202,7 @@ func RenderHistogramLabels(
 			continue
 		}
 		label := ansi.Truncate(bucket.Label, bucketWidths[i], "…")
-		labels = append(labels, lipgloss.PlaceHorizontal(bucketWidths[i], lipgloss.Center, HistogramAxisLabel(label)))
+		labels = append(labels, lipgloss.PlaceHorizontal(bucketWidths[i], lipgloss.Center, t.HistogramAxisLabel(label)))
 	}
 	return ansi.Truncate(
 		strings.Repeat(" ", axisLabelWidth+3)+strings.Join(labels, strings.Repeat(" ", gapWidth)),
@@ -241,10 +243,10 @@ func ResolveHistogramLayout(graphWidth, bucketCount int) HistogramLayout {
 	}
 }
 
-func HistogramAxisLabel(text string) string {
-	return lipgloss.NewStyle().Foreground(ColorNormalDesc).Render(text)
+func (t *Theme) HistogramAxisLabel(text string) string {
+	return lipgloss.NewStyle().Foreground(t.ColorNormalDesc).Render(text)
 }
 
-func HistogramAxisLine(text string) string {
-	return lipgloss.NewStyle().Foreground(ColorSecondary).Render(text)
+func (t *Theme) HistogramAxisLine(text string) string {
+	return lipgloss.NewStyle().Foreground(t.ColorSecondary).Render(text)
 }

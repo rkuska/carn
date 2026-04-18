@@ -17,7 +17,13 @@ func (m statsModel) View() string {
 	content := m.viewport.View()
 	switch {
 	case m.helpOpen:
-		content = renderHelpOverlay(m.contentWidth(), m.contentHeight()+framedFooterRows, "Stats Help", m.helpSections())
+		content = renderHelpOverlay(
+			m.theme,
+			m.contentWidth(),
+			m.contentHeight()+framedFooterRows,
+			"Stats Help",
+			m.helpSections(),
+		)
 	case m.groupScope.active:
 		content = m.renderGroupScopeOverlay()
 	case m.filter.Active:
@@ -25,16 +31,16 @@ func (m statsModel) View() string {
 	}
 
 	lines := []string{
-		renderBorderTop("Stats", m.width, colorPrimary, colorPrimary),
-		renderBodyLine(m.renderTabBar(), m.contentWidth(), colorPrimary),
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), colorPrimary),
+		renderBorderTop(m.theme, "Stats", m.width, m.theme.ColorPrimary, m.theme.ColorPrimary),
+		renderBodyLine(m.renderTabBar(), m.contentWidth(), m.theme.ColorPrimary),
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
 	}
-	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight(), colorPrimary)...)
+	lines = append(lines, renderBodyContent(content, m.contentWidth(), m.contentHeight(), m.theme.ColorPrimary)...)
 	lines = append(lines,
-		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), colorPrimary),
-		renderBodyLine(m.footerHelpRow(), m.contentWidth(), colorPrimary),
-		renderBodyLine(m.footerStatusRow(), m.contentWidth(), colorPrimary),
-		renderBorderBottom(m.contentWidth(), colorPrimary),
+		renderBodyLine(renderStatsSeparator(m.contentWidth()), m.contentWidth(), m.theme.ColorPrimary),
+		renderBodyLine(m.footerHelpRow(), m.contentWidth(), m.theme.ColorPrimary),
+		renderBodyLine(m.footerStatusRow(), m.contentWidth(), m.theme.ColorPrimary),
+		renderBorderBottom(m.contentWidth(), m.theme.ColorPrimary),
 	)
 	return strings.Join(lines, "\n")
 }
@@ -51,12 +57,12 @@ func (m statsModel) renderTabBar() string {
 	left := strings.Join(tabs, " ")
 
 	ranges := []string{
-		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "7d", "7d"),
-		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "30d", "30d"),
-		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "90d", "90d"),
-		renderStatsRange(statsTimeRangeLabel(m.timeRange) == "All", "All"),
+		m.renderStatsRange(statsTimeRangeLabel(m.timeRange) == "7d", "7d"),
+		m.renderStatsRange(statsTimeRangeLabel(m.timeRange) == "30d", "30d"),
+		m.renderStatsRange(statsTimeRangeLabel(m.timeRange) == "90d", "90d"),
+		m.renderStatsRange(statsTimeRangeLabel(m.timeRange) == "All", "All"),
 	}
-	activeRange := renderStatsRange(true, statsTimeRangeLabel(m.timeRange))
+	activeRange := m.renderStatsRange(true, statsTimeRangeLabel(m.timeRange))
 	candidates := []string{
 		strings.Join(ranges, " "),
 		activeRange,
@@ -76,30 +82,30 @@ func renderStatsSeparator(width int) string {
 	if width <= 0 {
 		return ""
 	}
-	return styleRuleHR.Render(strings.Repeat("─", width))
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Render(strings.Repeat("─", width))
 }
 
 func (m statsModel) renderTab(tab statsTab, title string) string {
 	if m.tab == tab {
 		return lipgloss.NewStyle().
 			Bold(true).
-			Foreground(colorTitleFg).
-			Background(colorPrimary).
+			Foreground(m.theme.ColorTitleFg).
+			Background(m.theme.ColorPrimary).
 			Padding(0, 1).
 			Render("▸ " + title)
 	}
 
 	return lipgloss.NewStyle().
-		Foreground(colorNormalDesc).
+		Foreground(m.theme.ColorNormalDesc).
 		Padding(0, 1).
 		Render(title)
 }
 
-func renderStatsRange(active bool, label string) string {
+func (m statsModel) renderStatsRange(active bool, label string) string {
 	if active {
-		return lipgloss.NewStyle().Bold(true).Foreground(colorNormalTitle).Render("[" + label + "]")
+		return lipgloss.NewStyle().Bold(true).Foreground(m.theme.ColorNormalTitle).Render("[" + label + "]")
 	}
-	return lipgloss.NewStyle().Foreground(colorNormalDesc).Render(label)
+	return lipgloss.NewStyle().Foreground(m.theme.ColorNormalDesc).Render(label)
 }
 
 func renderBodyLine(content string, width int, borderColor color.Color) string {
@@ -142,15 +148,15 @@ func (m statsModel) footerHelpRow() string {
 		}
 		right := "Stats Help"
 		leftWidth := max(m.contentWidth()-lipgloss.Width(right)-1, 0)
-		return composeFooterRow(m.width, renderFittedHelpItems(items, leftWidth), right)
+		return composeFooterRow(m.width, renderFittedHelpItems(m.theme, items, leftWidth), right)
 	}
 
 	if m.groupScope.active {
-		return composeFooterRow(m.width, renderHelpItems(m.groupScopeFooterItems()), "")
+		return composeFooterRow(m.width, renderHelpItems(m.theme, m.groupScopeFooterItems()), "")
 	}
 
 	if m.filter.Active {
-		return composeFooterRow(m.width, renderHelpItems(m.statsFilterFooterItems()), m.footerHelpRight())
+		return composeFooterRow(m.width, renderHelpItems(m.theme, m.statsFilterFooterItems()), m.footerHelpRight())
 	}
 
 	right := m.footerHelpRight()
@@ -158,7 +164,7 @@ func (m statsModel) footerHelpRow() string {
 	if right != "" {
 		leftWidth = max(m.contentWidth()-lipgloss.Width(right)-1, 0)
 	}
-	return composeFooterRow(m.width, renderFittedHelpItems(m.statsNavigationHelpItems(), leftWidth), right)
+	return composeFooterRow(m.width, renderFittedHelpItems(m.theme, m.statsNavigationHelpItems(), leftWidth), right)
 }
 
 func (m statsModel) footerHelpRight() string {
@@ -179,7 +185,7 @@ func (m statsModel) footerStatusRow() string {
 		status = joinNonEmpty(m.filterFooterStatusParts(), "  ")
 	}
 	if m.notification.Text != "" {
-		status = joinNonEmpty([]string{status, renderNotification(m.notification)}, "  ")
+		status = joinNonEmpty([]string{status, renderNotification(m.theme, m.notification)}, "  ")
 	}
 	return composeFooterRow(m.width, status, m.scrollStatus())
 }
@@ -187,7 +193,7 @@ func (m statsModel) footerStatusRow() string {
 func (m statsModel) filterFooterStatusParts() []string {
 	parts := m.statsFilterFooterStatusParts()
 	if m.statsQueryFailures.degraded() {
-		parts = append(parts, renderStatsDegradedBadge())
+		parts = append(parts, renderStatsDegradedBadge(m.theme))
 	}
 	return parts
 }

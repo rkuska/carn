@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -32,6 +33,7 @@ type browserModel struct {
 	ctx                       context.Context
 	archiveDir                string
 	store                     browserStore
+	theme                     *el.Theme
 	launcher                  sessionLauncher
 	glamourStyle              string
 	timestampFormat           string
@@ -49,6 +51,7 @@ type browserModel struct {
 	searchInput               textinput.Model
 	search                    browserSearchState
 	sessionCache              map[string]conv.Session
+	viewerCache               map[string]viewerModel
 	searchCancel              context.CancelFunc
 	openConversationID        string
 	loadingConversationID     string
@@ -63,7 +66,7 @@ type browserModel struct {
 	logFilePath               string
 }
 
-func newBrowserModelWithStore(
+func newBrowserModelWithStoreAndTheme(
 	ctx context.Context,
 	archiveDir string,
 	logFilePath string,
@@ -71,18 +74,21 @@ func newBrowserModelWithStore(
 	timestampFormat string,
 	cacheSize int,
 	debounceMs int,
+	theme *el.Theme,
 	store browserStore,
 	launchers ...sessionLauncher,
 ) browserModel {
-	syncPaletteFromElements()
-	delegate := newDelegate()
+	if theme == nil {
+		theme = el.NewTheme(glamourStyle != GlamourStyleLight)
+	}
+	delegate := newDelegate(theme)
 	l := list.New(nil, delegate, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 	l.Styles.DefaultFilterCharacterMatch = lipgloss.NewStyle().
-		Background(colorHighlight).
+		Background(theme.ColorHighlight).
 		Bold(true)
 	l.DisableQuitKeybindings()
 
@@ -109,13 +115,14 @@ func newBrowserModelWithStore(
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
+	s.Style = lipgloss.NewStyle().Foreground(theme.ColorPrimary)
 
 	return browserModel{
 		ctx:                  ctx,
 		archiveDir:           archiveDir,
 		logFilePath:          logFilePath,
 		store:                store,
+		theme:                theme,
 		launcher:             resolveSessionLauncher(launchers...),
 		glamourStyle:         glamourStyle,
 		timestampFormat:      timestampFormat,
@@ -131,8 +138,34 @@ func newBrowserModelWithStore(
 		},
 		filter:        newBrowserFilterState(),
 		sessionCache:  make(map[string]conv.Session, cacheSize),
+		viewerCache:   make(map[string]viewerModel, cacheSize),
 		resyncSpinner: s,
 	}
+}
+
+func newBrowserModelWithStore(
+	ctx context.Context,
+	archiveDir string,
+	logFilePath string,
+	glamourStyle string,
+	timestampFormat string,
+	cacheSize int,
+	debounceMs int,
+	store browserStore,
+	launchers ...sessionLauncher,
+) browserModel {
+	return newBrowserModelWithStoreAndTheme(
+		ctx,
+		archiveDir,
+		logFilePath,
+		glamourStyle,
+		timestampFormat,
+		cacheSize,
+		debounceMs,
+		nil,
+		store,
+		launchers...,
+	)
 }
 
 func newBrowserModel(
@@ -200,10 +233,4 @@ func (m browserModel) updateChildModels(msg tea.Msg, isKey bool, cmds *[]tea.Cmd
 		}
 	}
 	return m
-}
-
-func appendCmd(cmds *[]tea.Cmd, cmd tea.Cmd) {
-	if cmd != nil {
-		*cmds = append(*cmds, cmd)
-	}
 }

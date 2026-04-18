@@ -13,7 +13,8 @@ import (
 func TestRenderHelpOverlayItemRowUsesThreeColumns(t *testing.T) {
 	t.Parallel()
 
-	row := ansi.Strip(renderHelpOverlayItemRows(
+	theme := NewTheme(true)
+	row := ansi.Strip(theme.renderHelpOverlayItemRows(
 		HelpItem{
 			Key:    "R",
 			Desc:   "resync",
@@ -33,7 +34,8 @@ func TestRenderHelpOverlayItemRowUsesThreeColumns(t *testing.T) {
 func TestRenderHelpOverlayItemRowsWrapDetailToFitWidth(t *testing.T) {
 	t.Parallel()
 
-	rows := renderHelpOverlayItemRows(
+	theme := NewTheme(true)
+	rows := theme.renderHelpOverlayItemRows(
 		HelpItem{
 			Key:    "ctrl+f/b",
 			Desc:   "page",
@@ -58,7 +60,8 @@ func TestRenderHelpOverlayItemRowsWrapDetailToFitWidth(t *testing.T) {
 func TestRenderHelpOverlayKeepsRowsWithinViewportWidth(t *testing.T) {
 	t.Parallel()
 
-	overlay := ansi.Strip(RenderHelpOverlay(
+	theme := NewTheme(true)
+	overlay := ansi.Strip(theme.RenderHelpOverlay(
 		48,
 		16,
 		"Help",

@@ -12,14 +12,14 @@ const (
 	HelpOverlayColumnGap = "  "
 )
 
-func RenderHelpOverlay(width, height int, title string, sections []HelpSection) string {
+func (t *Theme) RenderHelpOverlay(width, height int, title string, sections []HelpSection) string {
 	boxWidth := min(max(width-8, 40), 96)
 	bodyHeight := max(height-FramedFooterRows, 1)
 	contentWidth := max(boxWidth-2, 1)
 
 	lines := []string{""}
 	for i, section := range sections {
-		lines = append(lines, renderHelpOverlaySection(section, contentWidth)...)
+		lines = append(lines, t.renderHelpOverlaySection(section, contentWidth)...)
 		if i != len(sections)-1 {
 			lines = append(lines, "")
 		}
@@ -27,15 +27,15 @@ func RenderHelpOverlay(width, height int, title string, sections []HelpSection) 
 	lines = append(lines, "")
 
 	content := strings.Join(lines, "\n")
-	box := RenderFramedBox(title, boxWidth, ColorPrimary, content)
+	box := t.RenderFramedBox(title, boxWidth, t.ColorPrimary, content)
 	return lipgloss.Place(width, bodyHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
-func renderHelpOverlaySection(section HelpSection, contentWidth int) []string {
+func (t *Theme) renderHelpOverlaySection(section HelpSection, contentWidth int) []string {
 	lines := []string{}
 	if section.Title != "" {
 		title := ansi.Truncate(HelpOverlayIndent+section.Title, contentWidth, "…")
-		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(title))
+		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(t.ColorPrimary).Render(title))
 	}
 	if len(section.Items) == 0 {
 		return lines
@@ -44,7 +44,7 @@ func renderHelpOverlaySection(section HelpSection, contentWidth int) []string {
 	rowWidth := max(contentWidth-lipgloss.Width(HelpOverlayIndent), 1)
 	keyWidth, descWidth := helpOverlayColumnWidths(section.Items, rowWidth)
 	for _, item := range section.Items {
-		for _, row := range renderHelpOverlayItemRows(item, keyWidth, descWidth, rowWidth) {
+		for _, row := range t.renderHelpOverlayItemRows(item, keyWidth, descWidth, rowWidth) {
 			lines = append(lines, HelpOverlayIndent+row)
 		}
 	}
@@ -66,7 +66,7 @@ func helpOverlayColumnWidths(items []HelpItem, rowWidth int) (int, int) {
 	return keyWidth, descWidth
 }
 
-func renderHelpOverlayItemRows(item HelpItem, keyWidth, descWidth, width int) []string {
+func (t *Theme) renderHelpOverlayItemRows(item HelpItem, keyWidth, descWidth, width int) []string {
 	if width <= 0 {
 		return nil
 	}
@@ -95,9 +95,9 @@ func renderHelpOverlayItemRows(item HelpItem, keyWidth, descWidth, width int) []
 			descText = ansi.Truncate(item.Desc, descWidth, "…")
 		}
 
-		keyPart := FitToWidth(helpItemKeyStyle(item).Render(keyText), keyWidth)
-		descPart := FitToWidth(lipgloss.NewStyle().Foreground(ColorNormalTitle).Render(descText), descWidth)
-		detailPart := FitToWidth(lipgloss.NewStyle().Foreground(ColorNormalDesc).Render(detailLine), detailWidth)
+		keyPart := FitToWidth(t.helpItemKeyStyle(item).Render(keyText), keyWidth)
+		descPart := FitToWidth(lipgloss.NewStyle().Foreground(t.ColorNormalTitle).Render(descText), descWidth)
+		detailPart := FitToWidth(lipgloss.NewStyle().Foreground(t.ColorNormalDesc).Render(detailLine), detailWidth)
 		rows = append(rows, keyPart+HelpOverlayColumnGap+descPart+HelpOverlayColumnGap+detailPart)
 	}
 	return rows

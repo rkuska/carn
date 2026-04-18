@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/config"
 )
@@ -50,6 +51,7 @@ type importSyncFinishedMsg struct {
 type importOverviewModel struct {
 	ctx      context.Context
 	cfg      arch.Config
+	theme    *el.Theme
 	pipeline importPipeline
 	phase    importPhase
 	spinner  spinner.Model
@@ -82,15 +84,19 @@ type importOverviewModel struct {
 func newImportOverviewModelWithPipelineConfig(
 	ctx context.Context,
 	cfg arch.Config,
+	theme *el.Theme,
 	pipeline importPipeline,
 	configFilePath string,
 	configStatus config.Status,
 	configErr error,
 	logFilePath string,
 ) importOverviewModel {
+	if theme == nil {
+		theme = el.NewTheme(true)
+	}
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
+	s.Style = lipgloss.NewStyle().Foreground(theme.ColorPrimary)
 
 	p := progress.New(
 		progress.WithDefaultBlend(),
@@ -105,6 +111,7 @@ func newImportOverviewModelWithPipelineConfig(
 	return importOverviewModel{
 		ctx:            ctx,
 		cfg:            cfg,
+		theme:          theme,
 		pipeline:       pipeline,
 		phase:          phase,
 		spinner:        s,
@@ -126,6 +133,7 @@ func newImportOverviewModelWithPipeline(
 	return newImportOverviewModelWithPipelineConfig(
 		ctx,
 		cfg,
+		nil,
 		pipeline,
 		configFilePath,
 		configStatusFromExists(configFileExists),
@@ -317,7 +325,7 @@ func (m importOverviewModel) View() string {
 	var body string
 	switch {
 	case m.helpOpen:
-		body = renderHelpOverlay(m.width, m.height, "Import Help", m.helpSections())
+		body = renderHelpOverlay(m.theme, m.width, m.height, "Import Help", m.helpSections())
 	default:
 		body = m.viewDashboard()
 	}

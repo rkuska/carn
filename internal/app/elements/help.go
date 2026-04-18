@@ -30,9 +30,9 @@ const (
 	HelpPriorityEssential
 )
 
-func RenderHelpFooter(width int, items []HelpItem, rightParts []string, n Notification) string {
+func (t *Theme) RenderHelpFooter(width int, items []HelpItem, rightParts []string, n Notification) string {
 	contentWidth := FramedFooterContentWidth(width)
-	minLeftWidth := essentialHelpWidth(items)
+	minLeftWidth := t.essentialHelpWidth(items)
 	right := JoinNonEmpty(rightParts, "  ")
 	maxRightWidth := contentWidth
 	if minLeftWidth > 0 && contentWidth > minLeftWidth {
@@ -46,34 +46,34 @@ func RenderHelpFooter(width int, items []HelpItem, rightParts []string, n Notifi
 
 	return RenderFramedFooter(
 		width,
-		ComposeFooterRow(width, RenderFittedHelpItems(items, leftWidth), right),
-		RenderNotification(n),
+		ComposeFooterRow(width, t.RenderFittedHelpItems(items, leftWidth), right),
+		t.RenderNotification(n),
 	)
 }
 
-func RenderSearchFooter(width int, prompt, right string, n Notification) string {
+func (t *Theme) RenderSearchFooter(width int, prompt, right string, n Notification) string {
 	return RenderFramedFooter(
 		width,
 		ComposeFooterRow(width, prompt, right),
-		RenderNotification(n),
+		t.RenderNotification(n),
 	)
 }
 
-func RenderHelpItems(items []HelpItem) string {
-	return renderHelpItemsWithKeep(items, nil)
+func (t *Theme) RenderHelpItems(items []HelpItem) string {
+	return t.renderHelpItemsWithKeep(items, nil)
 }
 
-func RenderFittedHelpItems(items []HelpItem, width int) string {
+func (t *Theme) RenderFittedHelpItems(items []HelpItem, width int) string {
 	if width <= 0 {
 		return ""
 	}
 
-	keep := keepHelpItems(items, width)
-	return FitToWidth(renderHelpItemsWithKeep(items, keep), width)
+	keep := t.keepHelpItems(items, width)
+	return FitToWidth(t.renderHelpItemsWithKeep(items, keep), width)
 }
 
-func renderHelpItemsWithKeep(items []HelpItem, keep []bool) string {
-	helpStyle := lipgloss.NewStyle().Foreground(ColorSecondary)
+func (t *Theme) renderHelpItemsWithKeep(items []HelpItem, keep []bool) string {
+	helpStyle := lipgloss.NewStyle().Foreground(t.ColorSecondary)
 
 	parts := make([]string, 0, len(items))
 	for i, item := range items {
@@ -85,21 +85,21 @@ func renderHelpItemsWithKeep(items []HelpItem, keep []bool) string {
 		}
 
 		keyText := HelpItemKeyText(item)
-		parts = append(parts, helpItemKeyStyle(item).Render(keyText)+helpStyle.Render(" "+item.Desc))
+		parts = append(parts, t.helpItemKeyStyle(item).Render(keyText)+helpStyle.Render(" "+item.Desc))
 	}
 
 	return strings.Join(parts, "  ")
 }
 
-func helpItemKeyStyle(item HelpItem) lipgloss.Style {
+func (t *Theme) helpItemKeyStyle(item HelpItem) lipgloss.Style {
 	if item.Glow {
-		return lipgloss.NewStyle().Foreground(ColorPrimary)
+		return lipgloss.NewStyle().Foreground(t.ColorPrimary)
 	}
-	return lipgloss.NewStyle().Foreground(ColorAccent)
+	return lipgloss.NewStyle().Foreground(t.ColorAccent)
 }
 
-func RenderHelpItem(item HelpItem) string {
-	return RenderHelpItems([]HelpItem{item})
+func (t *Theme) RenderHelpItem(item HelpItem) string {
+	return t.RenderHelpItems([]HelpItem{item})
 }
 
 func JoinNonEmpty(items []string, sep string) string {

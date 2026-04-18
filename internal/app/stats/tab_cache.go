@@ -15,7 +15,7 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	if m.cacheGrouped {
 		return m.renderGroupedCacheTab(width, cache)
 	}
-	chips := renderSummaryChips(m.cacheSummaryChips(cache), width)
+	chips := renderSummaryChips(m.theme, m.cacheSummaryChips(cache), width)
 
 	chartTitle, rates, chartColor, yFmt := m.cacheDailySeries()
 	chartHeight := 12
@@ -24,14 +24,15 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	}
 
 	topPair := renderStatsLanePair(
+		m.theme,
 		width, 30,
 		chartTitle, m.cacheLaneCursor == 0,
 		func(bodyWidth int) string {
-			return renderDailyRateChartBody(rates, max(bodyWidth, 10), chartHeight, chartColor, yFmt)
+			return renderDailyRateChartBody(m.theme, rates, max(bodyWidth, 10), chartHeight, chartColor, yFmt)
 		},
 		"Main vs Subagent", m.cacheLaneCursor == 1,
 		func(bodyWidth int) string {
-			return renderHorizontalBarsBody(cacheSegmentBars(cache), bodyWidth, colorChartToken)
+			return renderHorizontalBarsBody(m.theme, cacheSegmentBars(cache), bodyWidth, m.theme.ColorChartToken)
 		},
 	)
 
@@ -40,14 +41,15 @@ func (m statsModel) renderCacheTab(width, height int) string {
 	histHeight := 8
 
 	bottomPair := renderStatsLanePair(
+		m.theme,
 		width, 30,
 		"Cache Reuse by Duration", m.cacheLaneCursor == 2,
 		func(bodyWidth int) string {
-			return renderVerticalHistogramBody(reuseBuckets, bodyWidth, histHeight, colorChartToken)
+			return renderVerticalHistogramBody(m.theme, reuseBuckets, bodyWidth, histHeight, m.theme.ColorChartToken)
 		},
 		"Cache Hit Rate by Duration", m.cacheLaneCursor == 3,
 		func(bodyWidth int) string {
-			return renderVerticalHistogramBody(hitBuckets, bodyWidth, histHeight, colorChartBar)
+			return renderVerticalHistogramBody(m.theme, hitBuckets, bodyWidth, histHeight, m.theme.ColorChartBar)
 		},
 	)
 
@@ -76,9 +78,9 @@ func (m statsModel) cacheDailySeries() (string, []statspkg.DailyRate, color.Colo
 	switch m.cacheMetric { //nolint:exhaustive // only cache metrics handled here
 	case cacheMetricReuseRatio:
 		rates, cap, hasInfinite := normalizeReuseDailyRates(m.snapshot.Cache.DailyReuseRatio)
-		return "Daily Reuse Ratio", rates, colorChartBar, reuseYLabel(cap, hasInfinite)
+		return "Daily Reuse Ratio", rates, m.theme.ColorChartBar, reuseYLabel(cap, hasInfinite)
 	default:
-		return "Daily Hit Rate", m.snapshot.Cache.DailyHitRate, colorChartToken, percentYLabel()
+		return "Daily Hit Rate", m.snapshot.Cache.DailyHitRate, m.theme.ColorChartToken, percentYLabel()
 	}
 }
 
@@ -160,7 +162,7 @@ func cacheHitRateBuckets(durations []statspkg.CacheDurationBucket) []histBucket 
 func (m statsModel) renderCacheMetricDetail(width int) string {
 	lane, _, ok := m.selectedStatsLane()
 	if !ok {
-		return renderStatsMetricDetail("Cache", width, nil, noDataLabel)
+		return m.renderStatsMetricDetail("Cache", width, nil, noDataLabel)
 	}
 	if m.cacheGrouped {
 		return m.renderGroupedCacheMetricDetail(width, lane)
@@ -171,13 +173,13 @@ func (m statsModel) renderCacheMetricDetail(width int) string {
 	case statsLaneCacheDaily:
 		return m.renderCacheDailyMetricDetail(cache, lane.title, width)
 	case statsLaneCacheSegment:
-		return renderCacheSegmentMetricDetail(cache, width)
+		return m.renderCacheSegmentMetricDetail(cache, width)
 	case statsLaneCacheReuse:
-		return renderCacheReuseMetricDetail(cache, width)
+		return m.renderCacheReuseMetricDetail(cache, width)
 	case statsLaneCacheHitDur:
-		return renderCacheHitDurMetricDetail(cache, width)
+		return m.renderCacheHitDurMetricDetail(cache, width)
 	default:
-		return renderStatsMetricDetail("Cache", width, nil, noDataLabel)
+		return m.renderStatsMetricDetail("Cache", width, nil, noDataLabel)
 	}
 }
 
@@ -192,13 +194,13 @@ func (m statsModel) renderCacheDailyMetricDetail(cache statspkg.Cache, title str
 
 func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title string, width int) string {
 	peakDay, peakRate := peakDailyRate(cache.DailyHitRate)
-	return renderStatsMetricDetail(title, width, []chip{
+	return m.renderStatsMetricDetail(title, width, []chip{
 		{Label: "peak day", Value: peakDay},
 		{Label: "peak hit rate", Value: formatRate(peakRate)},
 		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
 	},
-		metricDetailLine("Question", "How does cache hit rate change over time?"),
-		metricDetailLine(
+		m.metricDetailLine("Question", "How does cache hit rate change over time?"),
+		m.metricDetailLine(
 			"Reading",
 			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
 				"and baseline marks mean worked but hit 0%.",
@@ -208,13 +210,13 @@ func (m statsModel) renderCacheDailyHitRateDetail(cache statspkg.Cache, title st
 
 func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title string, width int) string {
 	peakDay, peakRate := peakDailyRate(cache.DailyReuseRatio)
-	return renderStatsMetricDetail(title, width, []chip{
+	return m.renderStatsMetricDetail(title, width, []chip{
 		{Label: "peak day", Value: peakDay},
 		{Label: "peak reuse", Value: formatReuse(peakRate)},
 		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
 	},
-		metricDetailLine("Question", "How does cache write leverage change over time?"),
-		metricDetailLine(
+		m.metricDetailLine("Question", "How does cache write leverage change over time?"),
+		m.metricDetailLine(
 			"Reading",
 			"Columns are daily buckets. Bars mean active days, dots mean no sessions, "+
 				"and baseline marks mean worked but got no cache reuse.",
@@ -222,29 +224,29 @@ func (m statsModel) renderCacheDailyReuseDetail(cache statspkg.Cache, title stri
 	)
 }
 
-func renderCacheSegmentMetricDetail(cache statspkg.Cache, width int) string {
-	return renderStatsMetricDetail("Main vs Subagent", width, []chip{
+func (m statsModel) renderCacheSegmentMetricDetail(cache statspkg.Cache, width int) string {
+	return m.renderStatsMetricDetail("Main vs Subagent", width, []chip{
 		{Label: "main sessions", Value: statspkg.FormatNumber(cache.Main.SessionCount)},
 		{Label: "main hit rate", Value: formatRate(cache.Main.HitRate)},
 		{Label: "sub sessions", Value: statspkg.FormatNumber(cache.Subagent.SessionCount)},
 		{Label: "sub hit rate", Value: formatRate(cache.Subagent.HitRate)},
 	},
-		metricDetailLine("Question", "Does the main thread cache better than subagents?"),
-		metricDetailLine(
+		m.metricDetailLine("Question", "Does the main thread cache better than subagents?"),
+		m.metricDetailLine(
 			"Reading",
 			"Main sessions use 1h cache TTL, subagents use 5min. Higher miss bars indicate more uncached prompt tokens.",
 		),
 	)
 }
 
-func renderCacheReuseMetricDetail(cache statspkg.Cache, width int) string {
+func (m statsModel) renderCacheReuseMetricDetail(cache statspkg.Cache, width int) string {
 	best := bestCacheReuseBucket(cache.DurationBuckets)
-	return renderStatsMetricDetail("Cache Reuse by Duration", width, []chip{
+	return m.renderStatsMetricDetail("Cache Reuse by Duration", width, []chip{
 		{Label: "best reuse bucket", Value: best},
 		{Label: "overall reuse", Value: formatReuse(cache.ReuseRatio)},
 	},
-		metricDetailLine("Question", "Which session durations leverage cache writes best?"),
-		metricDetailLine(
+		m.metricDetailLine("Question", "Which session durations leverage cache writes best?"),
+		m.metricDetailLine(
 			"Reading",
 			"Taller bars mean more cache reads per write. "+
 				"Low reuse signals wasted writes from TTL expiry or context shifts.",
@@ -252,14 +254,14 @@ func renderCacheReuseMetricDetail(cache statspkg.Cache, width int) string {
 	)
 }
 
-func renderCacheHitDurMetricDetail(cache statspkg.Cache, width int) string {
+func (m statsModel) renderCacheHitDurMetricDetail(cache statspkg.Cache, width int) string {
 	best := bestCacheDurationBucket(cache.DurationBuckets)
-	return renderStatsMetricDetail("Cache Hit Rate by Duration", width, []chip{
+	return m.renderStatsMetricDetail("Cache Hit Rate by Duration", width, []chip{
 		{Label: "best bucket", Value: best},
 		{Label: "overall hit rate", Value: formatRate(cache.HitRate)},
 	},
-		metricDetailLine("Question", "Do longer sessions maintain or lose cache efficiency?"),
-		metricDetailLine(
+		m.metricDetailLine("Question", "Do longer sessions maintain or lose cache efficiency?"),
+		m.metricDetailLine(
 			"Reading",
 			"Bar height is average cache hit rate (%). Decreasing bars across duration buckets suggest cache staleness.",
 		),

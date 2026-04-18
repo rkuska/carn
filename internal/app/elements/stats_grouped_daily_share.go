@@ -22,7 +22,7 @@ type groupedDailyShareBucket struct {
 	Versions    []statspkg.VersionValue
 }
 
-func RenderGroupedDailyShareChartBody(
+func (t *Theme) RenderGroupedDailyShareChartBody(
 	shares []statspkg.GroupedDailyShare,
 	width, height int,
 	colorByVersion map[string]color.Color,
@@ -63,7 +63,7 @@ func RenderGroupedDailyShareChartBody(
 	plotHeight, showLabels := DailyRateChartDimensions(height)
 	lines := make([]string, 0, plotHeight+1)
 	for level := plotHeight; level >= 1; level-- {
-		lines = append(lines, renderGroupedDailyShareRow(
+		lines = append(lines, t.renderGroupedDailyShareRow(
 			buckets,
 			slots,
 			level,
@@ -152,7 +152,7 @@ func groupedDailyShareRate(bucket groupedDailyShareBucket) float64 {
 	return float64(bucket.Total) / float64(bucket.Prompt)
 }
 
-func renderGroupedDailyShareRow(
+func (t *Theme) renderGroupedDailyShareRow(
 	buckets []groupedDailyShareBucket,
 	slots []DailyRateBarSlot,
 	level, plotHeight int,
@@ -169,16 +169,16 @@ func renderGroupedDailyShareRow(
 	case 1:
 		label = groupedDailyShareAxisLabel(0)
 	}
-	prefix := FitToWidth(HistogramAxisLabel(label), axisLabelWidth) +
-		" " + HistogramAxisLine("│") + " "
+	prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) +
+		" " + t.HistogramAxisLine("│") + " "
 	cells := BlankDailyRateCells(DailyRatePlotWidth(slots))
 	for i, bucket := range buckets {
-		writeGroupedDailyShareSlot(cells, slots[i], bucket, level, plotHeight, maxValue, colorByVersion)
+		t.writeGroupedDailyShareSlot(cells, slots[i], bucket, level, plotHeight, maxValue, colorByVersion)
 	}
 	return ansi.Truncate(prefix+strings.Join(cells, ""), axisLabelWidth+3+len(cells), "…")
 }
 
-func writeGroupedDailyShareSlot(
+func (t *Theme) writeGroupedDailyShareSlot(
 	cells []string,
 	slot DailyRateBarSlot,
 	bucket groupedDailyShareBucket,
@@ -188,7 +188,7 @@ func writeGroupedDailyShareSlot(
 ) {
 	if !bucket.HasActivity {
 		if level == 1 && slot.Anchor < len(cells) {
-			cells[slot.Anchor] = lipgloss.NewStyle().Foreground(ColorNormalDesc).Render("·")
+			cells[slot.Anchor] = lipgloss.NewStyle().Foreground(t.ColorNormalDesc).Render("·")
 		}
 		return
 	}

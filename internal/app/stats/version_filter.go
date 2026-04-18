@@ -4,9 +4,9 @@ import (
 	"slices"
 	"strings"
 
-	statspkg "github.com/rkuska/carn/internal/stats"
-
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
+	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 func extractStatsVersionValues(conversations []conv.Conversation) []string {
@@ -125,14 +125,14 @@ func versionFilterMatches(filter dimensionFilter, version string) bool {
 	return filter.Selected[statspkg.NormalizeVersionLabel(version)]
 }
 
-func renderStatsVersionFilterBadge(filter dimensionFilter) string {
+func renderStatsVersionFilterBadge(theme *el.Theme, filter dimensionFilter) string {
 	if len(filter.Selected) == 0 {
-		return styleToolCall.Render("[version:all]")
+		return theme.StyleToolCall.Render("[version:all]")
 	}
 	values := make([]string, 0, len(filter.Selected))
 	for value := range filter.Selected {
 		values = append(values, value)
 	}
 	slices.Sort(values)
-	return styleToolCall.Render("[version:" + strings.Join(values, ",") + "]")
+	return theme.StyleToolCall.Render("[version:" + strings.Join(values, ",") + "]")
 }

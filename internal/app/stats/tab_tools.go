@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -19,7 +20,7 @@ func (m statsModel) renderToolsTab(width int) string {
 	if m.toolsGrouped {
 		return m.renderGroupedToolsTab(width, tools)
 	}
-	chips := renderSummaryChips([]chip{
+	chips := renderSummaryChips(m.theme, []chip{
 		{Label: "total calls", Value: statspkg.FormatNumber(tools.TotalCalls)},
 		{Label: "avg/session", Value: formatFloat(tools.AverageCallsPerSession)},
 		{Label: "error rate", Value: toolRateChipValue(tools.ErrorRate)},
@@ -40,37 +41,40 @@ func (m statsModel) renderToolsTab(width int) string {
 	}
 
 	usageCharts := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		"Tool Calls/Session",
 		m.toolsLaneCursor == 0,
 		func(bodyWidth int) string {
 			return renderVerticalHistogramBody(
+				m.theme,
 				callBuckets,
 				bodyWidth,
 				toolCallsChartHeight(len(tools.ToolErrorRates)),
-				colorChartBar,
+				m.theme.ColorChartBar,
 			)
 		},
 		"Top Tools",
 		m.toolsLaneCursor == 1,
 		func(bodyWidth int) string {
-			return renderHorizontalBarsBody(topTools, bodyWidth, colorChartBar)
+			return renderHorizontalBarsBody(m.theme, topTools, bodyWidth, m.theme.ColorChartBar)
 		},
 	)
 
 	qualityCharts := renderStatsLanePair(
+		m.theme,
 		width,
 		30,
 		"Tool Error Rate",
 		m.toolsLaneCursor == 2,
 		func(bodyWidth int) string {
-			return renderToolRateChartBody(tools.ToolErrorRates, bodyWidth, colorChartError, true)
+			return renderToolRateChartBody(m.theme, tools.ToolErrorRates, bodyWidth, m.theme.ColorChartError, true)
 		},
 		statsRejectedSuggestionsTitle,
 		m.toolsLaneCursor == 3,
 		func(bodyWidth int) string {
-			return renderToolRateChartBody(tools.ToolRejectRates, bodyWidth, colorPrimary, false)
+			return renderToolRateChartBody(m.theme, tools.ToolRejectRates, bodyWidth, m.theme.ColorPrimary, false)
 		},
 	)
 	return joinSections(chips, usageCharts, qualityCharts, m.renderActiveMetricDetail(width))
@@ -86,20 +90,22 @@ func toolCallsChartHeight(errorRateCount int) int {
 }
 
 func renderToolRateChart(
+	theme *el.Theme,
 	title string,
 	rates []statspkg.ToolRateStat,
 	width int,
 	barColor color.Color,
 	showCount bool,
 ) string {
-	body := renderToolRateChartBody(rates, width, barColor, showCount)
+	body := renderToolRateChartBody(theme, rates, width, barColor, showCount)
 	if body == "" {
 		return ""
 	}
-	return renderStatsTitle(title) + "\n" + body
+	return renderStatsTitle(theme, title) + "\n" + body
 }
 
 func renderToolRateChartBody(
+	theme *el.Theme,
 	rates []statspkg.ToolRateStat,
 	width int,
 	barColor color.Color,
@@ -120,7 +126,7 @@ func renderToolRateChartBody(
 	maxRate := 0
 	values := make([]string, len(rates))
 	for i, item := range rates {
-		values[i] = renderToolRateValue(item, showCount)
+		values[i] = renderToolRateValue(theme, item, showCount)
 		valueWidth = max(valueWidth, lipgloss.Width(values[i]))
 		maxRate = max(maxRate, int(math.Round(item.Rate*10)))
 	}
@@ -144,13 +150,13 @@ func toolRateChipValue(rate float64) string {
 	return formatToolRatePercent(rate)
 }
 
-func renderToolRateValue(item statspkg.ToolRateStat, showCount bool) string {
+func renderToolRateValue(theme *el.Theme, item statspkg.ToolRateStat, showCount bool) string {
 	percentage := formatToolRatePercent(item.Rate)
 	if !showCount {
 		return percentage
 	}
 	return percentage + " " + lipgloss.NewStyle().
-		Foreground(colorNormalDesc).
+		Foreground(theme.ColorNormalDesc).
 		Render(fmt.Sprintf("(%s)", statspkg.FormatNumber(item.Count)))
 }
 
