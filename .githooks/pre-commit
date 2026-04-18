@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+if ! git diff --quiet; then
+  printf '%s\n' \
+    'pre-commit requires a clean working tree because it runs go fix ./....' \
+    'stage or stash unstaged changes, then retry the commit.' >&2
+  exit 1
+fi
+
+go fix ./...
+git add -u
+
+golangci-lint run ./...
+go run ./cmd/testsuite

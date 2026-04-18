@@ -150,3 +150,10 @@ Use these terms when referring to different parts of the project in prompts.
 | **Inset Box** | Rounded border with padding, no custom title bar. Used for plan display. |
 | **Chrome** | Non-content decoration: borders + footer. `framedChromeHeight = 4` (top border + 2 footer rows + bottom border). |
 | **Key Hint** | Footer text where the key name is highlighted white: "Press `Enter` to open". |
+
+## Testing
+
+| Term | What it means |
+|---|---|
+| **Coverage Snapshot** | The statement-weighted coverage totals computed from one `go test` coverprofile run for the whole repo and for each package with statements. |
+| **Coverage Baseline** | The committed coverage snapshot stored in `COVERAGE_BASELINE.json`. The canonical test command compares the current snapshot against it and fails when coverage drops. |

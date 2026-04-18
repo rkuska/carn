@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "module_path": "github.com/rkuska/carn",
+  "total": {
+    "covered": 12443,
+    "statements": 15620
+  },
+  "packages": {
+    "github.com/rkuska/carn": {
+      "covered": 0,
+      "statements": 7
+    },
+    "github.com/rkuska/carn/cmd/testsuite": {
+      "covered": 77,
+      "statements": 119
+    },
+    "github.com/rkuska/carn/internal/app": {
+      "covered": 571,
+      "statements": 703
+    },
+    "github.com/rkuska/carn/internal/app/browser": {
+      "covered": 1747,
+      "statements": 2204
+    },
+    "github.com/rkuska/carn/internal/app/elements": {
+      "covered": 1244,
+      "statements": 1452
+    },
+    "github.com/rkuska/carn/internal/app/stats": {
+      "covered": 1572,
+      "statements": 2259
+    },
+    "github.com/rkuska/carn/internal/archive": {
+      "covered": 141,
+      "statements": 176
+    },
+    "github.com/rkuska/carn/internal/canonical": {
+      "covered": 1515,
+      "statements": 1898
+    },
+    "github.com/rkuska/carn/internal/config": {
+      "covered": 113,
+      "statements": 124
+    },
+    "github.com/rkuska/carn/internal/conversation": {
+      "covered": 344,
+      "statements": 354
+    },
+    "github.com/rkuska/carn/internal/coverage": {
+      "covered": 83,
+      "statements": 101
+    },
+    "github.com/rkuska/carn/internal/source": {
+      "covered": 118,
+      "statements": 124
+    },
+    "github.com/rkuska/carn/internal/source/claude": {
+      "covered": 1681,
+      "statements": 2276
+    },
+    "github.com/rkuska/carn/internal/source/codex": {
+      "covered": 1663,
+      "statements": 2069
+    },
+    "github.com/rkuska/carn/internal/stats": {
+      "covered": 1503,
+      "statements": 1650
+    },
+    "github.com/rkuska/carn/scenarios/helpers": {
+      "covered": 71,
+      "statements": 104
+    }
+  }
+}

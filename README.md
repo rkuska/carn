@@ -229,6 +229,36 @@ Raw sessions (~/.claude/projects/, ~/.codex/sessions/)
 Source directories are never modified. All processed data lives in the
 archive directory and can be rebuilt from source at any time.
 
+## Development
+
+Run the canonical test suite with coverage gating:
+
+```bash
+go run ./cmd/testsuite
+```
+
+Refresh the committed coverage baseline after an intentional increase:
+
+```bash
+go run ./cmd/testsuite -update
+```
+
+Enable the repo `pre-commit` hook once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs:
+
+- `go fix ./...`
+- `golangci-lint run ./...`
+- `go run ./cmd/testsuite`
+
+The hook requires a clean working tree before commit because `go fix ./...`
+may rewrite tracked files. When it does, the hook stages those `go fix`
+changes before running lint and coverage.
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).

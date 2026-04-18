@@ -278,9 +278,14 @@ Make sure the new code passes linting:
 golangci-lint run ./...
 ```
 
-Run tests with the Go test command:
+Run the canonical test suite with coverage gating:
 ```bash
-go test ./...
+go run ./cmd/testsuite
+```
+
+Refresh the committed coverage baseline after an intentional change:
+```bash
+go run ./cmd/testsuite -update
 ```
 
 Run tests with the race detector:
@@ -292,6 +297,17 @@ Make sure the code conforms the latest go code guidelines:
 ```bash
 go fix ./...
 ```
+
+Enable the repo hook with:
+```bash
+git config core.hooksPath .githooks
+```
+
+The committed `pre-commit` hook runs `go fix ./...`,
+`golangci-lint run ./...`, and `go run ./cmd/testsuite` in that order.
+It requires a clean working tree before commit because `go fix ./...` may
+rewrite tracked files. The hook stages those `go fix` changes before lint
+and coverage run.
 
 Run performance benchmarks when touching runtime-sensitive paths:
 ```bash
