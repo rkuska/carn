@@ -83,7 +83,7 @@ None.
 | internal/canonical | 29 | 4562 | 946 | 5013 | 14 | 3968 | 164 | 4549 |
 | internal/app/browser | 39 | 5335 | 896 | 6047 | 25 | 4916 | 143 | 5960 |
 | internal/source/codex | 35 | 4781 | 891 | 5348 | 9 | 2177 | 74 | 2408 |
-| internal/app/stats | 46 | 5808 | 855 | 6452 | 15 | 3866 | 55 | 4508 |
+| internal/app/stats | 46 | 5808 | 855 | 6452 | 15 | 3868 | 55 | 4510 |
 
 ## Notes
 

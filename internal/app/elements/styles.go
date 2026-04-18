@@ -39,6 +39,9 @@ type Theme struct {
 	StyleSearchMatch          lipgloss.Style
 	StyleCurrentMatch         lipgloss.Style
 	StyleRuleHR               lipgloss.Style
+	StyleHistogramAxisLabel   lipgloss.Style
+	StyleHistogramAxisLine    lipgloss.Style
+	StyleHistogramValueLabel  lipgloss.Style
 	StyleBadgeUser            lipgloss.Style
 	StyleBadgeAssistant       lipgloss.Style
 	StyleBadgeSystem          lipgloss.Style
@@ -55,6 +58,7 @@ type Theme struct {
 	StyleToolResultBadge      lipgloss.Style
 	StyleToolResultErrorBadge lipgloss.Style
 	StylePaneTitle            lipgloss.Style
+	StyleHeatmapCells         [5]lipgloss.Style
 }
 
 func NewTheme(hasDarkBG bool) *Theme {
@@ -111,6 +115,15 @@ func NewTheme(hasDarkBG bool) *Theme {
 
 	theme.StyleRuleHR = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("238"))
+
+	theme.StyleHistogramAxisLabel = lipgloss.NewStyle().
+		Foreground(theme.ColorNormalDesc)
+
+	theme.StyleHistogramAxisLine = lipgloss.NewStyle().
+		Foreground(theme.ColorSecondary)
+
+	theme.StyleHistogramValueLabel = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#ffffff"))
 
 	theme.StyleBadgeUser = lipgloss.NewStyle().
 		Bold(true).
@@ -182,6 +195,14 @@ func NewTheme(hasDarkBG bool) *Theme {
 		Foreground(theme.ColorTitleFg).
 		Bold(true).
 		Padding(0, 1)
+
+	theme.StyleHeatmapCells = [5]lipgloss.Style{
+		lipgloss.NewStyle().Foreground(theme.ColorHeatmap0),
+		lipgloss.NewStyle().Foreground(theme.ColorHeatmap1),
+		lipgloss.NewStyle().Foreground(theme.ColorHeatmap2),
+		lipgloss.NewStyle().Foreground(theme.ColorHeatmap3),
+		lipgloss.NewStyle().Foreground(theme.ColorHeatmap4),
+	}
 
 	return theme
 }

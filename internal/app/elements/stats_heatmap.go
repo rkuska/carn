@@ -2,8 +2,6 @@ package elements
 
 import (
 	"strings"
-
-	"charm.land/lipgloss/v2"
 )
 
 const heatmapIntervalCount = 6
@@ -23,6 +21,9 @@ var heatmapIntervals = [heatmapIntervalCount]heatmapInterval{
 	{label: "20-23", start: 20, end: 23},
 }
 
+var heatmapHeaders = [7]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+var heatmapCellChars = [5]string{" ", "░", "▒", "▓", "█"}
+
 func (t *Theme) RenderActivityHeatmap(title string, cells [7][24]int, width int) string {
 	body := t.RenderActivityHeatmapBody(cells, width)
 	if body == "" {
@@ -40,12 +41,13 @@ func (t *Theme) RenderActivityHeatmapBody(cells [7][24]int, width int) string {
 
 	cellWidth := HeatmapCellWidth(width)
 	lines := make([]string, 0, len(heatmapIntervals)+1)
+	renderedCells := t.heatmapRenderedCells(cellWidth)
 
-	headers := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	var headerRow strings.Builder
+	headerRow.Grow(prefixWidth + len(heatmapHeaders)*cellWidth)
 	headerRow.WriteString(strings.Repeat(" ", prefixWidth))
-	for _, header := range headers {
-		headerRow.WriteString(lipgloss.PlaceHorizontal(cellWidth, lipgloss.Center, header))
+	for _, header := range heatmapHeaders {
+		headerRow.WriteString(centerText(header, cellWidth))
 	}
 	lines = append(lines, headerRow.String())
 
@@ -59,12 +61,12 @@ func (t *Theme) RenderActivityHeatmapBody(cells [7][24]int, width int) string {
 
 	for intervalIndex, interval := range heatmapIntervals {
 		var row strings.Builder
+		row.Grow(prefixWidth + len(heatmapHeaders)*cellWidth)
 		row.WriteString(interval.label)
 		row.WriteByte(' ')
 		for day := range 7 {
 			level := heatmapLevel(intervalCells[day][intervalIndex], maxValue)
-			char, style := t.heatmapCellStyle(level)
-			row.WriteString(style.Render(strings.Repeat(char, cellWidth)))
+			row.WriteString(renderedCells[level])
 		}
 		lines = append(lines, row.String())
 	}
@@ -110,17 +112,10 @@ func heatmapLevel(value, maxValue int) int {
 	}
 }
 
-func (t *Theme) heatmapCellStyle(level int) (string, lipgloss.Style) {
-	switch level {
-	case 1:
-		return "░", lipgloss.NewStyle().Foreground(t.ColorHeatmap1)
-	case 2:
-		return "▒", lipgloss.NewStyle().Foreground(t.ColorHeatmap2)
-	case 3:
-		return "▓", lipgloss.NewStyle().Foreground(t.ColorHeatmap3)
-	case 4:
-		return "█", lipgloss.NewStyle().Foreground(t.ColorHeatmap4)
-	default:
-		return " ", lipgloss.NewStyle().Foreground(t.ColorHeatmap0)
+func (t *Theme) heatmapRenderedCells(cellWidth int) [5]string {
+	var rendered [5]string
+	for level, char := range heatmapCellChars {
+		rendered[level] = t.StyleHeatmapCells[level].Render(strings.Repeat(char, cellWidth))
 	}
+	return rendered
 }

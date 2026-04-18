@@ -62,8 +62,9 @@ func (t *Theme) RenderVerticalHistogramBody(
 	axisLabelWidth := max(lipgloss.Width(statspkg.FormatNumber(maxCount)), 1)
 	graphWidth := max(width-axisLabelWidth-3, 1)
 	layout := ResolveHistogramLayout(graphWidth, len(buckets))
+	gap := strings.Repeat(" ", layout.GapWidth)
 	barStyle := lipgloss.NewStyle().Foreground(barColor)
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
+	labelStyle := t.StyleHistogramValueLabel
 
 	for level := maxHeight; level >= 1; level-- {
 		lines = append(lines, renderHistogramLevel(
@@ -74,7 +75,7 @@ func (t *Theme) RenderVerticalHistogramBody(
 			maxHeight,
 			axisLabelWidth,
 			layout.BucketWidths,
-			layout.GapWidth,
+			gap,
 			width,
 			barStyle,
 			labelStyle,
@@ -136,16 +137,25 @@ func renderHistogramLevel(
 	buckets []histogramBucketRender,
 	level, maxCount, maxHeight, axisLabelWidth int,
 	bucketWidths []int,
-	gapWidth, width int,
+	gap string,
+	width int,
 	barStyle, labelStyle lipgloss.Style,
 ) string {
-	parts := make([]string, 0, len(buckets))
+	var row strings.Builder
+	row.Grow(width)
 	for i, bucket := range buckets {
-		parts = append(parts, renderHistogramCell(bucket, level, bucketWidths[i], barStyle, labelStyle))
+		if i == 0 {
+			label := histogramLevelLabel(level, maxHeight, maxCount)
+			row.WriteString(FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth))
+			row.WriteByte(' ')
+			row.WriteString(t.HistogramAxisLine("│"))
+			row.WriteByte(' ')
+		} else {
+			row.WriteString(gap)
+		}
+		row.WriteString(renderHistogramCell(bucket, level, bucketWidths[i], barStyle, labelStyle))
 	}
-	prefix := FitToWidth(t.HistogramAxisLabel(histogramLevelLabel(level, maxHeight, maxCount)), axisLabelWidth) +
-		" " + t.HistogramAxisLine("│") + " "
-	return ansi.Truncate(prefix+strings.Join(parts, strings.Repeat(" ", gapWidth)), width, "…")
+	return ansi.Truncate(row.String(), width, "…")
 }
 
 func renderHistogramCell(
@@ -170,7 +180,7 @@ func renderHistogramValueLabel(label string, bucketWidth int, labelStyle lipglos
 		return ""
 	}
 	text := FitToWidth(ansi.Truncate(label, bucketWidth, "…"), bucketWidth)
-	return lipgloss.PlaceHorizontal(bucketWidth, lipgloss.Center, labelStyle.Render(text))
+	return centerStyledText(labelStyle, text, bucketWidth)
 }
 
 func histogramLevelLabel(level, maxHeight, maxCount int) string {
@@ -195,20 +205,21 @@ func (t *Theme) RenderHistogramLabels(
 	bucketWidths []int,
 	gapWidth, width int,
 ) string {
-	labels := make([]string, 0, len(buckets))
+	var row strings.Builder
+	row.Grow(width)
+	row.WriteString(strings.Repeat(" ", axisLabelWidth+3))
+	gap := strings.Repeat(" ", gapWidth)
 	for i, bucket := range buckets {
+		if i > 0 {
+			row.WriteString(gap)
+		}
 		if bucketWidths[i] <= 0 {
-			labels = append(labels, "")
 			continue
 		}
 		label := ansi.Truncate(bucket.Label, bucketWidths[i], "…")
-		labels = append(labels, lipgloss.PlaceHorizontal(bucketWidths[i], lipgloss.Center, t.HistogramAxisLabel(label)))
+		row.WriteString(centerStyledText(t.StyleHistogramAxisLabel, label, bucketWidths[i]))
 	}
-	return ansi.Truncate(
-		strings.Repeat(" ", axisLabelWidth+3)+strings.Join(labels, strings.Repeat(" ", gapWidth)),
-		width,
-		"…",
-	)
+	return ansi.Truncate(row.String(), width, "…")
 }
 
 func ResolveHistogramLayout(graphWidth, bucketCount int) HistogramLayout {
@@ -244,9 +255,9 @@ func ResolveHistogramLayout(graphWidth, bucketCount int) HistogramLayout {
 }
 
 func (t *Theme) HistogramAxisLabel(text string) string {
-	return lipgloss.NewStyle().Foreground(t.ColorNormalDesc).Render(text)
+	return t.StyleHistogramAxisLabel.Render(text)
 }
 
 func (t *Theme) HistogramAxisLine(text string) string {
-	return lipgloss.NewStyle().Foreground(t.ColorSecondary).Render(text)
+	return t.StyleHistogramAxisLine.Render(text)
 }

@@ -20,16 +20,18 @@ func BenchmarkStatsOverviewRender(b *testing.B) {
 
 func BenchmarkStatsHeatmapRender(b *testing.B) {
 	model := newBenchStatsModel()
+	theme := testutil.NewTestTheme()
 	heatmap := model.snapshot.Activity.Heatmap
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = renderActivityHeatmap(testutil.NewTestTheme(), "Activity Heatmap", heatmap, 120)
+		_ = renderActivityHeatmap(theme, "Activity Heatmap", heatmap, 120)
 	}
 }
 
 func BenchmarkStatsHistogramRender(b *testing.B) {
 	model := newBenchStatsModel()
+	theme := testutil.NewTestTheme()
 	buckets := make([]histBucket, 0, len(model.snapshot.Sessions.DurationHistogram))
 	for _, bucket := range model.snapshot.Sessions.DurationHistogram {
 		buckets = append(buckets, histBucket{Label: bucket.Label, Count: bucket.Count})
@@ -37,7 +39,7 @@ func BenchmarkStatsHistogramRender(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = renderVerticalHistogram(testutil.NewTestTheme(), "Session Duration", buckets, 58, 8)
+		_ = renderVerticalHistogram(theme, "Session Duration", buckets, 58, 8)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const NoDataLabel = "No data"
@@ -15,6 +16,39 @@ func FitToWidth(s string, width int) string {
 		return s
 	}
 	return s + strings.Repeat(" ", width-sw)
+}
+
+func centerText(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	text = ansi.Truncate(text, width, "…")
+	textWidth := lipgloss.Width(text)
+	if textWidth >= width {
+		return text
+	}
+
+	leftPad := (width - textWidth) / 2
+	rightPad := width - textWidth - leftPad
+	return strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad)
+}
+
+func centerStyledText(style lipgloss.Style, text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	text = ansi.Truncate(text, width, "…")
+	textWidth := lipgloss.Width(text)
+	rendered := style.Render(text)
+	if textWidth >= width {
+		return rendered
+	}
+
+	leftPad := (width - textWidth) / 2
+	rightPad := width - textWidth - leftPad
+	return strings.Repeat(" ", leftPad) + rendered + strings.Repeat(" ", rightPad)
 }
 
 func ShortenPath(path string) string {
