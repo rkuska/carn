@@ -121,6 +121,13 @@ Use these terms when referring to different parts of the project in prompts.
 | **Debounce** | 200ms delay before deep search fires, to avoid CPU hammering while typing. |
 | **Match Ranges** | Character indices of query hits, used for highlighting matched text in list items. |
 
+## Release & Distribution
+
+| Term | What it means |
+|---|---|
+| **Homebrew Tap** | The separate Git repository that stores carn's Homebrew recipe file and is published on tagged releases. |
+| **Source Formula** | A Homebrew formula that downloads a tagged carn source archive and builds the `carn` binary locally with Go instead of installing a prebuilt binary artifact. |
+
 ## Viewer (transcript reading)
 
 | Term | What it means |

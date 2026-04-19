@@ -45,13 +45,3 @@ release:
     owner: rkuska
     name: carn
   prerelease: auto
-
-homebrew_casks:
-  - binaries:
-      - carn
-    repository:
-      owner: rkuska
-      name: homebrew-carn
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: "https://github.com/rkuska/carn"
-    description: "Terminal UI for browsing local Claude and Codex session archives"

@@ -46,4 +46,43 @@ jobs:
           args: ${{ steps.notes.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render Homebrew formula
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          URL="https://github.com/rkuska/carn/archive/refs/tags/${TAG}.tar.gz"
+          SHA256="$(curl -fsSL "$URL" | sha256sum | cut -d ' ' -f1)"
+
+          mkdir -p artifacts/homebrew/Formula
+          go run ./cmd/tapformula \
+            -url "$URL" \
+            -sha256 "$SHA256" \
+            > artifacts/homebrew/Formula/carn.rb
+
+      - name: Publish Homebrew formula
+        env:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_GITHUB_TOKEN" ]; then
+            echo "::error title=missing release secret::HOMEBREW_TAP_GITHUB_TOKEN is required to publish the Homebrew tap"
+            exit 1
+          fi
+
+          TAG="${GITHUB_REF#refs/tags/}"
+          TAP_DIR="$(mktemp -d)"
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/rkuska/homebrew-carn.git" "$TAP_DIR"
+          mkdir -p "$TAP_DIR/Formula"
+          cp artifacts/homebrew/Formula/carn.rb "$TAP_DIR/Formula/carn.rb"
+          rm -f "$TAP_DIR/Casks/carn.rb"
+
+          cd "$TAP_DIR"
+          if git diff --quiet -- Formula/carn.rb; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/carn.rb
+          git commit -m "carn ${TAG}"
+          git push origin HEAD:main
