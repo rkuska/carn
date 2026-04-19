@@ -50,8 +50,8 @@ None.
 | internal/canonical/rebuild.go | source | 381 | 65 | 431 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
 | internal/canonical/sqlite_store_persist.go | source | 328 | 64 | 354 |
+| internal/app/browser/viewer_render.go | source | 309 | 64 | 342 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
-| internal/app/browser/viewer_render.go | source | 303 | 62 | 336 |
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/app/elements/stats_charts.go | source | 275 | 61 | 326 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
@@ -66,7 +66,7 @@ None.
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
 | internal/app/stats/model.go | source | 378 | 42 | 425 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
-| internal/app/browser/viewer_model.go | source | 387 | 39 | 426 |
+| internal/app/browser/viewer_model.go | source | 388 | 39 | 427 |
 | internal/canonical/store_integration_test.go | test | 661 | 29 | 792 |
 | internal/app/browser/browser_test.go | test | 615 | 25 | 748 |
 | internal/source/codex/records.go | source | 342 | 17 | 355 |
@@ -87,7 +87,7 @@ None.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | internal/source/claude | 33 | 4932 | 1097 | 5468 | 19 | 2570 | 76 | 2910 |
 | internal/canonical | 30 | 4688 | 964 | 5151 | 15 | 4099 | 164 | 4714 |
-| internal/app/browser | 39 | 5457 | 911 | 6181 | 26 | 5068 | 152 | 6150 |
+| internal/app/browser | 40 | 5513 | 925 | 6240 | 27 | 5137 | 154 | 6241 |
 | internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
 | internal/app/stats | 46 | 5569 | 765 | 6214 | 17 | 3995 | 62 | 4697 |
 | internal/stats | 32 | 4638 | 642 | 5115 | 25 | 4888 | 116 | 5592 |

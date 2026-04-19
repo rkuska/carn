@@ -145,7 +145,7 @@ func appendSearchStatusPart(parts []string, query string, matches []searchOccurr
 func (m viewerModel) renderContent() viewerModel {
 	key := m.renderKey()
 	if cached, ok := m.cachedRender(key); ok {
-		return m.applyRenderedContent(cached.rawContent, cached.baseContent, cached.searchLines)
+		return m.applyRenderedContent(cached.rawContent, cached.baseContent, cached.searchLines, cached.turnAnchors)
 	}
 
 	if m.selectionMode {
@@ -173,18 +173,24 @@ func (m viewerModel) renderContent() viewerModel {
 	if planHeader := renderPlanHeader(m.theme, m.session.Messages, contentWidth, m.planExpanded); planHeader != "" {
 		sb.WriteString(planHeader)
 	}
+	var roleHeaderOffsets []int
 	for _, seg := range segments {
+		if seg.kind == segmentRoleHeader {
+			roleHeaderOffsets = append(roleHeaderOffsets, sb.Len())
+		}
 		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache, m.theme)
 	}
 
 	baseContent := sb.String()
 	searchLines := buildSearchIndex(baseContent)
+	turnAnchors := computeTurnAnchors(baseContent, roleHeaderOffsets)
 	m = m.storeRenderCache(key, viewerRenderValue{
 		rawContent:  rawContent,
 		baseContent: baseContent,
 		searchLines: searchLines,
+		turnAnchors: turnAnchors,
 	})
-	return m.applyRenderedContent(rawContent, baseContent, searchLines)
+	return m.applyRenderedContent(rawContent, baseContent, searchLines, turnAnchors)
 }
 
 func (m viewerModel) renderSelectionContent(key viewerRenderKey) viewerModel {
@@ -195,7 +201,7 @@ func (m viewerModel) renderSelectionContent(key viewerRenderKey) viewerModel {
 		baseContent: content,
 		searchLines: searchLines,
 	})
-	return m.applyRenderedContent(content, content, searchLines)
+	return m.applyRenderedContent(content, content, searchLines, nil)
 }
 
 func renderSegmentCached(

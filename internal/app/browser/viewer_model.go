@@ -59,6 +59,7 @@ type viewerModel struct {
 	markdownCache        map[string]string
 	roleHeaderCache      map[roleHeaderKey]string
 	renderCache          map[viewerRenderKey]viewerRenderValue
+	turnAnchors          []int
 	pendingGotoTopKey    bool
 	planExpanded         bool
 	selectionMode        bool
@@ -279,7 +280,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 	switch {
 	case key.Matches(msg, viewerKeys.ToggleThinking):
 		m.opts.showThinking = !m.opts.showThinking
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		m = m.setNotification(
 			infoNotification(fmt.Sprintf("thinking: %s", toggleLabel(m.opts.showThinking))).Notification,
 			cmds,
@@ -287,7 +288,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 		return m, true
 	case key.Matches(msg, viewerKeys.ToggleTools):
 		m.opts.showTools = !m.opts.showTools
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		m = m.setNotification(
 			infoNotification(fmt.Sprintf("tools: %s", toggleLabel(m.opts.showTools))).Notification,
 			cmds,
@@ -295,7 +296,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 		return m, true
 	case key.Matches(msg, viewerKeys.ToggleToolResults):
 		m.opts.showToolResults = !m.opts.showToolResults
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		m = m.setNotification(
 			infoNotification(fmt.Sprintf("tool results: %s", toggleLabel(m.opts.showToolResults))).Notification,
 			cmds,
@@ -303,7 +304,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 		return m, true
 	case key.Matches(msg, viewerKeys.TogglePlan):
 		m.planExpanded = !m.planExpanded
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		m = m.setNotification(
 			infoNotification(fmt.Sprintf("plan: %s", toggleLabel(m.planExpanded))).Notification,
 			cmds,
@@ -311,7 +312,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 		return m, true
 	case key.Matches(msg, viewerKeys.ToggleSidechain):
 		m.opts.hideSidechain = !m.opts.hideSidechain
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		label := "shown"
 		if m.opts.hideSidechain {
 			label = "hidden"
@@ -320,7 +321,7 @@ func (m viewerModel) handleToggleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (view
 		return m, true
 	case key.Matches(msg, viewerKeys.ToggleSystem):
 		m.opts.showSystem = !m.opts.showSystem
-		m = m.renderContent()
+		m = m.renderContentPreservingScroll()
 		m = m.setNotification(
 			infoNotification(fmt.Sprintf("system: %s", toggleLabel(m.opts.showSystem))).Notification,
 			cmds,

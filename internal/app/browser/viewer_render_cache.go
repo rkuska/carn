@@ -24,6 +24,7 @@ type viewerRenderValue struct {
 	rawContent  string
 	baseContent string
 	searchLines []searchLineIndex
+	turnAnchors []int
 }
 
 func (m viewerModel) renderKey() viewerRenderKey {

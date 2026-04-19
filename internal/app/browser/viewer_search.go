@@ -51,8 +51,10 @@ func (m viewerModel) applyRenderedContent(
 	rawContent string,
 	baseContent string,
 	searchLines []searchLineIndex,
+	turnAnchors []int,
 ) viewerModel {
 	m.rawContent = rawContent
+	m.turnAnchors = turnAnchors
 	contentChanged := m.baseContent != baseContent
 	if contentChanged {
 		m.baseContent = baseContent
