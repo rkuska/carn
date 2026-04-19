@@ -93,7 +93,7 @@ func subduedMarkdownStyleConfig(hasDarkBG bool) glamouransi.StyleConfig {
 		},
 		ImageText: glamouransi.StylePrimitive{
 			Color:  markdownStringPtr(mutedColor),
-			Format: "Image: {{.Text}} ->",
+			Format: "Image: {{.text}} ->",
 		},
 		Code: glamouransi.StyleBlock{
 			StylePrimitive: glamouransi.StylePrimitive{

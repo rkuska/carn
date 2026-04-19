@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -114,7 +115,11 @@ func visitSessionMessages(
 ) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return src.MarkMalformedRawData(fmt.Errorf("os.Open: %w", err))
+		err = fmt.Errorf("os.Open: %w", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return src.MarkMalformedRawData(err)
+		}
+		return err
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {

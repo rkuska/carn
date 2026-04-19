@@ -54,3 +54,24 @@ func TestViewerMarkdownRenderingDropsStandardH1Badge(t *testing.T) {
 	assert.Contains(t, m.baseContent, "Heading")
 	assert.NotContains(t, m.baseContent, "48;5;63m")
 }
+
+func TestViewerMarkdownRenderingPreservesImageAltText(t *testing.T) {
+	t.Parallel()
+
+	session := conv.Session{
+		Meta: conv.SessionMeta{
+			ID:        "markdown-image",
+			Timestamp: testConv("markdown-image").Sessions[0].Timestamp,
+			Project:   conv.Project{DisplayName: "test"},
+		},
+		Messages: []conv.Message{
+			{Role: conv.RoleUser, Text: "show image"},
+			{Role: conv.RoleAssistant, Text: "![architecture diagram](diagram.png)"},
+		},
+	}
+
+	m := newTestViewer(session, 120, 40)
+
+	assert.Contains(t, m.baseContent, "architecture diagram")
+	assert.NotContains(t, m.baseContent, "<no value>")
+}

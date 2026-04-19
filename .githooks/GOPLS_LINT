@@ -10,7 +10,7 @@ fi
 
 root="$1"
 if [ ! -d "$root" ]; then
-	echo "$root' is not a directory" >&2
+	echo "'$root' is not a directory" >&2
 	exit 1
 fi
 
@@ -33,7 +33,11 @@ while IFS= read -r -d '' file; do
 	dir=$(dirname "$file")
 	dirs+=("$dir")
 done < <(find "$root" -type f -name "*.go" -print0)
-dirs=($(printf "%s\n" "${dirs[@]}" | sort -u))
+sorted_dirs=()
+while IFS= read -r dir; do
+	sorted_dirs+=("$dir")
+done < <(printf '%s\n' "${dirs[@]}" | sort -u)
+dirs=("${sorted_dirs[@]}")
 
 # check is called in parallel
 check() {

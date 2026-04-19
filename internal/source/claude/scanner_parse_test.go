@@ -2,13 +2,18 @@ package claude
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	src "github.com/rkuska/carn/internal/source"
 )
 
 func TestParseConversationParsesToolSummariesAndResults(t *testing.T) {
@@ -249,4 +254,36 @@ func TestParseConversationProjectedCarriesPerMessageUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	assert.Equal(t, tokenUsage{InputTokens: 120, OutputTokens: 30}, got.Messages[1].Usage)
+}
+
+func TestVisitSessionMessagesMarksMissingFileAsMalformedRawData(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "missing.jsonl")
+
+	err := visitSessionMessages(context.Background(), path, &parseContext{}, func(parsedMessage) {})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, fs.ErrNotExist)
+	assert.ErrorIs(t, err, src.ErrMalformedRawData)
+}
+
+func TestVisitSessionMessagesPropagatesPermissionDeniedOpenErrors(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("permission-denied semantics differ on windows")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(makeTestUserRecord(t, "s1", "demo", "hello")), 0o644))
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chmod(path, 0o644))
+	})
+
+	err := visitSessionMessages(context.Background(), path, &parseContext{}, func(parsedMessage) {})
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, src.ErrMalformedRawData))
+	assert.ErrorIs(t, err, fs.ErrPermission)
 }
