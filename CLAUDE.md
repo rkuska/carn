@@ -26,6 +26,11 @@ Code is split by ownership under `internal/`.
 - `internal/stats/` — stats computation: overview aggregates, activity
   heatmaps, histograms, tool breakdowns, token trends, streaks,
   performance scorecard and lanes, trends, transcript-sequence metrics.
+- `internal/coverage/` — coverage snapshot and baseline types,
+  coverprofile parsing, and regression comparison used by the test suite
+  coverage gate.
+- `internal/release/` — release-time artefacts such as the Homebrew
+  source-formula template used by the tag-and-release pipeline.
 
 Defaults: sources `~/.claude/projects/`, `~/.codex/sessions/`; archive
 `~/.local/share/carn/`. Runtime paths come from the user config file

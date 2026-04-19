@@ -110,6 +110,9 @@ Use these terms when referring to different parts of the project in prompts.
 | **Cache Reuse Ratio** | How many times each written cache token is read back (`CacheRead / CacheWrite`). Measures cache ROI. |
 | **Cache Segment** | Cache metrics split by session type: main thread (1 h cache TTL) vs. subagent (5 min cache TTL). |
 | **Cache Duration Bucket** | Average cache hit rate and miss cost grouped by session duration. Shows whether longer sessions maintain or lose cache efficiency. |
+| **Metric Detail Lane** | A pinned lane below the scrolling chart area that expands the currently selected metric with extra context, split details, and a "hidden content" rule when applicable. |
+| **Split-by Row** | A row inside the filter overlay that lets the user pick or clear the active **Split Dimension** without leaving the overlay. |
+| **First-turn Cold Cache Lane** | A Cache-tab lane that tracks first-turn cold cache behaviour split by Claude version, isolating cache-miss cost before warm turns start repaying the write. |
 
 ## Search
 
@@ -141,6 +144,8 @@ Use these terms when referring to different parts of the project in prompts.
 | **Initial Prompt** | The first user message, rendered with a distinctive left `▎` border. |
 | **Toggles** | Visibility controls: `t` thinking, `T` tools, `R` tool results, `m` system messages, `p` plans, `s` sidechains. |
 | **Transcript Search** | `/` within the viewer — searches the rendered transcript text. `n`/`N` to navigate matches. |
+| **Selection Mode** | A viewer sub-mode that lets users select a range of rendered transcript text with the keyboard and copy a cleaned, marker-free version to the clipboard. |
+| **Turn Anchor** | A captured byte-to-line offset for each `segmentRoleHeader` in the rendered transcript. Used to preserve the reader's position when a toggle rebuilds the content. |
 
 ## Conversation Header (top of transcript)
 
