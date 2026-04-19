@@ -33,7 +33,8 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 	grouped := m.splitCacheResult
 	colorByKey := m.splitColors
 	dailyTitle, dailyShares := m.splitCacheDailyData(grouped)
-	dailyKeys := presentSplitKeys(dailyShares, dailyShareSplits)
+	dailySeries := splitCacheDailyRateSeries(dailyShares)
+	dailyKeys := splitDailyValueSeriesKeys(dailySeries)
 	segmentKeys := presentSplitKeys(grouped.SegmentRows, namedStatSplits)
 	writeKeys := presentSplitKeys(grouped.WriteDuration, histBucketSplits)
 	readKeys := presentSplitKeys(grouped.ReadDuration, histBucketSplits)
@@ -46,7 +47,7 @@ func (m statsModel) renderSplitCacheBody(width int) string {
 		m.splitTitle(dailyTitle),
 		selected.id == statsLaneCacheDaily,
 		func(bodyWidth int) string {
-			return m.renderSplitCacheDailyChart(bodyWidth, dailyKeys, dailyShares, colorByKey)
+			return m.renderSplitCacheDailyChart(bodyWidth, dailyKeys, dailySeries, colorByKey)
 		},
 		m.splitTitle("Main vs Subagent"),
 		selected.id == statsLaneCacheSegment,
@@ -128,7 +129,7 @@ func (m statsModel) splitCacheDailyData(grouped statspkg.CacheBySplit) (string, 
 func (m statsModel) renderSplitCacheDailyChart(
 	width int,
 	dailyKeys []string,
-	dailyShares []statspkg.SplitDailyShare,
+	dailySeries []statspkg.SplitDailyValueSeries,
 	colorByKey map[string]color.Color,
 ) string {
 	return renderChartWithSplitLegend(
@@ -140,7 +141,7 @@ func (m statsModel) renderSplitCacheDailyChart(
 		func(chartWidth int) string {
 			return renderSplitDailyRateChartBody(
 				m.theme,
-				splitCacheDailyRateSeries(dailyShares),
+				dailySeries,
 				chartWidth,
 				11,
 				colorByKey,
@@ -200,7 +201,7 @@ func splitCacheRateChips(
 
 func splitCacheDailyRateSeries(
 	shares []statspkg.SplitDailyShare,
-) []statspkg.SplitDailyRateSeries {
+) []statspkg.SplitDailyValueSeries {
 	keys := make([]string, 0)
 	seen := make(map[string]bool)
 	for _, share := range shares {
@@ -217,11 +218,11 @@ func splitCacheDailyRateSeries(
 		return nil
 	}
 
-	series := make([]statspkg.SplitDailyRateSeries, len(keys))
+	series := make([]statspkg.SplitDailyValueSeries, len(keys))
 	for i, key := range keys {
-		series[i] = statspkg.SplitDailyRateSeries{
-			Key:   key,
-			Rates: make([]statspkg.DailyRate, 0, len(shares)),
+		series[i] = statspkg.SplitDailyValueSeries{
+			Key:    key,
+			Values: make([]statspkg.DailyValue, 0, len(shares)),
 		}
 	}
 
@@ -235,10 +236,10 @@ func splitCacheDailyRateSeries(
 				rate = float64(values[key]) / float64(prompt)
 				hasActivity = true
 			}
-			series[i].Rates = append(series[i].Rates, statspkg.DailyRate{
-				Date:        share.Date,
-				Rate:        rate,
-				HasActivity: hasActivity,
+			series[i].Values = append(series[i].Values, statspkg.DailyValue{
+				Date:     share.Date,
+				Value:    rate,
+				HasValue: hasActivity,
 			})
 		}
 	}

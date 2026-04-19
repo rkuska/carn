@@ -79,7 +79,9 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 	switch lane.id { //nolint:exhaustive // split cache detail only handles cache lanes
 	case statsLaneCacheDaily:
 		title, shares := m.splitCacheDailyData(grouped)
-		peakSeries, peakDay, peakRate := peakSplitDailyRate(shares)
+		peakSeries, peakDay, peakRate := peakSplitDailyValue(
+			splitCacheDailyRateSeries(shares),
+		)
 		chips := splitDetailChips(splitChips,
 			chip{Label: "peak series", Value: peakSeries},
 			chip{Label: "peak day", Value: peakDay},
@@ -175,21 +177,21 @@ func topSplitToolRate(items []statspkg.SplitRateStat) (string, string) {
 	return items[0].Name, formatToolRatePercent(items[0].Rate)
 }
 
-func peakSplitDailyRate(shares []statspkg.SplitDailyShare) (string, string, float64) {
+func peakSplitDailyValue(series []statspkg.SplitDailyValueSeries) (string, string, float64) {
 	bestSeries := noDataLabel
-	bestRate := 0.0
+	bestValue := 0.0
 	bestDay := noDataLabel
-	for _, item := range splitCacheDailyRateSeries(shares) {
-		for _, rate := range item.Rates {
-			if !rate.HasActivity || rate.Rate <= bestRate {
+	for _, item := range series {
+		for _, value := range item.Values {
+			if !value.HasValue || value.Value <= bestValue {
 				continue
 			}
 			bestSeries = item.Key
-			bestDay = rate.Date.Format("2006-01-02")
-			bestRate = rate.Rate
+			bestDay = value.Date.Format("2006-01-02")
+			bestValue = value.Value
 		}
 	}
-	return bestSeries, bestDay, bestRate
+	return bestSeries, bestDay, bestValue
 }
 
 func leadingSplitHistogram(items []statspkg.SplitHistogramBucket) (string, int) {

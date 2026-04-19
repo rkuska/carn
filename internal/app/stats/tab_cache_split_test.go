@@ -42,18 +42,18 @@ func TestSplitCacheDailyRateSeriesUsesSplitLocalPromptDenominator(t *testing.T) 
 	})
 
 	require.Len(t, got, 2)
-	assert.Equal(t, statspkg.SplitDailyRateSeries{
+	assert.Equal(t, statspkg.SplitDailyValueSeries{
 		Key: "Claude",
-		Rates: []statspkg.DailyRate{
-			{Date: dayOne, Rate: 0.8, HasActivity: true},
-			{Date: dayTwo, Rate: 0.5, HasActivity: true},
+		Values: []statspkg.DailyValue{
+			{Date: dayOne, Value: 0.8, HasValue: true},
+			{Date: dayTwo, Value: 0.5, HasValue: true},
 		},
 	}, got[0])
-	assert.Equal(t, statspkg.SplitDailyRateSeries{
+	assert.Equal(t, statspkg.SplitDailyValueSeries{
 		Key: "Codex",
-		Rates: []statspkg.DailyRate{
-			{Date: dayOne, Rate: 0.6, HasActivity: true},
-			{Date: dayTwo, Rate: 0, HasActivity: false},
+		Values: []statspkg.DailyValue{
+			{Date: dayOne, Value: 0.6, HasValue: true},
+			{Date: dayTwo, Value: 0, HasValue: false},
 		},
 	}, got[1])
 }

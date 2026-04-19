@@ -125,3 +125,55 @@ func TestStatsRenderGroupedCacheShowsProviderHitRateChipsInProviderSplit(t *test
 	assert.Contains(t, body, "Codex write")
 	assert.Contains(t, body, "20.0%")
 }
+
+func TestStatsRenderGroupedCacheLegendKeepsSeriesWithZeroNumerator(t *testing.T) {
+	t.Parallel()
+
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionOne
+					meta.TotalUsage = conv.TokenUsage{
+						InputTokens:              100,
+						CacheCreationInputTokens: 100,
+						CacheReadInputTokens:     800,
+					}
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionTwo
+					meta.TotalUsage = conv.TokenUsage{
+						InputTokens:              300,
+						CacheCreationInputTokens: 0,
+						CacheReadInputTokens:     0,
+					}
+				}),
+			),
+		},
+		&fakeBrowserStore{},
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabCache
+	m.splitBy = statspkg.SplitDimensionVersion
+	m = m.applyFilterChange()
+
+	body := ansi.Strip(m.renderCacheTab(120, 32))
+
+	assert.Contains(t, body, versionOne)
+	assert.Contains(t, body, versionTwo)
+	assert.Contains(t, body, "2.0.0 hit")
+	assert.Contains(t, body, "0.0%")
+}

@@ -46,8 +46,8 @@ None.
 | internal/source/claude/scanner.go | source | 308 | 66 | 347 |
 | internal/source/codex/known_schema_extras.go | source | 235 | 66 | 262 |
 | internal/stats/performance_messages_collect.go | source | 216 | 66 | 239 |
-| internal/app/elements/stats_daily_rate_chart.go | source | 382 | 65 | 426 |
 | internal/canonical/rebuild.go | source | 381 | 65 | 431 |
+| internal/app/elements/stats_turn_chart.go | source | 306 | 65 | 337 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
 | internal/canonical/sqlite_store_persist.go | source | 328 | 64 | 354 |
 | internal/app/browser/viewer_render.go | source | 309 | 64 | 342 |
@@ -59,12 +59,13 @@ None.
 | internal/app/browser/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/app/stats/tab_cache.go | source | 337 | 59 | 371 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
+| internal/app/elements/stats_daily_rate_chart.go | source | 348 | 56 | 386 |
 | internal/canonical/sqlite_stats.go | source | 338 | 55 | 372 |
-| internal/app/stats/metric_detail.go | source | 324 | 50 | 351 |
+| internal/app/stats/metric_detail.go | source | 394 | 50 | 426 |
 | internal/source/claude/scanner_metadata.go | source | 386 | 49 | 415 |
 | internal/source/claude/action.go | source | 310 | 48 | 338 |
 | internal/source/codex/json_field.go | source | 374 | 46 | 396 |
-| internal/app/stats/model.go | source | 378 | 42 | 425 |
+| internal/app/stats/model.go | source | 381 | 42 | 428 |
 | internal/source/codex/drift.go | source | 337 | 40 | 387 |
 | internal/app/browser/viewer_model.go | source | 388 | 39 | 427 |
 | internal/canonical/store_integration_test.go | test | 661 | 29 | 792 |
@@ -73,7 +74,7 @@ None.
 | internal/app/import_overview_test.go | test | 613 | 12 | 709 |
 | internal/stats/performance_lane.go | source | 340 | 10 | 347 |
 | internal/app/browser/transcript_test.go | test | 776 | 9 | 893 |
-| internal/app/stats/render_test.go | test | 710 | 9 | 845 |
+| internal/app/stats/render_test.go | test | 735 | 9 | 871 |
 | internal/app/stats/model_test.go | test | 750 | 4 | 858 |
 | internal/app/stats/tab_performance_test.go | test | 640 | 4 | 706 |
 
@@ -89,8 +90,8 @@ None.
 | internal/canonical | 30 | 4688 | 964 | 5151 | 15 | 4099 | 164 | 4714 |
 | internal/app/browser | 40 | 5513 | 925 | 6240 | 27 | 5137 | 154 | 6241 |
 | internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
-| internal/app/stats | 46 | 5677 | 782 | 6333 | 19 | 4113 | 62 | 4829 |
-| internal/stats | 32 | 4658 | 642 | 5136 | 25 | 4898 | 116 | 5602 |
+| internal/app/stats | 46 | 5577 | 745 | 6217 | 21 | 4389 | 61 | 5142 |
+| internal/stats | 33 | 4900 | 672 | 5403 | 25 | 5073 | 117 | 5787 |
 
 ## Notes
 

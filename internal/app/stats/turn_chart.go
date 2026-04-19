@@ -7,8 +7,6 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-type turnBarColumn = el.TurnBarColumn
-
 func claudeTurnMetricChips(metrics []statspkg.PositionTokenMetrics) []chip {
 	if len(metrics) == 0 {
 		return []chip{{Label: statsClaudeMetricsNoDataLabel, Value: noDataLabel}}
@@ -108,13 +106,9 @@ func renderTurnBarChartBody(
 }
 
 var (
-	turnBarAxisLabelWidth  = el.TurnBarAxisLabelWidth
-	turnBarColumns         = el.TurnBarColumns
-	turnBarLevelLabel      = el.TurnBarLevelLabel
-	renderTurnBarAxis      = (*el.Theme).RenderTurnBarAxis
-	renderTurnBarXAxisRows = el.RenderTurnBarXAxisRows
-	claudeTurnChartPoints  = el.ClaudeTurnChartPoints
-	claudeTurnChartRange   = el.ClaudeTurnChartRange
+	turnBarColumns        = el.TurnBarColumns
+	claudeTurnChartPoints = el.ClaudeTurnChartPoints
+	claudeTurnChartRange  = el.ClaudeTurnChartRange
 )
 
 func (m statsModel) renderClaudeTurnMetricLaneBody(

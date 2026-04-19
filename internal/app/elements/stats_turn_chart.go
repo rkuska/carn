@@ -14,11 +14,13 @@ import (
 )
 
 type TurnBarColumn struct {
-	Start    int
-	End      int
-	Anchor   int
-	Position int
-	Height   int
+	Start         int
+	End           int
+	Anchor        int
+	Position      int
+	StartPosition int
+	EndPosition   int
+	Height        int
 }
 
 func (t *Theme) RenderTurnBarChartBody(
@@ -85,59 +87,26 @@ func TurnBarColumns(
 	if len(metrics) == 0 || graphWidth <= 0 || plotHeight <= 0 {
 		return nil
 	}
-	return turnBarEvenColumns(metrics, graphWidth, plotHeight, maxY, value)
-}
 
-func turnBarEvenColumns(
-	metrics []statspkg.PositionTokenMetrics,
-	graphWidth, plotHeight int,
-	maxY float64,
-	value func(statspkg.PositionTokenMetrics) float64,
-) []TurnBarColumn {
-	layout, ok := ResolveUniformTurnBarLayout(graphWidth, len(metrics))
-	if !ok {
-		return turnBarColumnsFromHistogramLayout(metrics, graphWidth, plotHeight, maxY, value)
-	}
-
-	columns := make([]TurnBarColumn, 0, len(metrics))
-	start := layout.LeftPad
-	for _, metric := range metrics {
-		end := start + layout.BarWidth - 1
-		columns = append(columns, TurnBarColumn{
-			Start:    start,
-			End:      end,
-			Anchor:   start + layout.BarWidth/2,
-			Position: metric.Position,
-			Height:   TurnBarScaledHeight(value(metric), maxY, plotHeight),
-		})
-		start = end + 1 + layout.GapWidth
-	}
-	return columns
-}
-
-func turnBarColumnsFromHistogramLayout(
-	metrics []statspkg.PositionTokenMetrics,
-	graphWidth, plotHeight int,
-	maxY float64,
-	value func(statspkg.PositionTokenMetrics) float64,
-) []TurnBarColumn {
-	layout := ResolveHistogramLayout(graphWidth, len(metrics))
-	columns := make([]TurnBarColumn, 0, len(metrics))
-	start := 0
-	for i, metric := range metrics {
-		width := layout.BucketWidths[i]
-		if width <= 0 {
+	bucketCount := turnMetricBucketCount(metrics, graphWidth)
+	buckets := bucketTurnMetrics(metrics, bucketCount, value)
+	slots := resolveVerticalBarGroupSlots(turnMetricActiveCounts(len(buckets)), graphWidth)
+	columns := make([]TurnBarColumn, 0, min(len(buckets), len(slots)))
+	for i := range min(len(buckets), len(slots)) {
+		slot := slots[i]
+		if len(slot.Bars) == 0 {
 			continue
 		}
-		end := start + width - 1
+		bar := slot.Bars[0]
 		columns = append(columns, TurnBarColumn{
-			Start:    start,
-			End:      end,
-			Anchor:   start + width/2,
-			Position: metric.Position,
-			Height:   TurnBarScaledHeight(value(metric), maxY, plotHeight),
+			Start:         bar.Start,
+			End:           bar.End - 1,
+			Anchor:        bar.Anchor,
+			Position:      buckets[i].StartPosition,
+			StartPosition: buckets[i].StartPosition,
+			EndPosition:   buckets[i].EndPosition,
+			Height:        TurnBarScaledHeight(buckets[i].Value, maxY, plotHeight),
 		})
-		start = end + 1 + layout.GapWidth
 	}
 	return columns
 }
@@ -211,11 +180,74 @@ func RenderTurnBarXAxisRows(
 	for _, column := range columns {
 		placements = append(placements, claudeTurnAxisLabelPlacement{
 			Anchor: column.Anchor,
-			Label:  strconv.Itoa(column.Position),
+			Label:  turnBarColumnLabel(column),
 		})
 	}
 	rows := claudeTurnAxisLabelGrid(graphWidth, placements)
 	return renderClaudeTurnAxisRows(strings.Repeat(" ", axisLabelWidth+3), rows)
+}
+
+type turnMetricBucket struct {
+	StartPosition int
+	EndPosition   int
+	Value         float64
+}
+
+func turnMetricBucketCount(
+	metrics []statspkg.PositionTokenMetrics,
+	graphWidth int,
+) int {
+	if len(metrics) == 0 || graphWidth <= 0 {
+		return 0
+	}
+	return groupedVerticalBarBucketCount(len(metrics), graphWidth, turnMetricActiveCounts)
+}
+
+func turnMetricActiveCounts(bucketCount int) []int {
+	counts := make([]int, bucketCount)
+	for i := range counts {
+		counts[i] = 1
+	}
+	return counts
+}
+
+func bucketTurnMetrics(
+	metrics []statspkg.PositionTokenMetrics,
+	bucketCount int,
+	value func(statspkg.PositionTokenMetrics) float64,
+) []turnMetricBucket {
+	if len(metrics) == 0 || bucketCount <= 0 {
+		return nil
+	}
+
+	buckets := make([]turnMetricBucket, 0, bucketCount)
+	for i := range bucketCount {
+		start := i * len(metrics) / bucketCount
+		end := (i + 1) * len(metrics) / bucketCount
+		if end <= start {
+			end = start + 1
+		}
+
+		bucket := turnMetricBucket{
+			StartPosition: metrics[start].Position,
+			EndPosition:   metrics[end-1].Position,
+		}
+		for _, metric := range metrics[start:end] {
+			bucket.Value += value(metric)
+		}
+		bucket.Value /= float64(end - start)
+		buckets = append(buckets, bucket)
+	}
+	return buckets
+}
+
+func turnBarColumnLabel(column TurnBarColumn) string {
+	start := max(column.StartPosition, column.Position)
+	end := max(column.EndPosition, start)
+	if start == end {
+		return strconv.Itoa(start)
+	}
+	return strconv.Itoa(start) + "-" + strconv.Itoa(end)
 }
 
 func ClaudeTurnChartPoints(
@@ -258,6 +290,9 @@ func claudeTurnAxisLabelGrid(
 		start = max(start, 0)
 		if start+len(labelRunes) > graphWidth {
 			start = max(graphWidth-len(labelRunes), 0)
+		}
+		if start+len(labelRunes) == graphWidth && graphWidth > len(labelRunes) {
+			start--
 		}
 
 		rowIndex := 0

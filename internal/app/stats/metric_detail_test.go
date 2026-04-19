@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 
+	conv "github.com/rkuska/carn/internal/conversation"
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
@@ -49,6 +50,66 @@ func TestStatsRenderActivityMetricDetailFollowsSelectedLane(t *testing.T) {
 	detail = ansi.Strip(m.renderActiveMetricDetail(120))
 	assert.Contains(t, detail, "Activity Heatmap")
 	assert.Contains(t, detail, "busiest slot")
+}
+
+func TestStatsRenderSplitActivityMetricDetailExplainsGroupedDailySeries(t *testing.T) {
+	t.Parallel()
+
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserStore{
+		activityBucketRows: []conv.ActivityBucketRow{
+			{
+				BucketStart:  now,
+				Version:      versionOne,
+				SessionCount: 1,
+				MessageCount: 4,
+			},
+			{
+				BucketStart:  now,
+				Version:      versionTwo,
+				SessionCount: 1,
+				MessageCount: 6,
+			},
+		},
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionOne
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionTwo
+				}),
+			),
+		},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabActivity
+	m.splitBy = statspkg.SplitDimensionVersion
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	detail := ansi.Strip(m.renderActiveMetricDetail(120))
+
+	assert.Contains(t, detail, "Daily Activity")
+	assert.Contains(t, detail, "peak series")
+	assert.Contains(t, detail, "groups only split series with values")
+	assert.Contains(t, detail, "Empty day buckets render a single dot")
 }
 
 func TestStatsRenderSessionsMetricDetailFollowsSelectedLane(t *testing.T) {

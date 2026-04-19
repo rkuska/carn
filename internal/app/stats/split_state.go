@@ -32,9 +32,9 @@ func splitToFilterDim(dim statspkg.SplitDimension) (filterDimension, bool) {
 
 func splitDimensionSupportsTab(tab statsTab) bool {
 	switch tab {
-	case statsTabSessions, statsTabTools, statsTabCache:
+	case statsTabActivity, statsTabSessions, statsTabTools, statsTabCache:
 		return true
-	case statsTabOverview, statsTabActivity, statsTabPerformance:
+	case statsTabOverview, statsTabPerformance:
 		return false
 	default:
 		return false
@@ -133,6 +133,16 @@ func (m statsModel) splitTurnSeries(mode statspkg.StatisticMode) []statspkg.Spli
 		m.splitBy,
 		m.splitAllowed(),
 		mode,
+	)
+}
+
+func (m statsModel) computeSplitActivity() statspkg.ActivityBySplit {
+	return statspkg.ComputeActivityBySplit(
+		m.statsSessions,
+		m.statsActivityBuckets,
+		m.timeRange,
+		m.splitBy,
+		m.splitAllowed(),
 	)
 }
 

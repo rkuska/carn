@@ -427,23 +427,6 @@ func TestTurnBarColumnsLeaveGapsWhenWidthAllows(t *testing.T) {
 	assert.Equal(t, columns[1].End-columns[1].Start, columns[2].End-columns[2].Start)
 }
 
-func TestLayoutStackedTurnColumnsUsesUniformWidthsWhenSpaceAllows(t *testing.T) {
-	t.Parallel()
-
-	columns := layoutStackedTurnColumns([]stackedTurnBarColumn{
-		{turnBarColumn: turnBarColumn{Position: 1, Height: 3}},
-		{turnBarColumn: turnBarColumn{Position: 2, Height: 4}},
-		{turnBarColumn: turnBarColumn{Position: 3, Height: 5}},
-		{turnBarColumn: turnBarColumn{Position: 4, Height: 6}},
-	}, 20)
-
-	require.Len(t, columns, 4)
-	width := columns[0].End - columns[0].Start
-	for _, column := range columns[1:] {
-		assert.Equal(t, width, column.End-column.Start)
-	}
-}
-
 func TestRenderClaudeTurnChartShowsSampledTurnNumbersOnXAxis(t *testing.T) {
 	t.Parallel()
 
@@ -553,6 +536,7 @@ func TestRenderVersionedTurnChartBodyShowsLegendAndTurnLabels(t *testing.T) {
 		80,
 		8,
 		buildSplitColorMap(testutil.NewTestTheme(), []string{"1.0.0", statspkg.UnknownVersionLabel}),
+		statspkg.StatisticModeAverage,
 		func(metric statspkg.PositionTokenMetrics) float64 {
 			return metric.AveragePromptTokens
 		},

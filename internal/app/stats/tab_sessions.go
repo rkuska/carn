@@ -45,11 +45,17 @@ func (m statsModel) renderSessionsTab(width int) string {
 		"Session Duration",
 		m.sessionsLaneCursor == 0,
 		func(bodyWidth int) string {
+			if m.splitActive() {
+				return splitMetricUnavailableMessage(m.splitBy, "session duration")
+			}
 			return renderVerticalHistogramBody(m.theme, durationBuckets, bodyWidth, 8, m.theme.ColorChartTime)
 		},
 		"Messages per Session",
 		m.sessionsLaneCursor == 1,
 		func(bodyWidth int) string {
+			if m.splitActive() {
+				return splitMetricUnavailableMessage(m.splitBy, "messages per session")
+			}
 			return renderVerticalHistogramBody(m.theme, messageBuckets, bodyWidth, 8, m.theme.ColorChartBar)
 		},
 	)

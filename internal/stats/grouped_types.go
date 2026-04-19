@@ -36,9 +36,9 @@ type SplitDailyShare struct {
 	PromptSplits []SplitValue
 }
 
-type SplitDailyRateSeries struct {
-	Key   string
-	Rates []DailyRate
+type SplitDailyValueSeries struct {
+	Key    string
+	Values []DailyValue
 }
 
 type ToolsBySplit struct {

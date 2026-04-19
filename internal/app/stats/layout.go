@@ -17,22 +17,4 @@ func resolveHistogramLayout(graphWidth, bucketCount int) histogramLayout {
 	}
 }
 
-type uniformTurnBarLayout struct {
-	barWidth int
-	gapWidth int
-	leftPad  int
-}
-
-func resolveUniformTurnBarLayout(graphWidth, barCount int) (uniformTurnBarLayout, bool) {
-	layout, ok := el.ResolveUniformTurnBarLayout(graphWidth, barCount)
-	if !ok {
-		return uniformTurnBarLayout{}, false
-	}
-	return uniformTurnBarLayout{
-		barWidth: layout.BarWidth,
-		gapWidth: layout.GapWidth,
-		leftPad:  layout.LeftPad,
-	}, true
-}
-
 var resolveFloatSegmentHeights = el.ResolveFloatSegmentHeights

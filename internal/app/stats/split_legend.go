@@ -7,7 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	el "github.com/rkuska/carn/internal/app/elements"
-	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
 const (
@@ -52,18 +51,6 @@ func renderChartWithSplitLegend(
 		legendWidth,
 		false,
 	)
-}
-
-func renderSplitLegendForSeries(
-	series []statspkg.SplitTurnSeries,
-	width int,
-	colorByKey map[string]color.Color,
-) string {
-	keys := make([]string, 0, len(series))
-	for _, item := range series {
-		keys = append(keys, item.Key)
-	}
-	return renderSplitLegendLabels(keys, width, colorByKey)
 }
 
 func renderSplitLegendLabels(

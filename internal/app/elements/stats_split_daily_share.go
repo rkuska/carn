@@ -36,7 +36,7 @@ func (t *Theme) RenderSplitDailyShareChartBody(
 
 	maxValue := 0.01
 	plotWidth := max(width-3, 1)
-	buckets := bucketSplitDailyShares(shares, plotWidth)
+	buckets := bucketSplitDailyShares(shares, splitDailyShareBucketCount(shares, plotWidth))
 	if len(buckets) == 0 {
 		return NoDataLabel
 	}
@@ -51,7 +51,7 @@ func (t *Theme) RenderSplitDailyShareChartBody(
 		lipgloss.Width(splitDailyShareAxisLabel(0)),
 	)
 	plotWidth = max(width-axisLabelWidth-3, 1)
-	buckets = bucketSplitDailyShares(shares, plotWidth)
+	buckets = bucketSplitDailyShares(shares, splitDailyShareBucketCount(shares, plotWidth))
 	maxValue = 0.01
 	for _, bucket := range buckets {
 		if rate := splitDailyShareRate(bucket); rate > maxValue {
@@ -59,13 +59,14 @@ func (t *Theme) RenderSplitDailyShareChartBody(
 		}
 	}
 
-	slots := DailyRateBarSlots(len(buckets), plotWidth)
+	slots := splitDailyShareGroupSlots(buckets, plotWidth)
 	plotHeight, showLabels := DailyRateChartDimensions(height)
 	lines := make([]string, 0, plotHeight+1)
 	for level := plotHeight; level >= 1; level-- {
 		lines = append(lines, t.renderSplitDailyShareRow(
 			buckets,
 			slots,
+			plotWidth,
 			level,
 			plotHeight,
 			maxValue,
@@ -74,7 +75,11 @@ func (t *Theme) RenderSplitDailyShareChartBody(
 		))
 	}
 	if showLabels {
-		lines = append(lines, strings.Repeat(" ", axisLabelWidth+3)+renderSplitDailyShareLabels(buckets, plotWidth, slots))
+		lines = append(
+			lines,
+			strings.Repeat(" ", axisLabelWidth+3)+
+				renderSplitDailyShareLabels(buckets, plotWidth, slots),
+		)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -101,6 +106,19 @@ func bucketSplitDailyShares(
 		buckets = append(buckets, buildSplitDailyShareBucket(shares[start:end]))
 	}
 	return buckets
+}
+
+func splitDailyShareBucketCount(
+	shares []statspkg.SplitDailyShare,
+	plotWidth int,
+) int {
+	if len(shares) == 0 || plotWidth <= 0 {
+		return 0
+	}
+
+	return groupedVerticalBarBucketCount(len(shares), plotWidth, func(bucketCount int) []int {
+		return splitDailyShareActiveCounts(bucketSplitDailyShares(shares, bucketCount))
+	})
 }
 
 func buildSplitDailyShareBucket(chunk []statspkg.SplitDailyShare) splitDailyShareBucket {
@@ -154,7 +172,8 @@ func splitDailyShareRate(bucket splitDailyShareBucket) float64 {
 
 func (t *Theme) renderSplitDailyShareRow(
 	buckets []splitDailyShareBucket,
-	slots []DailyRateBarSlot,
+	slots []verticalBarGroupSlot,
+	plotWidth int,
 	level, plotHeight int,
 	maxValue float64,
 	axisLabelWidth int,
@@ -171,9 +190,17 @@ func (t *Theme) renderSplitDailyShareRow(
 	}
 	prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) +
 		" " + t.HistogramAxisLine("│") + " "
-	cells := BlankDailyRateCells(DailyRatePlotWidth(slots))
+	cells := BlankDailyRateCells(plotWidth)
 	for i, bucket := range buckets {
-		t.writeSplitDailyShareSlot(cells, slots[i], bucket, level, plotHeight, maxValue, colorByKey)
+		t.writeSplitDailyShareSlot(
+			cells,
+			dailyRateRenderSlot(slots[i], bucket.HasActivity),
+			bucket,
+			level,
+			plotHeight,
+			maxValue,
+			colorByKey,
+		)
 	}
 	return ansi.Truncate(prefix+strings.Join(cells, ""), axisLabelWidth+3+len(cells), "…")
 }
@@ -222,7 +249,7 @@ func fillSplitDailySlot(cells []string, slot DailyRateBarSlot, fillColor color.C
 func renderSplitDailyShareLabels(
 	buckets []splitDailyShareBucket,
 	plotWidth int,
-	slots []DailyRateBarSlot,
+	slots []verticalBarGroupSlot,
 ) string {
 	if len(buckets) == 0 {
 		return ""
@@ -231,5 +258,24 @@ func renderSplitDailyShareLabels(
 	for _, bucket := range buckets {
 		dayBuckets = append(dayBuckets, DailyRateBucket{Start: bucket.Start, End: bucket.End})
 	}
-	return RenderDailyRateLabelLine(dayBuckets, plotWidth, slots)
+	return RenderDailyRateLabelLine(dayBuckets, plotWidth, dailyRateLabelSlots(slots))
+}
+
+func splitDailyShareActiveCounts(buckets []splitDailyShareBucket) []int {
+	counts := make([]int, 0, len(buckets))
+	for _, bucket := range buckets {
+		if bucket.HasActivity {
+			counts = append(counts, 1)
+			continue
+		}
+		counts = append(counts, 0)
+	}
+	return counts
+}
+
+func splitDailyShareGroupSlots(
+	buckets []splitDailyShareBucket,
+	plotWidth int,
+) []verticalBarGroupSlot {
+	return resolveVerticalBarGroupSlots(splitDailyShareActiveCounts(buckets), plotWidth)
 }

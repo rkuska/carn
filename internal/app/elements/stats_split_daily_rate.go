@@ -12,16 +12,18 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-type groupedDailyRateBucket struct {
+type groupedDailyValueBucket struct {
 	Start  time.Time
 	End    time.Time
-	Series []DailyRateBucket
+	Series []DailyValueBucket
 }
 
-func (t *Theme) RenderSplitDailyRateChartBody(
-	series []statspkg.SplitDailyRateSeries,
+func (t *Theme) RenderSplitDailyValueChartBody(
+	series []statspkg.SplitDailyValueSeries,
 	width, height int,
 	colorByKey map[string]color.Color,
+	yFormatter linechart.LabelFormatter,
+	minValue float64,
 ) string {
 	if width <= 0 {
 		return ""
@@ -30,28 +32,32 @@ func (t *Theme) RenderSplitDailyRateChartBody(
 		return NoDataLabel
 	}
 
-	maxValue := splitDailyRateSeriesMax(series)
-	yFormatter := splitDailyRatePercentYLabel()
+	maxValue := splitDailyValueSeriesMax(series, minValue)
 	axisLabelWidth := dailyRateAxisLabelWidth(maxValue, yFormatter)
 	plotWidth := max(width-axisLabelWidth-3, 1)
 	keys := make([]string, 0, len(series))
 	for _, item := range series {
 		keys = append(keys, item.Key)
 	}
-	buckets := bucketSplitDailyRates(
+
+	buckets := bucketSplitDailyValues(
 		series,
-		groupedDailyRateBucketCount(series, plotWidth),
+		groupedDailyValueBucketCount(series, plotWidth),
 	)
 	if len(buckets) == 0 {
 		return NoDataLabel
 	}
 
-	slots := GroupedDailyRateBarSlots(buckets, plotWidth)
+	slots := GroupedDailyValueBarSlots(buckets, plotWidth)
 	plotHeight, showLabels := DailyRateChartDimensions(height)
 	inactiveStyle := lipgloss.NewStyle().Foreground(t.ColorNormalDesc)
+	stylesByKey := make([]lipgloss.Style, len(keys))
+	for i, key := range keys {
+		stylesByKey[i] = lipgloss.NewStyle().Foreground(colorByKey[key])
+	}
 	lines := make([]string, 0, plotHeight+1)
 	for level := plotHeight; level >= 1; level-- {
-		lines = append(lines, t.renderGroupedDailyRateRow(
+		lines = append(lines, t.renderGroupedDailyValueRow(
 			buckets,
 			slots,
 			level,
@@ -60,67 +66,89 @@ func (t *Theme) RenderSplitDailyRateChartBody(
 			plotWidth,
 			axisLabelWidth,
 			yFormatter,
-			keys,
-			colorByKey,
+			stylesByKey,
 			inactiveStyle,
 		))
 	}
 	if showLabels {
-		lines = append(lines, strings.Repeat(" ", axisLabelWidth+3)+renderGroupedDailyRateLabels(buckets, plotWidth, slots))
+		lines = append(
+			lines,
+			strings.Repeat(" ", axisLabelWidth+3)+
+				renderGroupedDailyValueLabels(buckets, plotWidth, slots),
+		)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func splitDailyRateSeriesMax(series []statspkg.SplitDailyRateSeries) float64 {
-	maxValue := 0.01
+func (t *Theme) RenderSplitDailyRateChartBody(
+	series []statspkg.SplitDailyValueSeries,
+	width, height int,
+	colorByKey map[string]color.Color,
+) string {
+	return t.RenderSplitDailyValueChartBody(
+		series,
+		width,
+		height,
+		colorByKey,
+		splitDailyRatePercentYLabel(),
+		0.01,
+	)
+}
+
+func splitDailyValueSeriesMax(
+	series []statspkg.SplitDailyValueSeries,
+	minValue float64,
+) float64 {
+	maxValue := minValue
 	for _, item := range series {
-		for _, rate := range item.Rates {
-			if rate.HasActivity && rate.Rate > maxValue {
-				maxValue = rate.Rate
+		for _, value := range item.Values {
+			if value.HasValue && value.Value > maxValue {
+				maxValue = value.Value
 			}
 		}
 	}
 	return maxValue
 }
 
-func bucketSplitDailyRates(
-	series []statspkg.SplitDailyRateSeries,
+func bucketSplitDailyValues(
+	series []statspkg.SplitDailyValueSeries,
 	bucketCount int,
-) []groupedDailyRateBucket {
-	if len(series) == 0 || len(series[0].Rates) == 0 || bucketCount <= 0 {
+) []groupedDailyValueBucket {
+	if len(series) == 0 || len(series[0].Values) == 0 || bucketCount <= 0 {
 		return nil
 	}
-	totalDays := len(series[0].Rates)
-	buckets := make([]groupedDailyRateBucket, 0, bucketCount)
+
+	totalDays := len(series[0].Values)
+	buckets := make([]groupedDailyValueBucket, 0, bucketCount)
 	for i := range bucketCount {
 		start := i * totalDays / bucketCount
 		end := (i + 1) * totalDays / bucketCount
 		if end <= start {
 			end = start + 1
 		}
-		group := groupedDailyRateBucket{
-			Start:  series[0].Rates[start].Date,
-			End:    series[0].Rates[end-1].Date,
-			Series: make([]DailyRateBucket, 0, len(series)),
+
+		group := groupedDailyValueBucket{
+			Start:  series[0].Values[start].Date,
+			End:    series[0].Values[end-1].Date,
+			Series: make([]DailyValueBucket, 0, len(series)),
 		}
 		for _, item := range series {
-			group.Series = append(group.Series, buildDailyRateBucket(item.Rates[start:end]))
+			group.Series = append(group.Series, buildDailyValueBucket(item.Values[start:end]))
 		}
 		buckets = append(buckets, group)
 	}
 	return buckets
 }
 
-func (t *Theme) renderGroupedDailyRateRow(
-	buckets []groupedDailyRateBucket,
-	slots []groupedDailyRateBarSlot,
+func (t *Theme) renderGroupedDailyValueRow(
+	buckets []groupedDailyValueBucket,
+	slots []groupedDailyValueBarSlot,
 	level, plotHeight int,
 	maxValue float64,
 	plotWidth int,
 	axisLabelWidth int,
 	yFormatter linechart.LabelFormatter,
-	keys []string,
-	colorByKey map[string]color.Color,
+	stylesByKey []lipgloss.Style,
 	inactiveStyle lipgloss.Style,
 ) string {
 	label := dailyRateAxisLabel(level, plotHeight, maxValue, yFormatter)
@@ -130,26 +158,27 @@ func (t *Theme) renderGroupedDailyRateRow(
 	for i, slot := range slots {
 		if len(slot.SeriesIndexes) == 0 {
 			if level == 1 {
-				writeDailyRateSlot(cells, DailyRateBarSlot{
-					Start:  slot.Start,
-					End:    slot.End,
-					Anchor: slot.Anchor,
-				}, inactiveStyle.Render("·"), false)
+				writeDailyRateSlot(
+					cells,
+					buildDailyRateBarSlot(slot.Start, slot.End),
+					inactiveStyle.Render("·"),
+					false,
+				)
 			}
 			continue
 		}
+
 		for j, seriesIndex := range slot.SeriesIndexes {
-			if j >= len(slot.Bars) || seriesIndex >= len(keys) || i >= len(buckets) {
+			if j >= len(slot.Bars) || seriesIndex >= len(stylesByKey) || i >= len(buckets) {
 				continue
 			}
 			seriesBucket := buckets[i].Series[seriesIndex]
-			barStyle := lipgloss.NewStyle().Foreground(colorByKey[keys[seriesIndex]])
 			cell, fill := renderDailyRateBucketLevel(
 				seriesBucket,
 				level,
 				plotHeight,
 				maxValue,
-				barStyle,
+				stylesByKey[seriesIndex],
 				inactiveStyle,
 			)
 			writeDailyRateSlot(cells, slot.Bars[j], cell, fill)
@@ -158,19 +187,19 @@ func (t *Theme) renderGroupedDailyRateRow(
 	return prefix + strings.Join(cells, "")
 }
 
-func renderGroupedDailyRateLabels(
-	buckets []groupedDailyRateBucket,
+func renderGroupedDailyValueLabels(
+	buckets []groupedDailyValueBucket,
 	plotWidth int,
-	slots []groupedDailyRateBarSlot,
+	slots []groupedDailyValueBarSlot,
 ) string {
 	labels := make([]DailyRateBucket, 0, len(buckets))
 	for _, bucket := range buckets {
 		labels = append(labels, DailyRateBucket{Start: bucket.Start, End: bucket.End})
 	}
-	return RenderDailyRateLabelLine(labels, plotWidth, groupedDailyRateLabelSlots(slots))
+	return RenderDailyRateLabelLine(labels, plotWidth, groupedDailyValueLabelSlots(slots))
 }
 
-func groupedDailyRateLabelSlots(slots []groupedDailyRateBarSlot) []DailyRateBarSlot {
+func groupedDailyValueLabelSlots(slots []groupedDailyValueBarSlot) []DailyRateBarSlot {
 	labelSlots := make([]DailyRateBarSlot, 0, len(slots))
 	for _, slot := range slots {
 		labelSlots = append(labelSlots, DailyRateBarSlot{

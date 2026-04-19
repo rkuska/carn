@@ -14,6 +14,12 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
+const (
+	activityDailySessionsTitle = "Daily Sessions"
+	activityDailyMessagesTitle = "Daily Messages"
+	activityDailyTokensTitle   = "Daily Tokens"
+)
+
 func (m statsModel) renderActivityTab(width, height int) string {
 	activity := m.snapshot.Activity
 	chips := renderSummaryChips(m.theme, []chip{
@@ -24,8 +30,15 @@ func (m statsModel) renderActivityTab(width, height int) string {
 
 	chartTitle, counts := m.activitySeries()
 	chartHeight := 12
+	if m.splitActive() {
+		chartHeight = 14
+	}
 	if height < 18 {
 		chartHeight = max(height-6, 6)
+	}
+	if m.splitActive() {
+		chartTitle, _ = m.splitActivitySeries()
+		chartTitle = m.splitTitle(chartTitle)
 	}
 
 	lineChart := renderStatsLaneBox(
@@ -33,12 +46,10 @@ func (m statsModel) renderActivityTab(width, height int) string {
 		chartTitle,
 		m.activityLaneCursor == 0,
 		width,
-		renderDailyActivityChartBody(
-			m.theme,
-			counts,
+		m.renderActivityDailyChart(
 			max(statsLaneBodyWidth(width), 10),
 			chartHeight,
-			m.theme.ColorChartTime,
+			counts,
 		),
 	)
 	heatmap := renderStatsLaneBox(
@@ -51,16 +62,32 @@ func (m statsModel) renderActivityTab(width, height int) string {
 	return joinSections(chips, lineChart, heatmap)
 }
 
+func (m statsModel) renderActivityDailyChart(
+	width, height int,
+	counts []statspkg.DailyCount,
+) string {
+	if m.splitActive() {
+		return m.renderSplitActivityDailyChart(width, height)
+	}
+	return renderDailyActivityChartBody(
+		m.theme,
+		counts,
+		width,
+		height,
+		m.theme.ColorChartTime,
+	)
+}
+
 func (m statsModel) activitySeries() (string, []statspkg.DailyCount) {
 	switch m.activityMetric {
 	case metricSessions:
-		return "Daily Sessions", m.snapshot.Activity.DailySessions
+		return activityDailySessionsTitle, m.snapshot.Activity.DailySessions
 	case metricMessages:
-		return "Daily Messages", m.snapshot.Activity.DailyMessages
+		return activityDailyMessagesTitle, m.snapshot.Activity.DailyMessages
 	case metricTokens:
-		return "Daily Tokens", m.snapshot.Activity.DailyTokens
+		return activityDailyTokensTitle, m.snapshot.Activity.DailyTokens
 	default:
-		return "Daily Sessions", m.snapshot.Activity.DailySessions
+		return activityDailySessionsTitle, m.snapshot.Activity.DailySessions
 	}
 }
 

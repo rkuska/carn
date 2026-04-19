@@ -287,10 +287,195 @@ func TestComputeActivityFromBucketsTokenOnlyBucketsDoNotExtendStreaks(t *testing
 	assert.Equal(t, []int{0, 60}, dailyCounts(got.DailyTokens))
 }
 
+func TestComputeActivityBySplitFromBucketsUsesBucketTimezoneAndVersionLabels(t *testing.T) {
+	t.Parallel()
+
+	prague := time.FixedZone("CET", 1*60*60)
+	buckets := []conv.ActivityBucketRow{
+		{
+			BucketStart:  time.Date(2026, 3, 21, 23, 30, 0, 0, time.UTC),
+			Version:      "",
+			SessionCount: 1,
+			MessageCount: 4,
+		},
+		{
+			BucketStart: time.Date(2026, 3, 21, 23, 31, 0, 0, time.UTC),
+			Version:     "",
+			InputTokens: 80,
+		},
+		{
+			BucketStart:  time.Date(2026, 3, 22, 10, 0, 0, 0, time.UTC),
+			Version:      "1.0.0",
+			SessionCount: 2,
+			MessageCount: 6,
+		},
+		{
+			BucketStart:  time.Date(2026, 3, 22, 10, 1, 0, 0, time.UTC),
+			Version:      "1.0.0",
+			InputTokens:  120,
+			OutputTokens: 30,
+		},
+	}
+
+	got := ComputeActivityBySplit(nil, buckets, TimeRange{
+		Start: time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+		End:   time.Date(2026, 3, 22, 23, 59, 59, 0, prague),
+	}, SplitDimensionVersion, nil)
+
+	require.Equal(t, []SplitDailyValueSeries{
+		{
+			Key: "1.0.0",
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    2,
+				HasValue: true,
+			}},
+		},
+		{
+			Key: UnknownVersionLabel,
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    1,
+				HasValue: true,
+			}},
+		},
+	}, got.DailySessions)
+	require.Equal(t, []SplitDailyValueSeries{
+		{
+			Key: "1.0.0",
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    6,
+				HasValue: true,
+			}},
+		},
+		{
+			Key: UnknownVersionLabel,
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    4,
+				HasValue: true,
+			}},
+		},
+	}, got.DailyMessages)
+	require.Equal(t, []SplitDailyValueSeries{
+		{
+			Key: "1.0.0",
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    150,
+				HasValue: true,
+			}},
+		},
+		{
+			Key: UnknownVersionLabel,
+			Values: []DailyValue{{
+				Date:     time.Date(2026, 3, 22, 0, 0, 0, 0, prague),
+				Value:    80,
+				HasValue: true,
+			}},
+		},
+	}, got.DailyTokens)
+}
+
+func TestComputeActivityBySplitFallsBackToSessionsWhenBucketsMissing(t *testing.T) {
+	t.Parallel()
+
+	sessions := []sessionMeta{
+		testMeta(
+			"a-1",
+			time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withMainMessages(4),
+			withUsage(100, 0, 0, 20),
+		),
+		testMeta(
+			"a-2",
+			time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC),
+			withProject("alpha"),
+			withMainMessages(8),
+			withUsage(120, 0, 0, 30),
+		),
+		testMeta(
+			"b-1",
+			time.Date(2026, 4, 1, 14, 0, 0, 0, time.UTC),
+			withProject("beta"),
+			withMainMessages(6),
+			withUsage(200, 0, 0, 40),
+		),
+	}
+
+	got := ComputeActivityBySplit(sessions, nil, TimeRange{
+		Start: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+		End:   time.Date(2026, 4, 3, 23, 59, 59, 0, time.UTC),
+	}, SplitDimensionProject, nil)
+
+	assert.Equal(t, []SplitDailyValueSeries{
+		testSplitDailyValueSeries("alpha", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 1, HasValue: true},
+			splitPoint{},
+			splitPoint{Value: 1, HasValue: true},
+		),
+		testSplitDailyValueSeries("beta", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 1, HasValue: true},
+			splitPoint{},
+			splitPoint{},
+		),
+	}, got.DailySessions)
+	assert.Equal(t, []SplitDailyValueSeries{
+		testSplitDailyValueSeries("alpha", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 4, HasValue: true},
+			splitPoint{},
+			splitPoint{Value: 8, HasValue: true},
+		),
+		testSplitDailyValueSeries("beta", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 6, HasValue: true},
+			splitPoint{},
+			splitPoint{},
+		),
+	}, got.DailyMessages)
+	assert.Equal(t, []SplitDailyValueSeries{
+		testSplitDailyValueSeries("alpha", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 120, HasValue: true},
+			splitPoint{},
+			splitPoint{Value: 150, HasValue: true},
+		),
+		testSplitDailyValueSeries("beta", time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			splitPoint{Value: 240, HasValue: true},
+			splitPoint{},
+			splitPoint{},
+		),
+	}, got.DailyTokens)
+}
+
 func dailyCounts(items []DailyCount) []int {
 	counts := make([]int, 0, len(items))
 	for _, item := range items {
 		counts = append(counts, item.Count)
 	}
 	return counts
+}
+
+type splitPoint struct {
+	Value    float64
+	HasValue bool
+}
+
+func testSplitDailyValueSeries(
+	key string,
+	start time.Time,
+	points ...splitPoint,
+) SplitDailyValueSeries {
+	values := make([]DailyValue, 0, len(points))
+	for i, point := range points {
+		values = append(values, DailyValue{
+			Date:     start.AddDate(0, 0, i),
+			Value:    point.Value,
+			HasValue: point.HasValue,
+		})
+	}
+	return SplitDailyValueSeries{
+		Key:    key,
+		Values: values,
+	}
 }

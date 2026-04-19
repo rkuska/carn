@@ -232,46 +232,6 @@ func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection
 	assert.NotContains(t, ansi.Strip(body), "Select a provider")
 }
 
-func TestStatsRenderSessionsGroupedTurnChartsShowVersionLegend(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	store := &fakeBrowserStore{
-		turnMetricRows: testClaudeVersionTurnMetricRows(now, 220, 270),
-	}
-
-	m := newStatsModel(
-		[]conv.Conversation{
-			testStatsConversationWithProviderAndSessions(
-				conv.ProviderClaude,
-				"stats-1",
-				"alpha",
-				testStatsSessionMeta("stats-1", "alpha", now),
-			),
-		},
-		store,
-		120,
-		32,
-		newBrowserFilterState(),
-	)
-	m.archiveDir = t.TempDir()
-	m = m.applyFilterChange()
-	m.tab = statsTabSessions
-	m.sessionsLaneCursor = 2
-	m.splitBy = statspkg.SplitDimensionVersion
-	m.filter.Dimensions[filterDimVersion] = dimensionFilter{
-		Selected: map[string]bool{"1.0.0": true, statspkg.UnknownVersionLabel: true},
-	}
-	m = m.applyFilterChange()
-
-	body := ansi.Strip(m.renderSessionsTab(120))
-
-	assert.Contains(t, body, "Avg Prompt Growth (by Version)")
-	assert.Contains(t, body, "Avg Billed Tokens per Turn (by Version)")
-	assert.Contains(t, body, "1.0.0")
-	assert.Contains(t, body, statspkg.UnknownVersionLabel)
-}
-
 func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 	t.Parallel()
 
@@ -746,6 +706,72 @@ func TestStatsRenderActivityUsesBorderedLaneCards(t *testing.T) {
 	assert.True(t, strings.HasPrefix(strings.TrimSpace(dailyLine), "╭"))
 	assert.Contains(t, dailyLine, "▸ Daily Sessions")
 	assert.True(t, strings.HasPrefix(strings.TrimSpace(heatmapLine), "╭"))
+}
+
+func TestStatsRenderActivitySplitUsesGroupedDailyChartAndKeepsHeatmap(t *testing.T) {
+	t.Parallel()
+
+	const (
+		versionOne = "1.0.0"
+		versionTwo = "2.0.0"
+	)
+
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
+	store := &fakeBrowserStore{
+		activityBucketRows: []conv.ActivityBucketRow{
+			{
+				BucketStart:  now,
+				Version:      versionOne,
+				SessionCount: 1,
+				MessageCount: 4,
+			},
+			{
+				BucketStart:  now,
+				Version:      versionTwo,
+				SessionCount: 1,
+				MessageCount: 6,
+			},
+			{
+				BucketStart: time.Date(2026, 3, 23, 9, 0, 0, 0, time.UTC),
+				Version:     versionOne,
+				InputTokens: 120,
+			},
+		},
+	}
+
+	m := newStatsModel(
+		[]conv.Conversation{
+			testStatsConversationWithProviderAndSessions(
+				conv.ProviderClaude,
+				"stats-1",
+				"alpha",
+				testStatsSessionMeta("stats-1", "alpha", now, func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionOne
+				}),
+				testStatsSessionMeta("stats-2", "alpha", now.Add(-time.Hour), func(meta *conv.SessionMeta) {
+					meta.Provider = conv.ProviderClaude
+					meta.Version = versionTwo
+				}),
+			),
+		},
+		store,
+		120,
+		32,
+		newBrowserFilterState(),
+	)
+	m.tab = statsTabActivity
+	m.splitBy = statspkg.SplitDimensionVersion
+	m.archiveDir = t.TempDir()
+	m = m.applyFilterChange()
+
+	body := ansi.Strip(m.renderActivityTab(120, 25))
+
+	assert.Contains(t, body, "Daily Sessions (by Version)")
+	assert.Contains(t, body, "Activity Heatmap")
+	assert.Contains(t, body, versionOne)
+	assert.Contains(t, body, versionTwo)
+	assert.NotContains(t, body, "Split by Version is not supported")
 }
 
 func TestStatsRenderSessionsShowsBorderedTurnMetricCards(t *testing.T) {

@@ -22,7 +22,7 @@ func TestSplitDimensionSupportsTab(t *testing.T) {
 		want bool
 	}{
 		{statsTabOverview, false},
-		{statsTabActivity, false},
+		{statsTabActivity, true},
 		{statsTabSessions, true},
 		{statsTabTools, true},
 		{statsTabCache, true},
@@ -153,12 +153,12 @@ func TestStatsRenderUnsupportedTabShowsPlaceholder(t *testing.T) {
 		32,
 		newBrowserFilterState(),
 	)
-	m.tab = statsTabActivity
+	m.tab = statsTabPerformance
 	m.splitBy = statspkg.SplitDimensionVersion
 	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderActiveTab())
-	assert.Contains(t, body, "Split by Version is not supported on the Activity tab.")
+	assert.Contains(t, body, "Split by Version is not supported on the Performance tab.")
 }
 
 func TestPresentSplitKeysReturnsOnlyKeysWithNonZeroValues(t *testing.T) {
@@ -394,7 +394,7 @@ func TestSessionTurnLaneTitleKeepsBadgeAsPrefixWithSplit(t *testing.T) {
 	}
 }
 
-func TestSplitMetricDetailKeepsAxisDescriptionAndAppendsSplitDecoration(t *testing.T) {
+func TestSplitMetricDetailExplainsGroupedTurnBehavior(t *testing.T) {
 	t.Parallel()
 
 	const version = "1.0.0"
@@ -433,16 +433,14 @@ func TestSplitMetricDetailKeepsAxisDescriptionAndAppendsSplitDecoration(t *testi
 	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderActiveMetricDetail(120))
-	assert.Contains(t, body, "The X-axis is main-thread user turn number",
-		"split detail must preserve the non-split X-axis description",
+	assert.Contains(t, body, "The X-axis is main-thread user turn bucket",
+		"split detail must describe grouped turn buckets",
 	)
 	assert.Contains(t, body, "p99 total assistant tokens per turn",
 		"split detail must include the cycled statistic mode in the Y-axis description",
 	)
-	// The rendered detail wraps long lines inside the box, so only assert
-	// presence of the unique key phrases rather than the full sentence.
-	assert.Contains(t, body, "stack each bar by Version",
-		"split detail must explain how colors decorate the chart",
+	assert.Contains(t, body, "groups only split series with values",
+		"split detail must explain grouped split behavior",
 	)
 }
 

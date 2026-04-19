@@ -54,7 +54,17 @@ func presentSplitKeys[T any](items []T, splits func(T) []statspkg.SplitValue) []
 	return keys
 }
 
+func splitDailyValueSeriesKeys(series []statspkg.SplitDailyValueSeries) []string {
+	keys := make([]string, 0, len(series))
+	for _, item := range series {
+		if item.Key == "" {
+			continue
+		}
+		keys = append(keys, item.Key)
+	}
+	return keys
+}
+
 func histBucketSplits(b statspkg.SplitHistogramBucket) []statspkg.SplitValue { return b.Splits }
 func namedStatSplits(s statspkg.SplitNamedStat) []statspkg.SplitValue        { return s.Splits }
 func rateStatSplits(s statspkg.SplitRateStat) []statspkg.SplitValue          { return s.Splits }
-func dailyShareSplits(s statspkg.SplitDailyShare) []statspkg.SplitValue      { return s.Splits }

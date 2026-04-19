@@ -42,6 +42,12 @@ type Activity struct {
 	Heatmap       [7][24]int
 }
 
+type ActivityBySplit struct {
+	DailySessions []SplitDailyValueSeries
+	DailyMessages []SplitDailyValueSeries
+	DailyTokens   []SplitDailyValueSeries
+}
+
 type Sessions struct {
 	AverageDuration       time.Duration
 	AverageMessages       float64
@@ -111,6 +117,12 @@ type SessionSummary struct {
 type DailyCount struct {
 	Date  time.Time
 	Count int
+}
+
+type DailyValue struct {
+	Date     time.Time
+	Value    float64
+	HasValue bool
 }
 
 type HistogramBucket struct {

@@ -98,8 +98,6 @@ var (
 	renderVerticalHistogramBody     = (*el.Theme).RenderVerticalHistogramBody
 	renderActivityHeatmap           = (*el.Theme).RenderActivityHeatmap
 	renderActivityHeatmapBody       = (*el.Theme).RenderActivityHeatmapBody
-	histogramAxisLabel              = (*el.Theme).HistogramAxisLabel
-	histogramAxisLine               = (*el.Theme).HistogramAxisLine
 	renderHorizontalStackedBarsBody = el.RenderHorizontalStackedBarsBody
 	resolveStackedBarWidths         = el.ResolveStackedBarWidths
 )

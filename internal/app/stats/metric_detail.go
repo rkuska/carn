@@ -147,6 +147,25 @@ func (m statsModel) renderActivityMetricDetail(width int) string {
 
 	if lane.id == statsLaneActivityDaily {
 		label := activityMetricName(m.activityMetric)
+		if m.splitActive() {
+			_, series := m.splitActivitySeries()
+			peakSeries, peakDay, _ := peakSplitDailyValue(series)
+			chips := splitDetailChips(splitTurnMetricDetailChips(m),
+				chip{Label: "metric", Value: label},
+				chip{Label: "peak series", Value: peakSeries},
+				chip{Label: "peak day", Value: peakDay},
+			)
+			return m.renderStatsMetricDetailBody("Daily Activity", width, chips,
+				m.metricDetailLine("Question", "How does work volume compare across the active split series?"),
+				m.metricDetailLine(
+					"Reading",
+					"Each day bucket uses a shared Y-axis, groups only split series with values, "+
+						"and leaves missing values blank. Empty day buckets render a single dot.",
+				),
+				m.metricDetailLine("Scope", splitTurnMetricScope(m)),
+				"Press m to cycle sessions, messages, and tokens.",
+			)
+		}
 		_, counts := m.activitySeries()
 		peakDay, peakCount := peakDailyCount(counts)
 		return m.renderStatsMetricDetailBody("Daily Activity", width, []chip{
@@ -184,27 +203,30 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 	}
 
 	sessionStats := m.snapshot.Sessions
-	if lane.id == statsLaneSessionsDuration {
-		bucket, count := dominantHistogramBucket(sessionStats.DurationHistogram)
-		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
-			{Label: "dominant bucket", Value: bucket},
-			{Label: "sessions", Value: statspkg.FormatNumber(count)},
-		},
-			m.metricDetailLine("Question", "Are sessions mostly quick checks or long runs?"),
-			m.metricDetailLine("Reading", "The X-axis is duration bucket and the Y-axis is session count."),
+	//nolint:exhaustive // selectedStatsLane returns session lanes in this code path.
+	switch lane.id {
+	case statsLaneSessionsDuration:
+		return m.renderSessionHistogramMetricDetail(
+			lane.title,
+			width,
+			sessionStats.DurationHistogram,
+			"session duration",
+			"Are sessions mostly quick checks or long runs?",
+			"The X-axis is duration bucket and the Y-axis is session count.",
 		)
-	}
-	if lane.id == statsLaneSessionsMessages {
-		bucket, count := dominantHistogramBucket(sessionStats.MessageHistogram)
-		return m.renderStatsMetricDetailBody(lane.title, width, []chip{
-			{Label: "dominant bucket", Value: bucket},
-			{Label: "sessions", Value: statspkg.FormatNumber(count)},
-		},
-			m.metricDetailLine("Question", "Do sessions stay short or turn into long exchanges?"),
-			m.metricDetailLine("Reading", "The X-axis is message-count bucket and the Y-axis is session count."),
+	case statsLaneSessionsMessages:
+		return m.renderSessionHistogramMetricDetail(
+			lane.title,
+			width,
+			sessionStats.MessageHistogram,
+			"messages per session",
+			"Do sessions stay short or turn into long exchanges?",
+			"The X-axis is message-count bucket and the Y-axis is session count.",
 		)
-	}
-	if lane.id == statsLaneSessionsContext {
+	case statsLaneSessionsContext:
+		if m.sessionTurnMetricsUnsupported() {
+			return m.renderSplitUnsupportedMetricDetail(lane.title, width, splitTurnMetricsUnsupportedMessage(m.splitBy))
+		}
 		return m.renderSessionTurnLaneDetail(
 			lane,
 			width,
@@ -214,17 +236,51 @@ func (m statsModel) renderSessionsMetricDetail(width int) string {
 			"",
 			promptMetricDetailChips,
 		)
+	default:
+		if m.sessionTurnMetricsUnsupported() {
+			return m.renderSplitUnsupportedMetricDetail(lane.title, width, splitTurnMetricsUnsupportedMessage(m.splitBy))
+		}
+		return m.renderSessionTurnLaneDetail(
+			lane,
+			width,
+			m.sessionsTurnCostMode,
+			"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
+			"total assistant tokens per turn",
+			"Sum across every assistant API call in the turn; cached prompts are counted in full,"+
+				" so long tool loops can exceed the model's context window.",
+			turnCostMetricDetailChips,
+		)
 	}
-	return m.renderSessionTurnLaneDetail(
-		lane,
-		width,
-		m.sessionsTurnCostMode,
-		"How expensive does each main-thread user turn become once the full assistant-side cost is counted?",
-		"total assistant tokens per turn",
-		"Sum across every assistant API call in the turn; cached prompts are counted in full,"+
-			" so long tool loops can exceed the model's context window.",
-		turnCostMetricDetailChips,
+}
+
+func (m statsModel) renderSessionHistogramMetricDetail(
+	title string,
+	width int,
+	buckets []statspkg.HistogramBucket,
+	unsupportedMetric string,
+	question string,
+	reading string,
+) string {
+	if m.splitActive() {
+		return m.renderSplitUnsupportedMetricDetail(
+			title,
+			width,
+			splitMetricUnavailableMessage(m.splitBy, unsupportedMetric),
+		)
+	}
+
+	bucket, count := dominantHistogramBucket(buckets)
+	return m.renderStatsMetricDetailBody(title, width, []chip{
+		{Label: "dominant bucket", Value: bucket},
+		{Label: "sessions", Value: statspkg.FormatNumber(count)},
+	},
+		m.metricDetailLine("Question", question),
+		m.metricDetailLine("Reading", reading),
 	)
+}
+
+func (m statsModel) sessionTurnMetricsUnsupported() bool {
+	return m.splitActive() && !m.splitBy.SupportsTurnMetrics()
 }
 
 func (m statsModel) renderSessionTurnLaneDetail(
@@ -246,7 +302,13 @@ func (m statsModel) renderSessionTurnLaneDetail(
 		yAxisDescription,
 	)
 	if m.splitActive() && m.splitBy.SupportsTurnMetrics() {
-		reading += " " + m.colorsStackSuffix()
+		reading = fmt.Sprintf(
+			"The X-axis is main-thread user turn bucket and the Y-axis is %s %s. "+
+				"Each bucket groups only split series with values, leaves missing values blank, "+
+				"and merges adjacent positions when width is tight.",
+			mode.TextLabel(),
+			yAxisDescription,
+		)
 	}
 
 	scope := "Excludes subagents, sidechains, system records, and assistant steps before the first real user prompt."
@@ -263,6 +325,19 @@ func (m statsModel) renderSessionTurnLaneDetail(
 		lines = append(lines, m.metricDetailLine("Note", note))
 	}
 	return m.renderStatsMetricDetailBody(lane.title, width, chips, lines...)
+}
+
+func (m statsModel) renderSplitUnsupportedMetricDetail(
+	title string,
+	width int,
+	message string,
+) string {
+	return m.renderStatsMetricDetailBody(
+		title,
+		width,
+		splitTurnMetricDetailChips(m),
+		message,
+	)
 }
 
 func (m statsModel) renderToolsMetricDetail(width int) string {

@@ -59,6 +59,7 @@ type statsModel struct {
 	statsActivityBuckets    []conv.ActivityBucketRow
 	splitBy                 stats.SplitDimension
 	splitValues             []string
+	splitActivityResult     stats.ActivityBySplit
 	splitToolsResult        stats.ToolsBySplit
 	splitCacheResult        stats.CacheBySplit
 	splitColors             map[string]color.Color
@@ -327,11 +328,13 @@ func (m statsModel) recomputeSnapshot() statsModel {
 
 func (m statsModel) refreshSplitCaches() statsModel {
 	if !m.splitBy.IsActive() {
+		m.splitActivityResult = stats.ActivityBySplit{}
 		m.splitToolsResult = stats.ToolsBySplit{}
 		m.splitCacheResult = stats.CacheBySplit{}
 		m.splitColors = nil
 		return m
 	}
+	m.splitActivityResult = m.computeSplitActivity()
 	m.splitToolsResult = m.computeSplitTools()
 	m.splitCacheResult = m.computeSplitCache()
 	m.splitColors = m.buildSplitColors()

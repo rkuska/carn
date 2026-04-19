@@ -25,17 +25,14 @@ func TestBucketDailyRatesPreservesInactiveAndZeroDays(t *testing.T) {
 	}, 3)
 
 	require.Len(t, buckets, 3)
-	assert.True(t, buckets[0].HasActivity)
-	assert.False(t, buckets[0].HasInactive)
-	assert.InDelta(t, 0.8, buckets[0].Rate, 0.001)
+	assert.True(t, buckets[0].HasValue)
+	assert.InDelta(t, 0.8, buckets[0].Value, 0.001)
 
-	assert.False(t, buckets[1].HasActivity)
-	assert.True(t, buckets[1].HasInactive)
-	assert.Zero(t, buckets[1].Rate)
+	assert.False(t, buckets[1].HasValue)
+	assert.Zero(t, buckets[1].Value)
 
-	assert.True(t, buckets[2].HasActivity)
-	assert.False(t, buckets[2].HasInactive)
-	assert.Zero(t, buckets[2].Rate)
+	assert.True(t, buckets[2].HasValue)
+	assert.Zero(t, buckets[2].Value)
 }
 
 func TestBucketDailyRatesAveragesActiveDaysWithinCompressedBuckets(t *testing.T) {
@@ -50,13 +47,11 @@ func TestBucketDailyRatesAveragesActiveDaysWithinCompressedBuckets(t *testing.T)
 	}, 2)
 
 	require.Len(t, buckets, 2)
-	assert.InDelta(t, 0.8, buckets[0].Rate, 0.001)
-	assert.True(t, buckets[0].HasActivity)
-	assert.True(t, buckets[0].HasInactive)
+	assert.InDelta(t, 0.8, buckets[0].Value, 0.001)
+	assert.True(t, buckets[0].HasValue)
 
-	assert.InDelta(t, 0.2, buckets[1].Rate, 0.001)
-	assert.True(t, buckets[1].HasActivity)
-	assert.False(t, buckets[1].HasInactive)
+	assert.InDelta(t, 0.2, buckets[1].Value, 0.001)
+	assert.True(t, buckets[1].HasValue)
 }
 
 func TestRenderDailyRateChartBodyUsesDistinctMarkersForInactiveAndZeroDays(t *testing.T) {
@@ -74,6 +69,22 @@ func TestRenderDailyRateChartBodyUsesDistinctMarkersForInactiveAndZeroDays(t *te
 	assert.Contains(t, got, "▁")
 	assert.Contains(t, got, "03/10")
 	assert.Contains(t, got, "03/12")
+}
+
+func TestRenderDailyRateChartBodyCompressesSparseEmptyDaysIntoOneMarkerBucket(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
+	got := ansi.Strip(renderDailyRateChartBody(testutil.NewTestTheme(), []statspkg.DailyRate{
+		{Date: start, Rate: 0.8, HasActivity: true},
+		{Date: start.AddDate(0, 0, 1), Rate: 0, HasActivity: false},
+		{Date: start.AddDate(0, 0, 2), Rate: 0, HasActivity: false},
+		{Date: start.AddDate(0, 0, 3), Rate: 0.4, HasActivity: true},
+		{Date: start.AddDate(0, 0, 4), Rate: 0.2, HasActivity: true},
+	}, 12, 6, testutil.NewTestTheme().ColorChartToken, percentYLabel()))
+
+	assert.Contains(t, got, "█")
+	assert.Equal(t, 1, strings.Count(got, "·"))
 }
 
 func TestRenderDailyRateChartBodyFitsWidth(t *testing.T) {

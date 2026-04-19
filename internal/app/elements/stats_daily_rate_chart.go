@@ -11,13 +11,14 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-type DailyRateBucket struct {
-	Start       time.Time
-	End         time.Time
-	Rate        float64
-	HasActivity bool
-	HasInactive bool
+type DailyValueBucket struct {
+	Start    time.Time
+	End      time.Time
+	Value    float64
+	HasValue bool
 }
+
+type DailyRateBucket = DailyValueBucket
 
 type DailyRateBarSlot struct {
 	Start  int
@@ -75,18 +76,19 @@ func (t *Theme) renderDailyRateColumnChartWithMaxValue(
 	}
 	axisLabelWidth := dailyRateAxisLabelWidth(maxValue, yFormatter)
 	plotWidth := max(width-axisLabelWidth-3, 1)
-	buckets := BucketDailyRates(rates, plotWidth)
+	buckets := BucketDailyRates(rates, dailyRateBucketCount(rates, plotWidth))
 	if len(buckets) == 0 {
 		return NoDataLabel
 	}
 
-	slots := DailyRateBarSlots(len(buckets), plotWidth)
+	slots := dailyRateGroupSlots(buckets, plotWidth)
 	plotHeight, showLabels := DailyRateChartDimensions(height)
 	barStyle := lipgloss.NewStyle().Foreground(barColor)
 	inactiveStyle := lipgloss.NewStyle().Foreground(t.ColorNormalDesc)
 	lines := t.renderDailyRateRows(
 		buckets,
 		slots,
+		plotWidth,
 		plotHeight,
 		maxValue,
 		axisLabelWidth,
@@ -95,7 +97,11 @@ func (t *Theme) renderDailyRateColumnChartWithMaxValue(
 		inactiveStyle,
 	)
 	if showLabels {
-		lines = append(lines, strings.Repeat(" ", axisLabelWidth+3)+RenderDailyRateLabelLine(buckets, plotWidth, slots))
+		lines = append(
+			lines,
+			strings.Repeat(" ", axisLabelWidth+3)+
+				RenderDailyRateLabelLine(buckets, plotWidth, dailyRateLabelSlots(slots)),
+		)
 	}
 
 	return strings.Join(lines, "\n")
@@ -110,7 +116,8 @@ func DailyRateChartDimensions(height int) (int, bool) {
 
 func (t *Theme) renderDailyRateRows(
 	buckets []DailyRateBucket,
-	slots []DailyRateBarSlot,
+	slots []verticalBarGroupSlot,
+	plotWidth int,
 	plotHeight int,
 	maxValue float64,
 	axisLabelWidth int,
@@ -122,6 +129,7 @@ func (t *Theme) renderDailyRateRows(
 		lines = append(lines, t.renderDailyRateRow(
 			buckets,
 			slots,
+			plotWidth,
 			level,
 			plotHeight,
 			maxValue,
@@ -136,7 +144,8 @@ func (t *Theme) renderDailyRateRows(
 
 func (t *Theme) renderDailyRateRow(
 	buckets []DailyRateBucket,
-	slots []DailyRateBarSlot,
+	slots []verticalBarGroupSlot,
+	plotWidth int,
 	level, plotHeight int,
 	maxValue float64,
 	axisLabelWidth int,
@@ -146,7 +155,7 @@ func (t *Theme) renderDailyRateRow(
 	label := dailyRateAxisLabel(level, plotHeight, maxValue, yFormatter)
 	prefix := FitToWidth(t.HistogramAxisLabel(label), axisLabelWidth) +
 		" " + t.HistogramAxisLine("│") + " "
-	cells := BlankDailyRateCells(DailyRatePlotWidth(slots))
+	cells := BlankDailyRateCells(plotWidth)
 	for i, bucket := range buckets {
 		cell, fill := renderDailyRateBucketLevel(
 			bucket,
@@ -156,7 +165,7 @@ func (t *Theme) renderDailyRateRow(
 			barStyle,
 			inactiveStyle,
 		)
-		writeDailyRateSlot(cells, slots[i], cell, fill)
+		writeDailyRateSlot(cells, dailyRateRenderSlot(slots[i], bucket.HasValue), cell, fill)
 	}
 	return prefix + strings.Join(cells, "")
 }
@@ -195,18 +204,38 @@ func buildDailyRateBucket(chunk []statspkg.DailyRate) DailyRateBucket {
 		End:   chunk[len(chunk)-1].Date,
 	}
 
-	activeCount := 0
+	valueCount := 0
 	for _, rate := range chunk {
-		if rate.HasActivity {
-			bucket.HasActivity = true
-			bucket.Rate += rate.Rate
-			activeCount++
+		if !rate.HasActivity {
 			continue
 		}
-		bucket.HasInactive = true
+		bucket.HasValue = true
+		bucket.Value += rate.Rate
+		valueCount++
 	}
-	if activeCount > 0 {
-		bucket.Rate /= float64(activeCount)
+	if valueCount > 0 {
+		bucket.Value /= float64(valueCount)
+	}
+	return bucket
+}
+
+func buildDailyValueBucket(chunk []statspkg.DailyValue) DailyValueBucket {
+	bucket := DailyRateBucket{
+		Start: chunk[0].Date,
+		End:   chunk[len(chunk)-1].Date,
+	}
+
+	valueCount := 0
+	for _, value := range chunk {
+		if !value.HasValue {
+			continue
+		}
+		bucket.HasValue = true
+		bucket.Value += value.Value
+		valueCount++
+	}
+	if valueCount > 0 {
+		bucket.Value /= float64(valueCount)
 	}
 	return bucket
 }
@@ -234,20 +263,20 @@ func renderDailyRateBucketLevel(
 	maxValue float64,
 	barStyle, inactiveStyle lipgloss.Style,
 ) (string, bool) {
-	if !bucket.HasActivity {
+	if !bucket.HasValue {
 		if level == 1 {
 			return inactiveStyle.Render("·"), false
 		}
 		return "", false
 	}
-	if bucket.Rate <= 0 {
+	if bucket.Value <= 0 {
 		if level == 1 {
 			return barStyle.Render("▁"), true
 		}
 		return "", false
 	}
 
-	barHeight := ScaledWidth(int(bucket.Rate*1000), int(maxValue*1000), plotHeight)
+	barHeight := ScaledWidth(int(bucket.Value*1000), int(maxValue*1000), plotHeight)
 	if barHeight >= level {
 		return barStyle.Render("█"), true
 	}
@@ -266,75 +295,6 @@ func writeDailyRateSlot(cells []string, slot DailyRateBarSlot, cell string, fill
 	}
 	for i := slot.Start; i < end; i++ {
 		cells[i] = cell
-	}
-}
-
-func DailyRatePlotWidth(slots []DailyRateBarSlot) int {
-	if len(slots) == 0 {
-		return 0
-	}
-	return slots[len(slots)-1].End
-}
-
-func DailyRateBarSlots(bucketCount, plotWidth int) []DailyRateBarSlot {
-	if bucketCount <= 0 || plotWidth <= 0 {
-		return nil
-	}
-
-	barWidth := dailyRateBarWidth(bucketCount, plotWidth)
-	gaps := dailyRateBarGaps(bucketCount, plotWidth, barWidth)
-	slots := make([]DailyRateBarSlot, 0, bucketCount)
-	start := 0
-	for i := range bucketCount {
-		end := start + barWidth
-		slots = append(slots, buildDailyRateBarSlot(start, end))
-		if i < len(gaps) {
-			start = end + gaps[i]
-		}
-	}
-	return slots
-}
-
-func dailyRateBarGapWidth(bucketCount, plotWidth int) int {
-	if bucketCount <= 1 {
-		return 0
-	}
-	if plotWidth >= bucketCount*2-1 {
-		return 1
-	}
-	return 0
-}
-
-func dailyRateBarWidth(bucketCount, plotWidth int) int {
-	gapCount := max(bucketCount-1, 0)
-	return max((plotWidth-gapCount*dailyRateBarGapWidth(bucketCount, plotWidth))/bucketCount, 1)
-}
-
-func dailyRateBarGaps(bucketCount, plotWidth, barWidth int) []int {
-	gapCount := max(bucketCount-1, 0)
-	if gapCount == 0 {
-		return nil
-	}
-
-	baseGapWidth := dailyRateBarGapWidth(bucketCount, plotWidth)
-	gaps := make([]int, gapCount)
-	for i := range gaps {
-		gaps[i] = baseGapWidth
-	}
-
-	extra := plotWidth - bucketCount*barWidth - gapCount*baseGapWidth
-	for i := range extra {
-		gaps[(i+1)*gapCount/(extra+1)]++
-	}
-	return gaps
-}
-
-func buildDailyRateBarSlot(start, end int) DailyRateBarSlot {
-	width := end - start
-	return DailyRateBarSlot{
-		Start:  start,
-		End:    end,
-		Anchor: start + max(width-1, 0)/2,
 	}
 }
 

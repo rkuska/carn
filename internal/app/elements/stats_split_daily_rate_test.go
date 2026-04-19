@@ -1,6 +1,7 @@
 package elements
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
@@ -13,18 +14,18 @@ import (
 	statspkg "github.com/rkuska/carn/internal/stats"
 )
 
-func TestGroupedDailyRateBarSlotsKeepDayGapsAndConsistentBarWidths(t *testing.T) {
+func TestGroupedDailyValueBarSlotsKeepDayGapsAndConsistentBarWidths(t *testing.T) {
 	t.Parallel()
 
-	buckets := []groupedDailyRateBucket{
-		{Series: []DailyRateBucket{{HasActivity: true}, {HasActivity: true}, {HasActivity: false}}},
-		{Series: []DailyRateBucket{{HasActivity: true}, {HasActivity: false}, {HasActivity: false}}},
-		{Series: []DailyRateBucket{{HasActivity: false}, {HasActivity: true}, {HasActivity: true}}},
-		{Series: []DailyRateBucket{{HasActivity: false}, {HasActivity: false}, {HasActivity: false}}},
-		{Series: []DailyRateBucket{{HasActivity: true}, {HasActivity: true}, {HasActivity: true}}},
+	buckets := []groupedDailyValueBucket{
+		{Series: []DailyValueBucket{{HasValue: true}, {HasValue: true}, {HasValue: false}}},
+		{Series: []DailyValueBucket{{HasValue: true}, {HasValue: false}, {HasValue: false}}},
+		{Series: []DailyValueBucket{{HasValue: false}, {HasValue: true}, {HasValue: true}}},
+		{Series: []DailyValueBucket{{HasValue: false}, {HasValue: false}, {HasValue: false}}},
+		{Series: []DailyValueBucket{{HasValue: true}, {HasValue: true}, {HasValue: true}}},
 	}
 
-	slots := GroupedDailyRateBarSlots(buckets, 41)
+	slots := GroupedDailyValueBarSlots(buckets, 41)
 
 	require.Len(t, slots, len(buckets))
 
@@ -59,16 +60,16 @@ func TestGroupedDailyRateBucketCountReducesToPreserveDayGaps(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
-	series := sparseSplitDailyRateSeries(start, "a", "b", "c", "d")
+	series := sparseSplitDailyValueSeries(start, "a", "b", "c", "d")
 
-	assert.Equal(t, 3, groupedDailyRateBucketCount(series, 6))
+	assert.Equal(t, 3, groupedDailyValueBucketCount(series, 6))
 }
 
 func TestGroupedDailyRateBucketCountUsesActiveSeriesNotLegendSize(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
-	series := sparseSplitDailyRateSeries(
+	series := sparseSplitDailyValueSeries(
 		start,
 		"2.1.100",
 		"2.1.101",
@@ -76,29 +77,80 @@ func TestGroupedDailyRateBucketCountUsesActiveSeriesNotLegendSize(t *testing.T) 
 		"2.1.103",
 	)
 
-	assert.Equal(t, 4, groupedDailyRateBucketCount(series, 8))
+	assert.Equal(t, 4, groupedDailyValueBucketCount(series, 8))
 }
 
-func TestRenderSplitDailyRateChartBodyShowsDotOnlyForFullyEmptyDayBuckets(t *testing.T) {
+func TestDailyRateBucketCountMergesSparseDaysBeforeBreakingGroupSpacing(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 4, 17, 0, 0, 0, 0, time.UTC)
+	rates := []statspkg.DailyRate{
+		{Date: start, Rate: 0.8, HasActivity: true},
+		{Date: start.AddDate(0, 0, 1), Rate: 0, HasActivity: false},
+		{Date: start.AddDate(0, 0, 2), Rate: 0, HasActivity: false},
+		{Date: start.AddDate(0, 0, 3), Rate: 0.4, HasActivity: true},
+		{Date: start.AddDate(0, 0, 4), Rate: 0.2, HasActivity: true},
+	}
+
+	assert.Equal(t, 3, dailyRateBucketCount(rates, 6))
+}
+
+func TestGroupedDailyValueBarSlotsAllowInternalGapForSingleBucket(t *testing.T) {
+	t.Parallel()
+
+	buckets := []groupedDailyValueBucket{
+		{Series: []DailyValueBucket{{HasValue: true}, {HasValue: true}, {HasValue: true}}},
+	}
+
+	slots := GroupedDailyValueBarSlots(buckets, 20)
+
+	require.Len(t, slots, 1)
+	require.Len(t, slots[0].Bars, 3)
+	assert.Greater(t, slots[0].Bars[1].Start-slots[0].Bars[0].End, 0)
+}
+
+func TestBucketSplitDailyValuesAveragesOnlyVisibleDays(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 4, 17, 0, 0, 0, 0, time.UTC)
+
+	got := bucketSplitDailyValues([]statspkg.SplitDailyValueSeries{
+		{
+			Key: "Claude",
+			Values: []statspkg.DailyValue{
+				{Date: start, Value: 2, HasValue: true},
+				{Date: start.AddDate(0, 0, 1), Value: 0, HasValue: false},
+				{Date: start.AddDate(0, 0, 2), Value: 4, HasValue: true},
+				{Date: start.AddDate(0, 0, 3), Value: 0, HasValue: false},
+			},
+		},
+	}, 1)
+
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Series, 1)
+	assert.Equal(t, 3.0, got[0].Series[0].Value)
+}
+
+func TestRenderSplitDailyValueChartBodyShowsDotOnlyForFullyEmptyDayBuckets(t *testing.T) {
 	t.Parallel()
 
 	dayOne := time.Date(2026, 4, 17, 0, 0, 0, 0, time.UTC)
 	theme := NewTheme(true)
 
-	got := ansi.Strip(theme.RenderSplitDailyRateChartBody(
-		[]statspkg.SplitDailyRateSeries{
+	got := ansi.Strip(theme.RenderSplitDailyValueChartBody(
+		[]statspkg.SplitDailyValueSeries{
 			{
 				Key: "Claude",
-				Rates: []statspkg.DailyRate{
-					{Date: dayOne, Rate: 0.8, HasActivity: true},
-					{Date: dayOne.AddDate(0, 0, 1), Rate: 0.0, HasActivity: false},
+				Values: []statspkg.DailyValue{
+					{Date: dayOne, Value: 8, HasValue: true},
+					{Date: dayOne.AddDate(0, 0, 1), Value: 0, HasValue: false},
 				},
 			},
 			{
 				Key: "Codex",
-				Rates: []statspkg.DailyRate{
-					{Date: dayOne, Rate: 0.0, HasActivity: false},
-					{Date: dayOne.AddDate(0, 0, 1), Rate: 0.0, HasActivity: false},
+				Values: []statspkg.DailyValue{
+					{Date: dayOne, Value: 0, HasValue: false},
+					{Date: dayOne.AddDate(0, 0, 1), Value: 0, HasValue: false},
 				},
 			},
 		},
@@ -108,33 +160,41 @@ func TestRenderSplitDailyRateChartBodyShowsDotOnlyForFullyEmptyDayBuckets(t *tes
 			"Claude": theme.ColorPrimary,
 			"Codex":  theme.ColorChartBar,
 		},
+		func(_ int, v float64) string {
+			return strings.TrimSuffix(strings.TrimSuffix(strings.TrimSpace(assertionFloat(v)), ".0"), ".")
+		},
+		1,
 	))
 
 	assert.Contains(t, got, "█")
 	assert.Equal(t, 1, strings.Count(got, "·"))
 }
 
-func sparseSplitDailyRateSeries(
+func sparseSplitDailyValueSeries(
 	start time.Time,
 	keys ...string,
-) []statspkg.SplitDailyRateSeries {
-	series := make([]statspkg.SplitDailyRateSeries, 0, len(keys))
+) []statspkg.SplitDailyValueSeries {
+	series := make([]statspkg.SplitDailyValueSeries, 0, len(keys))
 	for i, key := range keys {
-		rates := make([]statspkg.DailyRate, 0, len(keys))
+		values := make([]statspkg.DailyValue, 0, len(keys))
 		for day := range len(keys) {
-			rate := statspkg.DailyRate{
+			value := statspkg.DailyValue{
 				Date: start.AddDate(0, 0, day),
 			}
 			if day == i {
-				rate.Rate = 0.9
-				rate.HasActivity = true
+				value.Value = 9
+				value.HasValue = true
 			}
-			rates = append(rates, rate)
+			values = append(values, value)
 		}
-		series = append(series, statspkg.SplitDailyRateSeries{
-			Key:   key,
-			Rates: rates,
+		series = append(series, statspkg.SplitDailyValueSeries{
+			Key:    key,
+			Values: values,
 		})
 	}
 	return series
+}
+
+func assertionFloat(v float64) string {
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", v), "0"), ".")
 }
