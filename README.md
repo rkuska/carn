@@ -19,8 +19,8 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 
 - Conversation list with model, token count, duration, tool usage, and
   git branch
-- **f**ilter by provider, project, model, git branch, plan status, or
-  multi-part conversations — with regex support
+- **f**ilter by provider, project, model, version, git branch, plan
+  status, or multi-part conversations — with regex support
 - Automatic grouping of related sessions into multi-part conversations
 - Subagent detection and display
 - Split and fullscreen layout modes with `tab` to switch focus
@@ -30,8 +30,8 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 - Search (`/`) — debounced full-text search across all message content
   via the SQLite FTS index; an empty query returns to the full
   conversation list
-- Structured filters (`f`) handle provider, project, model, git branch,
-  plan, and multi-part narrowing
+- Structured filters (`f`) handle provider, project, model, version,
+  git branch, plan, and multi-part narrowing
 - Search preview snippets in results
 
 **Transcript viewer**
@@ -56,16 +56,26 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 **Stats**
 
 - Fullscreen analytics dashboard (`S` from the browser)
-- Five tabs: Overview, Activity, Sessions, Tools, Performance — switch with
-  `ctrl+f` / `ctrl+b`
+- Six tabs: Overview, Activity, Sessions, Tools, Cache, Performance —
+  switch with `ctrl+f` / `ctrl+b`
 - Time range selector (`r`): 7d, 30d, 90d, all
-- Provider and project filters (`f`)
-- Token-by-model and token-by-project charts, heaviest session table
+- Filter overlay (`f`) narrows by provider, project, model, version, and
+  more — with a **Split by** row that re-renders supported charts as
+  stacked series grouped by Provider, Version, Model, or Project
+- Tokens by model, project, and (provider, version) charts, plus a
+  heaviest session table — press `enter` on the selected row to open it
 - Daily activity line chart and weekday × hour heatmap
-- Session duration and message-count histograms, token growth chart
+- Session duration and message-count histograms, prompt growth and
+  billed-tokens-per-turn lanes with cyclable `avg` / `p50` / `p95` /
+  `p99` / `max` modes
 - Tool call shares, error and rejection rates
-- Performance scorecard with outcome, discipline, efficiency, and robustness
-  lanes
+- Cache lanes: daily rate, main vs subagent, reuse and hit rate by
+  duration, first-turn cold cache by Claude version
+- Performance scorecard with outcome, discipline, efficiency, and
+  robustness lanes
+- Pinned **Metric detail** lane below the charts that explains the
+  selected lane; move focus with `h` / `l`, cycle the lane metric with
+  `m` where supported
 
 **First launch**
 
@@ -211,10 +221,13 @@ Press `?` at any time to open the help overlay.
 | Key | Action |
 |---|---|
 | `ctrl+f` / `ctrl+b` | Next / previous tab |
+| `j` / `k` | Scroll content up / down |
+| `g` / `G` | Jump to top / bottom |
+| `h` / `l` | Move between metric-detail lanes |
 | `r` | Time **r**ange selector |
-| `f` | **f**ilter (provider / project) |
-| `m` | Cycle **m**etric (activity tab) |
-| `1`–`5` | Open heavy session (overview tab) |
+| `f` | **f**ilter and split-by overlay |
+| `m` | Cycle **m**etric on the focused lane |
+| `enter` | Open focused token-heavy session (overview tab) |
 | `?` | Help |
 | `q` / `esc` | Back to browser |
 
@@ -267,6 +280,7 @@ The hook runs:
 
 - `go fix ./...`
 - `golangci-lint run ./...`
+- `GOPLS_LINT` (gopls info-level diagnostics)
 - `go run ./cmd/testsuite`
 
 The hook requires a clean working tree before commit because `go fix ./...`
