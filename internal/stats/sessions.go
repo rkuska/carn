@@ -51,11 +51,7 @@ func ComputeTurnTokenMetrics(sessions []conv.Session) []PositionTokenMetrics {
 		if session.Meta.IsSubagent {
 			continue
 		}
-		turns := collectSessionTurns(session.Messages)
-		if len(turns) == 0 {
-			continue
-		}
-		totals = accumulateTurnTotals(totals, turns)
+		totals = accumulateSessionTurnTotals(totals, session.Messages)
 	}
 	return positionMetricsFromTotals(totals)
 }
@@ -86,6 +82,14 @@ func CollectSessionTurnMetrics(sessions []conv.Session) []SessionTurnMetrics {
 
 func collectSessionTurns(messages []conv.Message) []TurnTokens {
 	builder := newTurnBuilder(estimatedTurnCapacity(messages))
+	for _, message := range messages {
+		builder.consume(message)
+	}
+	return builder.result()
+}
+
+func accumulateSessionTurnTotals(totals []turnTotals, messages []conv.Message) []turnTotals {
+	builder := newTurnTotalsAccumulator(totals)
 	for _, message := range messages {
 		builder.consume(message)
 	}
@@ -125,11 +129,7 @@ func (b *turnBuilder) consume(message conv.Message) {
 	if !b.turnActive {
 		return
 	}
-	for _, call := range message.ToolCalls {
-		if IsMemoryWriteCall(call) {
-			b.current.MemoryWriteCount++
-		}
-	}
+	b.current.MemoryWriteCount += countMemoryWrites(message)
 	if message.Role != conv.RoleAssistant {
 		return
 	}
@@ -137,24 +137,7 @@ func (b *turnBuilder) consume(message conv.Message) {
 }
 
 func (b *turnBuilder) applyAssistantUsage(usage conv.TokenUsage) {
-	turnTokens := usage.TotalTokens()
-	if turnTokens <= 0 {
-		return
-	}
-	// A single main-thread user prompt can fan out into multiple
-	// assistant/tool steps. Track the deepest prompt reached in the turn
-	// and the total assistant-side token cost.
-	b.current.PromptTokens = max(b.current.PromptTokens, usage.PromptTokens())
-	b.current.TurnTokens += turnTokens
-	// Cache tokens track the turn's *entry* state — the first assistant
-	// message's values. Max-within-turn would mask cold starts because
-	// follow-up messages within the turn read from the cache the first
-	// message just created.
-	if !b.hasUsage {
-		b.current.CacheReadTokens = usage.CacheReadInputTokens
-		b.current.CacheCreationTokens = usage.CacheCreationInputTokens
-	}
-	b.hasUsage = true
+	applyTurnUsage(&b.current, &b.hasUsage, usage)
 }
 
 func (b *turnBuilder) flush() {
@@ -173,6 +156,68 @@ func (b *turnBuilder) result() []TurnTokens {
 	return b.turns
 }
 
+type turnTotalsAccumulator struct {
+	totals     []turnTotals
+	position   int
+	current    TurnTokens
+	turnActive bool
+	hasUsage   bool
+}
+
+func newTurnTotalsAccumulator(totals []turnTotals) turnTotalsAccumulator {
+	return turnTotalsAccumulator{totals: totals}
+}
+
+func (b *turnTotalsAccumulator) consume(message conv.Message) {
+	if message.IsSidechain {
+		return
+	}
+	if message.IsAgentDivider {
+		b.flush()
+		if isTurnBoundary(message) {
+			b.turnActive = true
+		}
+		return
+	}
+	if isTurnBoundary(message) {
+		b.flush()
+		b.turnActive = true
+		return
+	}
+	if !b.turnActive {
+		return
+	}
+	b.current.MemoryWriteCount += countMemoryWrites(message)
+	if message.Role != conv.RoleAssistant {
+		return
+	}
+	applyTurnUsage(&b.current, &b.hasUsage, message.Usage)
+}
+
+func (b *turnTotalsAccumulator) flush() {
+	if !b.hasUsage {
+		b.turnActive = false
+		return
+	}
+	if b.position == len(b.totals) {
+		b.totals = append(b.totals, turnTotals{})
+	}
+	total := b.totals[b.position]
+	total.prompt += float64(b.current.PromptTokens)
+	total.turn += float64(b.current.TurnTokens)
+	total.samples++
+	b.totals[b.position] = total
+	b.position++
+	b.current = TurnTokens{}
+	b.turnActive = false
+	b.hasUsage = false
+}
+
+func (b *turnTotalsAccumulator) result() []turnTotals {
+	b.flush()
+	return b.totals
+}
+
 func estimatedTurnCapacity(messages []conv.Message) int {
 	if len(messages) == 0 {
 		return 0
@@ -182,6 +227,37 @@ func estimatedTurnCapacity(messages []conv.Message) int {
 
 func isTurnBoundary(message conv.Message) bool {
 	return message.Role == conv.RoleUser && strings.TrimSpace(message.Text) != ""
+}
+
+func countMemoryWrites(message conv.Message) int {
+	count := 0
+	for _, call := range message.ToolCalls {
+		if IsMemoryWriteCall(call) {
+			count++
+		}
+	}
+	return count
+}
+
+func applyTurnUsage(current *TurnTokens, hasUsage *bool, usage conv.TokenUsage) {
+	turnTokens := usage.TotalTokens()
+	if turnTokens <= 0 {
+		return
+	}
+	// A single main-thread user prompt can fan out into multiple
+	// assistant/tool steps. Track the deepest prompt reached in the turn
+	// and the total assistant-side token cost.
+	current.PromptTokens = max(current.PromptTokens, usage.PromptTokens())
+	current.TurnTokens += turnTokens
+	// Cache tokens track the turn's *entry* state — the first assistant
+	// message's values. Max-within-turn would mask cold starts because
+	// follow-up messages within the turn read from the cache the first
+	// message just created.
+	if !*hasUsage {
+		current.CacheReadTokens = usage.CacheReadInputTokens
+		current.CacheCreationTokens = usage.CacheCreationInputTokens
+	}
+	*hasUsage = true
 }
 
 func ComputeTurnTokenMetricsForRange(

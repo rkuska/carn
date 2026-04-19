@@ -605,3 +605,50 @@ func TestComputeTurnTokenMetricsKeepsSparsePositions(t *testing.T) {
 	assert.Equal(t, 2, got[1].Position)
 	assert.Equal(t, 1, got[1].SampleCount)
 }
+
+func TestComputeTurnTokenMetricsMatchesCollectedTurnSeries(t *testing.T) {
+	t.Parallel()
+
+	dividerWithText := conv.Message{
+		Role:           conv.RoleUser,
+		Text:           "resume work",
+		IsAgentDivider: true,
+	}
+	sessions := []session{
+		testSession("s1", []message{
+			userMessage(),
+			assistantUsageMessageWithUsage(conv.TokenUsage{
+				InputTokens:              120,
+				CacheReadInputTokens:     1000,
+				CacheCreationInputTokens: 200,
+				OutputTokens:             20,
+			}),
+			assistantMemoryWrite("/u/proj/memory/notes.md"),
+			userToolResultMessage(),
+			assistantUsageMessage(40, 5),
+			dividerWithText,
+			assistantUsageMessage(60, 7),
+			userMessage(),
+			assistantUsageMessage(80, 9),
+		}),
+		testSession("s2", []message{
+			assistantUsageMessage(10, 1),
+			userMessage(),
+			sidechainAssistantUsageMessage(999, 999),
+			assistantUsageMessage(30, 3),
+			agentDividerMessage(),
+			assistantMemoryWrite("/u/proj/memory/extra.md"),
+			userMessage(),
+			assistantUsageMessage(50, 5),
+		}),
+		subagentSession("sub", []message{
+			userMessage(),
+			assistantUsageMessage(999, 99),
+		}),
+	}
+
+	got := ComputeTurnTokenMetrics(sessions)
+	want := ComputeTurnTokenMetricsForRange(CollectSessionTurnMetrics(sessions), TimeRange{})
+
+	require.Equal(t, want, got)
+}

@@ -55,6 +55,7 @@ None.
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/app/elements/stats_charts.go | source | 275 | 61 | 326 |
 | internal/source/claude/scanner_metadata_performance_assistant.go | source | 154 | 61 | 171 |
+| internal/stats/sessions.go | source | 317 | 60 | 362 |
 | internal/app/browser/browser_filter_keys.go | source | 228 | 60 | 252 |
 | internal/app/stats/tab_cache.go | source | 337 | 59 | 371 |
 | internal/canonical/blob_decoder.go | source | 351 | 56 | 391 |
@@ -89,7 +90,7 @@ None.
 | internal/app/browser | 39 | 5457 | 911 | 6181 | 26 | 5051 | 152 | 6129 |
 | internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
 | internal/app/stats | 46 | 5569 | 765 | 6214 | 17 | 3995 | 62 | 4697 |
-| internal/stats | 32 | 4570 | 633 | 5039 | 25 | 4845 | 116 | 5545 |
+| internal/stats | 32 | 4638 | 642 | 5115 | 25 | 4888 | 116 | 5592 |
 
 ## Notes
 
