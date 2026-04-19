@@ -49,6 +49,7 @@ func ComputeCacheBySplit(
 	writeTotals := make([]int, dayCount)
 	promptTotals := make([]int, dayCount)
 	activeDays := make([]bool, dayCount)
+	promptSplits := make([]map[string]int, dayCount)
 	readSplits := make([]map[string]int, dayCount)
 	writeSplits := make([]map[string]int, dayCount)
 	rowSplits := make([]map[string]int, len(cacheSplitRowLabels))
@@ -72,6 +73,7 @@ func ComputeCacheBySplit(
 			promptTotals,
 			readTotals,
 			writeTotals,
+			promptSplits,
 			readSplits,
 			writeSplits,
 			key,
@@ -95,7 +97,15 @@ func ComputeCacheBySplit(
 		grouped.WriteDuration[durationIndex].Total += writeProxy
 	}
 
-	grouped.DailyReadShare = buildSplitDailyShares(start, dayCount, promptTotals, readTotals, activeDays, readSplits)
+	grouped.DailyReadShare = buildSplitDailyShares(
+		start,
+		dayCount,
+		promptTotals,
+		readTotals,
+		activeDays,
+		readSplits,
+		promptSplits,
+	)
 	grouped.DailyWriteShare = buildSplitDailyShares(
 		start,
 		dayCount,
@@ -103,6 +113,7 @@ func ComputeCacheBySplit(
 		writeTotals,
 		activeDays,
 		writeSplits,
+		promptSplits,
 	)
 	grouped.SegmentRows = buildSplitCacheRows(rowSplits)
 	for i := range grouped.ReadDuration {
@@ -140,6 +151,7 @@ func recordSplitCacheDay(
 	promptTotals []int,
 	readTotals []int,
 	writeTotals []int,
+	promptSplits []map[string]int,
 	readSplits []map[string]int,
 	writeSplits []map[string]int,
 	key string,
@@ -154,6 +166,7 @@ func recordSplitCacheDay(
 	promptTotals[dayIndex] += prompt
 	readTotals[dayIndex] += readTokens
 	writeTotals[dayIndex] += writeProxy
+	accumulateSplitCacheRow(promptSplits, dayIndex, key, prompt)
 	accumulateSplitCacheRow(readSplits, dayIndex, key, readTokens)
 	accumulateSplitCacheRow(writeSplits, dayIndex, key, writeProxy)
 }
@@ -175,15 +188,17 @@ func buildSplitDailyShares(
 	valueTotals []int,
 	activeDays []bool,
 	splitTotals []map[string]int,
+	promptSplits []map[string]int,
 ) []SplitDailyShare {
 	daily := make([]SplitDailyShare, 0, dayCount)
 	for i := range dayCount {
 		daily = append(daily, SplitDailyShare{
-			Date:        start.AddDate(0, 0, i),
-			Prompt:      promptTotals[i],
-			Total:       valueTotals[i],
-			HasActivity: activeDays[i],
-			Splits:      sortSplitValues(splitTotals[i]),
+			Date:         start.AddDate(0, 0, i),
+			Prompt:       promptTotals[i],
+			Total:        valueTotals[i],
+			HasActivity:  activeDays[i],
+			Splits:       sortSplitValues(splitTotals[i]),
+			PromptSplits: sortSplitValues(promptSplits[i]),
 		})
 	}
 	return daily

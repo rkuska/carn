@@ -45,6 +45,24 @@ func (t *Theme) RenderDailyRateColumnChart(
 	barColor color.Color,
 	yFormatter linechart.LabelFormatter,
 ) string {
+	maxValue, _ := dailyRateChartScale(rates, yFormatter)
+	return t.renderDailyRateColumnChartWithMaxValue(
+		rates,
+		width,
+		height,
+		barColor,
+		yFormatter,
+		maxValue,
+	)
+}
+
+func (t *Theme) renderDailyRateColumnChartWithMaxValue(
+	rates []statspkg.DailyRate,
+	width, height int,
+	barColor color.Color,
+	yFormatter linechart.LabelFormatter,
+	maxValue float64,
+) string {
 	if width <= 0 {
 		return ""
 	}
@@ -52,7 +70,10 @@ func (t *Theme) RenderDailyRateColumnChart(
 		return NoDataLabel
 	}
 
-	maxValue, axisLabelWidth := dailyRateChartScale(rates, yFormatter)
+	if maxValue <= 0 {
+		maxValue = 0.01
+	}
+	axisLabelWidth := dailyRateAxisLabelWidth(maxValue, yFormatter)
 	plotWidth := max(width-axisLabelWidth-3, 1)
 	buckets := BucketDailyRates(rates, plotWidth)
 	if len(buckets) == 0 {
@@ -78,29 +99,6 @@ func (t *Theme) RenderDailyRateColumnChart(
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-func dailyRateChartScale(
-	rates []statspkg.DailyRate,
-	yFormatter linechart.LabelFormatter,
-) (float64, int) {
-	maxValue := 0.01
-	for _, rate := range rates {
-		if rate.HasActivity && rate.Rate > maxValue {
-			maxValue = rate.Rate
-		}
-	}
-
-	topLabel := yFormatter(0, maxValue)
-	midLabel := yFormatter(0, maxValue/2)
-	bottomLabel := yFormatter(0, 0)
-	axisLabelWidth := max(
-		lipgloss.Width(topLabel),
-		lipgloss.Width(midLabel),
-		lipgloss.Width(bottomLabel),
-		1,
-	)
-	return maxValue, axisLabelWidth
 }
 
 func DailyRateChartDimensions(height int) (int, bool) {

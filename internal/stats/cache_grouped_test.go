@@ -51,9 +51,14 @@ func TestComputeCacheBySplitByVersionAggregatesDailySegmentsRowsAndDurations(t *
 		{Key: "1.0.0", Value: 800},
 		{Key: "2.0.0", Value: 200},
 	}, got.DailyReadShare[0].Splits)
+	assert.Equal(t, []SplitValue{
+		{Key: "1.0.0", Value: 1000},
+		{Key: "2.0.0", Value: 500},
+	}, got.DailyReadShare[0].PromptSplits)
 	assert.False(t, got.DailyReadShare[1].HasActivity)
 	assert.Equal(t, 0, got.DailyReadShare[1].Prompt)
 	assert.Equal(t, 0, got.DailyReadShare[1].Total)
+	assert.Empty(t, got.DailyReadShare[1].PromptSplits)
 
 	require.Len(t, got.DailyWriteShare, 3)
 	assert.Equal(t, 150, got.DailyWriteShare[0].Total)
@@ -61,6 +66,10 @@ func TestComputeCacheBySplitByVersionAggregatesDailySegmentsRowsAndDurations(t *
 		{Key: "1.0.0", Value: 100},
 		{Key: "2.0.0", Value: 50},
 	}, got.DailyWriteShare[0].Splits)
+	assert.Equal(t, []SplitValue{
+		{Key: "1.0.0", Value: 1000},
+		{Key: "2.0.0", Value: 500},
+	}, got.DailyWriteShare[0].PromptSplits)
 
 	require.Len(t, got.SegmentRows, 6)
 	assert.Equal(t, SplitNamedStat{
@@ -144,6 +153,7 @@ func TestComputeCacheBySplitHonorsAllowedKeys(t *testing.T) {
 	assert.Equal(t, 400, got.DailyReadShare[0].Prompt)
 	assert.Equal(t, 150, got.DailyReadShare[0].Total)
 	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 150}}, got.DailyReadShare[0].Splits)
+	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 400}}, got.DailyReadShare[0].PromptSplits)
 	require.Len(t, got.SegmentRows, 6)
 	assert.Equal(t, 150, got.SegmentRows[0].Total)
 	assert.Equal(t, []SplitValue{{Key: "2.0.0", Value: 150}}, got.SegmentRows[0].Splits)

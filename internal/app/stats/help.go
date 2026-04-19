@@ -1,5 +1,7 @@
 package stats
 
+import statspkg "github.com/rkuska/carn/internal/stats"
+
 func (m statsModel) helpSections() []helpSection {
 	return []helpSection{m.navigationHelpSection()}
 }
@@ -117,7 +119,7 @@ func laneMetricHelpDetail(m statsModel, lane statsLane) string {
 		return "cycle the daily chart between sessions, messages, and tokens"
 	}
 	if lane.id == statsLaneCacheDaily {
-		return cacheLaneMetricHelpDetail(m.splitActive())
+		return cacheLaneMetricHelpDetail(m.splitBy)
 	}
 	if detail := sessionLaneMetricHelpDetail(lane.id); detail != "" {
 		return detail
@@ -128,9 +130,9 @@ func laneMetricHelpDetail(m statsModel, lane statsLane) string {
 	return ""
 }
 
-func cacheLaneMetricHelpDetail(split bool) string {
-	if split {
-		return "cycle between daily cache read share and write share"
+func cacheLaneMetricHelpDetail(dim statspkg.SplitDimension) string {
+	if dim.IsActive() {
+		return "cycle between daily cache read rate and write rate"
 	}
 	return "cycle between daily hit rate and reuse ratio"
 }

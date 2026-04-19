@@ -28,11 +28,17 @@ type SplitRateStat struct {
 }
 
 type SplitDailyShare struct {
-	Date        time.Time
-	Prompt      int
-	Total       int
-	HasActivity bool
-	Splits      []SplitValue
+	Date         time.Time
+	Prompt       int
+	Total        int
+	HasActivity  bool
+	Splits       []SplitValue
+	PromptSplits []SplitValue
+}
+
+type SplitDailyRateSeries struct {
+	Key   string
+	Rates []DailyRate
 }
 
 type ToolsBySplit struct {

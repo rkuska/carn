@@ -79,17 +79,18 @@ func (m statsModel) renderSplitCacheMetricDetail(width int, lane statsLane) stri
 	switch lane.id { //nolint:exhaustive // split cache detail only handles cache lanes
 	case statsLaneCacheDaily:
 		title, shares := m.splitCacheDailyData(grouped)
-		peakDay, peakRate := peakSplitDailyShare(shares)
+		peakSeries, peakDay, peakRate := peakSplitDailyRate(shares)
 		chips := splitDetailChips(splitChips,
+			chip{Label: "peak series", Value: peakSeries},
 			chip{Label: "peak day", Value: peakDay},
-			chip{Label: "peak share", Value: formatRate(peakRate)},
+			chip{Label: "peak rate", Value: formatRate(peakRate)},
 		)
 		return m.renderStatsMetricDetailBody(title, width, chips,
-			m.metricDetailLine("Question", "How does daily cache traffic share evolve, by series?"),
+			m.metricDetailLine("Question", "How do split series compare on daily cache efficiency?"),
 			m.metricDetailLine(
 				"Reading",
-				"Columns are daily buckets and the Y-axis is the cache token share of prompt traffic. "+
-					m.colorsSplitSuffix("each daily bar"),
+				"Each day bucket uses a shared Y-axis and splits bars by the active series, "+
+					"so read and write rates stay directly comparable.",
 			),
 		)
 	case statsLaneCacheSegment:
@@ -174,23 +175,21 @@ func topSplitToolRate(items []statspkg.SplitRateStat) (string, string) {
 	return items[0].Name, formatToolRatePercent(items[0].Rate)
 }
 
-func peakSplitDailyShare(shares []statspkg.SplitDailyShare) (string, float64) {
-	best := statspkg.SplitDailyShare{}
+func peakSplitDailyRate(shares []statspkg.SplitDailyShare) (string, string, float64) {
+	bestSeries := noDataLabel
 	bestRate := 0.0
-	for _, share := range shares {
-		rate := 0.0
-		if share.Prompt > 0 {
-			rate = float64(share.Total) / float64(share.Prompt)
-		}
-		if rate > bestRate {
-			best = share
-			bestRate = rate
+	bestDay := noDataLabel
+	for _, item := range splitCacheDailyRateSeries(shares) {
+		for _, rate := range item.Rates {
+			if !rate.HasActivity || rate.Rate <= bestRate {
+				continue
+			}
+			bestSeries = item.Key
+			bestDay = rate.Date.Format("2006-01-02")
+			bestRate = rate.Rate
 		}
 	}
-	if best.Date.IsZero() {
-		return noDataLabel, 0
-	}
-	return best.Date.Format("2006-01-02"), bestRate
+	return bestSeries, bestDay, bestRate
 }
 
 func leadingSplitHistogram(items []statspkg.SplitHistogramBucket) (string, int) {
