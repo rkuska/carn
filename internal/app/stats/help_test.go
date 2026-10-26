@@ -169,14 +169,16 @@ func TestStatsHelpNavigationShowsFixScopeForPerformanceGate(t *testing.T) {
 }
 
 func newStatsHelpModel() statsModel {
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
 	return newStatsModel(
 		[]conv.Conversation{
-			testStatsConversation("stats-1", "alpha", time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)),
+			testStatsConversation("stats-1", "alpha", now),
 		},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 }
 

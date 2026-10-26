@@ -80,6 +80,10 @@ type viewerKeyMap struct {
 	TogglePlan        key.Binding
 	ToggleSidechain   key.Binding
 	ToggleSystem      key.Binding
+	ToggleLedger      key.Binding
+	ToggleDock        key.Binding
+	NextNotable       key.Binding
+	PrevNotable       key.Binding
 	SelectionMode     key.Binding
 	Search            key.Binding
 	NextMatch         key.Binding
@@ -115,6 +119,22 @@ var viewerKeys = viewerKeyMap{
 	ToggleSystem: key.NewBinding(
 		key.WithKeys("m"),
 		key.WithHelp("m", "system"),
+	),
+	ToggleLedger: key.NewBinding(
+		key.WithKeys("C"),
+		key.WithHelp("C", "ledger"),
+	),
+	ToggleDock: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "context"),
+	),
+	NextNotable: key.NewBinding(
+		key.WithKeys("]"),
+		key.WithHelp("]", "next notable step"),
+	),
+	PrevNotable: key.NewBinding(
+		key.WithKeys("["),
+		key.WithHelp("[", "previous notable step"),
 	),
 	SelectionMode: key.NewBinding(
 		key.WithKeys("v", "ctrl+v"),

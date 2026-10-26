@@ -13,11 +13,9 @@ import (
 )
 
 func TestStatsSessionsPromptGrowthMetricKeyCyclesSelectedStatistic(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	m := newStatsModel(
 		[]conv.Conversation{
@@ -27,6 +25,7 @@ func TestStatsSessionsPromptGrowthMetricKeyCyclesSelectedStatistic(t *testing.T)
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabSessions
 	m.sessionsLaneCursor = 2

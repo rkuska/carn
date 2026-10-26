@@ -24,6 +24,9 @@ func (m viewerModel) paneContent() string {
 	if m.selectionMode {
 		content = stripRowTrailingSpaces(content)
 	}
+	if dock := m.dockView(); dock != "" {
+		content += "\n" + dock
+	}
 	return content
 }
 

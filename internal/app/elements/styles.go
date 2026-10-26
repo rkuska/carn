@@ -31,6 +31,12 @@ type Theme struct {
 	ColorHeatmap3    color.Color
 	ColorHeatmap4    color.Color
 
+	// Context growth palette shared by the Turn Ledger and the Context Dock.
+	ColorContextFill     color.Color
+	ColorContextPressure color.Color
+	ColorContextWell     color.Color
+	ColorContextCursor   color.Color
+
 	StyleSubtitle             lipgloss.Style
 	StyleToolCall             lipgloss.Style
 	StyleToolCallItalic       lipgloss.Style
@@ -59,6 +65,16 @@ type Theme struct {
 	StyleToolResultErrorBadge lipgloss.Style
 	StylePaneTitle            lipgloss.Style
 	StyleHeatmapCells         [5]lipgloss.Style
+
+	StyleContextFill           lipgloss.Style
+	StyleContextPressure       lipgloss.Style
+	StyleContextPressureBold   lipgloss.Style
+	StyleContextWell           lipgloss.Style
+	StyleContextWellFill       lipgloss.Style
+	StyleContextWellPressure   lipgloss.Style
+	StyleContextCursor         lipgloss.Style
+	StyleContextCursorFill     lipgloss.Style
+	StyleContextCursorPressure lipgloss.Style
 }
 
 func NewTheme(hasDarkBG bool) *Theme {
@@ -86,6 +102,11 @@ func NewTheme(hasDarkBG bool) *Theme {
 		ColorHeatmap2:    lipgloss.Color("#006d32"),
 		ColorHeatmap3:    lipgloss.Color("#26a641"),
 		ColorHeatmap4:    lipgloss.Color("#39d353"),
+
+		ColorContextFill:     lipgloss.Color("#a371f7"),
+		ColorContextPressure: lipgloss.Color("#d29922"),
+		ColorContextWell:     ld(lipgloss.Color("#d0d7de"), lipgloss.Color("#30363d")),
+		ColorContextCursor:   ld(lipgloss.Color("#e2d4ff"), lipgloss.Color("#4a3a78")),
 	}
 
 	theme.StyleSubtitle = lipgloss.NewStyle().
@@ -203,6 +224,8 @@ func NewTheme(hasDarkBG bool) *Theme {
 		lipgloss.NewStyle().Foreground(theme.ColorHeatmap3),
 		lipgloss.NewStyle().Foreground(theme.ColorHeatmap4),
 	}
+
+	theme.applyContextStyles()
 
 	return theme
 }

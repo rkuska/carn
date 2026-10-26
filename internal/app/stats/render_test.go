@@ -20,7 +20,7 @@ func TestStatsRenderTabBarShowsActiveTabAndRangeWithinWidth(t *testing.T) {
 
 	m := newStatsRenderModel(64, 32)
 	m.tab = statsTabTools
-	m.timeRange = statsRange7d()
+	m.timeRange = statsRange7d(m.now())
 
 	bar := ansi.Strip(m.renderTabBar())
 
@@ -60,6 +60,7 @@ func TestStatsRenderOverviewCentersCappedTableInWideViewport(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	body := ansi.Strip(m.renderOverviewTab(120))
@@ -94,6 +95,7 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	body := m.renderOverviewTab(120)
@@ -102,10 +104,9 @@ func TestStatsRenderOverviewStylesTokenHeavySessionValuesWithTokenColor(t *testi
 }
 
 func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	})
-	defer restoreNow()
+	t.Parallel()
+
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 
 	store := &fakeBrowserStore{
 		activityBucketRows: []conv.ActivityBucketRow{
@@ -148,9 +149,10 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
-	m.timeRange = statsRange7d()
+	m.timeRange = statsRange7d(now)
 	m = m.applyFilterChange()
 
 	body := ansi.Strip(m.renderOverviewTab(120))
@@ -161,6 +163,7 @@ func TestStatsRenderOverviewShowsTokenTrendForFiniteRanges(t *testing.T) {
 func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
 		[]conv.Conversation{
 			testStatsConversationWithProviderAndSessions(
@@ -179,6 +182,7 @@ func TestStatsRenderOverviewOmitsTokenTrendForAllRange(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.timeRange = statspkg.TimeRange{}
 	m = m.applyFilterChange()
@@ -222,6 +226,7 @@ func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	body := m.renderProviderVersionOverviewBody(60)
@@ -235,6 +240,7 @@ func TestStatsRenderOverviewProviderVersionBodyShowsRowBarsWithoutScopeSelection
 func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
 		[]conv.Conversation{
 			testStatsConversationWithProviderAndSessions(
@@ -259,6 +265,7 @@ func TestStatsRenderToolsUsesShareChipsInsteadOfCompoundRatio(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabTools
 
@@ -295,6 +302,7 @@ func TestStatsRenderToolsUsesGridRowsForUsageAndQualityCharts(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabTools
 
@@ -353,6 +361,7 @@ func TestStatsRenderGroupedToolsShowsProviderTitlesAndVersionLegend(t *testing.T
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabTools
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -462,6 +471,7 @@ func TestStatsRenderToolsFilterKeepsHistogramBarsForCodexAndGPT54Slices(t *testi
 				120,
 				32,
 				testCase.filter,
+				now,
 			)
 			m.tab = statsTabTools
 
@@ -759,6 +769,7 @@ func TestStatsRenderActivitySplitUsesGroupedDailyChartAndKeepsHeatmap(t *testing
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabActivity
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -819,14 +830,16 @@ func TestStatsRenderToolsUsesBorderedLaneCards(t *testing.T) {
 }
 
 func newStatsRenderModel(width, height int) statsModel {
+	now := time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)
 	return newStatsModel(
 		[]conv.Conversation{
-			testStatsConversation("stats-1", "alpha", time.Date(2026, 3, 22, 12, 0, 0, 0, time.UTC)),
+			testStatsConversation("stats-1", "alpha", now),
 		},
 		&fakeBrowserStore{},
 		width,
 		height,
 		newBrowserFilterState(),
+		now,
 	)
 }
 

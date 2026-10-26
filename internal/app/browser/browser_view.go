@@ -41,7 +41,8 @@ func (m browserModel) updateLayout() browserModel {
 
 	m.list.SetSize(max(listWidth-2, 1), framedBodyHeight(m.height))
 	if m.transcriptVisible() && m.viewer.session.Meta.ID != "" {
-		m.viewer = m.viewer.SetSize(m.viewerWidth(), m.height)
+		m.viewer = m.viewer.SetFullscreen(m.transcriptMode == transcriptFullscreen).
+			SetSize(m.viewerWidth(), m.height)
 	}
 	return m
 }

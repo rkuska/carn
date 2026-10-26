@@ -59,13 +59,27 @@ func BenchmarkStatsCacheRender(b *testing.B) {
 }
 
 func newBenchStatsModel() statsModel {
+	conversations := makeBenchStatsConversations(300)
 	return newStatsModel(
-		makeBenchStatsConversations(300),
+		conversations,
 		&fakeBrowserStore{},
 		120,
 		40,
 		newBrowserFilterState(),
+		latestConversationTimestamp(conversations),
 	)
+}
+
+// latestConversationTimestamp anchors the bench range to the generated
+// sessions so the default 30d range renders data on any wall-clock date.
+func latestConversationTimestamp(conversations []conv.Conversation) time.Time {
+	var latest time.Time
+	for _, conversation := range conversations {
+		if ts := conversation.Timestamp(); ts.After(latest) {
+			latest = ts
+		}
+	}
+	return latest
 }
 
 func makeBenchStatsConversations(n int) []conv.Conversation {

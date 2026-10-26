@@ -34,6 +34,7 @@ type scanStats struct {
 	actionErrorCounts map[string]int
 	actionRejects     map[string]int
 	toolCallByID      map[string]toolCall
+	requests          requestTracker
 	performance       sessionPerformanceMeta
 }
 
@@ -86,6 +87,12 @@ func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
 
 func accumulateAssistantStats(line []byte, stats *scanStats) {
 	usage := extractUsage(line)
+	if usage == (tokenUsage{}) {
+		return
+	}
+	if !stats.requests.isNew(extractMessageID(line), extractIsSidechain(line)) {
+		return
+	}
 	stats.totalUsage.InputTokens += usage.InputTokens
 	stats.totalUsage.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	stats.totalUsage.CacheReadInputTokens += usage.CacheReadInputTokens

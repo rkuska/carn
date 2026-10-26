@@ -29,18 +29,39 @@ func scrollAnchorSession(id string) conv.Session {
 	}
 }
 
-func TestRenderContentCapturesTurnAnchors(t *testing.T) {
+// scrollToMessage puts the top line delta lines below the first line of msg.
+func scrollToMessage(t *testing.T, m viewerModel, msg, delta int) viewerModel {
+	t.Helper()
+	line, ok := m.contextLines.LineOf(msg)
+	require.True(t, ok, "message %d is rendered", msg)
+	m.viewport.SetYOffset(line + delta)
+	require.Equal(t, line+delta, m.viewport.YOffset(), "the viewport can scroll there")
+	return m
+}
+
+// scrollPosition is the message on the top line and how far below the
+// message's first line the top line is.
+func scrollPosition(t *testing.T, m viewerModel) (int, int) {
+	t.Helper()
+	top := m.viewport.YOffset()
+	msg := m.messageAtLine(top)
+	first, ok := m.contextLines.LineOf(msg)
+	require.True(t, ok)
+	return msg, top - first
+}
+
+func TestRenderContentMapsEveryMessageToAnAscendingLine(t *testing.T) {
 	t.Parallel()
 
 	m := newTestViewer(scrollAnchorSession("turn-anchors"), 120, 40)
 
-	require.NotEmpty(t, m.turnAnchors)
-	// 10 user + 10 assistant alternating = 20 role-header boundaries.
-	assert.Len(t, m.turnAnchors, 20)
-
-	for i := 1; i < len(m.turnAnchors); i++ {
-		assert.Greater(t, m.turnAnchors[i], m.turnAnchors[i-1],
-			"anchor[%d]=%d should exceed anchor[%d]=%d", i, m.turnAnchors[i], i-1, m.turnAnchors[i-1])
+	previous := -1
+	for msg := range 20 {
+		line, ok := m.contextLines.LineOf(msg)
+		require.True(t, ok, "message %d", msg)
+		assert.Equal(t, msg, m.messageAtLine(line))
+		assert.Greater(t, line, previous, "message %d starts below message %d", msg, msg-1)
+		previous = line
 	}
 }
 
@@ -48,44 +69,17 @@ func TestRenderPreservesScrollOnToggle(t *testing.T) {
 	t.Parallel()
 
 	session := scrollAnchorSession("preserve-scroll")
-	session.Messages[5].Thinking = "inner thought that only shows when t is on"
+	// The thinking block sits above the anchored message, so toggling it moves it.
+	session.Messages[1].Thinking = "inner thought that only shows when t is on"
 
-	m := newTestViewer(session, 120, 20)
-	require.GreaterOrEqual(t, len(m.turnAnchors), 4)
-
-	m.viewport.SetYOffset(m.turnAnchors[3] + 1)
-	beforeTurnIdx, beforeDelta := findAnchorContext(m.turnAnchors, m.viewport.YOffset())
+	m := scrollToMessage(t, newTestViewer(session, 120, 20), 3, 1)
+	beforeMsg, beforeDelta := scrollPosition(t, m)
+	require.Equal(t, 3, beforeMsg)
 
 	m.opts.showThinking = true
 	m = m.renderContentPreservingScroll()
 
-	afterTurnIdx, afterDelta := findAnchorContext(m.turnAnchors, m.viewport.YOffset())
-	assert.Equal(t, beforeTurnIdx, afterTurnIdx)
+	afterMsg, afterDelta := scrollPosition(t, m)
+	assert.Equal(t, beforeMsg, afterMsg)
 	assert.Equal(t, beforeDelta, afterDelta)
-}
-
-func TestFindAnchorContextReturnsNegativeWhenBeforeFirstAnchor(t *testing.T) {
-	t.Parallel()
-
-	turnIdx, delta := findAnchorContext([]int{10, 20, 30}, 5)
-	assert.Equal(t, -1, turnIdx)
-	assert.Equal(t, 0, delta)
-}
-
-func TestFindAnchorContextReturnsLastAnchorAtOrBeforeOffset(t *testing.T) {
-	t.Parallel()
-
-	turnIdx, delta := findAnchorContext([]int{10, 20, 30}, 25)
-	assert.Equal(t, 1, turnIdx)
-	assert.Equal(t, 5, delta)
-}
-
-func TestComputeTurnAnchorsMapsByteOffsetsToLines(t *testing.T) {
-	t.Parallel()
-
-	content := "line0\nline1\nline2\nline3\n"
-	// Byte offsets at starts of "line1" and "line3".
-	offsets := []int{6, 18}
-	anchors := computeTurnAnchors(content, offsets)
-	assert.Equal(t, []int{1, 3}, anchors)
 }

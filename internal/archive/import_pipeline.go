@@ -9,7 +9,7 @@ import (
 )
 
 func (p Pipeline) Run(ctx context.Context, onProgress func(SyncProgress)) (SyncResult, error) {
-	start := time.Now()
+	start := p.now()
 
 	sourceCandidates := make([]syncCandidate, 0)
 	for _, configured := range p.configuredBackends() {
@@ -64,7 +64,7 @@ func (p Pipeline) Run(ctx context.Context, onProgress func(SyncProgress)) (SyncR
 		result.StoreBuilt = true
 	}
 
-	result.Elapsed = time.Since(start).Round(100 * time.Millisecond)
+	result.Elapsed = p.now().Sub(start).Round(100 * time.Millisecond)
 	return result, nil
 }
 

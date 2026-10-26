@@ -1,18 +1,23 @@
 package browser
 
 import (
-	"fmt"
-	"strings"
-
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
+// defaultTranscriptOptions are the toggles a transcript starts with: only the
+// Turn Ledger is on.
+func defaultTranscriptOptions() transcriptOptions {
+	return transcriptOptions{showContextLedger: true}
+}
+
 type transcriptOptions struct {
-	showThinking    bool
-	showTools       bool
-	showToolResults bool
-	showSystem      bool
-	hideSidechain   bool
+	showThinking      bool
+	showTools         bool
+	showToolResults   bool
+	showSystem        bool
+	hideSidechain     bool
+	showContextLedger bool
 }
 
 type segmentKind int
@@ -24,13 +29,20 @@ const (
 	segmentThinking            segmentKind = iota
 	segmentThinkingUnavailable segmentKind = iota
 	segmentToolCall            segmentKind = iota
+	segmentContextReset        segmentKind = iota
 )
 
 type transcriptSegment struct {
-	kind   segmentKind
-	text   string
-	result conv.ToolResult
-	role   conv.Role
+	kind     segmentKind
+	text     string
+	result   conv.ToolResult
+	role     conv.Role
+	msgIndex int
+	// continuation marks a markdown segment split off from the previous markdown
+	// segment at a message boundary so that each segment belongs to one message.
+	continuation bool
+	// ledger carries the Turn Ledger decoration of the segment.
+	ledger el.LedgerItem
 }
 
 type transcriptRenderState struct {
@@ -44,19 +56,15 @@ const hiddenThinkingUnavailableText = "Codex recorded reasoning for this reply, 
 
 func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []transcriptSegment {
 	var segments []transcriptSegment
-	var md strings.Builder
+	md := markdownBuffer{segments: &segments}
+	flush := md.flush
 	state := transcriptRenderState{forceHeader: true}
 
-	flush := func() {
-		if md.Len() == 0 {
-			return
-		}
-		segments = append(segments, transcriptSegment{kind: segmentMarkdown, text: md.String()})
-		md.Reset()
-	}
-
-	for _, msg := range session.Messages {
+	for i, msg := range session.Messages {
+		md.current = i
+		start := len(segments)
 		appendTranscriptMessage(&segments, &md, flush, &state, msg, opts)
+		stampSegmentIndex(segments[start:], i)
 	}
 
 	flush()
@@ -65,7 +73,7 @@ func renderTranscriptSegmented(session conv.Session, opts transcriptOptions) []t
 
 func appendTranscriptMessage(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -89,7 +97,7 @@ func shouldSkipSidechain(msg conv.Message, opts transcriptOptions) bool {
 }
 
 func appendAgentDividerSegments(
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -107,7 +115,7 @@ func appendAgentDividerSegments(
 
 func appendSuppressedMessageSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -122,7 +130,7 @@ func appendSuppressedMessageSegments(
 
 func appendVisibleMessageSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -144,7 +152,7 @@ func userHasContent(msg conv.Message, userText string, opts transcriptOptions) b
 
 func appendUserSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -169,7 +177,7 @@ func appendUserSegments(
 
 func appendSystemSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -193,7 +201,7 @@ func appendSystemSegments(
 
 func appendHiddenMessageSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -229,7 +237,7 @@ func assistantHasContent(msg conv.Message, opts transcriptOptions) bool {
 
 func appendAssistantSegments(
 	segments *[]transcriptSegment,
-	md *strings.Builder,
+	md *markdownBuffer,
 	flush func(),
 	state *transcriptRenderState,
 	msg conv.Message,
@@ -304,99 +312,4 @@ func appendToolCallSegments(segments *[]transcriptSegment, toolCalls []conv.Tool
 	for _, call := range toolCalls {
 		*segments = append(*segments, transcriptSegment{kind: segmentToolCall, text: formatToolCall(call)})
 	}
-}
-
-func flattenSegments(segments []transcriptSegment) string {
-	size := 0
-	for _, seg := range segments {
-		size += len(seg.text) + 50
-	}
-	var sb strings.Builder
-	sb.Grow(size)
-	for _, seg := range segments {
-		switch seg.kind {
-		case segmentMarkdown:
-			sb.WriteString(seg.text)
-		case segmentToolResult:
-			sb.WriteString(formatToolResult(seg.result))
-			sb.WriteString("\n")
-		case segmentRoleHeader:
-			appendRoleHeaderSegment(&sb, seg.role)
-		case segmentThinking:
-			sb.WriteString("*Thinking:*\n")
-			sb.WriteString(seg.text)
-			sb.WriteString("\n\n")
-		case segmentThinkingUnavailable:
-			sb.WriteString("*Thinking unavailable:*\n")
-			sb.WriteString(hiddenThinkingUnavailableText)
-			sb.WriteString("\n\n")
-		case segmentToolCall:
-			sb.WriteString(seg.text)
-			sb.WriteString("\n")
-		}
-	}
-	return sb.String()
-}
-
-func appendRoleHeaderSegment(sb *strings.Builder, r conv.Role) {
-	switch r {
-	case conv.RoleUser:
-		sb.WriteString("## You\n\n")
-	case conv.RoleAssistant:
-		sb.WriteString("## Assistant\n\n")
-	case conv.RoleSystem:
-		sb.WriteString("## System\n\n")
-	}
-}
-
-func renderTranscript(session conv.Session, opts transcriptOptions) string {
-	return renderVisibleConversation(session, opts, false)
-}
-
-func formatToolCall(tc conv.ToolCall) string {
-	if tc.Summary != "" {
-		return fmt.Sprintf("[%s: %s]", tc.Name, tc.Summary)
-	}
-	return fmt.Sprintf("[%s]", tc.Name)
-}
-
-func formatToolResult(tr conv.ToolResult) string {
-	var sb strings.Builder
-
-	header := "Result"
-	if tr.ToolName != "" {
-		header = tr.ToolName
-	}
-
-	if tr.ToolSummary != "" {
-		fmt.Fprintf(&sb, "**%s**: `%s`\n", header, tr.ToolSummary)
-	} else {
-		fmt.Fprintf(&sb, "**%s**\n", header)
-	}
-
-	if len(tr.StructuredPatch) > 0 {
-		sb.WriteString("```diff\n")
-		for _, hunk := range tr.StructuredPatch {
-			fmt.Fprintf(&sb, "@@ -%d,%d +%d,%d @@\n",
-				hunk.OldStart, hunk.OldLines,
-				hunk.NewStart, hunk.NewLines)
-			for _, line := range hunk.Lines {
-				sb.WriteString(line)
-				sb.WriteString("\n")
-			}
-		}
-		sb.WriteString("```")
-		return sb.String()
-	}
-
-	if tr.Content != "" {
-		sb.WriteString("```\n")
-		sb.WriteString(tr.Content)
-		if !strings.HasSuffix(tr.Content, "\n") {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("```")
-	}
-
-	return sb.String()
 }

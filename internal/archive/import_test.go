@@ -194,6 +194,51 @@ func TestPipelineRunBuildsStoreWhenArchiveIsEmpty(t *testing.T) {
 	assert.False(t, needsRebuild)
 }
 
+func TestPipelineRunMeasuresElapsedWithInjectedClock(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		ticks []time.Time
+		want  time.Duration
+	}{
+		{
+			name:  "frozen clock reports zero",
+			ticks: []time.Time{start, start},
+			want:  0,
+		},
+		{
+			name:  "elapsed is rounded to 100ms",
+			ticks: []time.Time{start, start.Add(1234 * time.Millisecond)},
+			want:  1200 * time.Millisecond,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			source := claude.New()
+			ticks := testCase.ticks
+			pipeline := New(Config{
+				SourceDirs: map[conv.Provider]string{conv.ProviderClaude: filepath.Join(dir, "missing")},
+				ArchiveDir: filepath.Join(dir, "archive"),
+			}, canonical.New(nil, source), source).WithClock(func() time.Time {
+				next := ticks[0]
+				ticks = ticks[1:]
+				return next
+			})
+
+			result, err := pipeline.Run(context.Background(), nil)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.want, result.Elapsed)
+			assert.Empty(t, ticks)
+		})
+	}
+}
+
 func TestPipelineRunReturnsMalformedDataWarningsWithoutFailing(t *testing.T) {
 	t.Parallel()
 

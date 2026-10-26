@@ -248,6 +248,20 @@ func TestDetectLineDriftSuppressesKnownSchemaExtras(t *testing.T) {
 			},
 		},
 		{
+			name: "token usage record extra",
+			line: map[string]any{
+				"timestamp": "2026-10-22T12:39:28.012Z",
+				"type":      "token_usage_record",
+				"payload": map[string]any{
+					"response_id": "resp_1",
+					"usage": map[string]any{
+						"input_tokens": 20038,
+						"total_tokens": 20294,
+					},
+				},
+			},
+		},
+		{
 			name: "compacted record extra",
 			line: map[string]any{
 				"timestamp": "2026-03-23T08:48:50.458Z",

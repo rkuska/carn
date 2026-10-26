@@ -77,7 +77,9 @@ func (m viewerModel) resetForOpen(
 	m.viewport.GotoTop()
 	m.viewport.ClearHighlights()
 
-	m.opts = transcriptOptions{}
+	m.opts = defaultTranscriptOptions()
+	m.dockOpen = false
+	m = m.setContextSeries(conv.NewContextSeries(conversation, session.Messages))
 	m.searching = false
 	m.searchQuery = ""
 	m.searchAppliedQuery = ""
@@ -92,5 +94,5 @@ func (m viewerModel) resetForOpen(
 	m.searchInput.SetValue("")
 	m.searchInput.Blur()
 
-	return m
+	return m.applyViewportHeight().renderContent()
 }

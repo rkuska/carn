@@ -103,7 +103,7 @@ func (m statsModel) handleStatsGlobalActionKey(msg tea.KeyPressMsg) (statsModel,
 }
 
 func (m statsModel) handleStatsRangeAction() (statsModel, tea.Cmd) {
-	m.timeRange = nextStatsTimeRange(m.timeRange)
+	m.timeRange = nextStatsTimeRange(m.timeRange, m.now())
 	m = m.recomputeSnapshot()
 	return m.renderViewportContent(true), nil
 }

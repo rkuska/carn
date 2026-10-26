@@ -50,6 +50,7 @@ func TestStatsRenderGroupedCacheShowsProviderTitlesAndVersionLegend(t *testing.T
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabCache
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -106,6 +107,7 @@ func TestStatsRenderGroupedCacheShowsProviderHitRateChipsInProviderSplit(t *test
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabCache
 	m.splitBy = statspkg.SplitDimensionProvider
@@ -165,6 +167,7 @@ func TestStatsRenderGroupedCacheLegendKeepsSeriesWithZeroNumerator(t *testing.T)
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabCache
 	m.splitBy = statspkg.SplitDimensionVersion

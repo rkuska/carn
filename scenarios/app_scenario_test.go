@@ -21,15 +21,20 @@ import (
 
 var scenarioLocation = time.FixedZone("CET", 60*60)
 
+// scenarioNow is the fixed wall-clock instant every scenario runs at. The
+// app receives it through app.Config.Now (stats ranges, import elapsed time)
+// and the browser's relative timestamps through pinScenarioClock.
+func scenarioNow() time.Time {
+	return time.Date(2026, time.March, 23, 12, 0, 0, 0, scenarioLocation)
+}
+
 func pinScenarioClock(t *testing.T) {
 	t.Helper()
 
 	restoreLocation := canonical.SetTimeLocationForTesting(scenarioLocation)
 	t.Cleanup(restoreLocation)
 
-	restoreNow := conv.SetNowForTesting(func() time.Time {
-		return time.Date(2026, time.March, 23, 12, 0, 0, 0, scenarioLocation)
-	})
+	restoreNow := conv.SetNowForTesting(scenarioNow)
 	t.Cleanup(restoreNow)
 }
 
@@ -60,6 +65,7 @@ func newScenarioHarnessWithSourceDirs(
 		TimestampFormat:      "2006-01-02 15:04",
 		BrowserCacheSize:     20,
 		DeepSearchDebounceMs: 200,
+		Now:                  scenarioNow,
 	})
 	require.NoError(t, err)
 
@@ -85,6 +91,7 @@ func newScenarioHarnessWithConfigState(
 		ConfigFilePath:       state.Path,
 		ConfigStatus:         state.Status,
 		ConfigErr:            state.Err,
+		Now:                  scenarioNow,
 	})
 	require.NoError(t, err)
 
@@ -591,4 +598,63 @@ func writeScenarioEditor(t *testing.T, script string) string {
 	path := filepath.Join(t.TempDir(), "editor.sh")
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	return path
+}
+
+func TestScenarioContextGrowthLedgerAndDock(t *testing.T) {
+	workspace := helpers.NewWorkspace(t)
+	workspace.WriteContextGrowthSession(t)
+
+	harness := newScenarioHarness(t, workspace, 140, 42)
+	harness.waitForText(t, "Import Workspace")
+	harness.pressEnter()
+	harness.waitForText(t, "import finished and refreshed the local store")
+	harness.pressEnter()
+	harness.waitForText(t, "context-growth")
+
+	// The ledger is on by default in the split view; the dock is not offered.
+	harness.pressEnter()
+	harness.waitForText(t, "Fix the failing parser test.")
+	harness.waitForText(t, "ctx ")
+	harness.program.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+	harness.pressText("c")
+	harness.waitForText(t, "context dock needs fullscreen (O) and 72+ columns")
+
+	// Fullscreen offers the dock.
+	harness.pressText("O")
+	harness.waitForText(t, "c context")
+	harness.pressText("c")
+	harness.waitForText(t, "ctx per model step · window 200k")
+	harness.waitForText(t, "step 1 of 8")
+	harness.waitForText(t, "system prompt")
+
+	// Every content toggle keeps the dock and the annotations consistent.
+	for _, key := range []string{"t", "T", "R", "m", "s"} {
+		harness.pressText(key)
+	}
+	harness.waitForText(t, "ctx per model step · window 200k")
+	harness.waitForText(t, "ctx ")
+
+	// Hiding the tools drops the tags, not the numbers in the dock.
+	harness.pressText("T")
+	harness.pressText("]")
+	harness.pressText("]")
+	harness.waitForText(t, "━━━ ↓ context reset  76.0k → 20.0k  −56.0k")
+	harness.waitForText(t, "Context was compacted.")
+
+	harness.pressText("C")
+	harness.waitForText(t, "ledger: off")
+	harness.pressText("C")
+	harness.waitForText(t, "ledger: on")
+
+	// Leaving fullscreen hides the dock.
+	harness.pressText("O")
+	harness.waitForText(t, "[split]")
+	assertViewDoesNotContain(t, harness, "ctx per model step")
+
+	harness.quit(t)
+}
+
+func assertViewDoesNotContain(t *testing.T, harness *programHarness, text string) {
+	t.Helper()
+	require.NotContains(t, harness.currentView(), text)
 }

@@ -130,6 +130,7 @@ func (m browserModel) installViewer(session conv.Session, conversation conv.Conv
 		)
 		m.viewerCache[key] = m.viewer
 	}
+	m.viewer = m.viewer.SetFullscreen(m.transcriptMode == transcriptFullscreen)
 	if m.transcriptMode == transcriptFullscreen {
 		m.focus = focusTranscript
 	}

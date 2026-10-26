@@ -27,7 +27,9 @@ go test -run '^$' -bench 'Benchmark(ScanRollouts|LoadConversation)$' -benchmem .
 go test -run '^$' -bench 'Benchmark(CanonicalStoreListCold|CanonicalStoreListWarm|CanonicalStoreSearchChunkCountQuery|CanonicalStoreDeepSearch|CanonicalStoreLoadTranscript|CanonicalStoreFullRebuild|CanonicalStoreIncrementalRebuild|CanonicalStoreParseConversations)$' -benchmem ./internal/canonical
 go test -run '^$' -bench 'Benchmark(CollectFilesToSync|StreamImportAnalysis)$' -benchmem ./internal/archive
 go test -run '^$' -bench 'Benchmark(ComputeOverview|ComputeActivity|ComputeTokenGrowth|ComputeStreaks|ToolAggregation|ComputeCache|ComputePerformance|ComputePerformanceWithSequence|CollectPerformanceSequenceSessions)$' -benchmem ./internal/stats
-go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch)$' -benchmem ./internal/app/browser
+go test -run '^$' -bench 'Benchmark(BrowserLoadSessionsCold|BrowserLoadSessionsWarm|BrowserOpenConversationWarm|BrowserDeepSearchWarm|ViewerRenderContent|ViewerSearch|ViewerRenderContentLedger|ViewerDockView)$' -benchmem ./internal/app/browser
+go test -run '^$' -bench 'Benchmark(ContextSeries)$' -benchmem ./internal/conversation
+go test -run '^$' -bench 'Benchmark(RenderContextDock)$' -benchmem ./internal/app/elements
 go test -run '^$' -bench 'Benchmark(StatsOverviewRender|StatsHeatmapRender|StatsHistogramRender|StatsCacheRender|StatsPerformanceRender)$' -benchmem ./internal/app/stats
 ```
 
@@ -86,11 +88,11 @@ Results (Apple M4 Pro, darwin/arm64):
 | `User-Facing` | `internal/stats` | BenchmarkComputePerformanceWithSequence/1000 | 586,835 | 73,457 | 175 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/100 | 31,190 | 41,296 | 433 |
 | `User-Facing` | `internal/stats` | BenchmarkCollectPerformanceSequenceSessions/1000 | 315,010 | 414,355 | 4,333 |
-| `User-Facing` | `internal/app/stats` | BenchmarkStatsOverviewRender | 67,610 | 30,744 | 334 |
-| `User-Facing` | `internal/app/stats` | BenchmarkStatsHeatmapRender | 11,110 | 7,408 | 59 |
-| `User-Facing` | `internal/app/stats` | BenchmarkStatsHistogramRender | 55,152 | 9,424 | 249 |
-| `User-Facing` | `internal/app/stats` | BenchmarkStatsCacheRender | 82,217 | 34,613 | 368 |
-| `User-Facing` | `internal/app/stats` | BenchmarkStatsPerformanceRender | 159,433 | 82,814 | 651 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsOverviewRender | 251,143 | 70,851 | 601 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsHeatmapRender | 21,862 | 13,040 | 65 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsHistogramRender | 159,202 | 16,216 | 390 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsCacheRender | 1,273,597 | 268,746 | 3,273 |
+| `User-Facing` | `internal/app/stats` | BenchmarkStatsPerformanceRender | 277,160 | 82,274 | 651 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreScanSessions | 7,041,232 | 3,424,631 | 29,974 |
 | `App-Triggered Maintenance` | `internal/source/claude` | BenchmarkCanonicalStoreParseConversationWithSubagents | 1,918,770 | 1,104,336 | 16,823 |
 | `App-Triggered Maintenance` | `internal/source/codex` | BenchmarkScanRollouts | 6,488,075 | 6,933,646 | 88,003 |
@@ -133,6 +135,17 @@ Notes:
   `BenchmarkStatsHistogramRender`, `BenchmarkStatsCacheRender`, and
   `BenchmarkStatsPerformanceRender` isolate the stats-view render paths that
   shape the TUI output once the snapshot is ready.
+- The five `internal/app/stats` render rows were re-measured on
+  October 26, 2026 on AMD Ryzen 5 PRO 3600, linux/amd64, so their ns/op is
+  not comparable with the Apple M4 Pro rows. Earlier figures, including the
+  April 19 refresh, measured an empty time window: the bench model's 30d
+  range followed the wall clock while the generated sessions end on
+  2026-03-07, so from early April every render ran on zero sessions. The
+  bench model is now anchored to the latest generated session. On the same
+  machine the empty-window run measured Overview `126,225` ns / `30,746` B /
+  `334` allocs, Heatmap `21,018` / `7,408` / `59`, Histogram `92,338` /
+  `9,424` / `249`, Cache `148,672` / `34,641` / `373`, and Performance
+  `274,618` / `82,207` / `651`.
 - `BenchmarkCanonicalStoreListCold`, `BenchmarkCanonicalStoreListWarm`, and
   `BenchmarkCanonicalStoreSearchChunkCountQuery` are diagnostic internal probes,
   not end-user latency metrics.
@@ -165,3 +178,33 @@ Notes:
   nudged upward within rerun noise; allocation counts held steady across
   the suite.
 - Refresh this file whenever benchmark commands or meaningful results change.
+
+## Context Growth Benchmarks
+
+The Turn Ledger and the Context Dock added the benchmarks below. They were
+captured on AMD Ryzen 5 PRO 3600, linux/amd64, a different machine than the
+tables above, so compare them only with each other.
+
+| Package | Benchmark | ns/op | B/op | allocs/op |
+| --- | --- | ---: | ---: | ---: |
+| `internal/conversation` | BenchmarkContextSeries/1000 | 15,396 | 24,528 | 9 |
+| `internal/conversation` | BenchmarkContextSeries/10000 | 166,423 | 393,168 | 14 |
+| `internal/app/elements` | BenchmarkRenderContextDock/40 | 293,130 | 41,257 | 636 |
+| `internal/app/elements` | BenchmarkRenderContextDock/400 | 904,970 | 87,048 | 2,294 |
+| `internal/app/browser` | BenchmarkViewerRenderContentLedger/ledger=false | 9,511,087 | 8,224,948 | 20,380 |
+| `internal/app/browser` | BenchmarkViewerRenderContentLedger/ledger=true | 9,865,914 | 8,874,097 | 20,430 |
+| `internal/app/browser` | BenchmarkViewerDockView | 348,928 | 54,115 | 720 |
+
+- `BenchmarkContextSeries` builds the series from 1,000 and 10,000 messages in
+  one pass; it runs once per loaded transcript, never while rendering.
+- `BenchmarkViewerRenderContentLedger` drops the render cache on every
+  iteration (200 requests, tools and results shown) and compares the cold
+  render with the ledger off and on. Annotated role headers are cached by
+  annotation, so toggles after the first render cost about 4% more. The very
+  first render of that conversation with the ledger on is about 65% slower
+  (`15.7 ms` against `9.5 ms`) because every annotated header is built once.
+- `BenchmarkViewerDockView` is the per-scroll cost of redrawing the dock; only
+  the cursor and the readout change, the column layout is cached on the viewer.
+- `BenchmarkViewerRenderContent` serves the render cache and does not exercise
+  the ledger; on the same machine it measured `2,225` ns/op before and
+  `2,270` ns/op after the change, with `0` allocs/op both times.

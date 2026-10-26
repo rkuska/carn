@@ -55,6 +55,9 @@ func (m viewerModel) footerItems() []helpItem {
 	}
 	items := transcriptFooterItems(m.opts, m.content)
 	items = insertAfterLastToggle(items, selectionHelpItem(m.selectionMode, false))
+	if m.fullscreen && m.content.hasContext {
+		items = insertAfterLastToggle(items, contextDockHelpItem(m.dockOpen, false))
+	}
 	if !m.content.hasPlans {
 		return items
 	}
@@ -146,7 +149,7 @@ func appendSearchStatusPart(parts []string, query string, matches []searchOccurr
 func (m viewerModel) renderContent() viewerModel {
 	key := m.renderKey()
 	if cached, ok := m.cachedRender(key); ok {
-		return m.applyRenderedContent(cached.rawContent, cached.baseContent, cached.searchLines, cached.turnAnchors)
+		return m.applyRenderedContent(cached)
 	}
 
 	if m.selectionMode {
@@ -159,6 +162,7 @@ func (m viewerModel) renderContent() viewerModel {
 	m, renderer, rendererErr = m.ensureRenderer()
 	contentWidth := m.contentWidth()
 	rawContent := flattenSegments(segments)
+	segments = m.withLedger(segments)
 
 	if m.markdownCache == nil {
 		m.markdownCache = make(map[string]string)
@@ -174,35 +178,41 @@ func (m viewerModel) renderContent() viewerModel {
 	if planHeader := renderPlanHeader(m.theme, m.session.Messages, contentWidth, m.planExpanded); planHeader != "" {
 		sb.WriteString(planHeader)
 	}
-	var roleHeaderOffsets []int
+	segmentOffsets := make([]el.SegmentOffset, 0, len(segments))
 	for _, seg := range segments {
-		if seg.kind == segmentRoleHeader {
-			roleHeaderOffsets = append(roleHeaderOffsets, sb.Len())
-		}
+		segmentOffsets = append(segmentOffsets, el.SegmentOffset{Offset: sb.Len(), MsgIndex: seg.msgIndex})
 		renderSegmentCached(&sb, seg, renderer, rendererErr, contentWidth, m.markdownCache, m.roleHeaderCache, m.theme)
 	}
 
 	baseContent := sb.String()
-	searchLines := buildSearchIndex(baseContent)
-	turnAnchors := computeTurnAnchors(baseContent, roleHeaderOffsets)
-	m = m.storeRenderCache(key, viewerRenderValue{
-		rawContent:  rawContent,
-		baseContent: baseContent,
-		searchLines: searchLines,
-		turnAnchors: turnAnchors,
-	})
-	return m.applyRenderedContent(rawContent, baseContent, searchLines, turnAnchors)
+	value := viewerRenderValue{
+		rawContent:   rawContent,
+		baseContent:  baseContent,
+		searchLines:  buildSearchIndex(baseContent),
+		contextLines: el.NewContextLineMap(baseContent, segmentOffsets),
+	}
+	m = m.storeRenderCache(key, value)
+	return m.applyRenderedContent(value)
+}
+
+// withLedger decorates segments with the Turn Ledger when it is on.
+func (m viewerModel) withLedger(segments []transcriptSegment) []transcriptSegment {
+	if !m.opts.showContextLedger {
+		return segments
+	}
+	return applyContextLedger(segments, m.session.Messages, m.contextSeries)
 }
 
 func (m viewerModel) renderSelectionContent(key viewerRenderKey) viewerModel {
-	content := renderVisibleConversation(m.session, m.opts, m.planExpanded)
-	searchLines := buildSearchIndex(content)
-	m = m.storeRenderCache(key, viewerRenderValue{
-		rawContent:  content,
-		baseContent: content,
-		searchLines: searchLines,
-	})
-	return m.applyRenderedContent(content, content, searchLines, nil)
+	content, offsets := renderVisibleConversationOffsets(m.session, m.opts, m.planExpanded)
+	value := viewerRenderValue{
+		rawContent:   content,
+		baseContent:  content,
+		searchLines:  buildSearchIndex(content),
+		contextLines: el.NewContextLineMap(content, offsets),
+	}
+	m = m.storeRenderCache(key, value)
+	return m.applyRenderedContent(value)
 }
 
 func renderSegmentCached(
@@ -217,17 +227,23 @@ func renderSegmentCached(
 ) {
 	switch seg.kind {
 	case segmentMarkdown:
-		sb.WriteString(renderMarkdownSegment(seg.text, renderer, rendererErr, mdCache))
+		rendered := renderMarkdownSegment(seg.text, renderer, rendererErr, mdCache)
+		if seg.continuation {
+			rendered = el.CollapseLeadingBlankLines(rendered)
+		}
+		sb.WriteString(rendered)
 	case segmentToolResult:
-		sb.WriteString(renderStyledToolResult(theme, seg.result, contentWidth))
+		sb.WriteString(renderToolResultSegment(theme, seg, contentWidth))
 	case segmentRoleHeader:
-		sb.WriteString(renderRoleHeaderCached(theme, seg.role, contentWidth, roleCache))
+		sb.WriteString(renderRoleHeaderCached(theme, seg.role, seg.ledger.Annotation, contentWidth, roleCache))
 	case segmentThinking:
 		sb.WriteString(renderThinkingBlock(theme, seg.text))
 	case segmentThinkingUnavailable:
 		sb.WriteString(renderThinkingUnavailableBlock(theme))
 	case segmentToolCall:
-		sb.WriteString(renderStyledToolCall(theme, seg.text))
+		sb.WriteString(renderToolCallSegment(theme, seg, contentWidth))
+	case segmentContextReset:
+		sb.WriteString(renderContextResetSegment(theme, seg.ledger, contentWidth))
 	}
 }
 
@@ -277,37 +293,57 @@ func (m viewerModel) ensureRenderer() (viewerModel, *glamour.TermRenderer, error
 type roleHeaderKey struct {
 	role  conv.Role
 	width int
+	// ledger is the Turn Ledger annotation of an Assistant header; the zero
+	// value keys plain headers.
+	ledger el.LedgerAnnotation
 }
 
-func renderRoleHeaderCached(theme *el.Theme, r conv.Role, width int, cache map[roleHeaderKey]string) string {
-	if cache != nil {
-		key := roleHeaderKey{role: r, width: width}
-		if cached, ok := cache[key]; ok {
-			return cached
-		}
-		result := renderRoleHeader(theme, r, width)
-		cache[key] = result
-		return result
+// renderRoleHeaderCached renders a role header with its Turn Ledger annotation
+// (the zero value for none) and caches it, so the cold render after a toggle
+// reuses annotated headers too.
+func renderRoleHeaderCached(
+	theme *el.Theme,
+	r conv.Role,
+	ledger el.LedgerAnnotation,
+	width int,
+	cache map[roleHeaderKey]string,
+) string {
+	key := roleHeaderKey{role: r, width: width, ledger: ledger}
+	if cached, ok := cache[key]; ok {
+		return cached
 	}
-	return renderRoleHeader(theme, r, width)
+	annotation := ""
+	if ledger != (el.LedgerAnnotation{}) {
+		annotation = theme.RenderContextLedgerAnnotation(ledger, width)
+	}
+	result := renderRoleHeader(theme, r, annotation, width)
+	if cache != nil {
+		cache[key] = result
+	}
+	return result
 }
 
-func renderRoleHeader(theme *el.Theme, r conv.Role, width int) string {
+// renderRoleHeader renders the badge of role r and a rule to width, with
+// annotation right-aligned at the end of the rule when it is not empty.
+func renderRoleHeader(theme *el.Theme, r conv.Role, annotation string, width int) string {
 	switch r {
 	case conv.RoleUser:
-		return renderRoleHeaderBadge(theme, theme.StyleBadgeUser, " User", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeUser, " User", annotation, width)
 	case conv.RoleAssistant:
-		return renderRoleHeaderBadge(theme, theme.StyleBadgeAssistant, " Assistant", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeAssistant, " Assistant", annotation, width)
 	case conv.RoleSystem:
-		return renderRoleHeaderBadge(theme, theme.StyleBadgeSystem, " System", width)
+		return renderRoleHeaderBadge(theme, theme.StyleBadgeSystem, " System", annotation, width)
 	}
 	return "\n"
 }
 
-func renderRoleHeaderBadge(theme *el.Theme, style lipgloss.Style, label string, width int) string {
+func renderRoleHeaderBadge(theme *el.Theme, style lipgloss.Style, label, annotation string, width int) string {
 	badge := style.Render(label)
-	ruleLen := max(width-lipgloss.Width(badge)-1, 0)
-	return badge + " " + theme.StyleRuleHR.Render(strings.Repeat("─", ruleLen)) + "\n\n"
+	if annotation != "" {
+		annotation = " " + annotation
+	}
+	ruleLen := max(width-lipgloss.Width(badge)-1-lipgloss.Width(annotation), 0)
+	return badge + " " + theme.StyleRuleHR.Render(strings.Repeat("─", ruleLen)) + annotation + "\n\n"
 }
 
 func renderThinkingBlock(theme *el.Theme, text string) string {

@@ -657,6 +657,40 @@
             }
           }
         }
+      },
+      "fallback_credit": {
+        "status": "ignored",
+        "path": "message.usage.fallback_credit",
+        "record_types": ["assistant"],
+        "description": "Fallback credit marker nested in Claude usage metadata, null when no fallback was used.",
+        "future_use": "Could flag requests that were served by a fallback model or tier.",
+        "first_seen": "2026-10-22",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "fallback_credit": null
+            }
+          }
+        }
+      },
+      "output_tokens_details": {
+        "status": "ignored",
+        "path": "message.usage.output_tokens_details",
+        "record_types": ["assistant"],
+        "description": "Output token breakdown nested in Claude usage metadata, for example thinking tokens.",
+        "future_use": "Could split output tokens into thinking and answer tokens in the token charts.",
+        "first_seen": "2026-10-22",
+        "example": {
+          "type": "assistant",
+          "message": {
+            "usage": {
+              "output_tokens_details": {
+                "thinking_tokens": 104
+              }
+            }
+          }
+        }
       }
     },
     "content_block_type": {

@@ -22,6 +22,27 @@
             ]
           }
         }
+      },
+      "token_usage_record": {
+        "status": "ignored",
+        "path": "type",
+        "record_types": ["token_usage_record"],
+        "description": "Per-response token accounting record emitted by newer Codex builds beside the token_count event.",
+        "future_use": "Could attribute usage to an exact response id when token_count ordering is ambiguous.",
+        "first_seen": "2026-10-22",
+        "example": {
+          "timestamp": "2026-10-22T12:39:28.012Z",
+          "type": "token_usage_record",
+          "payload": {
+            "response_id": "resp_example",
+            "usage": {
+              "input_tokens": 20038,
+              "cached_input_tokens": 7936,
+              "output_tokens": 256,
+              "total_tokens": 20294
+            }
+          }
+        }
       }
     },
     "session_meta_field": {
