@@ -12,4 +12,9 @@
     pkgs.golangci-lint
     pkgs.gopls
   ];
+
+  # devenv puts GOPATH under .devenv, and Go makes its module cache
+  # read-only, which stops `rm -rf` and `git worktree remove` on the
+  # checkout.
+  env.GOFLAGS = "-modcacherw";
 }
