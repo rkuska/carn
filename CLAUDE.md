@@ -214,9 +214,10 @@ git config core.hooksPath .githooks
 The committed `pre-commit` hook runs `go fix ./...`, `golangci-lint run
 ./...`, and `go run ./cmd/testsuite` in that order. It requires a clean
 working tree because `go fix ./...` may rewrite tracked files. The hook
-stages those changes before lint and coverage run. Without the tools
-installed, run commands through `devenv shell -- <command>`, `git commit`
-included.
+stages those changes before lint and coverage run. Outside a devenv
+shell, the hook reruns itself in `devenv shell` when devenv is
+installed; run other commands through `devenv shell -- <command>` when
+the tools aren't installed.
 
 Complexity is guarded by `TestFileComplexityGuard` and
 `TestModuleComplexityGuard` across `internal/**/*.go`. Rules, limits, and

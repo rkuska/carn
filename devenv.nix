@@ -1,8 +1,8 @@
 { pkgs, ... }:
 
 {
-  # Go and the tools the .githooks/pre-commit hook calls, for machines
-  # without them installed: `devenv shell -- git commit`.
+  # Go and the tools the .githooks/pre-commit hook calls. The hook enters
+  # this shell by itself when devenv is installed.
   languages.go = {
     enable = true;
     package = pkgs.go_1_27;
