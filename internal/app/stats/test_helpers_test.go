@@ -7,6 +7,22 @@ import (
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
+// newStatsModel builds a stats model whose relative time ranges are anchored
+// to now, so fixtures dated around now stay in range on any wall-clock date.
+func newStatsModel(
+	conversations []conv.Conversation,
+	store browserStore,
+	width, height int,
+	filter browserFilterState,
+	now time.Time,
+) statsModel {
+	return newStatsModelWithTheme(conversations, store, width, height, filter, nil, fixedClock(now))
+}
+
+func fixedClock(now time.Time) func() time.Time {
+	return func() time.Time { return now }
+}
+
 func testClaudeVersionTurnMetricRows(
 	now time.Time,
 	unknownPromptStart int,

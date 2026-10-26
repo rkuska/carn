@@ -47,18 +47,13 @@ func buildSearchIndex(content string) []searchLineIndex {
 	return indexedLines
 }
 
-func (m viewerModel) applyRenderedContent(
-	rawContent string,
-	baseContent string,
-	searchLines []searchLineIndex,
-	turnAnchors []int,
-) viewerModel {
-	m.rawContent = rawContent
-	m.turnAnchors = turnAnchors
-	contentChanged := m.baseContent != baseContent
+func (m viewerModel) applyRenderedContent(value viewerRenderValue) viewerModel {
+	m.rawContent = value.rawContent
+	m.contextLines = value.contextLines
+	contentChanged := m.baseContent != value.baseContent
 	if contentChanged {
-		m.baseContent = baseContent
-		m.searchLines = searchLines
+		m.baseContent = value.baseContent
+		m.searchLines = value.searchLines
 		m.searchIndexVersion++
 		m.viewport.SetContent(m.baseContent)
 	}

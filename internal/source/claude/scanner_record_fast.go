@@ -90,6 +90,14 @@ func parseRecordMessageFields(raw []byte, rec *parseRecord) error {
 	if err != nil {
 		return fmt.Errorf("parseRecordMessageFields_content: %w", err)
 	}
+	// Only assistant usage is attributed per response id; skipping the lookup
+	// elsewhere saves a scan of large tool-result messages for a missing key.
+	if role(rec.Type) == roleAssistant {
+		rec.Message.ID, _, err = jsonNullableStringField(raw, "message", "id")
+		if err != nil {
+			return fmt.Errorf("parseRecordMessageFields_id: %w", err)
+		}
+	}
 	rec.Message.Model, _, err = jsonStringField(raw, "message", "model")
 	if err != nil {
 		return fmt.Errorf("parseRecordMessageFields_model: %w", err)

@@ -1,5 +1,7 @@
 package browser
 
+import el "github.com/rkuska/carn/internal/app/elements"
+
 const viewerRenderCacheLimit = 8
 
 type viewerRenderKey struct {
@@ -21,10 +23,10 @@ type viewerRenderKey struct {
 }
 
 type viewerRenderValue struct {
-	rawContent  string
-	baseContent string
-	searchLines []searchLineIndex
-	turnAnchors []int
+	rawContent   string
+	baseContent  string
+	searchLines  []searchLineIndex
+	contextLines el.ContextLineMap
 }
 
 func (m viewerModel) renderKey() viewerRenderKey {

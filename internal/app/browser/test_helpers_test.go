@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/rkuska/carn/internal/app/testutil"
+	conv "github.com/rkuska/carn/internal/conversation"
 )
 
 const archiveMatchesSourceSubtitle = "analysis complete; archive already matches the configured sources"
@@ -26,4 +27,8 @@ func requireMsgType[T any](t testing.TB, msg any) T {
 
 func helpItemKeys(items []helpItem) []string {
 	return testutil.HelpItemKeys(items)
+}
+
+func renderTranscript(session conv.Session, opts transcriptOptions) string {
+	return renderVisibleConversation(session, opts, false)
 }

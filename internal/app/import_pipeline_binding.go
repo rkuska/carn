@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	arch "github.com/rkuska/carn/internal/archive"
 	"github.com/rkuska/carn/internal/canonical"
@@ -19,13 +20,14 @@ func newDefaultImportPipeline(cfg arch.Config) importPipeline {
 	claudeBackend := claude.New()
 	codexBackend := codex.New()
 	store := canonical.New(StatsCollector{}, claudeBackend, codexBackend)
-	return newImportPipeline(cfg, store, claudeBackend, codexBackend)
+	return newImportPipeline(cfg, time.Now, store, claudeBackend, codexBackend)
 }
 
 func newImportPipeline(
 	cfg arch.Config,
+	now func() time.Time,
 	store *canonical.Store,
 	backends ...src.Backend,
 ) importPipeline {
-	return arch.New(cfg, store, backends...)
+	return arch.New(cfg, store, backends...).WithClock(now)
 }

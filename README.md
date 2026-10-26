@@ -42,6 +42,17 @@ transcripts, and **r**esume sessions — without leaving the terminal.
 - Toggleable sections: **t**hinking blocks, **T**ool calls, tool
   **R**esults, **s**idechain messages, syste**m** messages, **p**lans
 - Diff display with colored additions and removals
+- **Turn Ledger** (`C`, on by default): every Assistant header shows the
+  context size at the start and end of the reply with a gauge and the
+  share of the context window, tool calls whose results grew the context
+  by a lot carry a right-aligned growth tag (`+31.7k`, `▲ +31.7k` when
+  large), and a divider marks where the context dropped (compaction or a
+  new session part). The numbers come from the recorded token usage and do
+  not change with the thinking, tool, result, system or sidechain toggles
+- **Context Dock** (`c`, fullscreen only): a bar chart of the context size
+  of every model step with a cursor that follows the scroll position, a
+  readout for the step under it, and `[` / `]` to jump between the steps
+  where the context grew or reset
 - Search within transcript (`/`) with **n**ext / **N** previous match
   navigation
 
@@ -200,6 +211,9 @@ Press `?` at any time to open the help overlay.
 | `p` | Toggle **p**lans |
 | `s` | Toggle **s**idechain messages |
 | `m` | Toggle syste**m** messages |
+| `C` | Toggle the Turn Ledger (context notes on assistant headers) |
+| `c` | Toggle the Context Dock (fullscreen only) |
+| `[` / `]` | Jump to the previous / next notable context step |
 | `v` | Toggle selection mode — hide borders for clean mouse copy |
 | `y` | Cop**y** — choose target: conversation, plan, or raw |
 | `o` | **o**pen — choose target: conversation, plan, or raw |

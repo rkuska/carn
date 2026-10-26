@@ -472,7 +472,7 @@ func TestRenderRoleHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := renderRoleHeader(testutil.NewTestTheme(), tt.role, 80)
+			got := renderRoleHeader(testutil.NewTestTheme(), tt.role, "", 80)
 			stripped := ansi.Strip(got)
 
 			assert.Contains(t, stripped, tt.wantLabel)

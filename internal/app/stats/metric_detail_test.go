@@ -98,6 +98,7 @@ func TestStatsRenderSplitActivityMetricDetailExplainsGroupedDailySeries(t *testi
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabActivity
 	m.splitBy = statspkg.SplitDimensionVersion

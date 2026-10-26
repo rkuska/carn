@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -21,6 +22,7 @@ const (
 
 type appModel struct {
 	ctx             context.Context
+	now             func() time.Time
 	cfg             arch.Config
 	glamourStyle    string
 	logFilePath     string
@@ -48,6 +50,7 @@ func newAppModelWithDeps(
 ) appModel {
 	model := appModel{
 		ctx:             ctx,
+		now:             appCfg.clock(),
 		cfg:             cfg,
 		glamourStyle:    appCfg.GlamourStyle,
 		logFilePath:     appCfg.LogFile,

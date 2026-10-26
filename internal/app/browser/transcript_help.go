@@ -1,7 +1,21 @@
 package browser
 
+// toggleSectionTitle titles the help section that lists the transcript toggles.
+const toggleSectionTitle = "Toggles"
+
 func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpItem {
-	return []helpItem{
+	var items []helpItem
+	// The ledger toggle leads so a cramped footer drops it before the older toggles.
+	if content.hasContext {
+		items = append(items, helpItem{
+			Key:    "C",
+			Desc:   "ledger",
+			Detail: "show or hide the context size notes on assistant headers, growth tags and context resets",
+			Toggle: true,
+			On:     opts.showContextLedger,
+		})
+	}
+	items = append(items, []helpItem{
 		{
 			Key:    "t",
 			Desc:   "thinking",
@@ -42,7 +56,8 @@ func transcriptToggleItems(opts transcriptOptions, content contentFlags) []helpI
 			On:     opts.showSystem,
 			Glow:   !opts.showSystem && content.hasSystem,
 		},
-	}
+	}...)
+	return items
 }
 
 func transcriptFooterItems(opts transcriptOptions, content contentFlags) []helpItem {
@@ -75,24 +90,41 @@ func transcriptHelpSections(
 		{Key: "q/esc", Desc: "back", Detail: "close the conversation"},
 	}
 	actions = append(actions, extraActions...)
+	navigation := []helpItem{
+		{Key: "j/k", Desc: "scroll", Detail: "scroll the transcript up or down"},
+		{Key: "gg", Desc: "top", Detail: "jump to the beginning of the transcript"},
+		{Key: "G", Desc: "bottom", Detail: "jump to the end of the transcript"},
+		{Key: "ctrl+f/b", Desc: "page", Detail: "move a page down or up"},
+	}
+	if content.hasContext {
+		navigation = append(navigation, helpItem{
+			Key: "[ / ]", Desc: "notable step",
+			Detail: "jump to the previous or next big context growth or context reset",
+		})
+	}
 
 	return []helpSection{
 		{
 			Title: "Navigation",
-			Items: []helpItem{
-				{Key: "j/k", Desc: "scroll", Detail: "scroll the transcript up or down"},
-				{Key: "gg", Desc: "top", Detail: "jump to the beginning of the transcript"},
-				{Key: "G", Desc: "bottom", Detail: "jump to the end of the transcript"},
-				{Key: "ctrl+f/b", Desc: "page", Detail: "move a page down or up"},
-			},
+			Items: navigation,
 		},
 		{
 			Title: "Actions",
 			Items: actions,
 		},
 		{
-			Title: "Toggles",
+			Title: toggleSectionTitle,
 			Items: transcriptToggleItems(opts, content),
 		},
 	}
+}
+
+// contextDockHelpItem is the toggle of the Context Dock. It is only offered in
+// fullscreen, where the dock has room.
+func contextDockHelpItem(dockOpen, withDetail bool) helpItem {
+	item := helpItem{Key: "c", Desc: "context", Toggle: true, On: dockOpen}
+	if withDetail {
+		item.Detail = "show or hide the context dock — a chart of context size per model step (fullscreen only)"
+	}
+	return item
 }

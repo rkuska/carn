@@ -39,12 +39,14 @@ func TestSplitDimensionSupportsTab(t *testing.T) {
 func TestStatsModelSplitActiveRequiresActiveDimAndSupportedTab(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("split-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("split-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	assert.False(t, m.splitActive())
@@ -60,12 +62,14 @@ func TestStatsModelSplitActiveRequiresActiveDimAndSupportedTab(t *testing.T) {
 func TestStatsFilterOverlayShowsSplitRow(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("split-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("split-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m = m.openFilterOverlay()
 
@@ -77,12 +81,14 @@ func TestStatsFilterOverlayShowsSplitRow(t *testing.T) {
 func TestStatsFilterSplitRowSpaceOpensOptions(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("split-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("split-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m = m.openFilterOverlay()
 	m.filter.Cursor = splitRowCursor
@@ -101,12 +107,14 @@ func TestStatsFilterSplitRowSpaceOpensOptions(t *testing.T) {
 func TestStatsFilterSplitOptionSpaceSelectsAndReplaces(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("split-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("split-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m = m.openFilterOverlay()
 	m.filter.Cursor = splitRowCursor
@@ -127,12 +135,14 @@ func TestStatsFilterSplitOptionSpaceSelectsAndReplaces(t *testing.T) {
 func TestStatsFilterSplitClearWithX(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("split-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("split-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.splitBy = statspkg.SplitDimensionVersion
 	m = m.openFilterOverlay()
@@ -152,6 +162,7 @@ func TestStatsRenderUnsupportedTabShowsPlaceholder(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabPerformance
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -219,6 +230,7 @@ func TestRenderSplitToolsBodyLegendOnlyListsKeysPresentInData(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabTools
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -301,6 +313,7 @@ func TestSplitSessionsLaneSupportsMetricCycling(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabSessions
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -356,6 +369,7 @@ func TestSplitTurnSeriesPicksUpStatisticMode(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m.tab = statsTabSessions
@@ -424,6 +438,7 @@ func TestSplitMetricDetailExplainsGroupedTurnBehavior(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m.tab = statsTabSessions
@@ -467,6 +482,7 @@ func TestStatsModelSplitKeysReflectsSelectedFilterValues(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.splitBy = statspkg.SplitDimensionVersion
 	m = m.applyFilterChange()

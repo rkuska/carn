@@ -73,3 +73,9 @@ type SessionPerformanceMeta struct {
 	ServiceTierCounts       map[string]int
 	SpeedCounts             map[string]int
 }
+
+// HasCompaction reports whether the session recorded any kind of context
+// compaction.
+func (p SessionPerformanceMeta) HasCompaction() bool {
+	return p.CompactionCount > 0 || p.MicroCompactionCount > 0 || p.ContextCompactedCount > 0
+}

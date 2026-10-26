@@ -132,11 +132,14 @@ func TestLoadBuildsMessagesThinkingAndPatchResults(t *testing.T) {
 	assert.Equal(t, "Thinking through the parser.\n\nChecking message kinds.", mainSession.Messages[4].Thinking)
 	assert.Equal(t, "Implemented support for codex sessions.", mainSession.Messages[4].Text)
 	assert.Equal(t, time.Date(2026, 3, 13, 10, 0, 6, 200*1_000_000, time.UTC), mainSession.Messages[4].Timestamp)
+	// The fixture holds two consecutive token_count events with no content
+	// between them. Only the first closes a request window with a message; the
+	// second finds an empty window and must not overwrite the first usage.
 	assert.Equal(t, conv.TokenUsage{
-		CacheCreationInputTokens: 23270,
-		CacheReadInputTokens:     62150,
-		OutputTokens:             7470,
-		ReasoningOutputTokens:    4870,
+		CacheCreationInputTokens: 11600,
+		CacheReadInputTokens:     31200,
+		OutputTokens:             3300,
+		ReasoningOutputTokens:    2100,
 	}, mainSession.Messages[4].Usage)
 	require.Len(t, mainSession.Messages[4].ToolCalls, 1)
 	assert.Equal(t, "exec_command", mainSession.Messages[4].ToolCalls[0].Name)

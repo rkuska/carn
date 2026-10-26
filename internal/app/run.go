@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -38,6 +39,16 @@ type Config struct {
 	ConfigFilePath       string
 	ConfigStatus         config.Status
 	ConfigErr            error
+	// Now is the clock behind the import elapsed time and the stats time
+	// ranges. Nil means time.Now.
+	Now func() time.Time
+}
+
+func (c Config) clock() func() time.Time {
+	if c.Now == nil {
+		return time.Now
+	}
+	return c.Now
 }
 
 // Run starts the CLI application with config-file-derived configuration.
@@ -126,11 +137,13 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 	codexBackend := codex.New()
 	store := canonical.New(StatsCollector{}, claudeBackend, codexBackend)
 	storeAdapter := appbrowser.NewStore(store)
+	now := cfg.clock()
 	pipeline := newImportPipeline(
 		arch.Config{
 			SourceDirs: cfg.SourceDirs,
 			ArchiveDir: cfg.ArchiveDir,
 		},
+		now,
 		store,
 		claudeBackend,
 		codexBackend,
@@ -149,7 +162,7 @@ func NewModel(ctx context.Context, cfg Config) (tea.Model, error) {
 		launcher,
 	)
 	model.pipelineFactory = func(nextCfg arch.Config) importPipeline {
-		return newImportPipeline(nextCfg, store, claudeBackend, codexBackend)
+		return newImportPipeline(nextCfg, now, store, claudeBackend, codexBackend)
 	}
 
 	return model, nil

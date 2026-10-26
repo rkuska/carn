@@ -3,6 +3,7 @@ package archive
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rkuska/carn/internal/canonical"
 	conv "github.com/rkuska/carn/internal/conversation"
@@ -13,6 +14,7 @@ type Pipeline struct {
 	cfg      Config
 	backends []src.Backend
 	store    *canonical.Store
+	now      func() time.Time
 }
 
 type configuredBackend struct {
@@ -25,7 +27,15 @@ func New(cfg Config, store *canonical.Store, backends ...src.Backend) Pipeline {
 		cfg:      cfg,
 		backends: backends,
 		store:    store,
+		now:      time.Now,
 	}
+}
+
+// WithClock returns a copy of the pipeline that measures SyncResult.Elapsed
+// with now instead of time.Now.
+func (p Pipeline) WithClock(now func() time.Time) Pipeline {
+	p.now = now
+	return p
 }
 
 func (p Pipeline) Analyze(ctx context.Context, onProgress func(ImportProgress)) (ImportAnalysis, error) {

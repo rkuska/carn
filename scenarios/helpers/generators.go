@@ -269,3 +269,80 @@ func copyFixtureDir(tb testing.TB, srcDir, dstDir string) {
 		tb.Fatalf("copyFixtureDir: %v", err)
 	}
 }
+
+// contextGrowthRequest describes one model request of the context growth
+// session: the prompt size it reports and the tool it calls, if any.
+type contextGrowthRequest struct {
+	prompt   int
+	text     string
+	toolName string
+	toolArg  string
+}
+
+var contextGrowthRequests = []contextGrowthRequest{
+	{prompt: 24_000, text: "Reading the parser first.", toolName: "Read", toolArg: "internal/parser.go"},
+	{prompt: 27_000, text: "Running the suite.", toolName: "Bash", toolArg: "go test ./internal/parser/..."},
+	{prompt: 71_000, text: "Searching for the failing case.", toolName: "Grep", toolArg: "ErrUnexpected"},
+	{prompt: 74_000, text: "The parser rejects empty input."},
+	{prompt: 76_000, text: "Checking the fix.", toolName: "Read", toolArg: "internal/parser_test.go"},
+	{prompt: 20_000, text: "Context was compacted."},
+	{prompt: 23_000, text: "Adding the missing test.", toolName: "Edit", toolArg: "internal/parser_test.go"},
+	{prompt: 25_000, text: "Tests pass now."},
+}
+
+// WriteContextGrowthSession writes a synthetic Claude session whose context
+// grows with every request, jumps by 44k after one tool result and drops back
+// after a compaction. Every request is split over a thinking, a text and (for
+// tool calls) a tool_use record that repeat the same message id and usage, the
+// way Claude writes them.
+func (w Workspace) WriteContextGrowthSession(tb testing.TB) string {
+	tb.Helper()
+
+	base := scenarioTimestamp
+	var lines []string
+	record := func(kind string, offset int, message map[string]any) {
+		lines = append(lines, mustJSON(tb, map[string]any{
+			"type":      kind,
+			"sessionId": "context-growth",
+			"slug":      "context-growth",
+			"cwd":       "/workspace/project",
+			"timestamp": base.Add(time.Duration(offset) * time.Second).Format(time.RFC3339Nano),
+			"message":   message,
+		}))
+	}
+
+	record("user", 0, map[string]any{"role": "user", "content": "Fix the failing parser test."})
+	for i, request := range contextGrowthRequests {
+		offset := 10 + i*10
+		id := fmt.Sprintf("msg_context_%02d", i)
+		usage := map[string]any{
+			"input_tokens":                3,
+			"cache_creation_input_tokens": 500,
+			"cache_read_input_tokens":     request.prompt - 503,
+			"output_tokens":               200,
+		}
+		assistant := func(block map[string]any) {
+			record("assistant", offset, map[string]any{
+				"role": "assistant", "model": "claude-sonnet-4", "id": id,
+				"content": []map[string]any{block}, "usage": usage,
+			})
+		}
+		assistant(map[string]any{"type": "thinking", "thinking": "Step " + id, "signature": "sig"})
+		assistant(map[string]any{"type": "text", "text": request.text})
+		if request.toolName == "" {
+			continue
+		}
+		toolID := fmt.Sprintf("toolu_context_%02d", i)
+		assistant(map[string]any{
+			"type": "tool_use", "id": toolID, "name": request.toolName,
+			"input": map[string]any{"file_path": request.toolArg, "command": request.toolArg, "pattern": request.toolArg},
+		})
+		record("user", offset+1, map[string]any{
+			"role": "user",
+			"content": []map[string]any{{
+				"type": "tool_result", "tool_use_id": toolID, "content": "output of " + request.toolName,
+			}},
+		})
+	}
+	return w.WriteRawSession(tb, "project-a", "session-context-growth.jsonl", strings.Join(lines, "\n")+"\n")
+}

@@ -98,10 +98,14 @@ func TestDetectLineDriftSuppressesKnownSchemaExtras(t *testing.T) {
 							"web_search_requests": 0,
 							"web_fetch_requests":  0,
 						},
-						"service_tier":  "standard",
-						"inference_geo": "not_available",
-						"iterations":    []any{},
-						"speed":         "standard",
+						"service_tier":    "standard",
+						"inference_geo":   "not_available",
+						"iterations":      []any{},
+						"fallback_credit": nil,
+						"output_tokens_details": map[string]any{
+							"thinking_tokens": 104,
+						},
+						"speed": "standard",
 					},
 					"content": []map[string]any{
 						{"type": "text", "text": "hello"},

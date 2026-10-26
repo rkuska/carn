@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 
+	el "github.com/rkuska/carn/internal/app/elements"
 	conv "github.com/rkuska/carn/internal/conversation"
 )
 
@@ -16,6 +18,17 @@ func renderVisibleConversation(
 	opts transcriptOptions,
 	planExpanded bool,
 ) string {
+	text, _ := renderVisibleConversationOffsets(session, opts, planExpanded)
+	return text
+}
+
+// renderVisibleConversationOffsets renders the plain conversation text and the
+// offsets at which each segment starts in that text.
+func renderVisibleConversationOffsets(
+	session conv.Session,
+	opts transcriptOptions,
+	planExpanded bool,
+) (string, []el.SegmentOffset) {
 	var sb strings.Builder
 	if planExpanded {
 		for i, plan := range conv.AllPlans(session.Messages) {
@@ -28,12 +41,22 @@ func renderVisibleConversation(
 			sb.WriteString("\n\n---\n\n")
 		}
 	}
-	sb.WriteString(flattenSegments(renderTranscriptSegmented(session, opts)))
-	text := strings.TrimSpace(sb.String())
+	prefix := sb.Len()
+	var offsets []el.SegmentOffset
+	sb.WriteString(flattenSegmentsOffsets(renderTranscriptSegmented(session, opts), &offsets))
+	full := sb.String()
+	// Trim with the same predicate on both ends so the offset shift below
+	// matches exactly what was removed from the front.
+	body := strings.TrimLeftFunc(full, unicode.IsSpace)
+	text := strings.TrimRightFunc(body, unicode.IsSpace)
 	if text == "" {
-		return ""
+		return "", nil
 	}
-	return text + "\n"
+	trimmed := len(full) - len(body)
+	for i := range offsets {
+		offsets[i].Offset = max(offsets[i].Offset+prefix-trimmed, 0)
+	}
+	return text + "\n", offsets
 }
 
 func readRawConversationText(conversation conv.Conversation, session conv.Session) (string, error) {

@@ -247,11 +247,9 @@ func TestRenderPerformanceCardsStacksAtNarrowWidths(t *testing.T) {
 }
 
 func TestStatsPerformanceTabUsesPrecomputedSequenceAcrossRanges(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		sequenceRows: []conv.PerformanceSequenceSession{
@@ -310,6 +308,7 @@ func TestStatsPerformanceTabUsesPrecomputedSequenceAcrossRanges(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -335,11 +334,9 @@ func TestStatsPerformanceTabUsesPrecomputedSequenceAcrossRanges(t *testing.T) {
 }
 
 func TestStatsPerformanceTabScopesSequenceByHasPlansFilter(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		sequenceRowsByKey: map[string][]conv.PerformanceSequenceSession{},
@@ -378,6 +375,7 @@ func TestStatsPerformanceTabScopesSequenceByHasPlansFilter(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -400,11 +398,9 @@ func TestStatsPerformanceTabScopesSequenceByHasPlansFilter(t *testing.T) {
 }
 
 func TestStatsPerformanceTabDoesNotLoadSequenceMetricsForMixedScope(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{}
 	m := newStatsModel(
@@ -428,6 +424,7 @@ func TestStatsPerformanceTabDoesNotLoadSequenceMetricsForMixedScope(t *testing.T
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	m, _ = m.Update(ctrlKey("f"))

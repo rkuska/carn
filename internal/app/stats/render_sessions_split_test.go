@@ -32,6 +32,7 @@ func TestStatsRenderSessionsGroupedTurnChartsShowVersionLegend(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -68,6 +69,7 @@ func TestStatsRenderSplitSessionsHistogramLanesShowUnsupportedPlaceholders(t *te
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabSessions
 	m.splitBy = statspkg.SplitDimensionVersion
@@ -100,6 +102,7 @@ func TestStatsRenderSplitSessionsTurnLanesShowUnsupportedPlaceholderForModel(t *
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.tab = statsTabSessions
 	m.splitBy = statspkg.SplitDimensionModel

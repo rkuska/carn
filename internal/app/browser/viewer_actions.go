@@ -66,20 +66,23 @@ func (m viewerModel) helpSections(extraActions []helpItem) []helpSection {
 		return m.actionHelpSections(extraActions)
 	default:
 		sections := transcriptHelpSections(m.opts, m.content, extraActions)
-		return addSelectionToToggles(sections, m.selectionMode)
+		if m.fullscreen && m.content.hasContext {
+			sections = appendToggleHelpItem(sections, contextDockHelpItem(m.dockOpen, true))
+		}
+		return appendToggleHelpItem(sections, selectionHelpItem(m.selectionMode, true))
 	}
 }
 
-func addSelectionToToggles(sections []helpSection, selectionMode bool) []helpSection {
-	selectionItem := selectionHelpItem(selectionMode, true)
+// appendToggleHelpItem adds item to the toggles section, creating it if needed.
+func appendToggleHelpItem(sections []helpSection, item helpItem) []helpSection {
 	for i, section := range sections {
-		if section.Title != "Toggles" {
+		if section.Title != toggleSectionTitle {
 			continue
 		}
-		sections[i].Items = append(sections[i].Items, selectionItem)
+		sections[i].Items = append(sections[i].Items, item)
 		return sections
 	}
-	return append(sections, helpSection{Title: "Toggles", Items: []helpItem{selectionItem}})
+	return append(sections, helpSection{Title: toggleSectionTitle, Items: []helpItem{item}})
 }
 
 func (m viewerModel) actionHelpSections(extraActions []helpItem) []helpSection {

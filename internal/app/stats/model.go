@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -50,6 +49,7 @@ type statsModel struct {
 	theme                   *el.Theme
 	ctx                     context.Context
 	archiveDir              string
+	now                     func() time.Time
 	tab                     statsTab
 	timeRange               stats.TimeRange
 	snapshot                stats.Snapshot
@@ -94,36 +94,16 @@ const (
 	statsRangeLabelAll = "All"
 )
 
-var (
-	statsNowMu   sync.RWMutex
-	statsNowFunc = time.Now
-)
-
-func statsNow() time.Time {
-	statsNowMu.RLock()
-	now := statsNowFunc
-	statsNowMu.RUnlock()
-	return now()
-}
-
-func setStatsNowForTest(now func() time.Time) func() {
-	statsNowMu.Lock()
-	previous := statsNowFunc
-	statsNowFunc = now
-	statsNowMu.Unlock()
-	return func() {
-		statsNowMu.Lock()
-		statsNowFunc = previous
-		statsNowMu.Unlock()
-	}
-}
-
+// newStatsModelWithTheme builds the stats model. now is the clock that the
+// relative time ranges (7d, 30d, 90d) are anchored to: it is read once for
+// the initial range and again whenever the range is cycled.
 func newStatsModelWithTheme(
 	conversations []conv.Conversation,
 	store browserStore,
 	width, height int,
 	filter browserFilterState,
 	theme *el.Theme,
+	now func() time.Time,
 ) statsModel {
 	if theme == nil {
 		theme = el.NewTheme(true)
@@ -137,26 +117,18 @@ func newStatsModelWithTheme(
 		store:         store,
 		theme:         theme,
 		ctx:           context.Background(),
+		now:           now,
 		filter:        copyBrowserFilterState(filter),
 		viewport:      vp,
 		width:         width,
 		height:        height,
 		tab:           statsTabOverview,
-		timeRange:     statsRange30d(),
+		timeRange:     statsRange30d(now()),
 	}
 	model.filter.Values = extractFilterValues(conversations)
 	model = model.setSize(width, height)
 	model = model.applyFilterChange()
 	return model
-}
-
-func newStatsModel(
-	conversations []conv.Conversation,
-	store browserStore,
-	width, height int,
-	filter browserFilterState,
-) statsModel {
-	return newStatsModelWithTheme(conversations, store, width, height, filter, nil)
 }
 
 func (m statsModel) Update(msg tea.Msg) (statsModel, tea.Cmd) {

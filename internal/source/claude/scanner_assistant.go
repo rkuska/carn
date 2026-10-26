@@ -264,16 +264,7 @@ func parseParsedAssistantMessage(ctx context.Context, pc *parseContext) (parsedM
 		return parsedMessage{}, nil, false
 	}
 
-	var usage tokenUsage
-	if pc.rec.Message.Usage != nil {
-		usage = tokenUsage{
-			InputTokens:              pc.rec.Message.Usage.InputTokens,
-			CacheCreationInputTokens: pc.rec.Message.Usage.CacheCreationInputTokens,
-			CacheReadInputTokens:     pc.rec.Message.Usage.CacheReadInputTokens,
-			OutputTokens:             pc.rec.Message.Usage.OutputTokens,
-		}
-	}
-
+	usage := pc.requestUsage()
 	performance := extracted.performance
 	performance.StopReason = pc.rec.Message.StopReason
 	return parsedMessage{

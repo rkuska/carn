@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,16 +20,16 @@ func TestScenarioStatsViewScrollBehavior(t *testing.T) {
 
 	waitForStatsScrollPercent(t, harness, func(percent int) bool { return percent == 0 })
 
-	sendStatsKey(harness, 'j')
+	harness.pressText("j")
 	waitForStatsScrollPercent(t, harness, func(percent int) bool { return percent > 0 })
 
-	sendStatsKey(harness, 'k')
+	harness.pressText("k")
 	waitForStatsScrollPercent(t, harness, func(percent int) bool { return percent == 0 })
 
-	sendStatsKey(harness, 'G')
+	harness.pressText("G")
 	waitForStatsScrollPercent(t, harness, func(percent int) bool { return percent == 100 })
 
-	sendStatsKey(harness, 'g')
+	harness.pressText("g")
 	waitForStatsScrollPercent(t, harness, func(percent int) bool { return percent == 0 })
 
 	harness.quit(t)
@@ -70,7 +69,7 @@ func newStatsScenarioWorkspace(tb testing.TB, sessions int) helpers.Workspace {
 	tb.Helper()
 
 	workspace := helpers.NewWorkspace(tb)
-	base := time.Now().UTC().Add(-7 * 24 * time.Hour)
+	base := scenarioNow().UTC().Add(-7 * 24 * time.Hour)
 	for i := range sessions {
 		writeStatsScenarioSession(
 			tb,
@@ -98,7 +97,7 @@ func openStatsScenario(
 	harness.waitForText(tb, "import finished and refreshed the local store")
 	harness.pressEnter()
 	harness.waitForText(tb, "stats-session-")
-	sendStatsKey(harness, 'S')
+	harness.pressText("S")
 	harness.waitForText(tb, "Tokens by Model")
 	return harness
 }
@@ -196,11 +195,4 @@ func lineIndexContaining(tb testing.TB, view, needle string) int {
 
 	tb.Fatalf("line containing %q not found", needle)
 	return -1
-}
-
-func sendStatsKey(harness *programHarness, key rune) {
-	harness.program.Send(tea.KeyPressMsg{
-		Code: key,
-		Text: string(key),
-	})
 }

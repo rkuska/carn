@@ -43,6 +43,11 @@ func mergeLinkedTranscripts(base []parsedMessage, linked []linkedTranscript) []p
 		})
 		projected = src.InsertAt(projected, pos, divider)
 		projected = src.InsertSliceAt(projected, pos+1, transcript.messages)
+		// Merged subagent messages are sidechain, as in merged Claude transcripts.
+		// InsertSliceAt copied them, so the child transcript stays untouched.
+		for i := range transcript.messages {
+			projected[pos+1+i].isSidechain = true
+		}
 	}
 	return projected
 }

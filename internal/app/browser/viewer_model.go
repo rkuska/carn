@@ -20,15 +20,6 @@ const (
 	viewerMarginH  = 2
 )
 
-type contentFlags struct {
-	hasThinking    bool
-	hasToolCalls   bool
-	hasToolResults bool
-	hasPlans       bool
-	hasSidechain   bool
-	hasSystem      bool
-}
-
 type viewerModel struct {
 	viewport             viewport.Model
 	conversation         conv.Conversation
@@ -59,44 +50,17 @@ type viewerModel struct {
 	markdownCache        map[string]string
 	roleHeaderCache      map[roleHeaderKey]string
 	renderCache          map[viewerRenderKey]viewerRenderValue
-	turnAnchors          []int
+	contextLines         el.ContextLineMap
+	contextSeries        conv.ContextSeries
+	dockOpen             bool
+	fullscreen           bool
+	dockData             el.ContextDockData
+	dockColumns          el.ContextDockColumns
 	pendingGotoTopKey    bool
 	planExpanded         bool
 	selectionMode        bool
 	actionMode           viewerActionMode
 	planPicker           viewerPlanPickerState
-}
-
-func scanContentFlags(messages []conv.Message) contentFlags {
-	var flags contentFlags
-	for _, msg := range messages {
-		flags = flags.accumulate(msg)
-		if flags.allSet() {
-			break
-		}
-	}
-	return flags
-}
-
-func (f contentFlags) accumulate(msg conv.Message) contentFlags {
-	if msg.IsVisible() {
-		f.hasThinking = f.hasThinking || msg.HasThinking()
-		f.hasToolCalls = f.hasToolCalls || len(msg.ToolCalls) > 0
-		f.hasToolResults = f.hasToolResults || len(msg.ToolResults) > 0
-		f.hasPlans = f.hasPlans || len(msg.Plans) > 0
-	}
-	f.hasSidechain = f.hasSidechain || msg.IsSidechain
-	f.hasSystem = f.hasSystem || !msg.IsVisible()
-	return f
-}
-
-func (f contentFlags) allSet() bool {
-	return f.hasThinking &&
-		f.hasToolCalls &&
-		f.hasToolResults &&
-		f.hasPlans &&
-		f.hasSidechain &&
-		f.hasSystem
 }
 
 func newViewerModel(
@@ -157,7 +121,7 @@ func newViewerModelWithLauncher(
 		session:         session,
 		theme:           theme,
 		launcher:        resolveSessionLauncher(launcher),
-		opts:            transcriptOptions{},
+		opts:            defaultTranscriptOptions(),
 		content:         scanContentFlags(session.Messages),
 		glamourStyle:    glamourStyle,
 		timestampFormat: timestampFormat,
@@ -165,6 +129,7 @@ func newViewerModelWithLauncher(
 		height:          height,
 		searchInput:     ti,
 	}
+	m = m.setContextSeries(conv.NewContextSeries(conversation, session.Messages))
 	return m.renderContent()
 }
 
@@ -226,6 +191,10 @@ func (m viewerModel) handleKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) (viewerMode
 	m.pendingGotoTopKey = false
 
 	var handled bool
+	m, handled = m.handleContextKey(msg, cmds)
+	if handled {
+		return m, nil
+	}
 	m, handled = m.handleToggleKey(msg, cmds)
 	if handled {
 		return m, nil
@@ -346,8 +315,7 @@ func (m viewerModel) toggleSelectionMode() viewerModel {
 func (m viewerModel) applySelectionMode() viewerModel {
 	m.viewport.Style = viewportStyle(m.selectionMode)
 	m.viewport.SetWidth(m.viewportWidth())
-	m.viewport.SetHeight(m.bodyHeight())
-	return m
+	return m.applyViewportHeight()
 }
 
 func (m viewerModel) editorFilePath() string {
@@ -395,7 +363,7 @@ func (m viewerModel) SetSize(width, height int) viewerModel {
 	m.width = width
 	m.height = height
 	m.viewport.SetWidth(m.viewportWidth())
-	m.viewport.SetHeight(m.bodyHeight())
+	m = m.applyViewportHeight().refreshDockColumns()
 	return m.renderContent()
 }
 

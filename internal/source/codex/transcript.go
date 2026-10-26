@@ -19,6 +19,7 @@ type parsedMessage struct {
 	plans             []conv.Plan
 	visibility        conv.MessageVisibility
 	isAgentDivider    bool
+	isSidechain       bool
 	performance       conv.MessagePerformanceMeta
 }
 
@@ -28,7 +29,6 @@ type assistantContent struct {
 	calls             []conv.ToolCall
 	results           []conv.ToolResult
 	plans             []conv.Plan
-	usage             conv.TokenUsage
 	text              string
 	timestamp         time.Time
 	performance       conv.MessagePerformanceMeta
@@ -40,8 +40,7 @@ func (c assistantContent) empty() bool {
 		!c.hasHiddenThinking &&
 		len(c.calls) == 0 &&
 		len(c.results) == 0 &&
-		len(c.plans) == 0 &&
-		c.usage.TotalTokens() == 0
+		len(c.plans) == 0
 }
 
 func appendParsedAssistantMessage(messages []parsedMessage, c assistantContent) ([]parsedMessage, int, bool) {
@@ -70,7 +69,6 @@ func newParsedAssistantMessage(c assistantContent) parsedMessage {
 		text:              c.text,
 		thinking:          c.thinking,
 		hasHiddenThinking: c.hasHiddenThinking,
-		usage:             c.usage,
 		toolCalls:         append([]conv.ToolCall(nil), c.calls...),
 		toolResults:       append([]conv.ToolResult(nil), c.results...),
 		plans:             append([]conv.Plan(nil), c.plans...),
@@ -80,14 +78,13 @@ func newParsedAssistantMessage(c assistantContent) parsedMessage {
 
 func mergeAdjacentAssistantMessage(messages []parsedMessage, msg parsedMessage) []parsedMessage {
 	last := &messages[len(messages)-1]
-	if last.role != conv.RoleAssistant || last.text != msg.text || last.isAgentDivider {
+	if last.role != conv.RoleAssistant || msg.text == "" || last.text != msg.text || last.isAgentDivider {
 		return nil
 	}
 
 	last.thinking = joinUniqueText(last.thinking, msg.thinking)
 	last.hasHiddenThinking = strings.TrimSpace(last.thinking) == "" &&
 		(last.hasHiddenThinking || msg.hasHiddenThinking)
-	last.usage = preferTokenUsage(last.usage, msg.usage)
 	last.toolCalls = append(last.toolCalls, msg.toolCalls...)
 	last.toolResults = append(last.toolResults, msg.toolResults...)
 	last.plans = appendUniquePlans(last.plans, msg.plans)
@@ -112,13 +109,6 @@ func mergeMessagePerformance(
 	}
 	if current.Effort == "" {
 		current.Effort = next.Effort
-	}
-	return current
-}
-
-func preferTokenUsage(current, next conv.TokenUsage) conv.TokenUsage {
-	if next.TotalTokens() > current.TotalTokens() {
-		return next
 	}
 	return current
 }
@@ -191,6 +181,7 @@ func projectParsedMessages(messages []parsedMessage) []conv.Message {
 			Plans:             msg.plans,
 			Visibility:        msg.visibility,
 			IsAgentDivider:    msg.isAgentDivider,
+			IsSidechain:       msg.isSidechain,
 			Performance:       msg.performance,
 			Timestamp:         msg.timestamp,
 		})

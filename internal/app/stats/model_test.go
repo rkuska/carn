@@ -19,12 +19,14 @@ import (
 func TestStatsTabNavigationWrapsAcrossTabs(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	assert.Equal(t, statsTabOverview, m.tab)
@@ -54,12 +56,14 @@ func TestStatsTabNavigationWrapsAcrossTabs(t *testing.T) {
 func TestStatsRangeCyclesAndUpdatesTabBar(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	assert.Contains(t, ansi.Strip(m.renderTabBar()), "[30d]")
@@ -80,12 +84,14 @@ func TestStatsRangeCyclesAndUpdatesTabBar(t *testing.T) {
 func TestStatsTabAndRangeChangesResetScroll(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		20,
 		newBrowserFilterState(),
+		now,
 	)
 	m.viewport.SetContent(strings.Repeat("line\n", 40))
 	m.viewport.SetHeight(5)
@@ -102,12 +108,14 @@ func TestStatsTabAndRangeChangesResetScroll(t *testing.T) {
 func TestStatsHelpToggleAndQClosesHelpBeforeView(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	m, _ = m.Update(tea.KeyPressMsg{Text: "?"})
@@ -127,12 +135,14 @@ func TestStatsHelpToggleAndQClosesHelpBeforeView(t *testing.T) {
 func TestStatsViewRendersEmptyStateWhenNoSessionsMatch(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
 		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC))},
 		&fakeBrowserStore{},
 		100,
 		24,
 		newBrowserFilterState(),
+		now,
 	)
 
 	assert.Contains(t, ansi.Strip(m.View()), "No sessions match")
@@ -141,6 +151,7 @@ func TestStatsViewRendersEmptyStateWhenNoSessionsMatch(t *testing.T) {
 func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	filter := newBrowserFilterState()
 	filter.Dimensions[filterDimProject] = dimensionFilter{
 		Selected: map[string]bool{"alpha": true},
@@ -148,13 +159,14 @@ func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 
 	m := newStatsModel(
 		[]conv.Conversation{
-			testStatsConversation("stats-1", "alpha", time.Now()),
-			testStatsConversation("stats-2", "beta", time.Now()),
+			testStatsConversation("stats-1", "alpha", now),
+			testStatsConversation("stats-2", "beta", now),
 		},
 		&fakeBrowserStore{},
 		120,
 		32,
 		filter,
+		now,
 	)
 
 	view := ansi.Strip(m.View())
@@ -163,11 +175,9 @@ func TestStatsFooterShowsFilteredSessionCountAndBadges(t *testing.T) {
 }
 
 func TestNewModelLoadsPrecomputedStatsWithArchiveDir(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		turnMetricRows: []conv.SessionTurnMetrics{
@@ -206,6 +216,7 @@ func TestNewModelLoadsPrecomputedStatsWithArchiveDir(t *testing.T) {
 		32,
 		newBrowserFilterState(),
 		testutil.NewTestTheme(),
+		fixedClock(now),
 	)
 
 	require.Len(t, m.snapshot.Sessions.ClaudeTurnMetrics, 1)
@@ -219,11 +230,9 @@ func TestNewModelLoadsPrecomputedStatsWithArchiveDir(t *testing.T) {
 }
 
 func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		turnMetricRows: []conv.SessionTurnMetrics{
@@ -280,6 +289,7 @@ func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -312,15 +322,13 @@ func TestStatsSessionsTabUsesPrecomputedTurnMetricsAcrossRanges(t *testing.T) {
 }
 
 func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
+	t.Parallel()
+
 	store := &fakeBrowserStore{
 		turnMetricRowsByKey:     map[string][]conv.SessionTurnMetrics{},
 		activityBucketRowsByKey: map[string][]conv.ActivityBucketRow{},
 	}
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	withPlans := testStatsConversationWithProvider(
 		conv.ProviderClaude,
@@ -409,6 +417,7 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -433,11 +442,9 @@ func TestStatsHasPlansFilterScopesActivityAndSessionTurnMetrics(t *testing.T) {
 }
 
 func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		sequenceErr: errors.New("sequence boom"),
@@ -481,6 +488,7 @@ func TestStatsQueryFailureShowsNotificationAndKeepsSuccessfulRows(t *testing.T) 
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -549,6 +557,7 @@ func TestStatsSessionsTurnMetricsKeepLateTurnsWhenProviderFiltered(t *testing.T)
 		120,
 		32,
 		filter,
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -560,11 +569,9 @@ func TestStatsSessionsTurnMetricsKeepLateTurnsWhenProviderFiltered(t *testing.T)
 }
 
 func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		sequenceErr: errors.New("sequence boom"),
@@ -585,6 +592,7 @@ func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -613,11 +621,9 @@ func TestStatsQueryFailureClearsAfterSuccessfulRecompute(t *testing.T) {
 }
 
 func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 
 	store := &fakeBrowserStore{
 		sequenceErr: errors.New("sequence boom"),
@@ -629,6 +635,7 @@ func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.archiveDir = t.TempDir()
 	m = m.applyFilterChange()
@@ -652,11 +659,9 @@ func TestStatsQueryFailureNotificationUpdatesWhenFailingQueryChanges(t *testing.
 }
 
 func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
-	restoreNow := setStatsNowForTest(func() time.Time {
-		return now
-	})
-	defer restoreNow()
 	store := &fakeBrowserStore{}
 
 	m := newStatsModel(
@@ -684,6 +689,7 @@ func TestStatsToolsTabUsesPersistedToolOutcomeCounts(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	m, _ = m.Update(ctrlKey("f"))
@@ -730,6 +736,7 @@ func TestStatsOverviewSelectedSessionReturnsOpenSessionRequest(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.overviewLaneCursor = 3
 
@@ -766,6 +773,7 @@ func TestStatsOverviewMetricKeyCyclesSelectedSessionRow(t *testing.T) {
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 	m.overviewLaneCursor = 3
 
@@ -781,12 +789,14 @@ func TestStatsOverviewMetricKeyCyclesSelectedSessionRow(t *testing.T) {
 func TestStatsCloseReturnsCloseMessage(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 3, 23, 12, 0, 0, 0, time.UTC)
 	m := newStatsModel(
-		[]conv.Conversation{testStatsConversation("stats-1", "alpha", time.Now())},
+		[]conv.Conversation{testStatsConversation("stats-1", "alpha", now)},
 		&fakeBrowserStore{},
 		120,
 		32,
 		newBrowserFilterState(),
+		now,
 	)
 
 	_, cmd := m.Update(tea.KeyPressMsg{Text: "q"})

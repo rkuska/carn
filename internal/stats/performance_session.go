@@ -190,7 +190,7 @@ func addPerformanceSession(agg *performanceAggregate, session performanceSession
 			agg.verifiedSessions++
 		}
 	}
-	if hasContextPressure(session.meta.Performance) {
+	if session.meta.Performance.HasCompaction() {
 		agg.contextPressureCount++
 	}
 	addCountMap(&agg.stopReasonCounts, session.meta.Performance.StopReasonCounts)
@@ -271,12 +271,6 @@ func verificationPassed(meta conv.SessionMeta) bool {
 	rejects := actionCount(meta.ActionRejectCounts, conv.NormalizedActionTest) +
 		actionCount(meta.ActionRejectCounts, conv.NormalizedActionBuild)
 	return total > 0 && total > errors+rejects
-}
-
-func hasContextPressure(meta conv.SessionPerformanceMeta) bool {
-	return meta.CompactionCount > 0 ||
-		meta.MicroCompactionCount > 0 ||
-		meta.ContextCompactedCount > 0
 }
 
 func sumCountMap(counts map[string]int) int {

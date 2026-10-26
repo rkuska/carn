@@ -13,14 +13,15 @@ type loadState struct {
 	link                  subagentLink
 	callMeta              map[string]toolEventMeta
 	messages              []parsedMessage
-	pendingUsage          conv.TokenUsage
 	thinkingParts         []string
 	pendingHiddenThinking bool
 	pendingCalls          []conv.ToolCall
 	pendingResults        []conv.ToolResult
 	pendingPlans          []conv.Plan
 	pendingTimestamp      time.Time
-	usageTargetIndex      int
+	windowStart           int
+	windowFirst           int
+	lastTotalTokens       int
 	readEvidence          map[string]struct{}
 	currentEffort         string
 	pendingPerformance    conv.MessagePerformanceMeta
@@ -64,14 +65,14 @@ func loadRollout(ctx context.Context, meta conv.SessionMeta) (rolloutTranscript,
 
 func newLoadState(meta conv.SessionMeta) loadState {
 	return loadState{
-		meta:             meta,
-		callMeta:         make(map[string]toolEventMeta),
-		messages:         make([]parsedMessage, 0),
-		thinkingParts:    make([]string, 0),
-		pendingCalls:     make([]conv.ToolCall, 0),
-		pendingResults:   make([]conv.ToolResult, 0),
-		pendingPlans:     make([]conv.Plan, 0),
-		usageTargetIndex: -1,
-		readEvidence:     make(map[string]struct{}),
+		meta:           meta,
+		callMeta:       make(map[string]toolEventMeta),
+		messages:       make([]parsedMessage, 0),
+		thinkingParts:  make([]string, 0),
+		pendingCalls:   make([]conv.ToolCall, 0),
+		pendingResults: make([]conv.ToolResult, 0),
+		pendingPlans:   make([]conv.Plan, 0),
+		windowFirst:    -1,
+		readEvidence:   make(map[string]struct{}),
 	}
 }

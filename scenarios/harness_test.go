@@ -220,3 +220,8 @@ func normalizeOutput(s string) string {
 	s = strings.ReplaceAll(s, "\r", "")
 	return s
 }
+
+// pressText sends a printable key such as an upper-case letter or a bracket.
+func (h *programHarness) pressText(text string) {
+	h.program.Send(tea.KeyPressMsg{Code: []rune(text)[0], Text: text})
+}

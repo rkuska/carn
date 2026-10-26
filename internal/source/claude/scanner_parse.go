@@ -43,6 +43,7 @@ type parseRecord struct {
 	CompactMetadata      json.RawMessage `json:"compactMetadata"`
 	MicrocompactMetadata json.RawMessage `json:"microcompactMetadata"`
 	Message              struct {
+		ID         string          `json:"id"`
 		Role       string          `json:"role"`
 		Content    json.RawMessage `json:"content"`
 		Model      string          `json:"model"`
@@ -56,13 +57,15 @@ type parseRecord struct {
 type parseContext struct {
 	rec           parseRecord
 	toolCallIndex map[string]toolCall
+	requests      requestTracker
 }
 
 func (pc *parseContext) reset() {
 	pc.rec = parseRecord{}
 }
 
-func (pc *parseContext) resetToolCallIndex() {
+func (pc *parseContext) beginSession() {
+	pc.requests = requestTracker{}
 	if pc.toolCallIndex == nil {
 		pc.toolCallIndex = make(map[string]toolCall)
 	} else {
@@ -134,7 +137,7 @@ func visitSessionMessages(
 	br.Reset(file)
 	defer parseReaderPool.Put(br)
 
-	pc.resetToolCallIndex()
+	pc.beginSession()
 	return visitSessionReaderMessages(ctx, br, pc, visit)
 }
 

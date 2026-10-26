@@ -146,7 +146,24 @@ Use these terms when referring to different parts of the project in prompts.
 | **Toggles** | Visibility controls: `t` thinking, `T` tools, `R` tool results, `m` system messages, `p` plans, `s` sidechains. |
 | **Transcript Search** | `/` within the viewer — searches the rendered transcript text. `n`/`N` to navigate matches. |
 | **Selection Mode** | A viewer sub-mode that lets users select a range of rendered transcript text with the keyboard and copy a cleaned, marker-free version to the clipboard. |
-| **Turn Anchor** | A captured byte-to-line offset for each `segmentRoleHeader` in the rendered transcript. Used to preserve the reader's position when a toggle rebuilds the content. |
+
+## Context Growth
+
+| Term | What it means |
+|---|---|
+| **Context Step** | One main-thread model request with recorded usage. Its size is `Usage.PromptTokens()` of the assistant message that carries the usage (input + cache write + cache read). |
+| **Context Series** | The ordered Context Steps of a conversation plus the resolved context window. Built once per loaded transcript from messages only, so it never depends on viewer toggles. |
+| **Context Growth** | Difference between a step's prompt tokens and the previous step's. The growth *after* a step is caused by that step's tool results, its own output, and any user message before the next step. |
+| **Context Window** | The model's maximum context. Recorded by Codex (`model_context_window`); resolved from a tier table for Claude. |
+| **Context Reset** | A step whose prompt tokens dropped sharply from the previous step (compaction, new session part). |
+| **Notable Step** | A step whose incoming growth is at least the growth-tag threshold, or a Context Reset. Target of `[` / `]`. |
+| **Turn Ledger** | Inline context annotations in the transcript: role-header annotation, Growth Tags, Context Reset divider. Toggle `C`. |
+| **Growth Tag** | Right-aligned `+N` label on the tool-call line whose results caused a notable growth. |
+| **Context Dock** | Fullscreen-only panel below the transcript viewport showing the Context Series as bars, a scroll-synced cursor and a readout. Toggle `c`. |
+| **Context Line Map** | Per-render mapping from rendered transcript line to message index. Lets both views find the step under any line, and keeps the reader's position when a toggle rebuilds the content. |
+| **Request Window** | The assistant messages a provider loader creates between two counted token reports (or since the last user message). The report that closes the window is attached once, to the window's first assistant message. |
+
+`Context Pressure` (see Stats View) also names the ≥80%-of-window colour used by both views.
 
 ## Conversation Header (top of transcript)
 
