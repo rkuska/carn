@@ -164,8 +164,7 @@ func BenchmarkCanonicalStoreListCold(b *testing.B) {
 	ctx := context.Background()
 	archiveDir, store := makeBenchCanonicalStore(b, 6, 60, 12)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := store.invalidateDB(archiveDir); err != nil {
 			b.Fatalf("store.invalidateDB: %v", err)
 		}
@@ -191,8 +190,7 @@ func BenchmarkCanonicalStoreListWarm(b *testing.B) {
 		b.Fatal("store.List returned no conversations")
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		conversations, err := store.List(ctx, archiveDir)
 		if err != nil {
 			b.Fatalf("store.List: %v", err)
@@ -211,8 +209,7 @@ func BenchmarkCanonicalStoreSearchChunkCountQuery(b *testing.B) {
 		b.Fatalf("store.loadDB: %v", err)
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var count int
 		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM search_chunks`).Scan(&count); err != nil {
 			b.Fatalf("db.QueryRowContext: %v", err)
@@ -231,8 +228,7 @@ func BenchmarkCanonicalStoreDeepSearch(b *testing.B) {
 		b.Fatalf("store.List: %v", err)
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		results, available, err := store.DeepSearch(ctx, archiveDir, "important needle", conversations)
 		if err != nil {
 			b.Fatalf("store.DeepSearch: %v", err)
@@ -254,8 +250,7 @@ func BenchmarkCanonicalStoreLoadTranscript(b *testing.B) {
 		b.Fatal("store.List returned no conversations")
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		session, err := store.Load(ctx, archiveDir, conversations[0])
 		if err != nil {
 			b.Fatalf("store.Load: %v", err)
@@ -270,8 +265,7 @@ func BenchmarkCanonicalStoreFullRebuild(b *testing.B) {
 	archiveDir := makeBenchRawArchive(b, 6, 60, 12)
 	store := New(nil, claude.New())
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := store.RebuildAll(context.Background(), archiveDir, nil); err != nil {
 			b.Fatalf("store.RebuildAll: %v", err)
 		}
@@ -285,8 +279,7 @@ func BenchmarkCanonicalStoreIncrementalRebuild(b *testing.B) {
 		filepath.Join(rawDir, "project-0", "session-00-0000.jsonl"),
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := store.RebuildAll(
 			context.Background(),
 			archiveDir,
@@ -304,8 +297,7 @@ func BenchmarkCanonicalStoreParseConversations(b *testing.B) {
 		b.Fatal("makeBenchConversations returned no conversations")
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		transcripts, corpus, err := parseConversationsParallel(ctx, source, conversations)
 		if err != nil {
 			b.Fatalf("parseConversationsParallel: %v", err)

@@ -3,6 +3,7 @@ package scenarios
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -169,11 +170,11 @@ func waitForStatsScrollPercent(
 func extractStatsScrollPercent(view string) (int, bool) {
 	lines := strings.Split(view, "\n")
 	percentRE := regexp.MustCompile(`(\d+)%`)
-	for index := len(lines) - 1; index >= 0; index-- {
-		if !strings.Contains(lines[index], "[stats]") {
+	for _, line := range slices.Backward(lines) {
+		if !strings.Contains(line, "[stats]") {
 			continue
 		}
-		match := percentRE.FindStringSubmatch(lines[index])
+		match := percentRE.FindStringSubmatch(line)
 		if len(match) != 2 {
 			return 0, false
 		}

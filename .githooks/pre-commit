@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 
+# The tools below come from devenv.nix. Outside its shell, rerun the hook
+# inside it; without devenv, use whatever is on PATH.
+if [ -z "${DEVENV_ROOT:-}" ] && command -v devenv >/dev/null 2>&1; then
+  exec devenv shell -- "$0" "$@"
+fi
+
 if ! git diff --quiet; then
   printf '%s\n' \
     'pre-commit requires a clean working tree because it runs go fix ./....' \

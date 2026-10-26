@@ -193,8 +193,7 @@ func BenchmarkBrowserLoadSessionsCold(b *testing.B) {
 	archiveDir := makeBenchBrowserArchive(b, 6, 60, 12)
 	rebuildBenchBrowserStore(b, archiveDir)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		store := canonical.New(nil)
 		msg := loadSessionsCmdWithStore(ctx, archiveDir, newBrowserStore(store))()
 		loaded, ok := msg.(conversationsLoadedMsg)
@@ -214,8 +213,7 @@ func BenchmarkBrowserLoadSessionsWarm(b *testing.B) {
 	cmd := loadSessionsCmdWithStore(ctx, archiveDir, newBrowserStore(store))
 	_ = mustBenchLoadedConversations(b, cmd())
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = mustBenchLoadedConversations(b, cmd())
 	}
 }
@@ -244,8 +242,7 @@ func BenchmarkBrowserOpenConversationWarm(b *testing.B) {
 	model.height = 40
 	model = model.updateLayout()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		opened := model.installViewer(openMsg.session, openMsg.conversation)
 		if opened.openConversationID == "" {
 			b.Fatal("installViewer did not open a conversation")
@@ -269,8 +266,7 @@ func BenchmarkBrowserDeepSearchWarm(b *testing.B) {
 	)
 	_ = mustBenchDeepSearchResult(b, cmd())
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = mustBenchDeepSearchResult(b, cmd())
 	}
 }

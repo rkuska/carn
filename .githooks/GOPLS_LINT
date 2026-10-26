@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -27,12 +27,13 @@ if [ $# -eq 2 ]; then
 	esac
 fi
 
-# create sorted list of directory names
+# create sorted list of directory names, skipping hidden directories
+# (.devenv, .claude/worktrees) the way go ./... does
 dirs=()
 while IFS= read -r -d '' file; do
 	dir=$(dirname "$file")
 	dirs+=("$dir")
-done < <(find "$root" -type f -name "*.go" -print0)
+done < <(find "$root" -mindepth 1 -type d -name ".*" -prune -o -type f -name "*.go" -print0)
 sorted_dirs=()
 while IFS= read -r dir; do
 	sorted_dirs+=("$dir")

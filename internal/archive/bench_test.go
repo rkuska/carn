@@ -107,8 +107,7 @@ func BenchmarkCollectFilesToSync(b *testing.B) {
 
 	backend := claude.New()
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		files, err := collectSyncCandidates(
 			context.Background(),
 			backend,
@@ -141,8 +140,7 @@ func BenchmarkStreamImportAnalysis(b *testing.B) {
 		source,
 	)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		analysis, err := pipeline.Analyze(context.Background(), nil)
 		if err != nil {
 			b.Fatalf("pipeline.Analyze: %v", err)

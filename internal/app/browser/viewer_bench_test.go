@@ -33,8 +33,7 @@ func BenchmarkViewerRenderContent(b *testing.B) {
 	session := benchViewerSession(200, false)
 	model := newViewerModel(session, singleSessionConversation(session.Meta), "dark", "2006-01-02 15:04", 140, 45)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		model = model.renderContent()
 	}
 }
@@ -44,8 +43,7 @@ func BenchmarkViewerSearch(b *testing.B) {
 	model := newViewerModel(session, singleSessionConversation(session.Meta), "dark", "2006-01-02 15:04", 140, 45)
 	model.searchQuery = "IMPORTANT_NEEDLE"
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		model = model.performSearch()
 	}
 }

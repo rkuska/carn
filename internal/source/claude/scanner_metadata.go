@@ -68,7 +68,7 @@ func accumulateRecordCounts(line []byte, recRole role, stats *scanStats) {
 		return
 	}
 	stats.total++
-	switch recRole {
+	switch recRole { //nolint:exhaustive // guarded above to user and assistant records
 	case roleUser:
 		stats.userCount++
 	case roleAssistant:

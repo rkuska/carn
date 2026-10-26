@@ -3,6 +3,7 @@ package conversation
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -17,9 +18,9 @@ func FormatPlan(p Plan) string {
 }
 
 func LastPlan(messages []Message) (Plan, bool) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		if n := len(messages[i].Plans); n > 0 {
-			return messages[i].Plans[n-1], true
+	for _, message := range slices.Backward(messages) {
+		if n := len(message.Plans); n > 0 {
+			return message.Plans[n-1], true
 		}
 	}
 	return Plan{}, false

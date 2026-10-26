@@ -50,7 +50,7 @@ None.
 | internal/app/elements/stats_turn_chart.go | source | 306 | 65 | 337 |
 | internal/source/claude/scanner_assistant.go | source | 305 | 65 | 337 |
 | internal/canonical/sqlite_store_persist.go | source | 328 | 64 | 354 |
-| internal/app/browser/viewer_render.go | source | 309 | 64 | 342 |
+| internal/app/browser/viewer_render.go | source | 310 | 64 | 343 |
 | internal/source/claude/drift.go | source | 255 | 64 | 290 |
 | internal/source/claude/scanner_metadata_parse.go | source | 175 | 62 | 196 |
 | internal/app/elements/stats_charts.go | source | 275 | 61 | 326 |
@@ -86,11 +86,11 @@ None.
 
 | Module | Source Files | Source Code | Source Complexity | Source Lines | Test Files | Test Code | Test Complexity | Test Lines |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| internal/source/claude | 33 | 4932 | 1097 | 5468 | 19 | 2570 | 76 | 2910 |
-| internal/canonical | 30 | 4688 | 964 | 5151 | 15 | 4099 | 164 | 4714 |
-| internal/app/browser | 40 | 5513 | 925 | 6240 | 27 | 5137 | 154 | 6241 |
+| internal/source/claude | 33 | 4932 | 1097 | 5468 | 19 | 2568 | 76 | 2908 |
+| internal/canonical | 30 | 4688 | 964 | 5151 | 15 | 4091 | 164 | 4706 |
+| internal/app/browser | 40 | 5514 | 925 | 6241 | 27 | 5131 | 154 | 6235 |
 | internal/source/codex | 35 | 4931 | 907 | 5503 | 12 | 2313 | 76 | 2574 |
-| internal/app/stats | 46 | 5577 | 745 | 6217 | 21 | 4389 | 61 | 5142 |
+| internal/app/stats | 46 | 5577 | 745 | 6217 | 21 | 4384 | 61 | 5137 |
 | internal/stats | 33 | 4900 | 672 | 5403 | 25 | 5073 | 117 | 5787 |
 
 ## Notes

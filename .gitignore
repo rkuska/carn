@@ -5,3 +5,8 @@ dist/
 *.test
 specs/
 .DS_Store
+
+# devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
