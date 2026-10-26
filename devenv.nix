@@ -13,8 +13,10 @@
     pkgs.gopls
   ];
 
-  # devenv puts GOPATH under .devenv, and Go makes its module cache
-  # read-only, which stops `rm -rf` and `git worktree remove` on the
-  # checkout.
-  env.GOFLAGS = "-modcacherw";
+  # devenv puts GOPATH under .devenv inside the checkout, where
+  # `-coverpkg=./...` counts the dependencies in its module cache as this
+  # module's code and the coverage gate fails. Use Go's default instead.
+  enterShell = ''
+    export GOPATH="$HOME/go"
+  '';
 }
