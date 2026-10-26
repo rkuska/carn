@@ -1,6 +1,9 @@
 package conversation
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 type Conversation struct {
 	Ref           Ref
@@ -109,8 +112,8 @@ func (c Conversation) Model() string {
 	if m := c.firstSession().Model; m != "" {
 		return m
 	}
-	for i := len(c.Sessions) - 1; i >= 0; i-- {
-		if m := c.Sessions[i].Model; m != "" {
+	for _, session := range slices.Backward(c.Sessions) {
+		if m := session.Model; m != "" {
 			return m
 		}
 	}
@@ -121,8 +124,8 @@ func (c Conversation) Version() string {
 	if v := c.latestPrimarySession().Version; v != "" {
 		return v
 	}
-	for i := len(c.Sessions) - 1; i >= 0; i-- {
-		if v := c.Sessions[i].Version; v != "" {
+	for _, session := range slices.Backward(c.Sessions) {
+		if v := session.Version; v != "" {
 			return v
 		}
 	}
@@ -151,9 +154,9 @@ func (c Conversation) latestPrimarySession() SessionMeta {
 	if len(c.Sessions) == 0 {
 		return SessionMeta{}
 	}
-	for i := len(c.Sessions) - 1; i >= 0; i-- {
-		if !c.Sessions[i].IsSubagent {
-			return c.Sessions[i]
+	for _, session := range slices.Backward(c.Sessions) {
+		if !session.IsSubagent {
+			return session
 		}
 	}
 	return c.Sessions[len(c.Sessions)-1]

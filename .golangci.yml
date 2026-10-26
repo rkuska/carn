@@ -38,6 +38,10 @@ linters:
     - cyclop
 
   settings:
+    goconst:
+      exclude-types:
+        - Call
+        - CompositeLit
     lll:
       line-length: 120
       tab-width: 1

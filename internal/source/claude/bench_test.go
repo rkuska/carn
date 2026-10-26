@@ -138,8 +138,7 @@ func BenchmarkCanonicalStoreScanSessions(b *testing.B) {
 	ctx := context.Background()
 	rawDir := makeBenchRawCorpus(b, 6, 60, 12)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		sessions, _, _, err := scanSessions(ctx, rawDir)
 		if err != nil {
 			b.Fatalf("scanSessions: %v", err)
@@ -157,8 +156,7 @@ func BenchmarkCanonicalStoreParseConversationWithSubagents(b *testing.B) {
 		b.Fatal("makeBenchConversations returned no conversations")
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		session, err := parseConversationWithSubagents(ctx, conversations[0])
 		if err != nil {
 			b.Fatalf("parseConversationWithSubagents: %v", err)

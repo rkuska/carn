@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -66,8 +67,8 @@ func (m viewerModel) footerItems() []helpItem {
 
 func insertAfterLastToggle(items []helpItem, item helpItem) []helpItem {
 	insertAt := len(items)
-	for i := len(items) - 1; i >= 0; i-- {
-		if items[i].Toggle {
+	for i, existing := range slices.Backward(items) {
+		if existing.Toggle {
 			insertAt = i + 1
 			break
 		}

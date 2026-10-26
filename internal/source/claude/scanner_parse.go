@@ -74,7 +74,7 @@ func parseAndIndexLine(
 	ctx context.Context,
 	pc *parseContext,
 ) (parsedMessage, bool) {
-	switch role(pc.rec.Type) {
+	switch role(pc.rec.Type) { //nolint:exhaustive // only user and assistant records are parsed here
 	case roleUser:
 		return parseParsedUserMessage(pc)
 	case roleAssistant:
