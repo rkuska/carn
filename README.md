@@ -289,6 +289,9 @@ The hook requires a clean working tree before commit because `go fix ./...`
 may rewrite tracked files. When it does, the hook stages those `go fix`
 changes before running lint and coverage.
 
+Without Go and the linters installed, `devenv.nix` provides them; commit
+with `devenv shell -- git commit` so the hook finds them.
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).
